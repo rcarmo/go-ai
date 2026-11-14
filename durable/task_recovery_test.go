@@ -127,7 +127,7 @@ func TestTaskRecoveryInvalidMigrationCachesDefinitionIdentityAndNoReadEffects(t 
 		if err := h.Resume(bg); err != nil {
 			t.Fatal(err)
 		}
-		_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+		_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 			id, err := tx.MintID()
 			if err != nil {
 				return err
@@ -262,7 +262,7 @@ func TestTaskRecoveryPoisonUnrelatedCommitRetainsActualJoin(t *testing.T) {
 		}
 		return nil
 	})
-	_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+	_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 		id, err := tx.MintID()
 		if err != nil {
 			return err
@@ -334,9 +334,9 @@ func TestTaskRecoveryMarkedBlockedMigrationOrphansSamePass(t *testing.T) {
 				}
 				// Admit the durable mark BEFORE enabling scheduling. No synthetic
 				// later Resume/Wait kick rescues a no-op failed resolution pass.
-				_, err = h.session.Commit(bg, func(tx *Tx) error {
+				_, err = h.session.Commit(bg, func(tx *Tx) (any, error) {
 					task := markTask(tx.state.Tasks[id])
-					return tx.stage(Write{Op: "put-task", Task: &task})
+					return nil, tx.stage(Write{Op: "put-task", Task: &task})
 				})
 				if err != nil {
 					t.Fatal(err)
@@ -716,7 +716,7 @@ func TestTaskRecoveryGenerationHeldReceiptFinalCleanup(t *testing.T) {
 				generationID = task.ID
 			}
 		}
-		_, err = h.CommitTasks(bg, conv.ID(), func(tx *Tx) error {
+		_, err = h.commitTasks(bg, conv.ID(), func(tx *Tx) error {
 			if _, err := tx.CreateTask(child, nil, TaskOptions{Ownership: TaskOwnership{Kind: "task", Task: generationID}}); err != nil {
 				return err
 			}
@@ -798,7 +798,7 @@ func TestTaskRecoverySchedulerGenerationOrphanNoFabricatedMessage(t *testing.T) 
 		var effects atomic.Int64
 		h := taskTestHarnessOptions(t, b.store, Options{Models: func(goai.Provider, string) *goai.Model { effects.Add(1); return nil }})
 		var taskID, subID ID
-		_, err := h.CommitTasks(bg, 1, func(tx *Tx) error {
+		_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 			if err := initializeBuiltins(tx, 1); err != nil {
 				return err
 			}
@@ -1042,9 +1042,9 @@ func TestTaskRecoveryCrashHelper(t *testing.T) {
 	}
 	id := createPublicTask(t, h, parent, []any{"input", nil}, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 	if strings.HasPrefix(stage, "abort-") {
-		_, err = h.session.Commit(bg, func(tx *Tx) error {
+		_, err = h.session.Commit(bg, func(tx *Tx) (any, error) {
 			task := markTask(tx.state.Tasks[id])
-			return tx.stage(Write{Op: "put-task", Task: &task})
+			return nil, tx.stage(Write{Op: "put-task", Task: &task})
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -1097,9 +1097,9 @@ func TestTaskRecoveryCrashHelper(t *testing.T) {
 				return original(kind, ordinal, high, payload)
 			})
 		}
-		_, err = h.session.Commit(bg, func(tx *Tx) error {
+		_, err = h.session.Commit(bg, func(tx *Tx) (any, error) {
 			task := markTask(tx.state.Tasks[id])
-			return tx.stage(Write{Op: "put-task", Task: &task})
+			return nil, tx.stage(Write{Op: "put-task", Task: &task})
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -1916,7 +1916,7 @@ func TestTaskRecoveryProvisionalReservationRollbackBeforeFrontierAdmission(t *te
 		awaitTaskSignal(t, callerEntered)
 		h.session.taskBookkeeping(func() { h.scheduler.enabled.Store(false) })
 		var parentID, childID ID
-		_, err := h.CommitTasks(bg, 1, func(tx *Tx) error {
+		_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 			var err error
 			parentID, err = tx.MintID()
 			if err != nil {
@@ -1938,7 +1938,7 @@ func TestTaskRecoveryProvisionalReservationRollbackBeforeFrontierAdmission(t *te
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+		_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 			parent, err := copyTask(tx.state.Tasks[parentID], tx.limits)
 			if err != nil {
 				return err
@@ -2606,7 +2606,7 @@ func TestTaskRecoveryRejectedSchedulerFaultRunAbortLaterWake(t *testing.T) {
 					cleanupTaskGates(t, release)
 					id := createPublicTask(t, h, def, JSON{"input": true}, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 					var docID ID
-					_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+					_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 						var err error
 						docID, err = tx.MintID()
 						if err != nil {
@@ -3002,7 +3002,7 @@ func TestTaskRecoveryCloseSealRejectsPublicNonterminalOrigins(t *testing.T) {
 					t.Fatal(err)
 				}
 				var subID ID
-				_, err = h.CommitTasks(bg, foreign.ID(), func(tx *Tx) error {
+				_, err = h.commitTasks(bg, foreign.ID(), func(tx *Tx) error {
 					var err error
 					subID, err = tx.MintID()
 					if err != nil {
@@ -3037,12 +3037,12 @@ func TestTaskRecoveryCloseSealRejectsPublicNonterminalOrigins(t *testing.T) {
 					case "configure":
 						err = foreign.Configure(bg, AgentChange{Model: ModelRef{model.Provider, model.ID}, SystemPrompt: "late"})
 					case "passive-commit":
-						_, err = foreign.Commit(bg, func(tx *Tx) error {
+						_, err = foreign.Commit(bg, func(tx *Tx) (any, error) {
 							id, err := tx.MintID()
 							if err != nil {
-								return err
+								return nil, err
 							}
-							return tx.AppendEntry(Entry{ID: id, Conversation: foreign.ID(), Kind: "app.late", Value: JSON{}})
+							return nil, tx.AppendEntry(Entry{ID: id, Conversation: foreign.ID(), Kind: "app.late", Value: JSON{}})
 						})
 					case "withdraw":
 						err = (&SubmissionHandle{h: h, id: subID}).Withdraw(bg)
@@ -3154,7 +3154,7 @@ func TestTaskRecoveryQueuedWithdrawalOwnedChildDefersSettlement(t *testing.T) {
 		rootHandle := root(t, h, ModelRef{model.Provider, model.ID})
 		ownerID := createPublicTask(t, h, owner, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 		var foreign ID
-		_, err := h.CommitTasks(bg, 1, func(tx *Tx) error {
+		_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 			var err error
 			foreign, err = tx.MintID()
 			if err != nil {
@@ -3173,7 +3173,7 @@ func TestTaskRecoveryQueuedWithdrawalOwnedChildDefersSettlement(t *testing.T) {
 		// supplemental task descendant is admitted before any provider effect.
 		h.session.taskBookkeeping(func() { h.scheduler.enabled.Store(false) })
 		var subID, queuedGeneration ID
-		_, err = h.CommitTasks(bg, foreign, func(tx *Tx) error {
+		_, err = h.commitTasks(bg, foreign, func(tx *Tx) error {
 			var err error
 			subID, err = tx.MintID()
 			if err != nil {
@@ -3214,7 +3214,7 @@ func TestTaskRecoveryQueuedWithdrawalOwnedChildDefersSettlement(t *testing.T) {
 			}
 		}
 		var childID ID
-		_, err = h.CommitTasks(bg, foreign, func(tx *Tx) error {
+		_, err = h.commitTasks(bg, foreign, func(tx *Tx) error {
 			var err error
 			childID, err = tx.CreateTask(child, nil, TaskOptions{Ownership: TaskOwnership{Kind: "task", Task: generationID}})
 			return err
@@ -3249,7 +3249,7 @@ func TestTaskRecoveryQueuedWithdrawalOwnedChildDefersSettlement(t *testing.T) {
 			t.Fatal(err)
 		}
 		var ownID ID
-		_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+		_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 			var err error
 			ownID, err = tx.MintID()
 			if err != nil {
@@ -3262,7 +3262,7 @@ func TestTaskRecoveryQueuedWithdrawalOwnedChildDefersSettlement(t *testing.T) {
 		}
 		own := &SubmissionHandle{h: h, id: ownID}
 		_ = rootHandle
-		_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+		_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 			task := markTask(tx.state.Tasks[ownerID])
 			return tx.stage(Write{Op: "put-task", Task: &task})
 		})
@@ -3447,7 +3447,7 @@ func TestTaskRecoveryBuiltinPredispatchAncestorCancellation(t *testing.T) {
 				cleanupTaskGates(t, release)
 				conv := root(t, h, ModelRef{model.Provider, model.ID})
 				var ownerID, generationID, toolID, subID ID
-				_, err := h.CommitTasks(bg, 1, func(tx *Tx) error {
+				_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 					var err error
 					ownerID, err = tx.MintID()
 					if err != nil {
@@ -3538,7 +3538,7 @@ func TestTaskRecoveryBuiltinPredispatchAncestorCancellation(t *testing.T) {
 					})
 					h.session.taskBookkeeping(func() { h.scheduler.enabled.Store(false) })
 				}
-				_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+				_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 					task := markTask(tx.state.Tasks[ownerID])
 					return tx.stage(Write{Op: "put-task", Task: &task})
 				})
@@ -3828,7 +3828,7 @@ func TestTaskRecoveryGenerationDecidingFinalFailureMatrix(t *testing.T) {
 							generation = task.ID
 						}
 					}
-					_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+					_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 						if _, err := tx.CreateTask(child, nil, TaskOptions{Ownership: TaskOwnership{Kind: "task", Task: generation}}); err != nil {
 							return err
 						}
@@ -4281,7 +4281,7 @@ func TestTaskRecoveryLateOwnedConversationEdgesHeldFailureOrMark(t *testing.T) {
 				cleanupTaskGates(t, releaseAbort)
 				ownerID := createPublicTask(t, h, owner, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 				var conversation, oldChild, lateChild ID
-				_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+				_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 					var err error
 					conversation, err = tx.MintID()
 					if err != nil {
@@ -4292,7 +4292,7 @@ func TestTaskRecoveryLateOwnedConversationEdgesHeldFailureOrMark(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				_, err = h.CommitTasks(bg, conversation, func(tx *Tx) error {
+				_, err = h.commitTasks(bg, conversation, func(tx *Tx) error {
 					var err error
 					oldChild, err = tx.CreateTask(child, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 					return err
@@ -4300,7 +4300,7 @@ func TestTaskRecoveryLateOwnedConversationEdgesHeldFailureOrMark(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+				_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 					task, err := copyTask(tx.state.Tasks[ownerID], tx.limits)
 					if err != nil {
 						return err
@@ -4323,7 +4323,7 @@ func TestTaskRecoveryLateOwnedConversationEdgesHeldFailureOrMark(t *testing.T) {
 				if runs.Load() != 0 || childAborts.Load() != 0 {
 					t.Fatal("Open executed cascade")
 				}
-				_, err = second.CommitTasks(bg, conversation, func(tx *Tx) error {
+				_, err = second.commitTasks(bg, conversation, func(tx *Tx) error {
 					var err error
 					lateChild, err = tx.CreateTask(child, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 					return err
@@ -4354,7 +4354,7 @@ func TestTaskRecoveryLateOwnedConversationEdgesHeldFailureOrMark(t *testing.T) {
 				// Retained terminal owner is a lookup/idle edge, not a cancellation
 				// mandate for later admission in its already-existing conversation.
 				var afterTerminal ID
-				_, err = second.CommitTasks(bg, conversation, func(tx *Tx) error {
+				_, err = second.commitTasks(bg, conversation, func(tx *Tx) error {
 					var err error
 					afterTerminal, err = tx.CreateTask(child, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 					return err
@@ -4406,7 +4406,7 @@ func TestTaskRecoveryRejectedLateEdgeCascadeNeedsGenuineWake(t *testing.T) {
 		first := taskTestHarness(t, b.store, owner, child)
 		ownerID := createPublicTask(t, first, owner, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 		var conversation, childID ID
-		_, err = first.CommitTasks(bg, 1, func(tx *Tx) error {
+		_, err = first.commitTasks(bg, 1, func(tx *Tx) error {
 			var err error
 			conversation, err = tx.MintID()
 			if err != nil {
@@ -4417,7 +4417,7 @@ func TestTaskRecoveryRejectedLateEdgeCascadeNeedsGenuineWake(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = first.CommitTasks(bg, conversation, func(tx *Tx) error {
+		_, err = first.commitTasks(bg, conversation, func(tx *Tx) error {
 			var err error
 			childID, err = tx.CreateTask(child, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 			return err
@@ -4425,7 +4425,7 @@ func TestTaskRecoveryRejectedLateEdgeCascadeNeedsGenuineWake(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = first.CommitTasks(bg, 1, func(tx *Tx) error {
+		_, err = first.commitTasks(bg, 1, func(tx *Tx) error {
 			task, err := copyTask(tx.state.Tasks[ownerID], tx.limits)
 			if err != nil {
 				return err
@@ -4868,7 +4868,7 @@ func TestTaskRecoveryRejectedCascadeExactOwnerVariants(t *testing.T) {
 				cleanupTaskGates(t, releaseOwner, releaseChild, releaseAbort, decideFailure)
 				ownerID := createPublicTask(t, first, owner, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 				var conversation, childID, drained ID
-				_, err = first.CommitTasks(bg, 1, func(tx *Tx) error {
+				_, err = first.commitTasks(bg, 1, func(tx *Tx) error {
 					var err error
 					conversation, err = tx.MintID()
 					if err != nil {
@@ -4880,7 +4880,7 @@ func TestTaskRecoveryRejectedCascadeExactOwnerVariants(t *testing.T) {
 					t.Fatal(err)
 				}
 				if scenario == "reopened-marked-empty-new-latechild" {
-					_, err = first.CommitTasks(bg, conversation, func(tx *Tx) error {
+					_, err = first.commitTasks(bg, conversation, func(tx *Tx) error {
 						var err error
 						drained, err = tx.CreateTask(finished, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 						return err
@@ -4889,7 +4889,7 @@ func TestTaskRecoveryRejectedCascadeExactOwnerVariants(t *testing.T) {
 						t.Fatal(err)
 					}
 				} else {
-					_, err = first.CommitTasks(bg, conversation, func(tx *Tx) error {
+					_, err = first.commitTasks(bg, conversation, func(tx *Tx) error {
 						var err error
 						childID, err = tx.CreateTask(child, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 						return err
@@ -4974,7 +4974,7 @@ func TestTaskRecoveryRejectedCascadeExactOwnerVariants(t *testing.T) {
 					if err != nil || !taskAborted(opened.Tasks[ownerID]) || len(taskOwnedLive(opened, ownerID)) != 0 || ordinaryRuns.Load() != 0 {
 						t.Fatal("reopened marked empty prefix", err)
 					}
-					_, err = h.CommitTasks(bg, conversation, func(tx *Tx) error {
+					_, err = h.commitTasks(bg, conversation, func(tx *Tx) error {
 						var err error
 						childID, err = tx.CreateTask(child, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 						return err
@@ -5805,7 +5805,7 @@ func TestTaskRecoverySelectedAncestorBuiltinDispatchGuards(t *testing.T) {
 				f := createPublicTask(t, h, control, nil, TaskOptions{Ownership: TaskOwnership{Kind: "task", Task: p}})
 				s := createPublicTask(t, h, control, nil, TaskOptions{Ownership: TaskOwnership{Kind: "task", Task: p}})
 				var generation, tool, sub ID
-				_, err := h.CommitTasks(bg, 1, func(tx *Tx) error {
+				_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 					var err error
 					sub, err = tx.MintID()
 					if err != nil {
@@ -5897,7 +5897,7 @@ func TestTaskRecoverySelectedAncestorBuiltinDispatchGuards(t *testing.T) {
 					go h.scheduler.run(picked)
 					awaitTaskSignal(t, entered)
 				}
-				_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+				_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 					failed, err := copyTask(tx.state.Tasks[f], tx.limits)
 					if err != nil {
 						return err
@@ -6499,7 +6499,7 @@ func TestTaskRecoveryOrderedToolContinuationAdmissionCloseAndLateOwnedWork(t *te
 				if oldParent != nil {
 					awaitTaskSignal(t, oldParent.done)
 				}
-				_, err = first.CommitTasks(bg, conversation.ID(), func(tx *Tx) error {
+				_, err = first.commitTasks(bg, conversation.ID(), func(tx *Tx) error {
 					var err error
 					ownedConversation, err = tx.MintID()
 					if err != nil {
@@ -6628,7 +6628,7 @@ func TestTaskRecoveryOrderedToolContinuationAdmissionCloseAndLateOwnedWork(t *te
 					// This covers late work AFTER reservation, not a post-offline
 					// snapshot race (that separate placement stays unassigned).
 					var late ID
-					_, err = first.CommitTasks(bg, ownedConversation, func(tx *Tx) error {
+					_, err = first.commitTasks(bg, ownedConversation, func(tx *Tx) error {
 						var err error
 						late, err = tx.CreateTask(child, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 						return err
@@ -6726,7 +6726,7 @@ func TestTaskRecoveryPublicBlockedAbortDirectReturnRetiresDocuments(t *testing.T
 				id := createPublicTask(t, h, definition, JSON{"kept": "input"}, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 				foreign := createPublicTask(t, h, definition, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 				var document ID
-				_, err := h.CommitTasks(bg, 1, func(tx *Tx) error {
+				_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 					var err error
 					document, err = tx.MintID()
 					if err != nil {
@@ -6753,7 +6753,7 @@ func TestTaskRecoveryPublicBlockedAbortDirectReturnRetiresDocuments(t *testing.T
 					options.Version = 2
 					if variant == "too-old" {
 						options.Version = 1
-						_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+						_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 							task, err := copyTask(tx.state.Tasks[id], tx.limits)
 							if err != nil {
 								return err
@@ -6788,7 +6788,7 @@ func TestTaskRecoveryPublicBlockedAbortDirectReturnRetiresDocuments(t *testing.T
 					// Fail migration through the actual reservation resolver, never
 					// invoke it from AbortTask. Clear foreign wait temporarily so the
 					// reservation is eligible for resolution but still runs no host.
-					_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+					_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 						task, err := copyTask(tx.state.Tasks[id], tx.limits)
 						if err != nil {
 							return err
@@ -6806,7 +6806,7 @@ func TestTaskRecoveryPublicBlockedAbortDirectReturnRetiresDocuments(t *testing.T
 					if err != nil || len(reserved) != 0 || migrations.Load() != 1 {
 						t.Fatal("actual failed migration cache", err, migrations.Load())
 					}
-					_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+					_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 						task, err := copyTask(tx.state.Tasks[id], tx.limits)
 						if err != nil {
 							return err
@@ -6933,7 +6933,7 @@ func TestTaskRecoveryPublicBlockedAbortPreservesHeldAndOwnedActualJoin(t *testin
 					}
 					awaitTaskSignal(t, entered)
 				} else {
-					_, err := h.CommitTasks(bg, 1, func(tx *Tx) error {
+					_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 						task, err := copyTask(tx.state.Tasks[id], tx.limits)
 						if err != nil {
 							return err
@@ -7051,7 +7051,7 @@ func TestTaskRecoveryPublicBlockedAbortUnregisteredOwnerWaitsForFreshOwnedAbortH
 		ownerID := createPublicTask(t, h, owner, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 		childID := createPublicTask(t, h, child, nil, TaskOptions{Ownership: TaskOwnership{Kind: "task", Task: ownerID}})
 		var ownerDoc ID
-		_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+		_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 			var err error
 			ownerDoc, err = tx.MintID()
 			if err != nil {

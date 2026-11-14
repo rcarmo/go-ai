@@ -735,3 +735,10 @@ it("retains empty image block strings and rejects missing fields in the original
  for(const input of [null,[],"not-array",[null],[{type:"text"}],[{type:"text",text:null}],[{type:"image",data:""}],[{type:"image",data:null,mimeType:""}],[{type:"other",text:""}]])await expect(tool.execute({model:{provider:"presence",id:"painter"},context:{input}},{models} as any,context)).rejects.toThrow();
  expect(seen).toHaveLength(1);
 });
+
+it("returns callback values and arbitrary host identity from the original Session commit",async()=>{
+ const session=new SessionImpl(new ControlledStorage(),Date.now,()=>600000);const marker:any={call:()=>"host identity"};marker.self=marker;
+ for(const value of [undefined,null,false,0,"","callback result",marker])expect(await session.commit(()=>value,context)).toBe(value);
+ const failure={callback:"failure"};await expect(session.commit(()=>{throw failure},context)).rejects.toBe(failure);
+ expect(await session.commit(()=>"still usable",context)).toBe("still usable");await session.close(context);
+});

@@ -29,7 +29,10 @@ func holdUpstreamSession(t *testing.T, s *Session) (func(), <-chan error) {
 	var once sync.Once
 	unblock := func() { once.Do(func() { close(release) }) }
 	t.Cleanup(unblock)
-	go func() { _, err := s.Commit(bg, func(*Tx) error { close(entered); <-release; return nil }); done <- err }()
+	go func() {
+		_, err := s.Commit(bg, func(*Tx) (any, error) { close(entered); <-release; return nil, nil })
+		done <- err
+	}()
 	watchReceive(t, entered)
 	return unblock, done
 }

@@ -25,7 +25,7 @@ func TestTaskOwnershipPinnedTerminalOrdinaryOwnerDoesNotRecascadeNewConversation
 		cleanupTaskGates(t, release)
 		ownerID := createPublicTask(t, h, owner, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 		var owned ID
-		_, err := h.CommitTasks(bg, 1, func(tx *Tx) error {
+		_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 			var err error
 			owned, err = tx.MintID()
 			if err != nil {
@@ -43,7 +43,7 @@ func TestTaskOwnershipPinnedTerminalOrdinaryOwnerDoesNotRecascadeNewConversation
 			t.Fatal(final)
 		}
 		var childID ID
-		_, err = h.CommitTasks(bg, owned, func(tx *Tx) error {
+		_, err = h.commitTasks(bg, owned, func(tx *Tx) error {
 			var err error
 			childID, err = tx.CreateTask(child, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 			return err

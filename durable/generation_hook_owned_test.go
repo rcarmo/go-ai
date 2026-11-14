@@ -127,12 +127,12 @@ func TestGenerationAfterToolsHookOwnsWorkAndLateEventsDoNotRepeatTurnEnd(t *test
 				releaseTaskGate(release)
 				waitPublicTask(t, h, ownerID)
 				// A committed marker witnesses both serial observers after final cleanup.
-				if _, err := h.Commit(bg, func(tx *Tx) error {
+				if _, err := h.Commit(bg, func(tx *Tx) (any, error) {
 					id, err := tx.MintID()
 					if err != nil {
-						return err
+						return nil, err
 					}
-					return tx.AppendEntry(Entry{ID: id, Conversation: conversation.ID(), Kind: "app.events.barrier", Value: JSON{}})
+					return nil, tx.AppendEntry(Entry{ID: id, Conversation: conversation.ID(), Kind: "app.events.barrier", Value: JSON{}})
 				}); err != nil {
 					t.Fatal(err)
 				}

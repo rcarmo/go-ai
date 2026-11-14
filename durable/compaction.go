@@ -58,7 +58,7 @@ func (c *ConversationHandle) Compact(ctx context.Context, instructions *string) 
 		return 0, reject("compaction adapter unavailable")
 	}
 	var id ID
-	_, err = h.CommitTasks(ctx, c.id, func(tx *Tx) error {
+	_, err = h.commitTasks(ctx, c.id, func(tx *Tx) error {
 		input, err := dtoObject(CompactionInput{Reason: "manual", Instructions: instructions}, tx.limits)
 		if err != nil {
 			return err

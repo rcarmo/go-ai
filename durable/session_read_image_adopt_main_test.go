@@ -22,12 +22,12 @@ func TestMainSessionReadImageGapFailsClosed(t *testing.T) {
 		// A writer cannot skip the unpublished prefix merely by appending a
 		// new legacy job. The global baseline gate now rejects before storage;
 		// the existing adoption fence remains a second boundary.
-		_, err = s.Commit(bg, func(tx *Tx) error {
+		_, err = s.Commit(bg, func(tx *Tx) (any, error) {
 			id, err := tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "gap", Value: JSON{}})
+			return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "gap", Value: JSON{}})
 		})
 		var failed *SessionFailed
 		if err == nil || !errors.As(s.failure(), &failed) || failed.Cause != err {
@@ -105,9 +105,14 @@ func TestMainSessionReadImageAdoptsOnlyReceiptedPrefix(t *testing.T) {
 		if err != nil || id <= ids[1] {
 			t.Fatal("allocator lost reservations", id, err)
 		}
-		seq, err := s.Commit(bg, func(tx *Tx) error {
-			return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "after", Value: JSON{}})
+		value, err := s.Commit(bg, func(tx *Tx) (any, error) {
+			return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "after", Value: JSON{}})
 		})
+		if err != nil || value != nil {
+			t.Fatal(value, err)
+		}
+		image, err := s.Snapshot(bg)
+		seq := image.Seq
 		if err != nil || seq != 4 {
 			t.Fatalf("legacy commit seq=%d err=%v", seq, err)
 		}

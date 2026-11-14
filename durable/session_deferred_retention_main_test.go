@@ -16,7 +16,7 @@ func TestMainSessionDeferredRetentionZeroOwnedValue(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		f := openMainDeadlineSession(t, b, nil, 0)
 		old, _ := mainDeferredLifecycleDefinitions(t)
-		if _, err := f.session.Commit(bg, func(*Tx) error { return nil }); err != nil {
+		if _, err := f.session.Commit(bg, func(*Tx) (any, error) { return nil, nil }); err != nil {
 			t.Fatal(err)
 		}
 		f.session.taskBookkeeping(func() {
@@ -26,7 +26,7 @@ func TestMainSessionDeferredRetentionZeroOwnedValue(t *testing.T) {
 		})
 		before := mainDeferredSnapshot(t, b.store).Seq
 		mainDeferredLifecycleAppend(t, f.session, old, 1, "held")
-		if _, err := f.session.Commit(bg, func(*Tx) error { return nil }); err != nil {
+		if _, err := f.session.Commit(bg, func(*Tx) (any, error) { return nil, nil }); err != nil {
 			t.Fatal(err)
 		}
 		if value, ok, err := detachedDefinitionSnapshot(f.session, bg, old, 1, nil); err != nil || !ok || !equalJSONValue(value, JSON{"text": "held"}) {
@@ -44,7 +44,7 @@ func TestMainSessionDeferredRetentionZeroOwnedValue(t *testing.T) {
 			t.Fatal("retention cleanup stored hold early", raw)
 		}
 		f.fire(t)
-		if _, err := f.session.Commit(bg, func(*Tx) error { return nil }); err != nil {
+		if _, err := f.session.Commit(bg, func(*Tx) (any, error) { return nil, nil }); err != nil {
 			t.Fatal(err)
 		}
 		f.session.taskBookkeeping(func() {
@@ -82,7 +82,7 @@ func TestMainSessionDeferredHeldOverlayLifetime(t *testing.T) {
 					}
 				}
 				f.fire(t)
-				if _, err := f.session.Commit(bg, func(*Tx) error { return nil }); err != nil {
+				if _, err := f.session.Commit(bg, func(*Tx) (any, error) { return nil, nil }); err != nil {
 					t.Fatal(err)
 				}
 				// Source clears its recorded stored/observed arrays. Native stored

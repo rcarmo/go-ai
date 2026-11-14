@@ -14,25 +14,25 @@ func (c *ConversationHandle) Reset(ctx context.Context, text string) error {
 	if h.closing.Load() {
 		return ErrClosed
 	}
-	_, err := h.session.Commit(ctx, func(tx *Tx) error {
+	_, err := h.session.Commit(ctx, func(tx *Tx) (any, error) {
 		if err := tx.touchKeys(ALL_KEYS); err != nil {
-			return err
+			return nil, err
 		}
 		if h.closing.Load() {
-			return ErrClosed
+			return nil, ErrClosed
 		}
 		if _, ok := tx.state.Conversations[c.id]; !ok {
-			return reject("unknown conversation")
+			return nil, reject("unknown conversation")
 		}
 		busy := h.conversationGenerationBusy(tx.state, c.id)
 		if !busy {
-			return appendReset(tx, c.id, text)
+			return nil, appendReset(tx, c.id, text)
 		}
 		inbox, err := builtin(tx, c.id, "pi.inbox")
 		if err != nil {
-			return err
+			return nil, err
 		}
-		return inbox.Update(func(value JSON) error {
+		return nil, inbox.Update(func(value JSON) error {
 			items, ok := value["items"].([]any)
 			if !ok {
 				return reject("inbox shape")

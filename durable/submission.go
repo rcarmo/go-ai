@@ -179,10 +179,10 @@ func (c *ConversationHandle) submitOnLine(ctx context.Context, input Input, bind
 	h := c.h
 	var subID ID
 	var dedup *SubmissionRecord
-	_, e := h.session.Commit(ctx, func(tx *Tx) error {
+	_, e := h.session.Commit(ctx, func(tx *Tx) (any, error) {
 		var err error
 		subID, dedup, err = c.admitSubmission(ctx, tx, input, binding)
-		return err
+		return nil, err
 	})
 	if e != nil {
 		return nil, e
@@ -655,19 +655,19 @@ func (s *SubmissionHandle) Withdraw(ctx context.Context) error {
 	if h.closing.Load() {
 		return ErrClosed
 	}
-	_, e := h.session.Commit(ctx, func(tx *Tx) error {
+	_, e := h.session.Commit(ctx, func(tx *Tx) (any, error) {
 		if err := tx.touchKeys(ALL_KEYS); err != nil {
-			return err
+			return nil, err
 		}
 		if h.closing.Load() {
-			return ErrClosed
+			return nil, ErrClosed
 		}
 		sub, ok := tx.state.Submissions[s.id]
 		if !ok {
-			return reject("unknown submission")
+			return nil, reject("unknown submission")
 		}
 		if terminalStatus(sub.Status) {
-			return nil
+			return nil, nil
 		}
 		var task Task
 		found := false
@@ -677,20 +677,20 @@ func (s *SubmissionHandle) Withdraw(ctx context.Context) error {
 			}
 			var cp generationCheckpoint
 			if e := fromObject(t.Checkpoint, &cp, h.session.limits); e != nil {
-				return e
+				return nil, e
 			}
 			if cp.Submission == s.id {
 				if cp.Phase != "queued" || cp.InputEntry != 0 {
-					return reject("submission already placed")
+					return nil, reject("submission already placed")
 				}
 				if len(h.scheduler.ownedLive(tx.state, t.ID)) > 0 {
-					return reject("queued submission owns live work; abort its conversation")
+					return nil, reject("queued submission owns live work; abort its conversation")
 				}
 				task = t
 				cp.Phase = "terminal"
 				value, e := dtoObject(cp, h.session.limits)
 				if e != nil {
-					return e
+					return nil, e
 				}
 				task.Checkpoint = value
 				task.Status = "aborted"
@@ -699,25 +699,25 @@ func (s *SubmissionHandle) Withdraw(ctx context.Context) error {
 			}
 		}
 		if !found {
-			return reject("queued task unavailable")
+			return nil, reject("queued task unavailable")
 		}
 		if tx.taskTerminals == nil {
 			tx.taskTerminals = map[ID]bool{}
 		}
 		tx.taskTerminals[task.ID] = true
 		if e := tx.PutTask(task); e != nil {
-			return e
+			return nil, e
 		}
 		sub.Status = "aborted"
 		sub.Value = JSON{"errorCode": "withdrawn"}
 		if e := tx.PutSubmission(sub); e != nil {
-			return e
+			return nil, e
 		}
 		inbox, e := builtin(tx, sub.Conversation, "pi.inbox")
 		if e != nil {
-			return e
+			return nil, e
 		}
-		return inbox.Update(func(v JSON) error {
+		return nil, inbox.Update(func(v JSON) error {
 			items, ok := v["items"].([]any)
 			if !ok {
 				return reject("inbox shape")

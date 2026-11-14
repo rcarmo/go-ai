@@ -185,10 +185,10 @@ func TestMainCutoffBeforeRegistrySnapshotDerived(t *testing.T) {
 		limit := uint64(1)
 		h := taskTestHarnessOptions(t, b.store, Options{Settings: &HarnessSettings{RestartLimit: &limit}}, def)
 		id := createPublicTask(t, h, def, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
-		if _, err := h.session.Commit(bg, func(tx *Tx) error {
+		if _, err := h.session.Commit(bg, func(tx *Tx) (any, error) {
 			task := tx.state.Tasks[id]
 			task.Restarts = 1
-			return tx.stage(Write{Op: "put-task", Task: &task})
+			return nil, tx.stage(Write{Op: "put-task", Task: &task})
 		}); err != nil {
 			t.Fatal(err)
 		}

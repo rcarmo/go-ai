@@ -301,11 +301,24 @@ func (s *Session) MintID(ctx context.Context) (ID, error) {
 	return id, s.backendResult(ctx, err, true)
 }
 
-// Commit seals every escaped handle after callback return, including panic. A
-// canceled preparation may reject before admission; afterwards the writer
-// completes adopt-or-poison off the admission line.
-func (s *Session) Commit(ctx context.Context, callback func(*Tx) error) (uint64, error) {
-	return s.commit(ctx, callback, true, 0)
+// Commit returns the callback's value after stored publication. It seals every
+// escaped handle after callback return, including panic. A canceled preparation
+// may reject before admission; afterwards the writer completes adopt-or-poison
+// off the admission line. Callback results are host values, not persisted JSON.
+func (s *Session) Commit(ctx context.Context, callback func(*Tx) (any, error)) (any, error) {
+	if callback == nil {
+		return nil, reject("nil transaction callback")
+	}
+	var value any
+	_, err := s.commit(ctx, func(tx *Tx) error {
+		var callbackErr error
+		value, callbackErr = callback(tx)
+		return callbackErr
+	}, true, 0)
+	if err != nil {
+		return nil, err
+	}
+	return value, nil
 }
 
 func (s *Session) commitInternal(ctx context.Context, callback func(*Tx) error) (uint64, error) {

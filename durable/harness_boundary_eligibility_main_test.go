@@ -38,26 +38,26 @@ func mainEligibilityHarness(t *testing.T, b sqliteFixture, owned bool, settings 
 		t.Fatal(err)
 	}
 	var conversation, parent ID
-	if _, err := plainSession.Commit(bg, func(tx *Tx) error {
+	if _, err := plainSession.Commit(bg, func(tx *Tx) (any, error) {
 		if owned {
 			ownerConversation, err := tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if err := tx.CreateConversation(Conversation{ID: ownerConversation}); err != nil {
-				return err
+				return nil, err
 			}
 			parent, err = tx.CreateTask(definition, nil, TaskOptions{Conversation: ownerConversation, Ownership: TaskOwnership{Kind: "conversation"}})
 			if err != nil {
-				return err
+				return nil, err
 			}
 		}
 		var err error
 		conversation, err = tx.MintID()
 		if err != nil {
-			return err
+			return nil, err
 		}
-		return tx.CreateConversation(Conversation{ID: conversation, Owner: parent})
+		return nil, tx.CreateConversation(Conversation{ID: conversation, Owner: parent})
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -132,18 +132,18 @@ func mainEligibilityProbe(t *testing.T, h *Harness, probe func(*Tx, Snapshot) er
 	}
 	refusal := errors.New("discard inspected eligibility candidate")
 	visited := false
-	seq, err := h.session.Commit(bg, func(tx *Tx) error {
+	value, err := h.session.Commit(bg, func(tx *Tx) (any, error) {
 		if len(h.scheduler.invocations) != 0 || !h.scheduler.sealed.Load() {
 			t.Fatal("native invariant requires scheduling sealed before any invocation")
 		}
 		if err := probe(tx, before); err != nil {
-			return err
+			return nil, err
 		}
 		visited = true
-		return refusal
+		return nil, refusal
 	})
-	if !visited || seq != 0 || !errors.Is(err, refusal) {
-		t.Fatal("boundary probe did not reach its deliberate rejection", visited, seq, err)
+	if !visited || value != nil || !errors.Is(err, refusal) {
+		t.Fatal("boundary probe did not reach its deliberate rejection", visited, value, err)
 	}
 	for _, read := range []func(context.Context) (Snapshot, error){h.Snapshot, h.session.store.Snapshot} {
 		after, err := read(bg)
@@ -184,19 +184,19 @@ func TestMainBoundaryEligibilityInheritedCancellationBeforePlacement(t *testing.
 						t.Fatal("real B admission", err)
 					}
 					// Explicit end-boundary and adopted-parent-mark controls only.
-					if _, err := h.session.Commit(bg, func(tx *Tx) error {
+					if _, err := h.session.Commit(bg, func(tx *Tx) (any, error) {
 						live, err := builtin(tx, c.ID(), "pi.live")
 						if err != nil {
-							return err
+							return nil, err
 						}
 						if err := live.Update(func(value JSON) error { delete(value, "run"); return nil }); err != nil {
-							return err
+							return nil, err
 						}
 						if marked {
 							task := markTask(tx.state.Tasks[parent])
-							return tx.stage(Write{Op: "put-task", Task: &task})
+							return nil, tx.stage(Write{Op: "put-task", Task: &task})
 						}
-						return nil
+						return nil, nil
 					}); err != nil {
 						t.Fatal("prepare native ownership control", err)
 					}
@@ -278,12 +278,12 @@ func TestMainBoundaryEligibilityAbsentAgentHostAllModes(t *testing.T) {
 			}
 			queued = append(queued, sub)
 		}
-		if _, err := h.session.Commit(bg, func(tx *Tx) error {
+		if _, err := h.session.Commit(bg, func(tx *Tx) (any, error) {
 			live, err := builtin(tx, c.ID(), "pi.live")
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return live.Update(func(value JSON) error { delete(value, "run"); return nil })
+			return nil, live.Update(func(value JSON) error { delete(value, "run"); return nil })
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -485,7 +485,7 @@ func TestMainBoundaryEligibilityLocallyDecidedFailFast(t *testing.T) {
 						c := root(t, h, ref)
 						h.scheduler.sealed.Store(true)
 						var waiterID ID
-						if _, err := h.CommitTasks(bg, c.ID(), func(tx *Tx) error {
+						if _, err := h.commitTasks(bg, c.ID(), func(tx *Tx) error {
 							var err error
 							waiterID, err = tx.CreateTask(waiter, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 							return err
@@ -496,13 +496,13 @@ func TestMainBoundaryEligibilityLocallyDecidedFailFast(t *testing.T) {
 						if err != nil {
 							t.Fatal(err)
 						}
-						if _, err := h.session.Commit(bg, func(tx *Tx) error {
+						if _, err := h.session.Commit(bg, func(tx *Tx) (any, error) {
 							task, _ := mainEligibilityTask(t, tx.state, a.ID(), tx.limits)
 							if task.Execution != nil || len(h.scheduler.invocations) != 0 {
-								return errors.New("A ownership must precede every dispatch")
+								return nil, errors.New("A ownership must precede every dispatch")
 							}
 							task.Owner = waiterID
-							return tx.stage(Write{Op: "put-task", Task: &task})
+							return nil, tx.stage(Write{Op: "put-task", Task: &task})
 						}); err != nil {
 							t.Fatal(err)
 						}
@@ -512,7 +512,7 @@ func TestMainBoundaryEligibilityLocallyDecidedFailFast(t *testing.T) {
 						}
 						awaitTaskSignal(t, aEntered)
 						if held {
-							if _, err := h.CommitTasks(bg, c.ID(), func(tx *Tx) error {
+							if _, err := h.commitTasks(bg, c.ID(), func(tx *Tx) error {
 								aTask, _ := mainEligibilityTask(t, tx.state, a.ID(), tx.limits)
 								_, err := tx.CreateTask(child, nil, TaskOptions{Ownership: TaskOwnership{Kind: "task", Task: aTask.ID}})
 								return err

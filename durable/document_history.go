@@ -415,58 +415,58 @@ func (c *ConversationHandle) fork(ctx context.Context, at ID, change *AgentChang
 		return nil, ErrClosed
 	}
 	var child Conversation
-	_, err := h.session.Commit(ctx, func(tx *Tx) error {
+	_, err := h.session.Commit(ctx, func(tx *Tx) (any, error) {
 		if err := tx.touchKeys(ALL_KEYS); err != nil {
-			return err
+			return nil, err
 		}
 		if !entryVisible(tx.state, c.id, at) {
-			return reject("fork entry is not visible from parent")
+			return nil, reject("fork entry is not visible from parent")
 		}
 		entry := tx.state.Entries[at]
 		// Old M1 agent metadata has latest-only semantics. Refuse unprovable
 		// historical agent selection instead of substituting current settings.
 		for _, d := range tx.state.Documents {
 			if d.Scope == "conversation" && d.Owner == entry.Conversation && d.Kind == "pi.agent" && documentHistory(d) != "rewindable" {
-				return reject("historical agent requires retained rewindable history")
+				return nil, reject("historical agent requires retained rewindable history")
 			}
 		}
 		var err error
 		child, err = tx.ForkConversation(c.id, at, 0)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if err := initializeBuiltins(tx, child.ID); err != nil {
-			return err
+			return nil, err
 		}
 		if change != nil {
 			state, err := h.agent(*change)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			value, err := dtoObject(state, tx.limits)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			candidate, err := tx.current()
 			if err != nil {
-				return err
+				return nil, err
 			}
 			doc, ok := agentDocument(candidate, child.ID)
 			if !ok {
-				return reject("fork agent unavailable")
+				return nil, reject("fork agent unavailable")
 			}
 			handle, err := tx.Document(doc.ID)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if err := handle.Set(value); err != nil {
-				return err
+				return nil, err
 			}
 		}
 		if init != nil {
-			return callConversationInit(init, tx, child.ID)
+			return nil, callConversationInit(init, tx, child.ID)
 		}
-		return nil
+		return nil, nil
 	})
 	if err != nil {
 		return nil, err

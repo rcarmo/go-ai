@@ -277,12 +277,12 @@ func TestCanonicalInboxInputIsPlacementAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = h.session.Commit(bg, func(tx *Tx) error {
+	if _, err = h.session.Commit(bg, func(tx *Tx) (any, error) {
 		inbox, err := builtin(tx, c.ID(), "pi.inbox")
 		if err != nil {
-			return err
+			return nil, err
 		}
-		return inbox.Update(func(value JSON) error {
+		return nil, inbox.Update(func(value JSON) error {
 			for _, raw := range value["items"].([]any) {
 				item := raw.(map[string]any)
 				if submissionEntryID(item["id"]) == queued.ID() {

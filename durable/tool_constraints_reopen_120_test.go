@@ -16,10 +16,10 @@ func TestTool120ConstraintContributionReopenAndProjectionIsolation(t *testing.T)
 		token := entryToken(t, "constraint.entry")
 		grammar := &goai.ToolConstrainedSampling{Type: "grammar", Variants: map[string]string{"openai_lark": "start: /.+/"}}
 		var entry Entry
-		_, err = session.Commit(bg, func(tx *Tx) error {
+		_, err = session.Commit(bg, func(tx *Tx) (any, error) {
 			var err error
 			entry, err = tx.AppendTypedEntry(token, 1, EntryContent{Model: []goai.Message{{Role: goai.RoleSystem, ToolsAdded: []goai.Tool{{Name: "grammar", Parameters: json.RawMessage(`{"type":"object"}`), ConstrainedSampling: grammar}}}}})
-			return err
+			return nil, err
 		})
 		if err != nil {
 			t.Fatal(err)

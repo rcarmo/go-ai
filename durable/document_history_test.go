@@ -269,7 +269,7 @@ func TestDocumentHistoryTxForkAncestorPoliciesSourceFenceAndReincarnation(t *tes
 		}
 		defer session.Close(bg)
 		var parent Conversation
-		_, err = session.Commit(bg, func(tx *Tx) error { var e error; parent, e = tx.ForkConversation(1, cut, 0); return e })
+		_, err = session.Commit(bg, func(tx *Tx) (any, error) { var e error; parent, e = tx.ForkConversation(1, cut, 0); return nil, e })
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -280,18 +280,22 @@ func TestDocumentHistoryTxForkAncestorPoliciesSourceFenceAndReincarnation(t *tes
 				currentParent = d
 			}
 		}
-		_, err = session.Commit(bg, func(tx *Tx) error {
+		_, err = session.Commit(bg, func(tx *Tx) (any, error) {
 			h, e := tx.Document(currentParent.ID)
 			if e != nil {
-				return e
+				return nil, e
 			}
-			return h.Set(JSON{"value": "parent-current"})
+			return nil, h.Set(JSON{"value": "parent-current"})
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
 		var child Conversation
-		_, err = session.Commit(bg, func(tx *Tx) error { var e error; child, e = tx.ForkConversation(parent.ID, cut, 0); return e })
+		_, err = session.Commit(bg, func(tx *Tx) (any, error) {
+			var e error
+			child, e = tx.ForkConversation(parent.ID, cut, 0)
+			return nil, e
+		})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -308,23 +312,23 @@ func TestDocumentHistoryTxForkAncestorPoliciesSourceFenceAndReincarnation(t *tes
 		}
 		for _, beforeFork := range []bool{true, false} {
 			before, _ := session.Snapshot(bg)
-			_, err = session.Commit(bg, func(tx *Tx) error {
+			_, err = session.Commit(bg, func(tx *Tx) (any, error) {
 				h, e := tx.Document(currentParent.ID)
 				if e != nil {
-					return e
+					return nil, e
 				}
 				if beforeFork {
 					if e = h.Set(JSON{"value": "forbidden"}); e != nil {
-						return e
+						return nil, e
 					}
 				}
 				if _, e = tx.ForkConversation(parent.ID, cut, 0); e != nil {
-					return e
+					return nil, e
 				}
 				if !beforeFork {
-					return h.Set(JSON{"value": "forbidden"})
+					return nil, h.Set(JSON{"value": "forbidden"})
 				}
-				return nil
+				return nil, nil
 			})
 			rejected(t, err)
 			after, _ := session.Snapshot(bg)
@@ -334,33 +338,33 @@ func TestDocumentHistoryTxForkAncestorPoliciesSourceFenceAndReincarnation(t *tes
 			}
 		}
 		var replacementID ID
-		_, err = session.Commit(bg, func(tx *Tx) error {
+		_, err = session.Commit(bg, func(tx *Tx) (any, error) {
 			fork, e := tx.ForkConversation(1, cut, 0)
 			if e != nil {
-				return e
+				return nil, e
 			}
 			state, e := tx.current()
 			if e != nil {
-				return e
+				return nil, e
 			}
 			for _, d := range state.Documents {
 				if d.Owner == fork.ID && d.Kind == asOf.Kind {
 					old, e := tx.Document(d.ID)
 					if e != nil {
-						return e
+						return nil, e
 					}
 					if e = old.Retire(); e != nil {
-						return e
+						return nil, e
 					}
 					replacementID, e = tx.MintID()
 					if e != nil {
-						return e
+						return nil, e
 					}
 					_, e = tx.CreateDocument(historyDocument(replacementID, fork.ID, asOf.Kind, "replacement", "rewindable", "asOf"))
-					return e
+					return nil, e
 				}
 			}
-			return errors.New("copied document missing")
+			return nil, errors.New("copied document missing")
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -452,25 +456,25 @@ func TestDocumentHistoryPublicForkProductionHTTPAgentAndReopen(t *testing.T) {
 		t.Fatal(err)
 	}
 	var cut, app ID
-	_, err = parent.Commit(bg, func(tx *Tx) error {
+	_, err = parent.Commit(bg, func(tx *Tx) (any, error) {
 		var e error
 		cut, e = tx.MintID()
 		if e != nil {
-			return e
+			return nil, e
 		}
 		value, e := dtoObject(userReceipt("inherited"), tx.limits)
 		if e != nil {
-			return e
+			return nil, e
 		}
 		if e = tx.appendMessage(cut, 1, 0, value); e != nil {
-			return e
+			return nil, e
 		}
 		app, e = tx.MintID()
 		if e != nil {
-			return e
+			return nil, e
 		}
 		_, e = tx.CreateDocument(historyDocument(app, 1, "app", "at-cut", "rewindable", "asOf"))
-		return e
+		return nil, e
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -548,7 +552,7 @@ func TestDocumentHistoryForkFamilyPagesAndDuplicatePolicyRollback(t *testing.T) 
 			t.Fatal(err)
 		}
 		before, _ := session.Snapshot(bg)
-		_, err = session.Commit(bg, func(tx *Tx) error { _, e := tx.ForkConversation(1, cut, 0); return e })
+		_, err = session.Commit(bg, func(tx *Tx) (any, error) { _, e := tx.ForkConversation(1, cut, 0); return nil, e })
 		rejected(t, err)
 		after, _ := session.Snapshot(bg)
 		before.HighWater = after.HighWater
@@ -574,36 +578,36 @@ func TestDocumentHistoryForkFamilyPagesAndDuplicatePolicyRollback(t *testing.T) 
 		}
 		defer session.Close(bg)
 		var cut ID
-		_, err = session.Commit(bg, func(tx *Tx) error {
+		_, err = session.Commit(bg, func(tx *Tx) (any, error) {
 			var e error
 			cut, e = tx.MintID()
 			if e != nil {
-				return e
+				return nil, e
 			}
-			return tx.AppendEntry(Entry{ID: cut, Conversation: 1, Kind: "note", Value: JSON{}})
+			return nil, tx.AppendEntry(Entry{ID: cut, Conversation: 1, Kind: "note", Value: JSON{}})
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = session.Commit(bg, func(tx *Tx) error {
+		_, err = session.Commit(bg, func(tx *Tx) (any, error) {
 			for i := 0; i < 260; i++ {
 				id, e := tx.MintID()
 				if e != nil {
-					return e
+					return nil, e
 				}
 				d := historyDocument(id, 1, "pages", fmt.Sprint(i), "latest", "current")
 				d.Family, d.Key = true, fmt.Sprint(i)
 				if _, e = tx.CreateDocument(d); e != nil {
-					return e
+					return nil, e
 				}
 			}
-			return nil
+			return nil, nil
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
 		var child Conversation
-		_, err = session.Commit(bg, func(tx *Tx) error { var e error; child, e = tx.ForkConversation(1, cut, 0); return e })
+		_, err = session.Commit(bg, func(tx *Tx) (any, error) { var e error; child, e = tx.ForkConversation(1, cut, 0); return nil, e })
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -642,7 +646,7 @@ func TestDocumentHistoryForkFamilyPagesAndDuplicatePolicyRollback(t *testing.T) 
 		}
 		defer session.Close(bg)
 		before, _ := session.Snapshot(bg)
-		_, err = session.Commit(bg, func(tx *Tx) error { _, e := tx.ForkConversation(1, cut, 0); return e })
+		_, err = session.Commit(bg, func(tx *Tx) (any, error) { _, e := tx.ForkConversation(1, cut, 0); return nil, e })
 		rejected(t, err)
 		after, _ := session.Snapshot(bg)
 		before.HighWater = after.HighWater
@@ -754,10 +758,10 @@ func TestDocumentHistoryForkCurrentParentNewDocumentFence(t *testing.T) {
 					t.Fatal(e)
 				}
 				var forkID, documentID ID
-				_, e = session.Commit(bg, func(tx *Tx) error {
+				_, e = session.Commit(bg, func(tx *Tx) (any, error) {
 					id, e := tx.MintID()
 					if e != nil {
-						return e
+						return nil, e
 					}
 					documentID = id
 					// Literal new parent document was absent from the pre-batch
@@ -766,7 +770,7 @@ func TestDocumentHistoryForkCurrentParentNewDocumentFence(t *testing.T) {
 					if strings.HasSuffix(mode, "after") {
 						fork, e := tx.ForkConversation(1, cut, 0)
 						if e != nil {
-							return e
+							return nil, e
 						}
 						forkID = fork.ID
 					}
@@ -778,32 +782,32 @@ func TestDocumentHistoryForkCurrentParentNewDocumentFence(t *testing.T) {
 						d.Value = nil
 						_, e = tx.CopyDocument(d, DocumentCopySource{ID: unselectedSource.ID, At: CurrentDocumentPoint()})
 						if e != nil {
-							return e
+							return nil, e
 						}
 					} else {
 						h, e := tx.CreateDocument(d)
 						if e != nil {
-							return e
+							return nil, e
 						}
 						if mode == "new-update-before" {
 							if e = h.Set(JSON{"value": "literal-updated"}); e != nil {
-								return e
+								return nil, e
 							}
 						}
 						if strings.HasPrefix(mode, "new-retire") {
 							if e = h.Retire(); e != nil {
-								return e
+								return nil, e
 							}
 						}
 					}
 					if strings.HasSuffix(mode, "before") {
 						fork, e := tx.ForkConversation(1, cut, 0)
 						if e != nil {
-							return e
+							return nil, e
 						}
 						forkID = fork.ID
 					}
-					return nil
+					return nil, nil
 				})
 				rejected(t, e)
 				var rejection *StorageRejected
@@ -842,23 +846,23 @@ func TestDocumentHistoryForkCurrentFenceKeepsLowLevelCopyAndAncestorWrites(t *te
 		}
 		defer session.Close(bg)
 		var parent, child Conversation
-		_, e = session.Commit(bg, func(tx *Tx) error { var e error; parent, e = tx.ForkConversation(1, cut, 0); return e })
+		_, e = session.Commit(bg, func(tx *Tx) (any, error) { var e error; parent, e = tx.ForkConversation(1, cut, 0); return nil, e })
 		if e != nil {
 			t.Fatal(e)
 		}
 		// Current policy is resolved from the immediate parent. Mutating an
 		// unrelated current-policy document in an older ancestor stays legal.
-		_, e = session.Commit(bg, func(tx *Tx) error {
+		_, e = session.Commit(bg, func(tx *Tx) (any, error) {
 			var e error
 			child, e = tx.ForkConversation(parent.ID, cut, 0)
 			if e != nil {
-				return e
+				return nil, e
 			}
 			h, e := tx.Document(d.ID)
 			if e != nil {
-				return e
+				return nil, e
 			}
-			return h.Set(JSON{"value": "ancestor-updated"})
+			return nil, h.Set(JSON{"value": "ancestor-updated"})
 		})
 		if e != nil {
 			t.Fatal(e)
@@ -873,21 +877,21 @@ func TestDocumentHistoryForkCurrentFenceKeepsLowLevelCopyAndAncestorWrites(t *te
 		// A definition-free low-level copy does not introduce the high-level
 		// parent fence: an unrelated current document in its source conversation
 		// may change as long as the exact copied source ID remains unchanged.
-		_, e = session.Commit(bg, func(tx *Tx) error {
+		_, e = session.Commit(bg, func(tx *Tx) (any, error) {
 			id, e := tx.MintID()
 			if e != nil {
-				return e
+				return nil, e
 			}
 			target := Document{ID: id, Scope: "conversation", Owner: other, Kind: d.Kind, History: "latest", Fork: "current"}
 			if _, e = tx.CopyDocument(target, DocumentCopySource{ID: d.ID, At: CurrentDocumentPoint()}); e != nil {
-				return e
+				return nil, e
 			}
 			id, e = tx.MintID()
 			if e != nil {
-				return e
+				return nil, e
 			}
 			_, e = tx.CreateDocument(Document{ID: id, Scope: "conversation", Owner: 1, Kind: "unrelated.current", Version: 1, Value: JSON{"value": "allowed"}, History: "latest", Fork: "current"})
-			return e
+			return nil, e
 		})
 		if e != nil {
 			t.Fatal(e)

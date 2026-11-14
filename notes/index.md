@@ -5,6 +5,8 @@ Compact index. Read a linked note only when it is relevant to the current task.
 - [Upstream conformance completion report](upstream-conformance-report.md) — latest verified
   model-tool and compaction slices, exact evidence and remaining migration/release blockers.
 
+- [Commit callback results](commit-callback-values.md) — source result identity/publication contract, caller migration and remaining persistence/API scope.
+
 - [Typed model results](typed-model-results.md) — original internal metadata/envelopes/text, optional result JSON and actual paid QuickJS/task replay, original evidence and remaining tool/API gaps.
 
 - [Pinned upstream oracle](upstream-oracle.md) — memory-bounded original-test execution,

@@ -66,7 +66,7 @@ func TestTaskAgentPinnedLazyPhaseSnapshotRefreshDetachedAndEnded(t *testing.T) {
 	h := openHarness(t, mustMemory(t), Options{Registry: registry})
 	conv := root(t, h, ModelRef{goai.ProviderOpenAI, "model"})
 	var id ID
-	_, err = h.CommitTasks(bg, conv.ID(), func(tx *Tx) error {
+	_, err = h.commitTasks(bg, conv.ID(), func(tx *Tx) error {
 		var err error
 		id, err = tx.CreateTask(definition, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 		return err
@@ -130,7 +130,7 @@ func TestTaskAgentCancelledCallerThenIndependentSuccess(t *testing.T) {
 	h := openHarness(t, mustMemory(t), Options{Registry: registry})
 	conv := root(t, h, ModelRef{goai.ProviderOpenAI, "model"})
 	var id ID
-	_, err := h.CommitTasks(bg, conv.ID(), func(tx *Tx) error {
+	_, err := h.commitTasks(bg, conv.ID(), func(tx *Tx) error {
 		var err error
 		id, err = tx.CreateTask(definition, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 		return err
@@ -179,7 +179,7 @@ func TestTaskAgentPinnedCancelledCallerKeepsSharedResolutionAndCloseJoins(t *tes
 	}
 	h := openHarness(t, mustMemory(t), Options{Registry: registry})
 	conv := root(t, h, ModelRef{goai.ProviderOpenAI, "model"})
-	_, err := h.CommitTasks(bg, conv.ID(), func(tx *Tx) error {
+	_, err := h.commitTasks(bg, conv.ID(), func(tx *Tx) error {
 		_, err := tx.CreateTask(definition, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 		return err
 	})

@@ -26,7 +26,7 @@ func (c *ConversationHandle) SendBackground(ctx context.Context, key string, inp
 		return 0, reject("background reporter unavailable")
 	}
 	var reporter ID
-	_, err = c.h.CommitTasks(ctx, c.id, func(tx *Tx) error {
+	_, err = c.h.commitTasks(ctx, c.id, func(tx *Tx) error {
 		doc, ok := backgroundAgentDocument(tx.state, c.id, key)
 		if !ok {
 			return reject("unknown background subagent")

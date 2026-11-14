@@ -97,7 +97,7 @@ func TestMainHarnessThirdPartyCommitStoresDerivedPartialAtomically(t *testing.T)
 			}
 		})
 		var taskID ID
-		if _, err := f.h.CommitTasks(bg, f.c.ID(), func(tx *Tx) error {
+		if _, err := f.h.commitTasks(bg, f.c.ID(), func(tx *Tx) error {
 			var err error
 			taskID, err = tx.CreateTask(audit, JSON{"conversationId": f.c.ID(), "documentId": liveID}, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 			return err

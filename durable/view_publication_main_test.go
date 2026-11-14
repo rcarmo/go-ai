@@ -204,7 +204,7 @@ func TestMainTranscriptProjectionFailureIsLocalAndOffLine(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err = h.session.Commit(bg, func(tx *Tx) error { return initializeBuiltins(tx, 1) }); err != nil {
+		if _, err = h.session.Commit(bg, func(tx *Tx) (any, error) { return nil, initializeBuiltins(tx, 1) }); err != nil {
 			t.Fatal(err)
 		}
 		bad, err := detachedWatch(c, bg, transcriptBounds(1, 20))
@@ -219,18 +219,18 @@ func TestMainTranscriptProjectionFailureIsLocalAndOffLine(t *testing.T) {
 		defer good.Stop()
 		goodFrames := transcriptListener(t, good, h.session.limits)
 		var last ID
-		if _, err = h.session.Commit(bg, func(tx *Tx) error {
+		if _, err = h.session.Commit(bg, func(tx *Tx) (any, error) {
 			for i := 0; i < 9; i++ {
 				id, err := tx.MintID()
 				if err != nil {
-					return err
+					return nil, err
 				}
 				if err = tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "app.note", Value: JSON{"blob": strings.Repeat("x", 64<<10)}}); err != nil {
-					return err
+					return nil, err
 				}
 				last = id
 			}
-			return nil
+			return nil, nil
 		}); err != nil {
 			t.Fatal("watch projection rejected durable commit", err)
 		}
@@ -295,13 +295,13 @@ func TestMainTranscriptProjectionRetainsByteQuota(t *testing.T) {
 		// Each DTO is legal. Three owned values plus their operations cannot all
 		// fit this fixed share; replace the backlog without rejecting any commit.
 		for i := 0; i < 3; i++ {
-			if _, err = h.session.Commit(bg, func(tx *Tx) error {
+			if _, err = h.session.Commit(bg, func(tx *Tx) (any, error) {
 				id, err := tx.MintID()
 				if err != nil {
-					return err
+					return nil, err
 				}
 				ids = append(ids, id)
-				return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "app.note", Value: JSON{"blob": strings.Repeat("x", 80<<10)}})
+				return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "app.note", Value: JSON{"blob": strings.Repeat("x", 80<<10)}})
 			}); err != nil {
 				t.Fatal("observer byte quota rejected commit", err)
 			}
@@ -366,18 +366,18 @@ func TestMainTranscriptProjectionDoesNotCombineDTOValidationBudgets(t *testing.T
 			items[i] = 0
 		}
 		ids := []ID{}
-		if _, err = h.session.Commit(bg, func(tx *Tx) error {
+		if _, err = h.session.Commit(bg, func(tx *Tx) (any, error) {
 			for i := 0; i < 100; i++ {
 				id, err := tx.MintID()
 				if err != nil {
-					return err
+					return nil, err
 				}
 				ids = append(ids, id)
 				if err = tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "app.note", Value: JSON{"items": items}}); err != nil {
-					return err
+					return nil, err
 				}
 			}
-			return nil
+			return nil, nil
 		}); err != nil {
 			t.Fatal(err)
 		}

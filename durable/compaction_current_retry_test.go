@@ -36,7 +36,7 @@ func TestAutomaticCompactionRetryDecisionFollowsCurrentSettingsAfterResponse(t *
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = h.CommitTasks(bg, conversation.ID(), func(tx *Tx) error {
+		_, err = h.commitTasks(bg, conversation.ID(), func(tx *Tx) error {
 			for _, text := range []string{"old", "recent"} {
 				id, err := tx.MintID()
 				if err != nil {
@@ -112,19 +112,19 @@ func TestSourceCompactionIgnoresLegacyTaskRetryOverride(t *testing.T) {
 		}
 		input := JSON{"reason": "manual", "retry": JSON{"enabled": false, "maxRetries": 9, "baseDelayMs": 1, "maxDelayMs": 2}}
 		var task ID
-		if _, err := c.Commit(bg, func(tx *Tx) error {
+		if _, err := c.Commit(bg, func(tx *Tx) (any, error) {
 			for _, text := range []string{"old", "recent"} {
 				id, err := tx.MintID()
 				if err != nil {
-					return err
+					return nil, err
 				}
 				if err := tx.AppendEntry(Entry{ID: id, Conversation: c.ID(), Kind: "pi.user", Model: []MessageReceipt{userReceipt(text)}}); err != nil {
-					return err
+					return nil, err
 				}
 			}
 			var err error
 			task, err = tx.CreateTask(CompactionTask(), input, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
-			return err
+			return nil, err
 		}); err != nil {
 			t.Fatal(err)
 		}

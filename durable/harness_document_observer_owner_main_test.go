@@ -210,17 +210,17 @@ func TestMainHarnessDocumentObserverQueuedAttachment(t *testing.T) {
 			t.Cleanup(release)
 			commitDone := make(chan error, 1)
 			go func() {
-				_, err := h.session.Commit(context.Background(), func(tx *Tx) error {
+				_, err := h.session.Commit(context.Background(), func(tx *Tx) (any, error) {
 					doc, err := tx.AcquireDocument(def, 0, nil, nil)
 					if err != nil {
-						return err
+						return nil, err
 					}
 					if err := doc.ApplyOperations([]Operation{{"s", []any{"count"}, 11}}); err != nil {
-						return err
+						return nil, err
 					}
 					close(entered)
 					<-gate
-					return nil
+					return nil, nil
 				})
 				commitDone <- err
 			}()

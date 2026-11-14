@@ -97,9 +97,14 @@ func TestInternalGroupReceiptFramesPublishExactPrefixes(t *testing.T) {
 		if err != nil || uint64(id) <= raw.HighWater {
 			t.Fatal("allocator continuity", id, err)
 		}
-		seq, err := s.Commit(bg, func(tx *Tx) error {
-			return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "after-prefix", Value: JSON{}})
+		value, err := s.Commit(bg, func(tx *Tx) (any, error) {
+			return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "after-prefix", Value: JSON{}})
 		})
+		if err != nil || value != nil {
+			t.Fatal(value, err)
+		}
+		image, err := s.Snapshot(bg)
+		seq := image.Seq
 		if err != nil || seq != 5 {
 			t.Fatal("legacy continuation", seq, err)
 		}

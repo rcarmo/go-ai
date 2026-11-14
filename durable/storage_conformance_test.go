@@ -598,25 +598,25 @@ func TestPrivateCandidateCOWPreservesPublicDetachAndRollback(t *testing.T) {
 		var escaped *DocumentHandle
 		var stagedInput, candidate JSON
 		sentinel := errors.New("rollback candidate")
-		_, e := h.Commit(bg, func(tx *Tx) error {
+		_, e := h.Commit(bg, func(tx *Tx) (any, error) {
 			var err error
 			escaped, err = tx.Document(doc)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			// This invokes currentDocument on a private COW candidate repeatedly.
 			stagedInput = JSON{"nested": JSON{"v": "set"}, "items": []any{JSON{"v": "set"}}}
 			if err = escaped.Set(stagedInput); err != nil {
-				return err
+				return nil, err
 			}
 			stagedInput["nested"].(JSON)["v"] = "caller mutated afterSet"
 			if err = escaped.Update(func(v JSON) error { candidate = v; v["nested"].(map[string]any)["v"] = "updated"; return nil }); err != nil {
-				return err
+				return nil, err
 			}
 			candidate["nested"].(map[string]any)["v"] = "caller mutated afterUpdate"
 			got, err := escaped.Get()
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if got["nested"].(map[string]any)["v"] != "updated" {
 				t.Fatal("staged copy boundary lost")
@@ -627,7 +627,7 @@ func TestPrivateCandidateCOWPreservesPublicDetachAndRollback(t *testing.T) {
 			}
 			got, err = escaped.Get()
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if got["nested"].(map[string]any)["v"] != "updated" || got["items"].([]any)[0].(map[string]any)["v"] != "set" {
 				t.Fatal("candidate alias/failedUpdate leaked")
@@ -635,7 +635,7 @@ func TestPrivateCandidateCOWPreservesPublicDetachAndRollback(t *testing.T) {
 			if err = escaped.Set(JSON{"invalid": math.NaN()}); err == nil {
 				t.Fatal("invalid Set accepted")
 			}
-			return sentinel
+			return nil, sentinel
 		})
 		if !errors.Is(e, sentinel) {
 			t.Fatal(e)
@@ -647,12 +647,12 @@ func TestPrivateCandidateCOWPreservesPublicDetachAndRollback(t *testing.T) {
 		if e = escaped.Set(JSON{}); !errors.Is(e, ErrSealed) {
 			t.Fatal("escaped handle writable", e)
 		}
-		_, e = h.Commit(bg, func(tx *Tx) error {
+		_, e = h.Commit(bg, func(tx *Tx) (any, error) {
 			d, e := tx.Document(doc)
 			if e != nil {
-				return e
+				return nil, e
 			}
-			return d.Update(func(v JSON) error { v["nested"].(map[string]any)["v"] = "committed"; return nil })
+			return nil, d.Update(func(v JSON) error { v["nested"].(map[string]any)["v"] = "committed"; return nil })
 		})
 		if e != nil {
 			t.Fatal(e)

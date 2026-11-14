@@ -211,20 +211,20 @@ func TestHistoryAncestryFailureAtomicAndTxForwardReferences(t *testing.T) {
 		}
 		defer session.Close(bg)
 		var child, forward ID
-		_, err = session.Commit(bg, func(tx *Tx) error {
+		_, err = session.Commit(bg, func(tx *Tx) (any, error) {
 			var err error
 			child, err = tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
 			forward, err = tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if err = tx.CreateConversation(Conversation{ID: child, Parent: 1, ParentAt: forward}); err != nil {
-				return err
+				return nil, err
 			}
-			return tx.AppendEntry(Entry{ID: forward, Conversation: 1, Kind: "note", Value: JSON{}, Head: forward})
+			return nil, tx.AppendEntry(Entry{ID: forward, Conversation: 1, Kind: "note", Value: JSON{}, Head: forward})
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -274,40 +274,40 @@ func TestHistoryProductionHTTPInheritedContextAndHead(t *testing.T) {
 	}})
 	parent := root(t, h, ModelRef{Provider: goai.ProviderOpenAI, ID: model.ID})
 	var childID ID
-	_, err = parent.Commit(bg, func(tx *Tx) error {
+	_, err = parent.Commit(bg, func(tx *Tx) (any, error) {
 		for _, text := range []string{"before-head", "inherited", "excluded-same-commit"} {
 			id, err := tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
 			value, err := dtoObject(messageReceipt{Role: goai.RoleUser, Content: []goai.ContentBlock{{Type: "text", Text: text}}}, tx.limits)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			e := Entry{ID: id, Conversation: 1, Kind: "message", Value: value}
 			if text == "inherited" {
 				e.Head = id
 				childID, err = tx.MintID()
 				if err != nil {
-					return err
+					return nil, err
 				}
 				if err = tx.CreateConversation(Conversation{ID: childID, Parent: 1, ParentAt: id}); err != nil {
-					return err
+					return nil, err
 				}
 			}
 			if err = tx.AppendEntry(e); err != nil {
-				return err
+				return nil, err
 			}
 		}
 		id, err := tx.MintID()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		value, err := dtoObject(messageReceipt{Role: goai.RoleUser, Content: []goai.ContentBlock{{Type: "text", Text: "parent-later"}}}, tx.limits)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		return tx.appendMessage(id, 1, 0, value)
+		return nil, tx.appendMessage(id, 1, 0, value)
 	})
 	if err != nil {
 		t.Fatal(err)

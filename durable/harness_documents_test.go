@@ -14,29 +14,29 @@ func TestHarnessTypedDocumentForwardingHistoryStateWatchAndNoSchedule(t *testing
 			t.Fatal(err)
 		}
 		var at ID
-		_, err = root.Commit(bg, func(tx *Tx) error {
+		_, err = root.Commit(bg, func(tx *Tx) (any, error) {
 			doc, err := tx.AcquireDocument(notes, root.ID(), nil, nil)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if err = doc.Set(JSON{"text": "first"}); err != nil {
-				return err
+				return nil, err
 			}
 			at, err = tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return tx.AppendEntry(Entry{ID: at, Conversation: root.ID(), Kind: "note", Value: JSON{}})
+			return nil, tx.AppendEntry(Entry{ID: at, Conversation: root.ID(), Kind: "note", Value: JSON{}})
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = root.Commit(bg, func(tx *Tx) error {
+		_, err = root.Commit(bg, func(tx *Tx) (any, error) {
 			doc, err := tx.AcquireDocument(notes, root.ID(), nil, nil)
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return doc.Set(JSON{"text": "second"})
+			return nil, doc.Set(JSON{"text": "second"})
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -48,7 +48,7 @@ func TestHarnessTypedDocumentForwardingHistoryStateWatchAndNoSchedule(t *testing
 			t.Fatal(err)
 		}
 		defer subscription.Stop()
-		if _, err := h.Commit(bg, func(*Tx) error { return nil }); err != nil {
+		if _, err := h.Commit(bg, func(*Tx) (any, error) { return nil, nil }); err != nil {
 			t.Fatal(err)
 		}
 		before, err := h.Snapshot(bg)
@@ -69,12 +69,12 @@ func TestHarnessTypedDocumentForwardingHistoryStateWatchAndNoSchedule(t *testing
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := h.Commit(bg, func(tx *Tx) error {
+		if _, err := h.Commit(bg, func(tx *Tx) (any, error) {
 			read, found, err := tx.TypedEntry(entryToken, at)
 			if err != nil || !found || read.ID != at {
 				t.Fatal(read, found, err)
 			}
-			return nil
+			return nil, nil
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -121,7 +121,7 @@ func TestHarnessTypedDocumentForwardingHistoryStateWatchAndNoSchedule(t *testing
 		if _, _, err := h.SubscribeCommits(bg); !errors.Is(err, ErrClosed) {
 			t.Fatal(err)
 		}
-		if _, err := h.Commit(bg, func(*Tx) error { return nil }); !errors.Is(err, ErrClosed) {
+		if _, err := h.Commit(bg, func(*Tx) (any, error) { return nil, nil }); !errors.Is(err, ErrClosed) {
 			t.Fatal(err)
 		}
 		if _, _, err := detachedDefinitionSnapshot(h, bg, notes, root.ID(), nil); !errors.Is(err, ErrClosed) {

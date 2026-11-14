@@ -71,7 +71,7 @@ func TestTaskAgentCancelledOnlyCallerFailureCachedUntilNextPhase(t *testing.T) {
 		}
 		harness = openHarness(t, b.store, Options{Registry: registry})
 		var id ID
-		_, err = harness.CommitTasks(bg, 1, func(tx *Tx) error {
+		_, err = harness.commitTasks(bg, 1, func(tx *Tx) error {
 			var err error
 			documentID, err = tx.MintID()
 			if err != nil {

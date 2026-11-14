@@ -43,14 +43,14 @@ func registerSum(t *testing.T, registry *Registry, effects *atomic.Int64, docume
 func createAppDocument(t *testing.T, r *ConversationHandle) ID {
 	t.Helper()
 	var id ID
-	_, e := r.Commit(bg, func(tx *Tx) error {
+	_, e := r.Commit(bg, func(tx *Tx) (any, error) {
 		var e error
 		id, e = tx.MintID()
 		if e != nil {
-			return e
+			return nil, e
 		}
 		_, e = tx.CreateDocument(Document{ID: id, Scope: "conversation", Owner: r.ID(), Kind: "app.result", Version: 1, Value: JSON{"sum": 0}})
-		return e
+		return nil, e
 	})
 	if e != nil {
 		t.Fatal(e)
@@ -965,24 +965,24 @@ func TestM1cProviderPartialPointersObservedDetachedAtBoundary(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	_, e = h.session.Commit(bg, func(tx *Tx) error {
+	_, e = h.session.Commit(bg, func(tx *Tx) (any, error) {
 		if err := tx.CreateConversation(Conversation{ID: conversation}); err != nil {
-			return err
+			return nil, err
 		}
 		if err := initializeBuiltins(tx, conversation); err != nil {
-			return err
+			return nil, err
 		}
 		live, err := builtin(tx, conversation, "pi.live")
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if err := live.Update(func(value JSON) error {
 			value["run"] = JSON{"task": id}
 			return nil
 		}); err != nil {
-			return err
+			return nil, err
 		}
-		return tx.PutTask(Task{ID: id, Conversation: conversation, Kind: "pi.generation", Status: "running", Checkpoint: cp})
+		return nil, tx.PutTask(Task{ID: id, Conversation: conversation, Kind: "pi.generation", Status: "running", Checkpoint: cp})
 	})
 	if e != nil {
 		t.Fatal(e)

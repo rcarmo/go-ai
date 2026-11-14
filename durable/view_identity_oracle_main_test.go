@@ -812,13 +812,13 @@ func TestMainViewHydratesLegacyLiveVersionThreeWithoutStorage(t *testing.T) {
 					turns, wantTurns = json.Number("1e30"), json.Number("1e30")
 				}
 				legacy := JSON{"run": JSON{"taskId": 7, "inputs": []any{}, "turns": turns}, "compactions": []any{JSON{"taskId": 9, "reason": "manual", "attempt": 1}}, "compactionFailure": JSON{"taskId": 9, "reason": "threshold", "error": "old"}}
-				if _, err := h.session.Commit(bg, func(tx *Tx) error {
+				if _, err := h.session.Commit(bg, func(tx *Tx) (any, error) {
 					id, err := tx.MintID()
 					if err != nil {
-						return err
+						return nil, err
 					}
 					_, err = tx.CreateDocument(Document{ID: id, Kind: "pi.live", Scope: "conversation", Owner: 1, Version: version, History: "latest", Fork: "initial", Value: legacy})
-					return err
+					return nil, err
 				}); err != nil {
 					t.Fatal(err)
 				}
@@ -846,7 +846,7 @@ func TestMainViewHydratesLegacyLiveVersionThreeWithoutStorage(t *testing.T) {
 				if err != nil || after.Seq != before.Seq {
 					t.Fatal("migration stored during mount", err)
 				}
-				if _, err := h.session.Commit(bg, func(tx *Tx) error { _, err := builtin(tx, c.ID(), "pi.live"); return err }); err != nil {
+				if _, err := h.session.Commit(bg, func(tx *Tx) (any, error) { _, err := builtin(tx, c.ID(), "pi.live"); return nil, err }); err != nil {
 					t.Fatal(err)
 				}
 				stored, err := h.Snapshot(bg)
@@ -882,14 +882,14 @@ func TestMainBuiltinLiveWritesUsePinnedVersion(t *testing.T) {
 
 func TestMainBuiltinInitializationIsIdempotent(t *testing.T) {
 	s := gatedSession(t)
-	if _, err := s.Commit(bg, func(tx *Tx) error { return initializeBuiltins(tx, 1) }); err != nil {
+	if _, err := s.Commit(bg, func(tx *Tx) (any, error) { return nil, initializeBuiltins(tx, 1) }); err != nil {
 		t.Fatal(err)
 	}
 	before, err := s.Snapshot(bg)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.Commit(bg, func(tx *Tx) error { return initializeBuiltins(tx, 1) }); err != nil {
+	if _, err := s.Commit(bg, func(tx *Tx) (any, error) { return nil, initializeBuiltins(tx, 1) }); err != nil {
 		t.Fatal("second builtin acquisition rejected", err)
 	}
 	after, err := s.Snapshot(bg)

@@ -79,7 +79,7 @@ func TestTaskOwnershipPinnedDecidedAndMarkedOwnersRejectNewWorkAtomically(t *tes
 						if err != nil {
 							t.Fatal(err)
 						}
-						_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+						_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 							if creation == "child" {
 								_, err := tx.CreateTask(child, nil, TaskOptions{Ownership: TaskOwnership{Kind: "task", Task: parentID}})
 								return err

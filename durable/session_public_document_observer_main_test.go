@@ -100,7 +100,7 @@ func TestMainPublicDocumentObserverRetirementIdentity(t *testing.T) {
 	if immutableViewMember(t, observation.Value, "count").Number() != json.Number("2") {
 		t.Fatal("source starting value", observation.Value)
 	}
-	if _, err := s.Commit(bg, func(tx *Tx) error { return tx.RetireDefinition(def, owner, nil) }); err != nil {
+	if _, err := s.Commit(bg, func(tx *Tx) (any, error) { return nil, tx.RetireDefinition(def, owner, nil) }); err != nil {
 		t.Fatal(err)
 	}
 	absentCalls := 0
@@ -108,12 +108,12 @@ func TestMainPublicDocumentObserverRetirementIdentity(t *testing.T) {
 	if err != nil || found || absent != nil {
 		t.Fatal("retired address must be absent for a new attachment", found, err)
 	}
-	if _, err := s.Commit(bg, func(tx *Tx) error {
+	if _, err := s.Commit(bg, func(tx *Tx) (any, error) {
 		doc, err := tx.AcquireDocument(def, owner, nil, nil)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		return doc.Set(JSON{"count": 9})
+		return nil, doc.Set(JSON{"count": 9})
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -132,12 +132,12 @@ func TestMainPublicDocumentObserverRetirementIdentity(t *testing.T) {
 // address share each adopted value and retain untouched child nodes.
 func TestMainPublicDocumentObserverSharedReadonlyRevisions(t *testing.T) {
 	s, _, def, owner := sourceDocumentObserverSession(t, false)
-	if _, err := s.Commit(bg, func(tx *Tx) error {
+	if _, err := s.Commit(bg, func(tx *Tx) (any, error) {
 		doc, err := tx.AcquireDocument(def, owner, nil, nil)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		return doc.Set(JSON{"count": 1, "keep": JSON{"text": "original"}})
+		return nil, doc.Set(JSON{"count": 1, "keep": JSON{"text": "original"}})
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -156,12 +156,12 @@ func TestMainPublicDocumentObserverSharedReadonlyRevisions(t *testing.T) {
 		t.Fatal("concurrent observations copied their baseline")
 	}
 	before := immutableViewMember(t, left.Value, "keep")
-	if _, err := s.Commit(bg, func(tx *Tx) error {
+	if _, err := s.Commit(bg, func(tx *Tx) (any, error) {
 		doc, err := tx.AcquireDocument(def, owner, nil, nil)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		return doc.ApplyOperations([]Operation{{"s", []any{"count"}, 2}})
+		return nil, doc.ApplyOperations([]Operation{{"s", []any{"count"}, 2}})
 	}); err != nil {
 		t.Fatal(err)
 	}

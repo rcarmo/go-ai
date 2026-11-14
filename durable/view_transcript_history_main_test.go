@@ -14,7 +14,7 @@ func transcriptFixture(t *testing.T, b sqliteFixture) (*Harness, *ConversationHa
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = h.session.Commit(bg, func(tx *Tx) error { return initializeBuiltins(tx, 1) }); err != nil {
+	if _, err = h.session.Commit(bg, func(tx *Tx) (any, error) { return nil, initializeBuiltins(tx, 1) }); err != nil {
 		t.Fatal(err)
 	}
 	return h, c
@@ -23,22 +23,22 @@ func transcriptFixture(t *testing.T, b sqliteFixture) (*Harness, *ConversationHa
 func transcriptNotes(t *testing.T, h *Harness, count int) []ID {
 	t.Helper()
 	ids := []ID{}
-	_, err := h.session.Commit(bg, func(tx *Tx) error {
+	_, err := h.session.Commit(bg, func(tx *Tx) (any, error) {
 		for i := 0; i < count; i++ {
 			// Deliberate allocator gaps: before must identify an actual predecessor.
 			if _, err := tx.MintID(); err != nil {
-				return err
+				return nil, err
 			}
 			id, err := tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if err = tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "app.note", Value: JSON{"ordinal": i}}); err != nil {
-				return err
+				return nil, err
 			}
 			ids = append(ids, id)
 		}
-		return nil
+		return nil, nil
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -130,13 +130,13 @@ func TestMainTranscriptHeadMarkersAppend(t *testing.T) {
 			t.Fatal(err)
 		}
 		var summary ID
-		if _, err = h.session.Commit(bg, func(tx *Tx) error {
+		if _, err = h.session.Commit(bg, func(tx *Tx) (any, error) {
 			var err error
 			summary, err = tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return tx.AppendEntry(Entry{ID: summary, Conversation: 1, Kind: "app.summary", Head: ids[1], Value: JSON{}})
+			return nil, tx.AppendEntry(Entry{ID: summary, Conversation: 1, Kind: "app.summary", Head: ids[1], Value: JSON{}})
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -149,7 +149,7 @@ func TestMainTranscriptHeadMarkersAppend(t *testing.T) {
 		if len(value.Entries) != 5 || value.Entries[3].ID != summary {
 			t.Fatalf("post-summary transcript: %+v", value.Entries)
 		}
-		if _, err = h.session.Commit(bg, func(tx *Tx) error { return appendReset(tx, 1, "reset") }); err != nil {
+		if _, err = h.session.Commit(bg, func(tx *Tx) (any, error) { return nil, appendReset(tx, 1, "reset") }); err != nil {
 			t.Fatal(err)
 		}
 		value = transcriptFrame(t, frames)

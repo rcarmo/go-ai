@@ -50,7 +50,7 @@ func TestMainPublicCommitObserverDispatchMembershipAndCanonicalValue(t *testing.
 		t.Fatal(err)
 	}
 	defer unfollow()
-	if _, err := s.Commit(bg, func(tx *Tx) error { _, err := tx.AcquireDocument(def, 0, nil, nil); return err }); err != nil {
+	if _, err := s.Commit(bg, func(tx *Tx) (any, error) { _, err := tx.AcquireDocument(def, 0, nil, nil); return nil, err }); err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(order, []string{"own", "late"}) || len(seen) != 1 {
@@ -101,12 +101,12 @@ func TestMainPublicCommitObserverLifecycleAndGuards(t *testing.T) {
 			healthy := sourcePublicCommitObservation(t, s, CommitObserver{Advance: func(context.Context, CommitPublication) error { peer++; return nil }, End: func(WatchEnd) error { return nil }})
 			defer healthy.Detach()
 			bump := func() {
-				_, err := s.Commit(bg, func(tx *Tx) error {
+				_, err := s.Commit(bg, func(tx *Tx) (any, error) {
 					id, err := tx.MintID()
 					if err != nil {
-						return err
+						return nil, err
 					}
-					return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}})
+					return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}})
 				})
 				if err != nil {
 					t.Fatal(err)
@@ -159,12 +159,12 @@ func TestMainPublicCommitObserverStorageScopeDispatchMembership(t *testing.T) {
 				}
 				late = sourcePublicCommitObservation(t, s, CommitObserver{Advance: func(context.Context, CommitPublication) error { order = append(order, "late"); return nil }, End: func(WatchEnd) error { return nil }})
 			}}
-			_, err := s.Commit(bg, func(tx *Tx) error {
+			_, err := s.Commit(bg, func(tx *Tx) (any, error) {
 				id, err := tx.MintID()
 				if err != nil {
-					return err
+					return nil, err
 				}
-				return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}})
+				return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}})
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -221,12 +221,12 @@ func TestMainPublicCommitObserverDeferredStorageTurn(t *testing.T) {
 	}}
 	result := make(chan error, 1)
 	go func() {
-		_, err := s.Commit(bg, func(tx *Tx) error {
+		_, err := s.Commit(bg, func(tx *Tx) (any, error) {
 			id, err := tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}})
+			return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}})
 		})
 		result <- err
 	}()
@@ -263,29 +263,29 @@ func TestMainPublicCommitObserverCanonicalTableRecords(t *testing.T) {
 		t.Fatal(err)
 	}
 	var conversation, entry, task, submission ID
-	_, err = s.Commit(bg, func(tx *Tx) error {
+	_, err = s.Commit(bg, func(tx *Tx) (any, error) {
 		var err error
 		conversation, err = tx.MintID()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if err = tx.CreateConversation(Conversation{ID: conversation}); err != nil {
-			return err
+			return nil, err
 		}
 		entry, err = tx.MintID()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if err = tx.AppendEntry(Entry{ID: entry, Conversation: conversation, Kind: "note", Data: JSON{"n": 1}, HasData: true, Value: JSON{}}); err != nil {
-			return err
+			return nil, err
 		}
 		task, err = tx.CreateTask(work, nil, TaskOptions{Conversation: conversation, Ownership: TaskOwnership{Kind: "conversation"}})
 		if err != nil {
-			return err
+			return nil, err
 		}
 		createdSubmission, err := tx.CreateSubmission(SubmissionCreate{Conversation: conversation, Type: "write", Status: "queued", RequestIDPresent: true})
 		submission = createdSubmission.ID
-		return err
+		return nil, err
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -320,16 +320,16 @@ func TestMainPublicCommitObserverCopyAndRetirement(t *testing.T) {
 	s := gatedSession(t)
 	def := mustDefinition(t, DefinitionOptions{Kind: "oracle.public.copy", Scope: "conversation", History: "rewindable", Fork: "asOf", Version: 1, Initial: func(JSON) (JSON, error) { return JSON{"n": 0}, nil }, CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }})
 	var entry ID
-	_, err := s.Commit(bg, func(tx *Tx) error {
+	_, err := s.Commit(bg, func(tx *Tx) (any, error) {
 		_, err := tx.AcquireDocument(def, 1, nil, nil)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		entry, err = tx.MintID()
 		if err != nil {
-			return err
+			return nil, err
 		}
-		return tx.AppendEntry(Entry{ID: entry, Conversation: 1, Kind: "note", Value: JSON{}})
+		return nil, tx.AppendEntry(Entry{ID: entry, Conversation: 1, Kind: "note", Value: JSON{}})
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -338,7 +338,11 @@ func TestMainPublicCommitObserverCopyAndRetirement(t *testing.T) {
 	guard := sourcePublicCommitObservation(t, s, CommitObserver{Advance: func(_ context.Context, p CommitPublication) error { seen = append(seen, p); return nil }, End: func(end WatchEnd) error { t.Error("copy projection failed", end); return nil }})
 	defer guard.Detach()
 	var child Conversation
-	_, err = s.Commit(bg, func(tx *Tx) error { var err error; child, err = tx.ForkConversation(1, entry, 0); return err })
+	_, err = s.Commit(bg, func(tx *Tx) (any, error) {
+		var err error
+		child, err = tx.ForkConversation(1, entry, 0)
+		return nil, err
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -361,7 +365,7 @@ func TestMainPublicCommitObserverCopyAndRetirement(t *testing.T) {
 	if point := immutableViewMember(t, immutableViewMember(t, copied, "source"), "at"); point.Kind() != "number" || point.Number() != json.Number(fmt.Sprint(seen[0].Seq-1)) {
 		t.Fatal("copy point is not the canonical sequence scalar", point.Copy())
 	}
-	_, err = s.Commit(bg, func(tx *Tx) error { return tx.RetireDefinition(def, 1, nil) })
+	_, err = s.Commit(bg, func(tx *Tx) (any, error) { return nil, tx.RetireDefinition(def, 1, nil) })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -380,7 +384,7 @@ func TestMainPublicCommitObserverHeldStoresAndClose(t *testing.T) {
 		t.Run(finish, func(t *testing.T) {
 			s := gatedSession(t)
 			def := mustDefinition(t, DefinitionOptions{Kind: "oracle.public.held", Scope: "conversation", History: "latest", Fork: "initial", Version: 1, Initial: func(JSON) (JSON, error) { return JSON{"n": 0}, nil }, CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }})
-			if _, err := s.Commit(bg, func(tx *Tx) error { _, err := tx.AcquireDocument(def, 1, nil, nil); return err }); err != nil {
+			if _, err := s.Commit(bg, func(tx *Tx) (any, error) { _, err := tx.AcquireDocument(def, 1, nil, nil); return nil, err }); err != nil {
 				t.Fatal(err)
 			}
 			var seen []CommitPublication
@@ -406,16 +410,16 @@ func TestMainPublicCommitObserverHeldStoresAndClose(t *testing.T) {
 			}
 			switch finish {
 			case "read":
-				_, err = s.Commit(bg, func(tx *Tx) error {
+				_, err = s.Commit(bg, func(tx *Tx) (any, error) {
 					_, err := tx.AcquireDocument(def, 1, nil, nil)
 					if err != nil {
-						return err
+						return nil, err
 					}
 					id, err := tx.MintID()
 					if err != nil {
-						return err
+						return nil, err
 					}
-					return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}})
+					return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}})
 				})
 			case "unload":
 				err = s.UnloadDocuments(bg)
@@ -465,12 +469,12 @@ func TestMainPublicCommitObserverFirstFailureCause(t *testing.T) {
 	s.writer.host.commit = func(context.Context, []Batch, func(commitReceipt)) (commitGroupResult, error) {
 		return commitGroupResult{}, marker
 	}
-	_, err := s.Commit(bg, func(tx *Tx) error {
+	_, err := s.Commit(bg, func(tx *Tx) (any, error) {
 		id, err := tx.MintID()
 		if err != nil {
-			return err
+			return nil, err
 		}
-		return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}})
+		return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}})
 	})
 	if err != marker {
 		t.Fatal("own storage failure", err)
@@ -595,12 +599,12 @@ func TestMainPublicCommitObserverArbitraryPanicValue(t *testing.T) {
 			}
 			defer guard.Detach()
 			for range 2 {
-				if _, err := s.Commit(bg, func(tx *Tx) error {
+				if _, err := s.Commit(bg, func(tx *Tx) (any, error) {
 					id, err := tx.MintID()
 					if err != nil {
-						return err
+						return nil, err
 					}
-					return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}})
+					return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}})
 				}); err != nil {
 					t.Fatal(err)
 				}
@@ -684,12 +688,12 @@ func TestMainPublicCommitObserverReentrantDetachAndDispatchSnapshot(t *testing.T
 			}, End: func(WatchEnd) error { ends = append(ends, "first"); return nil }})
 			peer = sourcePublicCommitObservation(t, s, CommitObserver{Advance: func(context.Context, CommitPublication) error { calls = append(calls, "peer"); return nil }, End: func(WatchEnd) error { ends = append(ends, "peer"); return nil }})
 			for range 2 {
-				if _, err := s.Commit(bg, func(tx *Tx) error {
+				if _, err := s.Commit(bg, func(tx *Tx) (any, error) {
 					id, err := tx.MintID()
 					if err != nil {
-						return err
+						return nil, err
 					}
-					return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}})
+					return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}})
 				}); err != nil {
 					t.Fatal(err)
 				}
@@ -760,12 +764,12 @@ func TestMainPublicCommitObserverObjectAndNumberPanicValue(t *testing.T) {
 			s.timerReport = func(err error) { reports = append(reports, err) }
 			guard := sourcePublicCommitObservation(t, s, CommitObserver{Advance: func(context.Context, CommitPublication) error { panic(tc.value) }, End: func(end WatchEnd) error { ends = append(ends, end); return nil }})
 			defer guard.Detach()
-			if _, err := s.Commit(bg, func(tx *Tx) error {
+			if _, err := s.Commit(bg, func(tx *Tx) (any, error) {
 				id, err := tx.MintID()
 				if err != nil {
-					return err
+					return nil, err
 				}
-				return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}})
+				return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}})
 			}); err != nil {
 				t.Fatal(err)
 			}

@@ -83,7 +83,7 @@ func TestTaskRecoveryPinnedStructuredInterruptedTransitions(t *testing.T) {
 				h := taskTestHarness(t, b.store, parent, child)
 				cleanupTaskGates(t, release)
 				var owner ID
-				_, err := h.CommitTasks(bg, 1, func(tx *Tx) error {
+				_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 					var err error
 					owner, err = tx.CreateTask(parent, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 					if err != nil {
@@ -101,7 +101,7 @@ func TestTaskRecoveryPinnedStructuredInterruptedTransitions(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				_, err = h.session.Commit(bg, func(tx *Tx) error {
+				_, err = h.session.Commit(bg, func(tx *Tx) (any, error) {
 					for i, id := range children {
 						state := *taskDone("already-paid")
 						if variant == "fail-fast" {
@@ -115,7 +115,7 @@ func TestTaskRecoveryPinnedStructuredInterruptedTransitions(t *testing.T) {
 							state = TaskState{Status: "pending", Checkpoint: JSON{"phase": "work"}}
 						}
 						if err := seedNativeRecoveryState(tx, id, state, false); err != nil {
-							return err
+							return nil, err
 						}
 					}
 					state := TaskState{Status: "waiting", Checkpoint: JSON{"phase": "work"}, On: children, Policy: "allSettled"}
@@ -126,7 +126,7 @@ func TestTaskRecoveryPinnedStructuredInterruptedTransitions(t *testing.T) {
 						state = *taskDone("held")
 						state.Status = "completing"
 					}
-					return seedNativeRecoveryState(tx, owner, state, variant == "abort-cascade")
+					return nil, seedNativeRecoveryState(tx, owner, state, variant == "abort-cascade")
 				})
 				if err != nil {
 					t.Fatal(err)

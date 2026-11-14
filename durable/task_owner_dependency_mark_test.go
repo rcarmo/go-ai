@@ -47,7 +47,7 @@ func TestTaskOwnershipPinnedOwnerMarkWinsDependencyCompletionSameCommit(t *testi
 		ownerID := createPublicTask(t, h, owner, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 		dependencyID = createPublicTask(t, h, dependency, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 		var owned, waiterID ID
-		_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+		_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 			var err error
 			owned, err = tx.MintID()
 			if err != nil {
@@ -69,7 +69,7 @@ func TestTaskOwnershipPinnedOwnerMarkWinsDependencyCompletionSameCommit(t *testi
 		awaitTaskSignal(t, dependencyEntered)
 		awaitTaskSignal(t, waitingCommitted)
 		observeTaskState(t, h, waiterID, "waiting")
-		_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+		_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 			if err := seedNativeRecoveryState(tx, dependencyID, *taskDone("settled"), false); err != nil {
 				return err
 			}

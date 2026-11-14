@@ -40,21 +40,21 @@ func TestBackgroundThresholdCompactionDoesNotBlockAnswerOrOrdinaryIdle(t *testin
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = conversation.Commit(bg, func(tx *Tx) error {
+		_, err = conversation.Commit(bg, func(tx *Tx) (any, error) {
 			for _, text := range []string{strings.Repeat("earlier context ", 20), "recent"} {
 				id, err := tx.MintID()
 				if err != nil {
-					return err
+					return nil, err
 				}
 				value, err := dtoObject(userReceipt(text), tx.limits)
 				if err != nil {
-					return err
+					return nil, err
 				}
 				if err = tx.AppendEntry(Entry{ID: id, Conversation: conversation.ID(), Kind: "message", Value: value}); err != nil {
-					return err
+					return nil, err
 				}
 			}
-			return nil
+			return nil, nil
 		})
 		if err != nil {
 			t.Fatal(err)

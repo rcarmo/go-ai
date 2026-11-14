@@ -632,7 +632,7 @@ func TestTelemetry140AdoptedEntryAndSettlementEvents(t *testing.T) {
 					t.Error("event on Session line", err)
 				}
 				// Reenter a lock-owning adapter without causing another event.
-				if _, err := conv.Commit(bg, func(*Tx) error { return nil }); err != nil {
+				if _, err := conv.Commit(bg, func(*Tx) (any, error) { return nil, nil }); err != nil {
 					t.Error("event under admission lock", err)
 				}
 				mu.Lock()
@@ -676,27 +676,27 @@ func TestTelemetry140AdoptedEntryAndSettlementEvents(t *testing.T) {
 		carrier := &invocationTelemetry{}
 		carrier.span.Store(backend())
 		ctx := context.WithValue(bg, telemetryContextKey{}, carrier)
-		if _, err := conv.Commit(ctx, func(tx *Tx) error {
+		if _, err := conv.Commit(ctx, func(tx *Tx) (any, error) {
 			id, err := tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return tx.AppendEntry(Entry{ID: id, Conversation: conv.id, Kind: "app.note", Value: JSON{"private": "payload"}})
+			return nil, tx.AppendEntry(Entry{ID: id, Conversation: conv.id, Kind: "app.note", Value: JSON{"private": "payload"}})
 		}); err != nil {
 			t.Fatal(err)
 		}
 		if len(events) != 3 || events[2].name != "pi.durable.entry" || events[2].attrs["entry.kind"] != "app.note" {
 			t.Fatal(events)
 		}
-		if _, err := conv.Commit(ctx, func(tx *Tx) error {
+		if _, err := conv.Commit(ctx, func(tx *Tx) (any, error) {
 			id, err := tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if err := tx.AppendEntry(Entry{ID: id, Conversation: conv.id, Kind: "app.rejected", Value: JSON{}}); err != nil {
-				return err
+				return nil, err
 			}
-			return errors.New("reject after staging")
+			return nil, errors.New("reject after staging")
 		}); err == nil {
 			t.Fatal("rejected callback accepted")
 		}

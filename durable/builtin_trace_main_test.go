@@ -47,7 +47,7 @@ func TestMainBuiltinTraceBackgroundCompaction(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = c.Commit(bg, func(tx *Tx) error {
+		_, err = c.Commit(bg, func(tx *Tx) (any, error) {
 			for i, text := range []string{strings.Repeat("x", 400), strings.Repeat("y", 400)} {
 				message := userReceipt(text)
 				if i == 1 {
@@ -56,17 +56,17 @@ func TestMainBuiltinTraceBackgroundCompaction(t *testing.T) {
 				}
 				value, err := dtoObject(message, tx.limits)
 				if err != nil {
-					return err
+					return nil, err
 				}
 				id, err := tx.MintID()
 				if err != nil {
-					return err
+					return nil, err
 				}
 				if err := tx.AppendEntry(Entry{ID: id, Conversation: c.ID(), Kind: "message", Value: value}); err != nil {
-					return err
+					return nil, err
 				}
 			}
-			return nil
+			return nil, nil
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -283,7 +283,7 @@ func TestMainBuiltinTraceActiveReopenParent(t *testing.T) {
 		carrier := &invocationTelemetry{}
 		carrier.span.Store(creator)
 		var id ID
-		_, err = h.CommitTasks(context.WithValue(bg, telemetryContextKey{}, carrier), 1, func(tx *Tx) error {
+		_, err = h.commitTasks(context.WithValue(bg, telemetryContextKey{}, carrier), 1, func(tx *Tx) error {
 			var e error
 			id, e = tx.CreateTask(definition, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 			return e

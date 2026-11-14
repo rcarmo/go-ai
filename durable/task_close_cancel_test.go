@@ -35,7 +35,7 @@ func TestTaskLifecyclePinnedCancelledCloseKeepsSharedShutdownAndStorageOwnership
 		if err := <-first; !errors.Is(err, context.Canceled) {
 			t.Fatal("caller did not cancel", err)
 		}
-		if _, err := h.CommitTasks(bg, 1, func(*Tx) error { t.Error("sealed callback ran"); return nil }); !errors.Is(err, ErrClosed) {
+		if _, err := h.commitTasks(bg, 1, func(*Tx) error { t.Error("sealed callback ran"); return nil }); !errors.Is(err, ErrClosed) {
 			t.Fatal("admission reopened", err)
 		}
 		if _, err := b.store.Snapshot(bg); err != nil {

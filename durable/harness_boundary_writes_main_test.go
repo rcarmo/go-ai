@@ -51,21 +51,21 @@ func TestMainBoundaryWritesFirstAndSequentialHeads(t *testing.T) {
 				h := openHarness(t, b.store, Options{})
 				c := root(t, h, ModelRef{})
 				entries, submissions := map[string]ID{}, map[string]ID{}
-				if _, err := h.session.Commit(bg, func(tx *Tx) error {
+				if _, err := h.session.Commit(bg, func(tx *Tx) (any, error) {
 					for _, text := range []string{"a", "b", "c"} {
 						id, err := tx.MintID()
 						if err != nil {
-							return err
+							return nil, err
 						}
 						entries[text] = id
 						if err := tx.AppendEntry(Entry{ID: id, Conversation: c.ID(), Kind: "app.anchor", Value: JSON{}, Model: []MessageReceipt{userReceipt(text)}}); err != nil {
-							return err
+							return nil, err
 						}
 					}
 					if tc.priorReset {
 						id, err := appendResetEntry(tx, c.ID(), "baseline")
 						if err != nil {
-							return err
+							return nil, err
 						}
 						entries["baseline"] = id
 					}
@@ -79,20 +79,20 @@ func TestMainBoundaryWritesFirstAndSequentialHeads(t *testing.T) {
 						}
 						record, err := tx.CreateSubmission(SubmissionCreate{Conversation: c.ID(), Type: "write", Status: "queued"})
 						if err != nil {
-							return err
+							return nil, err
 						}
 						submissions[write.text] = record.ID
 						draft, err := inboxEntryDraft(Entry{Kind: "app.note", Head: entries[write.head], Model: []MessageReceipt{userReceipt(write.text)}}, tx.limits)
 						if err != nil {
-							return err
+							return nil, err
 						}
 						items = append(items, JSON{"id": record.ID, "mode": "write", "entry": draft})
 					}
 					inbox, err := builtin(tx, c.ID(), "pi.inbox")
 					if err != nil {
-						return err
+						return nil, err
 					}
-					return inbox.Update(func(value JSON) error { value["items"] = items; return nil })
+					return nil, inbox.Update(func(value JSON) error { value["items"] = items; return nil })
 				}); err != nil {
 					t.Fatal("native queue control", err)
 				}
@@ -103,15 +103,16 @@ func TestMainBoundaryWritesFirstAndSequentialHeads(t *testing.T) {
 					}
 				}
 				var first ID
-				seq, err := h.session.Commit(bg, func(tx *Tx) error {
+				value, err := h.session.Commit(bg, func(tx *Tx) (any, error) {
 					var err error
 					first, err = h.placeFinalBoundaryWrites(tx, c.ID())
-					return err
+					return nil, err
 				})
-				if err != nil {
-					t.Fatal("place real final boundary", err)
+				if err != nil || value != nil {
+					t.Fatal("place real final boundary", value, err)
 				}
 				after := snap(t, b.store)
+				seq := after.Seq
 				var appended []Entry
 				for id, entry := range after.Entries {
 					if _, existed := before.Entries[id]; !existed {
@@ -175,7 +176,7 @@ func TestMainBoundaryWritesFirstAndSequentialHeads(t *testing.T) {
 				if view.Head == nil || view.Head.ID != entries[tc.head] || view.Head.Head != entries[tc.target] || !slices.Equal(contextTexts, tc.context) {
 					t.Errorf("active head/context = %+v / %v; want head %q targeting %q / %v", view.Head, contextTexts, tc.head, tc.target, tc.context)
 				}
-				if inboxes != 1 || after.Seq != before.Seq+1 || after.Seq != seq || h.scheduler.enabled.Load() {
+				if inboxes != 1 || after.Seq != before.Seq+1 || h.scheduler.enabled.Load() {
 					t.Error("control must adopt exactly one unscheduled boundary with one inbox", inboxes, before.Seq, after.Seq, seq)
 				}
 			})
@@ -202,7 +203,7 @@ func TestCanonicalInboxWritesAreBoundaryAuthority(t *testing.T) {
 			h := openHarness(t, store, options)
 			c := root(t, h, ref)
 			var write SubmissionRecord
-			_, err = h.Commit(bg, func(tx *Tx) error {
+			_, err = h.Commit(bg, func(tx *Tx) (any, error) {
 				var err error
 				status := "queued"
 				var previous ID
@@ -212,13 +213,13 @@ func TestCanonicalInboxWritesAreBoundaryAuthority(t *testing.T) {
 				}
 				write, err = tx.CreateSubmission(SubmissionCreate{Conversation: c.ID(), Type: "write", Status: status, Entry: previous})
 				if err != nil {
-					return err
+					return nil, err
 				}
 				inbox, err := tx.AcquireDocument(mountedDocumentDefinitions[2], c.ID(), nil, nil)
 				if err != nil {
-					return err
+					return nil, err
 				}
-				return inbox.Set(JSON{"items": []any{JSON{"id": write.ID, "mode": "write", "entry": JSON{"kind": "app.note", "data": nil, "model": []any{JSON{"role": "user", "content": []any{JSON{"type": "text", "text": "canonical note"}}, "timestamp": 1}}}}}})
+				return nil, inbox.Set(JSON{"items": []any{JSON{"id": write.ID, "mode": "write", "entry": JSON{"kind": "app.note", "data": nil, "model": []any{JSON{"role": "user", "content": []any{JSON{"type": "text", "text": "canonical note"}}, "timestamp": 1}}}}}})
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -263,25 +264,25 @@ func TestCanonicalInboxWritesAreBoundaryAuthority(t *testing.T) {
 func TestCanonicalInboxMissingWriteFailsAfterAdmissionCallback(t *testing.T) {
 	h := openHarness(t, taskConformanceStoreV150(t), Options{})
 	c := root(t, h, ModelRef{})
-	_, err := h.Commit(bg, func(tx *Tx) error {
+	_, err := h.Commit(bg, func(tx *Tx) (any, error) {
 		doc, err := tx.AcquireDocument(mountedDocumentDefinitions[2], c.ID(), nil, nil)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		return doc.Set(JSON{"items": []any{JSON{"id": 999999, "mode": "write", "entry": JSON{"kind": "app.note"}}}})
+		return nil, doc.Set(JSON{"items": []any{JSON{"id": 999999, "mode": "write", "entry": JSON{"kind": "app.note"}}}})
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	finished := false
 	var admissionError error
-	_, err = h.Commit(bg, func(tx *Tx) error {
+	_, err = h.Commit(bg, func(tx *Tx) (any, error) {
 		_, admissionError = c.SubmitIn(tx, Input{Type: "input", Content: "hi"})
 		if admissionError != nil {
-			return admissionError
+			return nil, admissionError
 		}
 		finished = true
-		return nil
+		return nil, nil
 	})
 	if !finished || admissionError != nil || err == nil || err.Error() != "Submission 999999 does not exist" {
 		t.Fatal("missing write did not defer until assembly", finished, admissionError, err)

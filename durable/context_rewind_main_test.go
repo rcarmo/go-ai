@@ -30,7 +30,7 @@ func TestContextMainHeadRewindRestoresDiscardedHistory(t *testing.T) {
 			if entry.Value == nil {
 				entry.Value = JSON{}
 			}
-			if _, err = s.Commit(bg, func(tx *Tx) error { return tx.AppendEntry(entry) }); err != nil {
+			if _, err = s.Commit(bg, func(tx *Tx) (any, error) { return nil, tx.AppendEntry(entry) }); err != nil {
 				t.Fatal(err)
 			}
 			return id
@@ -98,8 +98,8 @@ func TestContextMainHeadRewindRestoresDiscardedHistory(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err = s.Commit(bg, func(tx *Tx) error {
-				return tx.CreateConversation(Conversation{ID: child, Parent: root, ParentAt: at})
+			if _, err = s.Commit(bg, func(tx *Tx) (any, error) {
+				return nil, tx.CreateConversation(Conversation{ID: child, Parent: root, ParentAt: at})
 			}); err != nil {
 				t.Fatal(err)
 			}

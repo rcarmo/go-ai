@@ -15,13 +15,13 @@ func documentTimerFixture140(t *testing.T, s *Session, calls *atomic.Int64) *Doc
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = s.Commit(bg, func(tx *Tx) error {
+	_, err = s.Commit(bg, func(tx *Tx) (any, error) {
 		id, err := tx.MintID()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		_, err = tx.CreateDocument(Document{ID: id, Kind: "timer-cache", Version: 1, Scope: "session", Value: JSON{"x": 1}})
-		return err
+		return nil, err
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -70,13 +70,13 @@ func TestSessionTimer140BackgroundDeclineAndFailureSweepOnCommit(t *testing.T) {
 			clock.Store(1020)
 			// There is deliberately no host timer. A genuine unrelated commit must
 			// perform opportunistic eviction without touching the retained definition.
-			if _, err = s.Commit(bg, func(tx *Tx) error {
+			if _, err = s.Commit(bg, func(tx *Tx) (any, error) {
 				id, err := tx.MintID()
 				if err != nil {
-					return err
+					return nil, err
 				}
 				_, err = tx.CreateDocument(Document{ID: id, Kind: "unrelated", Version: 1, Scope: "session", Value: JSON{}})
-				return err
+				return nil, err
 			}); err != nil {
 				t.Fatal(err)
 			}
@@ -249,7 +249,9 @@ func TestSessionTimer140HarnessContextExpiryUsesHost(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err = h.session.Commit(bg, func(tx *Tx) error { return tx.AppendEntry(contextEntry(id, root, goai.RoleUser, "context")) }); err != nil {
+		if _, err = h.session.Commit(bg, func(tx *Tx) (any, error) {
+			return nil, tx.AppendEntry(contextEntry(id, root, goai.RoleUser, "context"))
+		}); err != nil {
 			t.Fatal(err)
 		}
 		if _, err = h.session.ContextView(bg, root, 0); err != nil {

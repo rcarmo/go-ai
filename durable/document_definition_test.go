@@ -42,10 +42,10 @@ func TestDocumentDefinitionFamilySeedScopeAndSealedOwnership(t *testing.T) {
 		seed := JSON{"input": "first"}
 		var escaped *DocumentHandle
 		var id ID
-		_, e = session.Commit(bg, func(tx *Tx) error {
+		_, e = session.Commit(bg, func(tx *Tx) (any, error) {
 			h, e := tx.AcquireDocument(family, 0, &key, seed)
 			if e != nil {
-				return e
+				return nil, e
 			}
 			escaped = h
 			id = h.id
@@ -53,19 +53,19 @@ func TestDocumentDefinitionFamilySeedScopeAndSealedOwnership(t *testing.T) {
 			retained["nested"].(JSON)["value"] = "caller"
 			second, e := tx.AcquireDocument(family, 0, &key, JSON{"input": "ignored"})
 			if e != nil {
-				return e
+				return nil, e
 			}
 			if second.id != h.id {
-				return errors.New("duplicatefamilyincarnation")
+				return nil, errors.New("duplicatefamilyincarnation")
 			}
 			value, e := second.Get()
 			if e != nil {
-				return e
+				return nil, e
 			}
 			if value["seed"].(map[string]any)["input"] != "first" || value["nested"].(map[string]any)["value"] != "owned" {
-				return errors.New("initializer/inputalias")
+				return nil, errors.New("initializer/inputalias")
 			}
-			return nil
+			return nil, nil
 		})
 		if e != nil {
 			t.Fatal(e)
@@ -91,12 +91,12 @@ func TestDocumentDefinitionFamilySeedScopeAndSealedOwnership(t *testing.T) {
 		} {
 			rejected(t, run())
 		}
-		_, e = session.Commit(bg, func(tx *Tx) error {
+		_, e = session.Commit(bg, func(tx *Tx) (any, error) {
 			if e := tx.RetireDefinition(family, 0, &key); e != nil {
-				return e
+				return nil, e
 			}
 			_, e := tx.AcquireDocument(family, 0, &key, JSON{"input": "second"})
-			return e
+			return nil, e
 		})
 		if e != nil {
 			t.Fatal(e)
@@ -131,12 +131,12 @@ func TestDocumentDefinitionMigrationSnapshotsRequiredBaseAndRollback(t *testing.
 			return retained, nil
 		}})
 		var id ID
-		_, e = session.Commit(bg, func(tx *Tx) error {
+		_, e = session.Commit(bg, func(tx *Tx) (any, error) {
 			h, e := tx.AcquireDocument(old, 0, nil, nil)
 			if e == nil {
 				id = h.id
 			}
-			return e
+			return nil, e
 		})
 		if e != nil {
 			t.Fatal(e)
@@ -160,7 +160,7 @@ func TestDocumentDefinitionMigrationSnapshotsRequiredBaseAndRollback(t *testing.
 			t.Fatal("snapshotpersistedmigration", e)
 		}
 		unrelated := mustDefinition(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "definition.other", Version: 1, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{}, nil }})
-		_, e = session.Commit(bg, func(tx *Tx) error { _, e := tx.AcquireDocument(unrelated, 0, nil, nil); return e })
+		_, e = session.Commit(bg, func(tx *Tx) (any, error) { _, e := tx.AcquireDocument(unrelated, 0, nil, nil); return nil, e })
 		if e != nil {
 			t.Fatal(e)
 		}
@@ -171,15 +171,15 @@ func TestDocumentDefinitionMigrationSnapshotsRequiredBaseAndRollback(t *testing.
 		if e != nil {
 			t.Fatal(e)
 		}
-		_, e = session.Commit(bg, func(tx *Tx) error {
+		_, e = session.Commit(bg, func(tx *Tx) (any, error) {
 			h, e := tx.AcquireDocument(current, 0, nil, nil)
 			if e != nil {
-				return e
+				return nil, e
 			}
 			if e = h.Set(JSON{"count": 9, "labels": []any{"rollback"}}); e != nil {
-				return e
+				return nil, e
 			}
-			return errors.New("callbackrollback")
+			return nil, errors.New("callbackrollback")
 		})
 		if e == nil {
 			t.Fatal("callbackaccepted")
@@ -190,12 +190,12 @@ func TestDocumentDefinitionMigrationSnapshotsRequiredBaseAndRollback(t *testing.
 		}
 		// The first successful typed transaction persists a required base even
 		// when the migrated value itself is not edited.
-		seq, e := session.Commit(bg, func(tx *Tx) error { _, e := tx.AcquireDocument(current, 0, nil, nil); return e })
-		if e != nil {
-			t.Fatal(e)
+		value, e := session.Commit(bg, func(tx *Tx) (any, error) { _, e := tx.AcquireDocument(current, 0, nil, nil); return nil, e })
+		if e != nil || value != nil {
+			t.Fatal(value, e)
 		}
 		state, e := session.Snapshot(bg)
-		if e != nil || state.Seq != seq || state.Documents[id].Version != 3 || state.Documents[id].Value["labels"].([]any)[0] != "migrated" {
+		if e != nil || state.Seq != before.Seq+1 || state.Documents[id].Version != 3 || state.Documents[id].Value["labels"].([]any)[0] != "migrated" {
 			t.Fatal(state, e)
 		}
 		if calls != 1 {
@@ -229,7 +229,7 @@ func TestDocumentDefinitionVersionPolicyInvalidCallbacksAndConcurrentReads(t *te
 		rejected(t, e)
 	}
 	old := mustDefinition(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "versions", Version: 2, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{"value": "stored"}, nil }})
-	_, e = session.Commit(bg, func(tx *Tx) error { _, e := tx.AcquireDocument(old, 0, nil, nil); return e })
+	_, e = session.Commit(bg, func(tx *Tx) (any, error) { _, e := tx.AcquireDocument(old, 0, nil, nil); return nil, e })
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -237,7 +237,7 @@ func TestDocumentDefinitionVersionPolicyInvalidCallbacksAndConcurrentReads(t *te
 		def := mustDefinition(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "versions", Version: version, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{}, nil }})
 		_, _, e = detachedDefinitionSnapshot(session, bg, def, 0, nil)
 		rejected(t, e)
-		_, e = session.Commit(bg, func(tx *Tx) error { _, e := tx.AcquireDocument(def, 0, nil, nil); return e })
+		_, e = session.Commit(bg, func(tx *Tx) (any, error) { _, e := tx.AcquireDocument(def, 0, nil, nil); return nil, e })
 		rejected(t, e)
 	}
 	bad := mustDefinition(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "versions", Version: 3, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{}, nil }, Migrate: func(JSON, uint64) (JSON, error) { return JSON{"bad": func() {}}, nil }})
@@ -282,30 +282,30 @@ func TestDocumentDefinitionHistoricalAncestorAndCopyMigration(t *testing.T) {
 		defer session.Close(bg)
 		old := mustDefinition(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "history.typed", Version: 1, Scope: "conversation", History: "rewindable", Fork: "asOf", Initial: func(JSON) (JSON, error) { return JSON{"value": "initial"}, nil }})
 		var cut ID
-		_, e = session.Commit(bg, func(tx *Tx) error {
+		_, e = session.Commit(bg, func(tx *Tx) (any, error) {
 			var e error
 			cut, e = tx.MintID()
 			if e != nil {
-				return e
+				return nil, e
 			}
 			if e = tx.AppendEntry(Entry{ID: cut, Conversation: 1, Kind: "note", Value: JSON{}}); e != nil {
-				return e
+				return nil, e
 			}
 			h, e := tx.AcquireDocument(old, 1, nil, nil)
 			if e != nil {
-				return e
+				return nil, e
 			}
-			return h.Set(JSON{"value": "at-cut"})
+			return nil, h.Set(JSON{"value": "at-cut"})
 		})
 		if e != nil {
 			t.Fatal(e)
 		}
-		_, e = session.Commit(bg, func(tx *Tx) error {
+		_, e = session.Commit(bg, func(tx *Tx) (any, error) {
 			h, e := tx.AcquireDocument(old, 1, nil, nil)
 			if e != nil {
-				return e
+				return nil, e
 			}
-			return h.Set(JSON{"value": "later"})
+			return nil, h.Set(JSON{"value": "later"})
 		})
 		if e != nil {
 			t.Fatal(e)
@@ -313,7 +313,7 @@ func TestDocumentDefinitionHistoricalAncestorAndCopyMigration(t *testing.T) {
 		var calls int
 		current := mustDefinition(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: old.options.Kind, Version: 2, Scope: "conversation", History: "rewindable", Fork: "asOf", Initial: old.options.Initial, Migrate: func(v JSON, _ uint64) (JSON, error) { calls++; v["migrated"] = true; return v, nil }})
 		var child Conversation
-		_, e = session.Commit(bg, func(tx *Tx) error { var e error; child, e = tx.ForkConversation(1, cut, 0); return e })
+		_, e = session.Commit(bg, func(tx *Tx) (any, error) { var e error; child, e = tx.ForkConversation(1, cut, 0); return nil, e })
 		if e != nil {
 			t.Fatal(e)
 		}
@@ -324,7 +324,7 @@ func TestDocumentDefinitionHistoricalAncestorAndCopyMigration(t *testing.T) {
 		if e != nil || !ok || v["value"] != "at-cut" {
 			t.Fatal(v, ok, e)
 		}
-		_, e = session.Commit(bg, func(tx *Tx) error { _, e := tx.AcquireDocument(current, child.ID, nil, nil); return e })
+		_, e = session.Commit(bg, func(tx *Tx) (any, error) { _, e := tx.AcquireDocument(current, child.ID, nil, nil); return nil, e })
 		if e != nil {
 			t.Fatal(e)
 		}
@@ -440,7 +440,7 @@ func TestDocumentDefinitionCacheBoundUnloadAndUnaccessedVersions(t *testing.T) {
 	defer session.Close(bg)
 	for i := 0; i < 5; i++ {
 		d := mustDefinition(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: fmt.Sprintf("cache.d%d", i), Version: 1, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{"value": "bounded"}, nil }})
-		_, e = session.Commit(bg, func(tx *Tx) error { _, e := tx.AcquireDocument(d, 0, nil, nil); return e })
+		_, e = session.Commit(bg, func(tx *Tx) (any, error) { _, e := tx.AcquireDocument(d, 0, nil, nil); return nil, e })
 		if e != nil {
 			t.Fatal(e)
 		}
@@ -479,27 +479,27 @@ func TestDocumentDefinitionTaskScopeLiveAndPolicyMismatch(t *testing.T) {
 	}
 	defer session.Close(bg)
 	def := mustDefinition(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "task.doc", Version: 1, Scope: "task", Initial: func(JSON) (JSON, error) { return JSON{"value": "live"}, nil }})
-	_, e = session.Commit(bg, func(tx *Tx) error { _, e := tx.AcquireDocument(def, task, nil, nil); return e })
+	_, e = session.Commit(bg, func(tx *Tx) (any, error) { _, e := tx.AcquireDocument(def, task, nil, nil); return nil, e })
 	if e != nil {
 		t.Fatal(e)
 	}
-	_, e = session.Commit(bg, func(tx *Tx) error {
-		return tx.PutTask(Task{ID: task, Conversation: 1, Kind: "custom", Status: "done", Checkpoint: JSON{}})
+	_, e = session.Commit(bg, func(tx *Tx) (any, error) {
+		return nil, tx.PutTask(Task{ID: task, Conversation: 1, Kind: "custom", Status: "done", Checkpoint: JSON{}})
 	})
 	if e != nil {
 		t.Fatal(e)
 	}
-	_, e = session.Commit(bg, func(tx *Tx) error { _, e := tx.AcquireDocument(def, task, nil, nil); return e })
+	_, e = session.Commit(bg, func(tx *Tx) (any, error) { _, e := tx.AcquireDocument(def, task, nil, nil); return nil, e })
 	rejected(t, e)
 	first := mustDefinition(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "policy", Version: 1, Scope: "conversation", History: "rewindable", Fork: "asOf", Initial: func(JSON) (JSON, error) { return JSON{}, nil }})
-	_, e = session.Commit(bg, func(tx *Tx) error { _, e := tx.AcquireDocument(first, 1, nil, nil); return e })
+	_, e = session.Commit(bg, func(tx *Tx) (any, error) { _, e := tx.AcquireDocument(first, 1, nil, nil); return nil, e })
 	if e != nil {
 		t.Fatal(e)
 	}
 	changed := mustDefinition(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "policy", Version: 1, Scope: "conversation", History: "latest", Fork: "current", Initial: first.options.Initial})
 	_, _, e = detachedDefinitionSnapshot(session, bg, changed, 1, nil)
 	rejected(t, e)
-	_, e = session.Commit(bg, func(tx *Tx) error { _, e := tx.AcquireDocument(changed, 1, nil, nil); return e })
+	_, e = session.Commit(bg, func(tx *Tx) (any, error) { _, e := tx.AcquireDocument(changed, 1, nil, nil); return nil, e })
 	rejected(t, e)
 }
 
@@ -517,7 +517,7 @@ func TestDocumentDefinitionReadOnlyMigrationColdLoadOlderTokenAndRetirement(t *t
 	old := mustDefinition(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "cold", Version: 1, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{"value": "old"}, nil }})
 	var calls int
 	current := mustDefinition(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "cold", Version: 2, Scope: "session", Initial: old.options.Initial, Migrate: func(v JSON, _ uint64) (JSON, error) { calls++; v["new"] = true; return v, nil }})
-	_, e = session.Commit(bg, func(tx *Tx) error { _, e := tx.AcquireDocument(old, 0, nil, nil); return e })
+	_, e = session.Commit(bg, func(tx *Tx) (any, error) { _, e := tx.AcquireDocument(old, 0, nil, nil); return nil, e })
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -534,7 +534,7 @@ func TestDocumentDefinitionReadOnlyMigrationColdLoadOlderTokenAndRetirement(t *t
 			t.Fatal("oldertokenforcedinmemoryshape", v, ok, e)
 		}
 	}
-	_, e = session.Commit(bg, func(tx *Tx) error { return tx.RetireDefinition(current, 0, nil) })
+	_, e = session.Commit(bg, func(tx *Tx) (any, error) { return nil, tx.RetireDefinition(current, 0, nil) })
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -554,7 +554,7 @@ func TestDocumentDefinitionReadOnlyMigrationColdLoadOlderTokenAndRetirement(t *t
 	if !found {
 		t.Fatal("missingretired")
 	}
-	_, e = session.Commit(bg, func(tx *Tx) error { return tx.RetireDefinition(current, 0, nil) })
+	_, e = session.Commit(bg, func(tx *Tx) (any, error) { return nil, tx.RetireDefinition(current, 0, nil) })
 	if e != nil {
 		t.Fatal("absentretireisnotnoop", e)
 	}
@@ -574,7 +574,7 @@ func TestDocumentDefinitionCacheOversizedMigrationNotRetained(t *testing.T) {
 	}
 	defer session.Close(bg)
 	old := mustDefinition(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "cache.large", Version: 1, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{"value": "small"}, nil }})
-	_, e = session.Commit(bg, func(tx *Tx) error { _, e := tx.AcquireDocument(old, 0, nil, nil); return e })
+	_, e = session.Commit(bg, func(tx *Tx) (any, error) { _, e := tx.AcquireDocument(old, 0, nil, nil); return nil, e })
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -590,7 +590,7 @@ func TestDocumentDefinitionCacheOversizedMigrationNotRetained(t *testing.T) {
 	if len(session.definitionCache) != 0 || session.definitionCacheBytes != 0 {
 		t.Fatal("oversizedmigrationretained")
 	}
-	_, e = session.Commit(bg, func(tx *Tx) error { _, e := tx.AcquireDocument(large, 0, nil, nil); return e })
+	_, e = session.Commit(bg, func(tx *Tx) (any, error) { _, e := tx.AcquireDocument(large, 0, nil, nil); return nil, e })
 	rejected(t, e)
 	after, e := session.Snapshot(bg)
 	if e != nil || !equalSnapshot(before, after) {
@@ -613,7 +613,7 @@ func TestDocumentDefinitionInitializerFailureReentrancyAndClose(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	_, e = session.Commit(bg, func(tx *Tx) error { _, e := tx.AcquireDocument(invalid, 0, nil, nil); return e })
+	_, e = session.Commit(bg, func(tx *Tx) (any, error) { _, e := tx.AcquireDocument(invalid, 0, nil, nil); return nil, e })
 	rejected(t, e)
 	after, e := session.Snapshot(bg)
 	if e != nil || !equalSnapshot(before, after) {
@@ -626,7 +626,7 @@ func TestDocumentDefinitionInitializerFailureReentrancyAndClose(t *testing.T) {
 		}
 		return JSON{"value": "owned"}, nil
 	}})
-	_, e = session.Commit(bg, func(tx *Tx) error { active = tx; _, e := tx.AcquireDocument(def, 0, nil, nil); return e })
+	_, e = session.Commit(bg, func(tx *Tx) (any, error) { active = tx; _, e := tx.AcquireDocument(def, 0, nil, nil); return nil, e })
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -671,17 +671,17 @@ func TestDocumentDefinitionHistoricalMigrationDocumentBudget(t *testing.T) {
 				Initial: func(JSON) (JSON, error) { return JSON{"value": "small"}, nil },
 			})
 			var cutoff ID
-			_, e = session.Commit(bg, func(tx *Tx) error {
+			_, e = session.Commit(bg, func(tx *Tx) (any, error) {
 				var e error
 				cutoff, e = tx.MintID()
 				if e != nil {
-					return e
+					return nil, e
 				}
 				if e = tx.AppendEntry(Entry{ID: cutoff, Conversation: 1, Kind: "note", Value: JSON{}}); e != nil {
-					return e
+					return nil, e
 				}
 				_, e = tx.AcquireDocument(old, 1, nil, nil)
-				return e
+				return nil, e
 			})
 			if e != nil {
 				t.Fatal(e)
@@ -706,7 +706,7 @@ func TestDocumentDefinitionHistoricalMigrationDocumentBudget(t *testing.T) {
 					return e
 				},
 				func() error {
-					_, e := session.Commit(bg, func(tx *Tx) error { _, e := tx.AcquireDocument(oversized, 1, nil, nil); return e })
+					_, e := session.Commit(bg, func(tx *Tx) (any, error) { _, e := tx.AcquireDocument(oversized, 1, nil, nil); return nil, e })
 					return e
 				},
 			} {
@@ -730,7 +730,7 @@ func TestDocumentDefinitionHistoricalMigrationDocumentBudget(t *testing.T) {
 			if e != nil || !ok || value["value"] != "small" || value["migrated"] != true {
 				t.Fatal("valid historical access after rejection", value, ok, e)
 			}
-			_, e = session.Commit(bg, func(tx *Tx) error { _, e := tx.AcquireDocument(valid, 1, nil, nil); return e })
+			_, e = session.Commit(bg, func(tx *Tx) (any, error) { _, e := tx.AcquireDocument(valid, 1, nil, nil); return nil, e })
 			if e != nil {
 				t.Fatal("valid typed acquisition after rejection", e)
 			}

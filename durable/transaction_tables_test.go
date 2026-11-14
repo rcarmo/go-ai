@@ -28,7 +28,7 @@ func TestTxV150TaskAndTableReadsBeforeFirstTableWrite(t *testing.T) {
 		}
 		defer session.Close(bg)
 		notes := mustDefinition(t, DefinitionOptions{Kind: "source.table.notes", Scope: "conversation", Version: 1, Initial: func(JSON) (JSON, error) { return JSON{"text": ""}, nil }, CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }})
-		_, err = session.Commit(bg, func(tx *Tx) error {
+		_, err = session.Commit(bg, func(tx *Tx) (any, error) {
 			conversation, found, err := tx.Conversation(1)
 			if err != nil || !found || !reflect.DeepEqual(conversation, Conversation{ID: 1}) {
 				t.Fatal(conversation, found, err)
@@ -47,10 +47,10 @@ func TestTxV150TaskAndTableReadsBeforeFirstTableWrite(t *testing.T) {
 			}
 			id, err := tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if err = tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note"}); err != nil {
-				return err
+				return nil, err
 			}
 			for _, read := range []func() error{
 				func() error { _, _, err := tx.Conversation(1); return err },
@@ -68,9 +68,9 @@ func TestTxV150TaskAndTableReadsBeforeFirstTableWrite(t *testing.T) {
 			}
 			doc, err := tx.AcquireDocument(notes, 1, nil, nil)
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return doc.Set(JSON{"text": "after write"})
+			return nil, doc.Set(JSON{"text": "after write"})
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -89,7 +89,7 @@ func TestTxV150TaskAndTableReadsBeforeFirstTableWrite(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer session.Close(bg)
-	_, err = session.Commit(bg, func(tx *Tx) error {
+	_, err = session.Commit(bg, func(tx *Tx) (any, error) {
 		conversation, found, err := tx.Conversation(1)
 		if err != nil || !found || conversation.ID != 1 {
 			t.Fatal(conversation, found, err)
@@ -103,20 +103,20 @@ func TestTxV150TaskAndTableReadsBeforeFirstTableWrite(t *testing.T) {
 		}
 		requireStorageTaskEqualV150(t, before, task)
 		if _, err := tx.ScanTasks(TaskQuery{Conversation: 1}, 10, nil); err != nil {
-			return err
+			return nil, err
 		}
 		if _, err := tx.ScanConversations(ConversationQuery{}, 10, nil); err != nil {
-			return err
+			return nil, err
 		}
 		if _, err := tx.ScanEntries(EntryQuery{Conversation: 1}, 10, nil); err != nil {
-			return err
+			return nil, err
 		}
 		id, err := tx.MintID()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if err = tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}}); err != nil {
-			return err
+			return nil, err
 		}
 		checks := []struct {
 			name string
@@ -142,13 +142,13 @@ func TestTxV150TaskAndTableReadsBeforeFirstTableWrite(t *testing.T) {
 		// Document writes remain legal after table writes.
 		docID, err := tx.MintID()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		doc, err := tx.CreateDocument(Document{ID: docID, Kind: "v150.reads", Scope: "session", Version: 1, Value: JSON{"text": "before"}})
 		if err != nil {
-			return err
+			return nil, err
 		}
-		return doc.Set(JSON{"text": "after write"})
+		return nil, doc.Set(JSON{"text": "after write"})
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -164,17 +164,17 @@ func TestTxV150DocumentWritesAllowReadsButFailedTableWriteFencesThem(t *testing.
 		t.Fatal(err)
 	}
 	defer session.Close(bg)
-	_, err = session.Commit(bg, func(tx *Tx) error {
+	_, err = session.Commit(bg, func(tx *Tx) (any, error) {
 		id, err := tx.MintID()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		doc, err := tx.CreateDocument(Document{ID: id, Kind: "v150.table.read.fence", Scope: "session", Version: 1, Value: JSON{"text": "before"}})
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if err = doc.Set(JSON{"text": "document write"}); err != nil {
-			return err
+			return nil, err
 		}
 		if _, found, err := tx.Task(99); err != nil || found {
 			t.Fatalf("document write fenced table read: found=%v err=%v", found, err)
@@ -184,7 +184,7 @@ func TestTxV150DocumentWritesAllowReadsButFailedTableWriteFencesThem(t *testing.
 		}
 		bad, err := tx.MintID()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if err = tx.AppendEntry(Entry{ID: bad, Conversation: 12345, Kind: "note", Value: JSON{}}); err == nil {
 			t.Fatal("missing conversation accepted")
@@ -197,12 +197,12 @@ func TestTxV150DocumentWritesAllowReadsButFailedTableWriteFencesThem(t *testing.
 		}
 		value, err := doc.Get()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if value["text"] != "document write" {
 			t.Fatal(value)
 		}
-		return nil
+		return nil, nil
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -214,7 +214,7 @@ func TestTaskTablesPinnedStagedOwnerSameBatchDocumentsAndLegacyReplacement(t *te
 		h := taskTestHarness(t, b.store)
 		definition := taskDefinition(t, "task.table-new", func(context.Context, TaskRecord, *TaskRuntime) error { return nil })
 		var owner, conversation, document ID
-		_, err := h.CommitTasks(bg, 1, func(tx *Tx) error {
+		_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 			var err error
 			owner, err = tx.CreateTask(definition, []any{"input"}, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}, Background: true})
 			if err != nil {
@@ -242,7 +242,7 @@ func TestTaskTablesPinnedStagedOwnerSameBatchDocumentsAndLegacyReplacement(t *te
 			t.Fatal("staged owner/document", state, err)
 		}
 		before := state.Seq
-		_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+		_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 			task, err := copyTask(tx.state.Tasks[owner], tx.limits)
 			if err != nil {
 				return err
@@ -299,7 +299,7 @@ func TestTaskTablesPinnedTypedSameBatchOwnerAndLaterPublication(t *testing.T) {
 		}
 		var owner, progressID, stepID ID
 		key := "one"
-		seq, err := h.CommitTasks(bg, 1, func(tx *Tx) error {
+		seq, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 			var err error
 			owner, err = tx.CreateTask(work, JSON{"path": "a"}, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}, Background: true})
 			if err != nil {
@@ -369,7 +369,7 @@ func TestTaskTablesPinnedTypedSameBatchOwnerAndLaterPublication(t *testing.T) {
 		// An unrelated ownerless conversation in this transaction must not become
 		// the owner scope of a document belonging to the previously committed task.
 		var other ID
-		later, err := h.CommitTasks(bg, 1, func(tx *Tx) error {
+		later, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 			var err error
 			other, err = tx.MintID()
 			if err != nil {
@@ -423,7 +423,7 @@ func TestTxTypedEntryReadsGlobalCommittedRecordAndNarrowsKind(t *testing.T) {
 	defer session.Close(bg)
 	token := entryToken(t, "foreign.note")
 	wrong := entryToken(t, "other.kind")
-	_, err = session.Commit(bg, func(tx *Tx) error {
+	_, err = session.Commit(bg, func(tx *Tx) (any, error) {
 		record, found, err := tx.TypedEntry(token, id)
 		if err != nil || !found || record.Conversation != other {
 			t.Fatal(record, found, err)
@@ -438,16 +438,16 @@ func TestTxTypedEntryReadsGlobalCommittedRecordAndNarrowsKind(t *testing.T) {
 		}
 		fresh, err := tx.MintID()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if err = tx.AppendEntry(Entry{ID: fresh, Conversation: 1, Kind: "note", Value: JSON{}}); err != nil {
-			return err
+			return nil, err
 		}
 		_, _, err = tx.TypedEntry(token, id)
 		if err == nil || err.Error() != "Tx.entry() cannot read tables after the first table write" {
 			t.Fatal("typed read bypassed table-write fence", err)
 		}
-		return nil
+		return nil, nil
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -464,20 +464,20 @@ func TestTxSubmissionLookupFencesAfterTableWrite(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer session.Close(bg)
-	_, err = session.Commit(bg, func(tx *Tx) error {
+	_, err = session.Commit(bg, func(tx *Tx) (any, error) {
 		actual, found, err := tx.Submission(id)
 		if err != nil || !found || actual.Status != "queued" {
 			t.Fatal(actual, found, err)
 		}
 		if err := tx.PutSubmission(Submission{ID: id, Conversation: 1, Type: "follow-up", Status: "pending", Value: JSON{}}); err != nil {
-			return err
+			return nil, err
 		}
 		_, _, err = tx.Submission(id)
 		var fenced *ReadAfterWrite
 		if !errors.As(err, &fenced) || fenced.Method != "submission" {
 			t.Fatalf("submission read bypassed source table fence: %v", err)
 		}
-		return nil
+		return nil, nil
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -492,7 +492,7 @@ func TestTxSubmissionByRequestCommittedLookupAndFence(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer session.Close(bg)
-	_, err = session.Commit(bg, func(tx *Tx) error {
+	_, err = session.Commit(bg, func(tx *Tx) (any, error) {
 		reader := tx
 		actual, found, err := reader.SubmissionByRequest(1, "")
 		if err != nil || !found || actual.ID != id || !actual.RequestIDPresent {
@@ -503,17 +503,17 @@ func TestTxSubmissionByRequestCommittedLookupAndFence(t *testing.T) {
 		}
 		fresh, err := tx.MintID()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if err = tx.AppendEntry(Entry{ID: fresh, Conversation: 1, Kind: "note"}); err != nil {
-			return err
+			return nil, err
 		}
 		_, _, err = reader.SubmissionByRequest(1, "")
 		var fenced *ReadAfterWrite
 		if !errors.As(err, &fenced) || fenced.Method != "submissionByRequest" {
 			t.Fatal(err)
 		}
-		return nil
+		return nil, nil
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -532,13 +532,13 @@ func TestSubmissionTransactionCurrentRecordPlacementFirstSettlementAndDetached(t
 			t.Fatal(err)
 		}
 		var entry ID
-		_, err = root.Commit(bg, func(tx *Tx) error {
+		_, err = root.Commit(bg, func(tx *Tx) (any, error) {
 			var err error
 			entry, err = tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return tx.AppendEntry(Entry{ID: entry, Conversation: 1, Kind: "note"})
+			return nil, tx.AppendEntry(Entry{ID: entry, Conversation: 1, Kind: "note"})
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -546,10 +546,10 @@ func TestSubmissionTransactionCurrentRecordPlacementFirstSettlementAndDetached(t
 		create := func(kind string) ID {
 			t.Helper()
 			var record SubmissionRecord
-			_, err := h.Commit(bg, func(tx *Tx) error {
+			_, err := h.Commit(bg, func(tx *Tx) (any, error) {
 				var err error
 				record, err = tx.CreateSubmission(SubmissionCreate{Conversation: 1, Type: kind, Status: "queued"})
-				return err
+				return nil, err
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -558,30 +558,30 @@ func TestSubmissionTransactionCurrentRecordPlacementFirstSettlementAndDetached(t
 		}
 		queued, write := create("input"), create("write")
 		for _, id := range []ID{queued, write} {
-			_, err = root.Commit(bg, func(tx *Tx) error {
-				return tx.SettleSubmission(id, SubmissionSettlement{Status: "done", Answer: entry})
+			_, err = root.Commit(bg, func(tx *Tx) (any, error) {
+				return nil, tx.SettleSubmission(id, SubmissionSettlement{Status: "done", Answer: entry})
 			})
 			if err == nil || !strings.Contains(err.Error(), "is not a placed input") {
 				t.Fatal(err)
 			}
 		}
-		_, err = root.Commit(bg, func(tx *Tx) error {
-			return tx.SettleSubmission(999999, SubmissionSettlement{Status: "unanswered", Reason: "x"})
+		_, err = root.Commit(bg, func(tx *Tx) (any, error) {
+			return nil, tx.SettleSubmission(999999, SubmissionSettlement{Status: "unanswered", Reason: "x"})
 		})
 		if err == nil || !strings.Contains(err.Error(), "does not exist") {
 			t.Fatal(err)
 		}
 		var placed SubmissionRecord
-		_, err = h.Commit(bg, func(tx *Tx) error {
+		_, err = h.Commit(bg, func(tx *Tx) (any, error) {
 			var err error
 			placed, err = tx.CreateSubmission(SubmissionCreate{Conversation: 1, Type: "input", Status: "placed", Entry: entry})
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if err = tx.SettleSubmission(placed.ID, SubmissionSettlement{Status: "done", Answer: entry}); err != nil {
-				return err
+				return nil, err
 			}
-			return tx.SettleSubmission(placed.ID, SubmissionSettlement{Status: "unanswered", Reason: "late"})
+			return nil, tx.SettleSubmission(placed.ID, SubmissionSettlement{Status: "unanswered", Reason: "late"})
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -599,66 +599,66 @@ func TestSubmissionTransactionCurrentRecordPlacementFirstSettlementAndDetached(t
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h := taskTestHarness(t, b.store)
 		var entry, input, write, placed ID
-		_, err := h.Commit(bg, func(tx *Tx) error {
+		_, err := h.Commit(bg, func(tx *Tx) (any, error) {
 			var err error
 			entry, err = tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if err = tx.AppendEntry(Entry{ID: entry, Conversation: 1, Kind: "note", Value: JSON{}}); err != nil {
-				return err
+				return nil, err
 			}
 			createdInput, err := tx.CreateSubmission(SubmissionCreate{Conversation: 1, Type: "input", Status: "queued"})
 			input = createdInput.ID
 			if err != nil {
-				return err
+				return nil, err
 			}
 			createdWrite, err := tx.CreateSubmission(SubmissionCreate{Conversation: 1, Type: "write", Status: "queued"})
 			write = createdWrite.ID
-			return err
+			return nil, err
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
 		for _, id := range []ID{input, write} {
-			if _, err := h.Commit(bg, func(tx *Tx) error {
-				return tx.SettleSubmission(id, SubmissionSettlement{Status: "unanswered", Reason: "aborted", Answer: entry})
+			if _, err := h.Commit(bg, func(tx *Tx) (any, error) {
+				return nil, tx.SettleSubmission(id, SubmissionSettlement{Status: "unanswered", Reason: "aborted", Answer: entry})
 			}); err == nil {
 				t.Fatal("unanswered settlement accepted answer", id)
 			}
-			_, err := h.Commit(bg, func(tx *Tx) error {
-				return tx.SettleSubmission(id, SubmissionSettlement{Status: "done", Answer: entry})
+			_, err := h.Commit(bg, func(tx *Tx) (any, error) {
+				return nil, tx.SettleSubmission(id, SubmissionSettlement{Status: "done", Answer: entry})
 			})
 			if err == nil {
 				t.Fatal("unplaced submission answered", id)
 			}
 		}
-		_, err = h.Commit(bg, func(tx *Tx) error {
-			return tx.SettleSubmission(ID(MaxID), SubmissionSettlement{Status: "unanswered", Reason: "missing"})
+		_, err = h.Commit(bg, func(tx *Tx) (any, error) {
+			return nil, tx.SettleSubmission(ID(MaxID), SubmissionSettlement{Status: "unanswered", Reason: "missing"})
 		})
 		if err == nil {
 			t.Fatal("missing submission settled")
 		}
-		_, err = h.Commit(bg, func(tx *Tx) error {
+		_, err = h.Commit(bg, func(tx *Tx) (any, error) {
 			var err error
 			createdPlaced, err := tx.CreateSubmission(SubmissionCreate{Conversation: 1, Type: "input", Status: "placed", Entry: entry})
 			placed = createdPlaced.ID
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if err := tx.SettleSubmission(placed, SubmissionSettlement{Status: "done", Answer: entry}); err != nil {
-				return err
+				return nil, err
 			}
 			if err := tx.SettleSubmission(placed, SubmissionSettlement{Status: "unanswered", Reason: "late"}); err != nil {
-				return err
+				return nil, err
 			}
 			if _, _, err := tx.Submission(placed); err == nil {
 				t.Fatal("staged submission read")
 			}
 			if err := tx.PlaceSubmission(input, entry); err != nil {
-				return err
+				return nil, err
 			}
-			return tx.PlaceSubmission(write, entry)
+			return nil, tx.PlaceSubmission(write, entry)
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -673,20 +673,20 @@ func TestSubmissionTransactionCurrentRecordPlacementFirstSettlementAndDetached(t
 			t.Fatal("record alias", againPlaced, err)
 		}
 		var unanswered ID
-		_, err = h.Commit(bg, func(tx *Tx) error {
+		_, err = h.Commit(bg, func(tx *Tx) (any, error) {
 			var err error
 			createdUnanswered, err := tx.CreateSubmission(SubmissionCreate{Conversation: 1, Type: "input", Status: "queued"})
 			unanswered = createdUnanswered.ID
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if err := tx.SettleSubmission(unanswered, SubmissionSettlement{Status: "unanswered", Reason: "host", Detail: &TaskValue{Present: true, Value: nil}}); err != nil {
-				return err
+				return nil, err
 			}
 			if _, _, err := tx.Submission(unanswered); err == nil {
 				t.Fatal("staged submission read")
 			}
-			return nil
+			return nil, nil
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -706,11 +706,11 @@ func TestSubmissionTransactionCurrentRecordPlacementFirstSettlementAndDetached(t
 		}
 		candidate := JSON{"nested": []any{"kept"}}
 		var detailed ID
-		_, err = h.Commit(bg, func(tx *Tx) error {
+		_, err = h.Commit(bg, func(tx *Tx) (any, error) {
 			var err error
 			createdDetailed, err := tx.CreateSubmission(SubmissionCreate{Conversation: 1, Type: "input", Status: "unanswered", Reason: "host", Detail: &TaskValue{Present: true, Value: candidate}})
 			detailed = createdDetailed.ID
-			return err
+			return nil, err
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -758,7 +758,7 @@ func TestTxSubmissionChangesResolveOnlyDuringAssembly(t *testing.T) {
 			}
 			defer session.Close(bg)
 			finished := false
-			_, err = session.Commit(bg, func(tx *Tx) error {
+			_, err = session.Commit(bg, func(tx *Tx) (any, error) {
 				var err error
 				if placement {
 					err = tx.PlaceSubmission(999999, 2)
@@ -769,7 +769,7 @@ func TestTxSubmissionChangesResolveOnlyDuringAssembly(t *testing.T) {
 					t.Fatal("submission change resolved inside callback", err)
 				}
 				finished = true
-				return nil
+				return nil, nil
 			})
 			if !finished || err == nil || !strings.Contains(err.Error(), "does not exist") {
 				t.Fatal("missing assembly failure", finished, err)
@@ -787,7 +787,7 @@ func TestTxSubmissionFailedCreateRequiresConversationBeforeMint(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer session.Close(bg)
-	_, err = session.Commit(bg, func(tx *Tx) error {
+	_, err = session.Commit(bg, func(tx *Tx) (any, error) {
 		high := tx.state.HighWater
 		if _, err := tx.CreateSubmission(SubmissionCreate{Conversation: 999999, Type: "write", Status: "queued"}); err == nil {
 			t.Fatal("missing conversation accepted during creation")
@@ -800,7 +800,7 @@ func TestTxSubmissionFailedCreateRequiresConversationBeforeMint(t *testing.T) {
 		if !errors.As(err, &fenced) {
 			t.Fatal("failed creation did not fence table reads", err)
 		}
-		return nil
+		return nil, nil
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -827,15 +827,15 @@ func TestTxSubmissionCreateReturnsRecordSurface(t *testing.T) {
 	detail := JSON{"nested": []any{"owned"}}
 	trace := goai.TelemetryCarrier{"traceparent": "owned"}
 	var created SubmissionRecord
-	_, err = session.Commit(bg, func(tx *Tx) error {
+	_, err = session.Commit(bg, func(tx *Tx) (any, error) {
 		var err error
 		created, err = tx.CreateSubmission(SubmissionCreate{Conversation: 1, Type: "input", Status: "unanswered", Reason: "", RequestIDPresent: true, Detail: &TaskValue{Present: true, Value: detail}, Trace: &trace})
 		if err != nil {
-			return err
+			return nil, err
 		}
 		detail["nested"].([]any)[0] = "caller mutation"
 		trace["traceparent"] = "caller mutation"
-		return nil
+		return nil, nil
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -869,11 +869,11 @@ func TestTxSubmissionTerminalChangesAreNoops(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			_, err = session.Commit(bg, func(tx *Tx) error {
+			_, err = session.Commit(bg, func(tx *Tx) (any, error) {
 				if err := tx.PlaceSubmission(id, ID(MaxID)); err != nil {
-					return err
+					return nil, err
 				}
-				return tx.SettleSubmission(id, SubmissionSettlement{Status: "done", Answer: ID(MaxID)})
+				return nil, tx.SettleSubmission(id, SubmissionSettlement{Status: "done", Answer: ID(MaxID)})
 			})
 			if err != nil {
 				t.Fatal("terminal record was revalidated as live", err)
@@ -900,8 +900,8 @@ func TestTxSubmissionAnswerReferenceDoesNotAddNativeVisibilityPolicy(t *testing.
 		t.Fatal(err)
 	}
 	defer session.Close(bg)
-	_, err = session.Commit(bg, func(tx *Tx) error {
-		return tx.SettleSubmission(id, SubmissionSettlement{Status: "done", Answer: ID(MaxID)})
+	_, err = session.Commit(bg, func(tx *Tx) (any, error) {
+		return nil, tx.SettleSubmission(id, SubmissionSettlement{Status: "done", Answer: ID(MaxID)})
 	})
 	if err != nil {
 		t.Fatal("source settlement does not require a persisted/visible answer", err)
@@ -920,24 +920,24 @@ func TestTxSubmissionQueuedChangesCanPrecedeTheirCreation(t *testing.T) {
 	}
 	defer session.Close(bg)
 	var created SubmissionRecord
-	_, err = session.Commit(bg, func(tx *Tx) error {
+	_, err = session.Commit(bg, func(tx *Tx) (any, error) {
 		// Source changes resolve against the map of all creations at assembly, not
 		// against the records present when this method is called.
 		future := ID(tx.state.HighWater + 1)
 		if err := tx.PlaceSubmission(future, ID(MaxID-1)); err != nil {
-			return err
+			return nil, err
 		}
 		if err := tx.SettleSubmission(future, SubmissionSettlement{Status: "done", Answer: ID(MaxID)}); err != nil {
-			return err
+			return nil, err
 		}
 		created, err = tx.CreateSubmission(SubmissionCreate{Conversation: 1, Type: "input", Status: "queued"})
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if created.ID != future {
 			t.Fatal(created.ID, future)
 		}
-		return nil
+		return nil, nil
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -956,7 +956,7 @@ func TestTxSubmissionAssemblyFailurePrecedesDocumentPredicates(t *testing.T) {
 	defer session.Close(bg)
 	predicates := 0
 	notes := mustDefinition(t, DefinitionOptions{Kind: "source.submission.validation.order", Scope: "conversation", Version: 1, Initial: func(JSON) (JSON, error) { return JSON{"text": ""}, nil }, CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { predicates++; return false, nil }})
-	_, err = session.Commit(bg, func(tx *Tx) error { _, err := tx.AcquireDocument(notes, 1, nil, nil); return err })
+	_, err = session.Commit(bg, func(tx *Tx) (any, error) { _, err := tx.AcquireDocument(notes, 1, nil, nil); return nil, err })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -966,19 +966,19 @@ func TestTxSubmissionAssemblyFailurePrecedesDocumentPredicates(t *testing.T) {
 	}
 	predicates = 0
 	finished := false
-	_, err = session.Commit(bg, func(tx *Tx) error {
+	_, err = session.Commit(bg, func(tx *Tx) (any, error) {
 		doc, err := tx.AcquireDocument(notes, 1, nil, nil)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if err = doc.Set(JSON{"text": "must roll back"}); err != nil {
-			return err
+			return nil, err
 		}
 		if err = tx.SettleSubmission(999999, SubmissionSettlement{Status: "unanswered", Reason: "x"}); err != nil {
 			t.Fatal("early transition lookup", err)
 		}
 		finished = true
-		return nil
+		return nil, nil
 	})
 	if err == nil || !finished || predicates != 0 {
 		t.Fatal("invalid submission reached predicates", finished, predicates, err)
@@ -993,7 +993,7 @@ func TestTxSubmissionReadersUseInstalledWrapperAuthority(t *testing.T) {
 	s := gatedSession(t)
 	adapter := &submissionReadFaultStorage{Storage: s.store, session: s}
 	s.taskBookkeeping(func() { s.store = adapter })
-	_, err := s.Commit(bg, func(tx *Tx) error {
+	_, err := s.Commit(bg, func(tx *Tx) (any, error) {
 		record, found, err := tx.SubmissionByRequest(1, "")
 		if err != nil || !found || record.ID != 44 {
 			t.Fatal("transaction request read bypassed wrapper", record, found, err)
@@ -1002,7 +1002,7 @@ func TestTxSubmissionReadersUseInstalledWrapperAuthority(t *testing.T) {
 		if err != nil || !found || record.ID != 44 {
 			t.Fatal("transaction record read bypassed wrapper", record, found, err)
 		}
-		return nil
+		return nil, nil
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -1019,7 +1019,7 @@ func TestSubmitInRollsBackWithCallerCommit(t *testing.T) {
 	}
 	submit := c
 	// openChat materialises its root builtin documents before the assertion baseline.
-	if _, err = h.Commit(bg, func(tx *Tx) error { return initializeBuiltins(tx, 1) }); err != nil {
+	if _, err = h.Commit(bg, func(tx *Tx) (any, error) { return nil, initializeBuiltins(tx, 1) }); err != nil {
 		t.Fatal(err)
 	}
 	before, err := h.Snapshot(bg)
@@ -1028,13 +1028,13 @@ func TestSubmitInRollsBackWithCallerCommit(t *testing.T) {
 	}
 	failure := errors.New("host check failed")
 	var id ID
-	_, err = h.Commit(bg, func(tx *Tx) error {
+	_, err = h.Commit(bg, func(tx *Tx) (any, error) {
 		var err error
 		id, err = submit.SubmitIn(tx, Input{Type: "input", Content: "hi", RequestID: "r1"})
 		if err != nil {
-			return err
+			return nil, err
 		}
-		return failure
+		return nil, failure
 	})
 	if !errors.Is(err, failure) || id == 0 {
 		t.Fatal(id, err)
@@ -1066,13 +1066,13 @@ func TestSubmitInRejectsForeignAndCopiedTransactions(t *testing.T) {
 		if foreign {
 			owner = other
 		}
-		_, err := owner.Commit(bg, func(tx *Tx) error {
+		_, err := owner.Commit(bg, func(tx *Tx) (any, error) {
 			candidate := tx
 			if !foreign {
 				candidate = &Tx{session: tx.session, identity: tx.identity}
 			}
 			_, err := submit.SubmitIn(candidate, Input{Type: "write", Entry: &Entry{Kind: "app.note"}})
-			return err
+			return nil, err
 		})
 		if err == nil || !strings.Contains(err.Error(), "The transaction belongs to another Session") {
 			t.Fatal("unowned transaction admitted", foreign, err)
@@ -1097,23 +1097,23 @@ func TestSubmitInReadAfterWriteFenceAndOneCommit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = h.Commit(bg, func(tx *Tx) error {
+	_, err = h.Commit(bg, func(tx *Tx) (any, error) {
 		doc, err := tx.AcquireDocument(notes, 1, nil, nil)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		id, err = submit.SubmitIn(tx, Input{Type: "write", Entry: &Entry{Kind: "app.note", HasData: true, Data: JSON{"text": "committed"}}, RequestID: "r1"})
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if err = doc.Set(JSON{"id": int(id)}); err != nil {
-			return err
+			return nil, err
 		}
 		entry, err := tx.MintID()
 		if err != nil {
-			return err
+			return nil, err
 		}
-		return tx.AppendEntry(Entry{ID: entry, Conversation: 1, Kind: "app.sent", HasData: true, Data: JSON{"submission": id}})
+		return nil, tx.AppendEntry(Entry{ID: entry, Conversation: 1, Kind: "app.sent", HasData: true, Data: JSON{"submission": id}})
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -1127,22 +1127,22 @@ func TestSubmitInReadAfterWriteFenceAndOneCommit(t *testing.T) {
 		t.Fatalf("value=%#v id=%d found=%v err=%v", value.Copy(), id, found, err)
 	}
 	for _, second := range []bool{false, true} {
-		_, err = h.Commit(bg, func(tx *Tx) error {
+		_, err = h.Commit(bg, func(tx *Tx) (any, error) {
 			if second {
 				if _, err := submit.SubmitIn(tx, Input{Type: "write", Entry: &Entry{Kind: "app.note"}}); err != nil {
-					return err
+					return nil, err
 				}
 			} else {
 				entry, err := tx.MintID()
 				if err != nil {
-					return err
+					return nil, err
 				}
 				if err = tx.AppendEntry(Entry{ID: entry, Conversation: 1, Kind: "app.note"}); err != nil {
-					return err
+					return nil, err
 				}
 			}
 			_, err := submit.SubmitIn(tx, Input{Type: "write", Entry: &Entry{Kind: "app.note"}, RequestID: "r1"})
-			return err
+			return nil, err
 		})
 		var fenced *ReadAfterWrite
 		if !errors.As(err, &fenced) || err.Error() != "submit(tx, draft) cannot read tables after the first table write" {
@@ -1160,7 +1160,7 @@ func TestSubmitInCaughtIdleRefusalHasNoWrites(t *testing.T) {
 		t.Fatal(err)
 	}
 	// openChat materialises its root builtin documents before the assertion baseline.
-	if _, err = h.Commit(bg, func(tx *Tx) error { return initializeBuiltins(tx, 1) }); err != nil {
+	if _, err = h.Commit(bg, func(tx *Tx) (any, error) { return nil, initializeBuiltins(tx, 1) }); err != nil {
 		t.Fatal(err)
 	}
 	before, err := h.Snapshot(bg)
@@ -1168,7 +1168,7 @@ func TestSubmitInCaughtIdleRefusalHasNoWrites(t *testing.T) {
 		t.Fatal(err)
 	}
 	outcome := ""
-	_, err = h.Commit(bg, func(tx *Tx) error {
+	_, err = h.Commit(bg, func(tx *Tx) (any, error) {
 		_, err := c.SubmitIn(tx, Input{Type: "input", Content: "hi", WhenBusy: "steer", WhenIdle: "reject"})
 		if err == nil {
 			outcome = "admitted"
@@ -1177,7 +1177,7 @@ func TestSubmitInCaughtIdleRefusalHasNoWrites(t *testing.T) {
 		} else {
 			outcome = "other"
 		}
-		return nil
+		return nil, nil
 	})
 	if err != nil || outcome != "idle" {
 		t.Fatal(outcome, err)
@@ -1198,19 +1198,19 @@ func TestSubmitInCaughtTableFailureStillFencesAndEscapedTxRejects(t *testing.T) 
 		t.Fatal(err)
 	}
 	var escaped *Tx
-	_, err = h.Commit(bg, func(tx *Tx) error { escaped = tx; return nil })
+	_, err = h.Commit(bg, func(tx *Tx) (any, error) { escaped = tx; return nil, nil })
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err = c.SubmitIn(escaped, Input{Type: "input", Content: "late"}); !errors.Is(err, ErrSealed) {
 		t.Fatal(err)
 	}
-	_, err = h.Commit(bg, func(tx *Tx) error {
+	_, err = h.Commit(bg, func(tx *Tx) (any, error) {
 		if _, err := tx.CreateSubmission(SubmissionCreate{Conversation: 999, Type: "input"}); err == nil {
 			t.Fatal("missing conversation accepted")
 		}
 		_, err := c.SubmitIn(tx, Input{Type: "input", Content: "late"})
-		return err
+		return nil, err
 	})
 	var fenced *ReadAfterWrite
 	if !errors.As(err, &fenced) {
@@ -1256,13 +1256,13 @@ func TestSubmitInBusyContinueSteerAndDedup(t *testing.T) {
 	case <-time.After(3 * time.Second):
 		t.Fatal("model did not start")
 	}
-	_, err = h.Commit(bg, func(tx *Tx) error { _, err := c.SubmitIn(tx, Input{Type: "continue"}); return err })
+	_, err = h.Commit(bg, func(tx *Tx) (any, error) { _, err := c.SubmitIn(tx, Input{Type: "continue"}); return nil, err })
 	if !errors.Is(err, ErrConversationBusy) {
 		t.Fatal(err)
 	}
 	var steer ID
 	draft := Input{Type: "input", Content: "steer", WhenBusy: "steer", WhenIdle: "reject", RequestID: "r1"}
-	_, err = h.Commit(bg, func(tx *Tx) error { var err error; steer, err = c.SubmitIn(tx, draft); return err })
+	_, err = h.Commit(bg, func(tx *Tx) (any, error) { var err error; steer, err = c.SubmitIn(tx, draft); return nil, err })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1276,7 +1276,7 @@ func TestSubmitInBusyContinueSteerAndDedup(t *testing.T) {
 		t.Fatal("steer inbox IDs", inbox)
 	}
 	var again ID
-	_, err = h.Commit(bg, func(tx *Tx) error { var err error; again, err = c.SubmitIn(tx, draft); return err })
+	_, err = h.Commit(bg, func(tx *Tx) (any, error) { var err error; again, err = c.SubmitIn(tx, draft); return nil, err })
 	if err != nil || again != steer {
 		t.Fatal(steer, again, err)
 	}
@@ -1352,34 +1352,34 @@ func TestSubmitInBusyHostCheckAndWritesAreOneCommit(t *testing.T) {
 		t.Fatal(err)
 	}
 	var id ID
-	_, err = h.Commit(bg, func(tx *Tx) error {
+	_, err = h.Commit(bg, func(tx *Tx) (any, error) {
 		live, err := builtin(tx, c.ID(), "pi.live")
 		if err != nil {
-			return err
+			return nil, err
 		}
 		value, err := live.Get()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if value["run"] == nil {
-			return errors.New("not working")
+			return nil, errors.New("not working")
 		}
 		doc, err := tx.AcquireDocument(sent, c.ID(), nil, nil)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		id, err = c.SubmitIn(tx, Input{Type: "input", Content: "steer", WhenBusy: "steer"})
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if err = doc.Update(func(value JSON) error { value["ids"] = append(value["ids"].([]any), id); return nil }); err != nil {
-			return err
+			return nil, err
 		}
 		entry, err := tx.MintID()
 		if err != nil {
-			return err
+			return nil, err
 		}
-		return tx.AppendEntry(Entry{ID: entry, Conversation: c.ID(), Kind: "app.sent", HasData: true, Data: JSON{"submission": id}})
+		return nil, tx.AppendEntry(Entry{ID: entry, Conversation: c.ID(), Kind: "app.sent", HasData: true, Data: JSON{"submission": id}})
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -1420,10 +1420,10 @@ func TestSubmitInBusyHostCheckAndWritesAreOneCommit(t *testing.T) {
 func TestSubmitInInboxBlockContentAndEntryMetadata(t *testing.T) {
 	h, c, _, _ := busySubmitInFixture(t)
 	var id ID
-	_, err := h.Commit(bg, func(tx *Tx) error {
+	_, err := h.Commit(bg, func(tx *Tx) (any, error) {
 		var err error
 		id, err = c.SubmitIn(tx, Input{Type: "input", WhenBusy: "steer", Blocks: []goai.ContentBlock{{Type: "text", Text: "hi"}}, Entry: &Entry{Kind: "app.ask", HasData: true, Data: nil}})
-		return err
+		return nil, err
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -1472,10 +1472,10 @@ func TestSubmitInIdleInputRequestsItsOwnProgress(t *testing.T) {
 		t.Fatal(err)
 	}
 	var id ID
-	_, err = h.Commit(bg, func(tx *Tx) error {
+	_, err = h.Commit(bg, func(tx *Tx) (any, error) {
 		var err error
 		id, err = c.SubmitIn(tx, Input{Type: "input", Content: "hi"})
-		return err
+		return nil, err
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -1510,15 +1510,15 @@ func TestSubmitInStorageFailureHasNoAdmissionAfterReopen(t *testing.T) {
 		}
 		return appendFrame(kind, ordinal, high, payload)
 	}
-	_, err = h.Commit(bg, func(tx *Tx) error {
+	_, err = h.Commit(bg, func(tx *Tx) (any, error) {
 		if _, err := c.SubmitIn(tx, Input{Type: "input", Content: "hi", RequestID: "r1"}); err != nil {
-			return err
+			return nil, err
 		}
 		id, err := tx.MintID()
 		if err != nil {
-			return err
+			return nil, err
 		}
-		return tx.AppendEntry(Entry{ID: id, Conversation: c.ID(), Kind: "app.sent"})
+		return nil, tx.AppendEntry(Entry{ID: id, Conversation: c.ID(), Kind: "app.sent"})
 	})
 	if err != failure {
 		t.Fatal("failure identity", err, failure)
@@ -1539,7 +1539,7 @@ func TestSubmitInStorageFailureHasNoAdmissionAfterReopen(t *testing.T) {
 	if conversation.ID() != c.ID() {
 		t.Fatal("root changed")
 	}
-	_, err = next.Commit(bg, func(tx *Tx) error {
+	_, err = next.Commit(bg, func(tx *Tx) (any, error) {
 		record, found, err := tx.SubmissionByRequest(conversation.ID(), "r1")
 		if err != nil || found {
 			t.Fatal(record, found, err)
@@ -1552,7 +1552,7 @@ func TestSubmitInStorageFailureHasNoAdmissionAfterReopen(t *testing.T) {
 		if err != nil || len(entries.Items) != 0 {
 			t.Fatal(entries, err)
 		}
-		return nil
+		return nil, nil
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -1571,10 +1571,10 @@ func TestSubmitInModelVisibleWriteQueueAndPlacement(t *testing.T) {
 	note := userReceipt("a note the model sees")
 	note.Timestamp = 1
 	var id ID
-	_, err := h.Commit(bg, func(tx *Tx) error {
+	_, err := h.Commit(bg, func(tx *Tx) (any, error) {
 		var err error
 		id, err = c.SubmitIn(tx, Input{Type: "write", Entry: &Entry{Kind: "test.note", Model: []MessageReceipt{note}}})
-		return err
+		return nil, err
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -1638,16 +1638,16 @@ func TestSubmitInContinuesFailedRunBeforeHostTableWrite(t *testing.T) {
 	if failed.Record.Status != "unanswered" || failed.Record.Reason != "model_error" {
 		t.Fatal(failed)
 	}
-	_, err = h.Commit(bg, func(tx *Tx) error {
+	_, err = h.Commit(bg, func(tx *Tx) (any, error) {
 		id, err := tx.MintID()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if err = tx.AppendEntry(Entry{ID: id, Conversation: c.ID(), Kind: "app.note"}); err != nil {
-			return err
+			return nil, err
 		}
 		_, err = c.SubmitIn(tx, Input{Type: "continue"})
-		return err
+		return nil, err
 	})
 	var fence *ReadAfterWrite
 	if !errors.As(err, &fence) {
@@ -1670,17 +1670,17 @@ func TestSubmitInContinuesFailedRunBeforeHostTableWrite(t *testing.T) {
 		t.Fatal(err)
 	}
 	var continued ID
-	_, err = h.Commit(bg, func(tx *Tx) error {
+	_, err = h.Commit(bg, func(tx *Tx) (any, error) {
 		var err error
 		continued, err = c.SubmitIn(tx, Input{Type: "continue"})
 		if err != nil {
-			return err
+			return nil, err
 		}
 		id, err := tx.MintID()
 		if err != nil {
-			return err
+			return nil, err
 		}
-		return tx.AppendEntry(Entry{ID: id, Conversation: c.ID(), Kind: "app.note"})
+		return nil, tx.AppendEntry(Entry{ID: id, Conversation: c.ID(), Kind: "app.note"})
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -1692,5 +1692,65 @@ func TestSubmitInContinuesFailedRunBeforeHostTableWrite(t *testing.T) {
 		}
 	case <-time.After(3 * time.Second):
 		t.Fatal("continue did not progress")
+	}
+}
+
+// Source Session.commit<T>/Harness commit resolves with the callback's value,
+// including arbitrary host identity; it must not substitute a commit sequence.
+func TestSourcePublicCommitReturnsCallbackValue(t *testing.T) {
+	type committer interface {
+		Commit(context.Context, func(*Tx) (any, error)) (any, error)
+	}
+	for _, name := range []string{"session", "harness", "conversation"} {
+		t.Run(name, func(t *testing.T) {
+			store, err := newTestSQLite(t)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var target any
+			if name == "session" {
+				session, err := OpenSession(store)
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { session.Close(bg) })
+				target = session
+			} else {
+				h := openHarness(t, store, Options{})
+				conversation := root(t, h, ModelRef{Provider: "source", ID: "model"})
+				target = h
+				if name == "conversation" {
+					target = conversation
+				}
+			}
+			if _, exported := reflect.TypeOf(target).MethodByName("CommitTasks"); exported {
+				t.Error("native alternate transaction entry remains public", name)
+			}
+			api, ok := target.(committer)
+			if !ok {
+				t.Fatal("source callback-value Commit signature missing", name)
+			}
+			marker := &struct {
+				Cycle any
+				Call  func() string
+			}{Call: func() string { return "host identity" }}
+			marker.Cycle = marker
+			for _, value := range []any{nil, false, 0, "", "callback result", marker} {
+				called := 0
+				got, err := api.Commit(bg, func(*Tx) (any, error) { called++; return value, nil })
+				if err != nil || got != value || called != 1 {
+					t.Error("callback value replaced/copied or callback repeated", value, got, err, called)
+				}
+			}
+			failure := errors.New("callback failure identity")
+			got, err := api.Commit(bg, func(*Tx) (any, error) { return marker, failure })
+			if got != nil || err != failure {
+				t.Error("failed callback published a value or lost error identity", got, err)
+			}
+			got, err = api.Commit(bg, func(*Tx) (any, error) { return "still usable", nil })
+			if got != "still usable" || err != nil {
+				t.Error("callback error poisoned Session", got, err)
+			}
+		})
 	}
 }

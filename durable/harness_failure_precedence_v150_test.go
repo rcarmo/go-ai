@@ -21,8 +21,8 @@ func TestV150FailurePrecedesHarnessClosedErrors(t *testing.T) {
 		t.Fatal(err)
 	}
 	store.appendFrame = func(byte, uint64, uint64, []byte) error { return errors.New("injected uncertain storage failure") }
-	_, err = harness.session.Commit(bg, func(tx *Tx) error {
-		return tx.AppendEntry(Entry{ID: id, Conversation: conversation.ID(), Kind: "failure", Value: JSON{}})
+	_, err = harness.session.Commit(bg, func(tx *Tx) (any, error) {
+		return nil, tx.AppendEntry(Entry{ID: id, Conversation: conversation.ID(), Kind: "failure", Value: JSON{}})
 	})
 	if !errors.Is(err, ErrPoisoned) {
 		t.Fatalf("initial own storage failure=%v", err)
@@ -45,7 +45,7 @@ func TestV150FailurePrecedesHarnessClosedErrors(t *testing.T) {
 		{"wait-idle", func() error { return harness.WaitForIdle(bg) }},
 		{"root", func() error { _, err := harness.Root(bg, AgentChange{}); return err }},
 		{"commit", func() error {
-			_, err := harness.CommitTasks(bg, conversation.ID(), func(*Tx) error { t.Error("failed commit callback ran"); return nil })
+			_, err := harness.commitTasks(bg, conversation.ID(), func(*Tx) error { t.Error("failed commit callback ran"); return nil })
 			return err
 		}},
 		{"context", func() error { _, err := conversation.ContextView(bg, 0); return err }},

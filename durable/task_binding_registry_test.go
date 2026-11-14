@@ -19,10 +19,10 @@ func TestTaskLifecyclePinnedRegistryReplacementBeforeResumeAndConversationBindin
 			t.Fatal(err)
 		}
 		var id ID
-		_, err = conversation.Commit(bg, func(tx *Tx) error {
+		_, err = conversation.Commit(bg, func(tx *Tx) (any, error) {
 			var err error
 			id, err = tx.CreateTask(original, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
-			return err
+			return nil, err
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -31,7 +31,7 @@ func TestTaskLifecyclePinnedRegistryReplacementBeforeResumeAndConversationBindin
 		if err != nil || !ok || task.Conversation != conversation.ID() {
 			t.Fatal("conversation binding lost", task, err)
 		}
-		_, err = h.CommitTasks(bg, 0, func(tx *Tx) error {
+		_, err = h.commitTasks(bg, 0, func(tx *Tx) error {
 			_, err := tx.CreateTask(original, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 			return err
 		})
@@ -39,7 +39,7 @@ func TestTaskLifecyclePinnedRegistryReplacementBeforeResumeAndConversationBindin
 			t.Fatal("unbound task creation defaulted to root")
 		}
 		var explicit ID
-		_, err = h.CommitTasks(bg, 0, func(tx *Tx) error {
+		_, err = h.commitTasks(bg, 0, func(tx *Tx) error {
 			var err error
 			explicit, err = tx.CreateTask(original, nil, TaskOptions{Conversation: conversation.ID(), Ownership: TaskOwnership{Kind: "conversation"}})
 			return err
@@ -48,12 +48,12 @@ func TestTaskLifecyclePinnedRegistryReplacementBeforeResumeAndConversationBindin
 			t.Fatal(err)
 		}
 		// A passive commit may land while another task is already pending.
-		_, err = conversation.Commit(bg, func(tx *Tx) error {
+		_, err = conversation.Commit(bg, func(tx *Tx) (any, error) {
 			entry, err := tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return tx.AppendEntry(Entry{ID: entry, Conversation: conversation.ID(), Kind: "note", Value: JSON{}})
+			return nil, tx.AppendEntry(Entry{ID: entry, Conversation: conversation.ID(), Kind: "note", Value: JSON{}})
 		})
 		if err != nil {
 			t.Fatal("live conversation commit rejected", err)

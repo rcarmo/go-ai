@@ -10,13 +10,13 @@ import (
 
 func seedInterrupted140(t *testing.T, h *Harness, id ID) {
 	t.Helper()
-	_, err := h.session.Commit(bg, func(tx *Tx) error {
+	_, err := h.session.Commit(bg, func(tx *Tx) (any, error) {
 		task := tx.state.Tasks[id]
 		task.Status = "running"
 		native := *task.Execution.Native
 		native.State.Status = "running"
 		task.Execution = &TaskExecution{Tag: nativeTaskTag, Native: &native}
-		return tx.stage(Write{Op: "put-task", Task: &task})
+		return nil, tx.stage(Write{Op: "put-task", Task: &task})
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -151,14 +151,14 @@ func TestRestartLimit140ProgressNotIntentOrMemo(t *testing.T) {
 		})
 		h := taskTestHarness(t, b.store, def)
 		id := createPublicTask(t, h, def, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
-		_, err := h.session.Commit(bg, func(tx *Tx) error {
+		_, err := h.session.Commit(bg, func(tx *Tx) (any, error) {
 			task, err := copyTask(tx.state.Tasks[id], tx.limits)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			task.Checkpoint = JSON{}
 			taskCheckpointMap(task.Execution.Native.State.Checkpoint)["number"] = json.Number("1")
-			return tx.stage(Write{Op: "put-task", Task: &task})
+			return nil, tx.stage(Write{Op: "put-task", Task: &task})
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -205,9 +205,9 @@ func TestRestartLimit140InterruptedAbortFaultsBeforeDefinitionResolution(t *test
 				// This fixture seeds interrupted aborts. AbortTask enables scheduling
 				// and can finish the abort before the first synthetic interruption.
 				// Seed only its mark, as the adjacent cutoff-rejection fixture does.
-				if _, err = h.session.Commit(bg, func(tx *Tx) error {
+				if _, err = h.session.Commit(bg, func(tx *Tx) (any, error) {
 					task := markTask(tx.state.Tasks[id])
-					return tx.stage(Write{Op: "put-task", Task: &task})
+					return nil, tx.stage(Write{Op: "put-task", Task: &task})
 				}); err != nil {
 					t.Fatal(err)
 				}
@@ -253,10 +253,10 @@ func TestRestartLimit140RejectedCutoffDoesNotReportFault(t *testing.T) {
 		// AbortTask resumes scheduling, allowing the cutoff decision to race the
 		// injected rejection. Seed the marked cutoff atomically without enabling
 		// scheduling; reservePass below exercises the real decision/adoption path.
-		if _, err := h.session.Commit(bg, func(tx *Tx) error {
+		if _, err := h.session.Commit(bg, func(tx *Tx) (any, error) {
 			task := markTask(tx.state.Tasks[id])
 			task.Restarts = limit
-			return tx.stage(Write{Op: "put-task", Task: &task})
+			return nil, tx.stage(Write{Op: "put-task", Task: &task})
 		}); err != nil {
 			t.Fatal(err)
 		}

@@ -26,12 +26,12 @@ func TestMainPublicHarnessDocumentObserverIsolationAndClose(t *testing.T) {
 	def := mustDefinition(t, DefinitionOptions{Kind: "public.observer", Scope: "conversation", Version: 1, History: "latest", Fork: "initial", Initial: func(JSON) (JSON, error) { return JSON{"count": 0}, nil }, CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }})
 	set := func(n int) {
 		t.Helper()
-		_, err := root.Commit(bg, func(tx *Tx) error {
+		_, err := root.Commit(bg, func(tx *Tx) (any, error) {
 			doc, err := tx.AcquireDocument(def, root.ID(), nil, nil)
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return doc.Set(JSON{"count": n})
+			return nil, doc.Set(JSON{"count": n})
 		})
 		if err != nil {
 			t.Fatal(err)

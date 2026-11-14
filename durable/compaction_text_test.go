@@ -170,24 +170,24 @@ func TestCompactionReopenPinsRequestButRehydratesModel(t *testing.T) {
 			t.Fatal(err)
 		}
 		var recent ID
-		_, err = conversation.Commit(bg, func(tx *Tx) error {
+		_, err = conversation.Commit(bg, func(tx *Tx) (any, error) {
 			for _, text := range []string{"old", "recent"} {
 				id, err := tx.MintID()
 				if err != nil {
-					return err
+					return nil, err
 				}
 				if text == "recent" {
 					recent = id
 				}
 				wire, err := dtoObject(userReceipt(text), tx.limits)
 				if err != nil {
-					return err
+					return nil, err
 				}
 				if err = tx.AppendEntry(Entry{ID: id, Conversation: conversation.ID(), Kind: "message", Value: wire}); err != nil {
-					return err
+					return nil, err
 				}
 			}
-			return nil
+			return nil, nil
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -347,17 +347,17 @@ func TestSourceManualCompactionInstructionPresence(t *testing.T) {
 			h := openHarness(t, store, options)
 			c := root(t, h, ref)
 			configureCompactionTestPolicy(t, c, compactionTestInt(0), nil)
-			if _, err := c.Commit(bg, func(tx *Tx) error {
+			if _, err := c.Commit(bg, func(tx *Tx) (any, error) {
 				for _, text := range []string{"old", "recent"} {
 					id, err := tx.MintID()
 					if err != nil {
-						return err
+						return nil, err
 					}
 					if err := tx.AppendEntry(Entry{ID: id, Conversation: c.ID(), Kind: "pi.user", Model: []MessageReceipt{userReceipt(text)}}); err != nil {
-						return err
+						return nil, err
 					}
 				}
-				return nil
+				return nil, nil
 			}); err != nil {
 				t.Fatal(err)
 			}
@@ -525,17 +525,17 @@ func TestSourceCompactionProviderSummaryTrim(t *testing.T) {
 			h := openHarness(t, store, options)
 			c := root(t, h, ref)
 			configureCompactionTestPolicy(t, c, compactionTestInt(0), nil)
-			if _, err := c.Commit(bg, func(tx *Tx) error {
+			if _, err := c.Commit(bg, func(tx *Tx) (any, error) {
 				for _, text := range []string{"old", "recent"} {
 					id, err := tx.MintID()
 					if err != nil {
-						return err
+						return nil, err
 					}
 					if err := tx.AppendEntry(Entry{ID: id, Conversation: c.ID(), Kind: "pi.user", Model: []MessageReceipt{userReceipt(text)}}); err != nil {
-						return err
+						return nil, err
 					}
 				}
-				return nil
+				return nil, nil
 			}); err != nil {
 				t.Fatal(err)
 			}

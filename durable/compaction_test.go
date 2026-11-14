@@ -29,21 +29,21 @@ func TestManualCompactionPinsCutUsageAndReopensWithoutReplay(t *testing.T) {
 		})
 		h := openHarness(t, b.store, options)
 		conversation := root(t, h, ref)
-		_, err := conversation.Commit(bg, func(tx *Tx) error {
+		_, err := conversation.Commit(bg, func(tx *Tx) (any, error) {
 			for _, message := range []MessageReceipt{userReceipt("old question"), {Role: goai.RoleAssistant, Content: []goai.ContentBlock{{Type: "text", Text: "old answer"}}, StopReason: goai.StopReasonStop}, userReceipt("recent question")} {
 				id, err := tx.MintID()
 				if err != nil {
-					return err
+					return nil, err
 				}
 				value, err := dtoObject(message, tx.limits)
 				if err != nil {
-					return err
+					return nil, err
 				}
 				if err = tx.AppendEntry(Entry{ID: id, Conversation: conversation.ID(), Kind: "message", Value: value}); err != nil {
-					return err
+					return nil, err
 				}
 			}
-			return nil
+			return nil, nil
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -98,21 +98,21 @@ func TestManualCompactionBusyQueuesSummaryUntilBoundary(t *testing.T) {
 		h := openHarness(t, b.store, options)
 		cleanupTaskGates(t, release)
 		conversation := root(t, h, ref)
-		_, err := conversation.Commit(bg, func(tx *Tx) error {
+		_, err := conversation.Commit(bg, func(tx *Tx) (any, error) {
 			for _, text := range []string{"old question", "old answer", "recent"} {
 				id, err := tx.MintID()
 				if err != nil {
-					return err
+					return nil, err
 				}
 				wire, err := dtoObject(userReceipt(text), tx.limits)
 				if err != nil {
-					return err
+					return nil, err
 				}
 				if err = tx.AppendEntry(Entry{ID: id, Conversation: conversation.ID(), Kind: "message", Value: wire}); err != nil {
-					return err
+					return nil, err
 				}
 			}
-			return nil
+			return nil, nil
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -177,22 +177,22 @@ func TestQueuedCompactionHeadOlderThanResetSettlesStale(t *testing.T) {
 	// Raw native commit proves same-commit head progression, independently of
 	// model timing: a queued summary must not bring pre-reset history back.
 	var submission ID
-	_, err := h.session.Commit(bg, func(tx *Tx) error {
+	_, err := h.session.Commit(bg, func(tx *Tx) (any, error) {
 		old, err := tx.MintID()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if err = tx.AppendEntry(Entry{ID: old, Conversation: 1, Kind: "app.old", Value: JSON{}}); err != nil {
-			return err
+			return nil, err
 		}
 		if err = initializeBuiltins(tx, 1); err != nil {
-			return err
+			return nil, err
 		}
 		if err = appendReset(tx, 1, "new range"); err != nil {
-			return err
+			return nil, err
 		}
 		submission, err = admitCompactionWrite(tx, 1, 999, Entry{Kind: "pi.compaction", Head: old, Value: JSON{}, Model: []MessageReceipt{userReceipt("obsolete summary")}})
-		return err
+		return nil, err
 	})
 	if err != nil {
 		t.Fatal(err)

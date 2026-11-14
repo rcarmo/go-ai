@@ -55,7 +55,7 @@ func TestMainIdleIndexHeldQueue(t *testing.T) {
 		checkMainIdleIndex(t, h, true) // Held child is live: parent must NOT be held.
 		commit := func(f func(*Tx) error) {
 			t.Helper()
-			if _, err := h.Commit(bg, f); err != nil {
+			if _, err := h.Commit(bg, func(tx *Tx) (any, error) { return nil, f(tx) }); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -125,12 +125,12 @@ func TestMainIdleIndexPublicationWitness(t *testing.T) {
 		h.session.taskBookkeeping(func() { h.scheduler.currentIdleIndex() })
 		var before uint64
 		h.session.taskBookkeeping(func() { before = h.scheduler.idleIndex.work })
-		if _, err := h.Commit(bg, func(tx *Tx) error {
+		if _, err := h.Commit(bg, func(tx *Tx) (any, error) {
 			id, err := tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{"text": "entry only"}})
+			return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{"text": "entry only"}})
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -171,13 +171,13 @@ func BenchmarkMainContextBusyHistory(b *testing.B) {
 			h, _, _ := mainWakeIndexFixture(b, 4096)
 			cid := ID(1)
 			if !busy {
-				if _, err := h.Commit(bg, func(tx *Tx) error {
+				if _, err := h.Commit(bg, func(tx *Tx) (any, error) {
 					id, err := tx.MintID()
 					if err != nil {
-						return err
+						return nil, err
 					}
 					cid = id
-					return tx.CreateConversation(Conversation{ID: id})
+					return nil, tx.CreateConversation(Conversation{ID: id})
 				}); err != nil {
 					b.Fatal(err)
 				}
@@ -212,13 +212,13 @@ func TestMainIdleIndexLegacyReparent(t *testing.T) {
 		mainWakeSourceSeed(t, b.store, p, q)
 		h := taskTestHarness(t, b.store)
 		checkMainIdleIndex(t, h, true)
-		if _, err := h.Commit(bg, func(tx *Tx) error {
+		if _, err := h.Commit(bg, func(tx *Tx) (any, error) {
 			p.Owner = 0
 			q.Owner = a
 			if err := tx.PutTask(p); err != nil {
-				return err
+				return nil, err
 			}
-			return tx.PutTask(q)
+			return nil, tx.PutTask(q)
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -294,12 +294,12 @@ func TestMainIdleIndexAmbiguousDocumentFallback(t *testing.T) {
 				t.Fatal("conflicting document target index used")
 			}
 		})
-		if _, err := h.Commit(bg, func(tx *Tx) error {
+		if _, err := h.Commit(bg, func(tx *Tx) (any, error) {
 			doc, err := tx.Document(second)
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return doc.Retire()
+			return nil, doc.Retire()
 		}); err != nil {
 			t.Fatal(err)
 		}

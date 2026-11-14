@@ -48,12 +48,12 @@ func TestSessionUsageTotalsDetachedAndForkStartsEmpty(t *testing.T) {
 			t.Fatal(err)
 		}
 		waitSubmission(t, next)
-		_, err = h.session.Commit(bg, func(tx *Tx) error {
+		_, err = h.session.Commit(bg, func(tx *Tx) (any, error) {
 			usage, err := builtin(tx, child.ID(), "pi.usage")
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return usage.Update(func(value JSON) error {
+			return nil, usage.Update(func(value JSON) error {
 				return addToolUsage(value, "__proto__", &goai.Usage{Input: 2, TotalTokens: 2, Cost: goai.CostBreakdown{Total: 0.5}}, tx.limits)
 			})
 		})

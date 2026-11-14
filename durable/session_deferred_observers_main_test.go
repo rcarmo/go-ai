@@ -55,15 +55,15 @@ func TestMainSessionDeferredStoredObserverOracle(t *testing.T) {
 		f.fire(t)
 		watchReceive(t, arrived)
 		appendText("e", false)
-		if _, err := f.session.Commit(bg, func(tx *Tx) error {
+		if _, err := f.session.Commit(bg, func(tx *Tx) (any, error) {
 			if _, err := tx.AcquireDocument(old, 1, nil, nil); err != nil {
-				return err
+				return nil, err
 			}
 			id, err := tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "test.note", Value: JSON{}})
+			return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "test.note", Value: JSON{}})
 		}); err != nil {
 			t.Fatal(err)
 		}

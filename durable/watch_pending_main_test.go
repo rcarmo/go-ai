@@ -61,18 +61,18 @@ func TestMainWatchPendingDelivery(t *testing.T) {
 				for n := from; n < 102; n++ {
 					watchSet(t, s, def, n)
 				}
-				_, e = s.Commit(producer, func(tx *Tx) error {
+				_, e = s.Commit(producer, func(tx *Tx) (any, error) {
 					h, err := tx.AcquireDocument(def, 0, nil, nil)
 					if err != nil {
-						return err
+						return nil, err
 					}
-					return h.ApplyOperations([]Operation{{"s", []any{"n"}, 102}})
+					return nil, h.ApplyOperations([]Operation{{"s", []any{"n"}, 102}})
 				})
 				if e != nil {
 					t.Fatal(e)
 				}
 				if mode == "retired" {
-					if _, e = s.Commit(producer, func(tx *Tx) error { return tx.RetireDefinition(def, 0, nil) }); e != nil {
+					if _, e = s.Commit(producer, func(tx *Tx) (any, error) { return nil, tx.RetireDefinition(def, 0, nil) }); e != nil {
 						t.Fatal(e)
 					}
 				}

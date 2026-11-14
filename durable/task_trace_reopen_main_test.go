@@ -43,7 +43,7 @@ func TestMainTaskTraceRefusalAndReopen(t *testing.T) {
 			return nil
 		}
 		var failed ID
-		_, err = h.CommitTasks(bg, 1, func(tx *Tx) error { var e error; failed, e = tx.CreateTask(def, nil, options); return e })
+		_, err = h.commitTasks(bg, 1, func(tx *Tx) error { var e error; failed, e = tx.CreateTask(def, nil, options); return e })
 		core.appendFrame = original
 		if !errors.Is(err, refused) {
 			t.Fatal("confirmed refusal", err)
@@ -134,7 +134,7 @@ func TestMainTaskTraceCreatorWithoutCarrier(t *testing.T) {
 		carrier.span.Store(creator)
 		ctx := context.WithValue(bg, telemetryContextKey{}, carrier)
 		var id ID
-		_, err := h.CommitTasks(ctx, 1, func(tx *Tx) error {
+		_, err := h.commitTasks(ctx, 1, func(tx *Tx) error {
 			var e error
 			id, e = tx.CreateTask(def, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 			return e

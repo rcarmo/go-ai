@@ -53,7 +53,7 @@ func checkpointDef(t *testing.T, o DefinitionOptions) *DocumentDefinition {
 }
 func checkpointCommit(t *testing.T, s *Session, fn func(*Tx) error) {
 	t.Helper()
-	if _, err := s.Commit(bg, fn); err != nil {
+	if _, err := s.Commit(bg, func(tx *Tx) (any, error) { return nil, fn(tx) }); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -244,7 +244,7 @@ func TestDocumentCheckpointFinalDetachedArgumentsAndWholeRollback(t *testing.T) 
 			}
 			return b.Set(JSON{"n": 2})
 		}
-		if _, err := s.Commit(bg, mutation); err == nil {
+		if _, err := s.Commit(bg, func(tx *Tx) (any, error) { return nil, mutation(tx) }); err == nil {
 			t.Fatal("predicate failure accepted")
 		}
 		if firstCalls != 1 || !reflect.DeepEqual(before, checkpointSnapshot(t, s)) {
@@ -296,15 +296,15 @@ func TestDocumentCheckpointOperationErrorHandledAndForkFence(t *testing.T) {
 			t.Fatal("partial failed method landed", value, err)
 		}
 		before := checkpointSnapshot(t, s)
-		if _, err = s.Commit(bg, func(tx *Tx) error {
+		if _, err = s.Commit(bg, func(tx *Tx) (any, error) {
 			if _, err := tx.ForkConversation(1, entry, 0); err != nil {
-				return err
+				return nil, err
 			}
 			h, err := tx.AcquireDocument(def, 1, nil, nil)
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return h.ApplyOperations([]Operation{{"a", []any{"s"}, "bad"}})
+			return nil, h.ApplyOperations([]Operation{{"a", []any{"s"}, "bad"}})
 		}); err == nil {
 			t.Fatal("current parent delta fence")
 		}
@@ -397,19 +397,19 @@ func TestDocumentCheckpointInvalidFinalReferencesSkipPredicate(t *testing.T) {
 		def := checkpointDef(t, DefinitionOptions{Kind: "checkpoint.validation", Version: 1, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{"n": 0}, nil }, CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { calls++; return false, nil }})
 		checkpointCommit(t, s, func(tx *Tx) error { _, e := tx.AcquireDocument(def, 0, nil, nil); return e })
 		before := checkpointSnapshot(t, s)
-		_, err := s.Commit(bg, func(tx *Tx) error {
+		_, err := s.Commit(bg, func(tx *Tx) (any, error) {
 			h, e := tx.AcquireDocument(def, 0, nil, nil)
 			if e != nil {
-				return e
+				return nil, e
 			}
 			if e = h.Set(JSON{"n": 1}); e != nil {
-				return e
+				return nil, e
 			}
 			id, e := tx.MintID()
 			if e != nil {
-				return e
+				return nil, e
 			}
-			return tx.AppendEntry(Entry{ID: id, Conversation: ID(MaxID), Kind: "invalid", Value: JSON{}})
+			return nil, tx.AppendEntry(Entry{ID: id, Conversation: ID(MaxID), Kind: "invalid", Value: JSON{}})
 		})
 		if err == nil || calls != 0 {
 			t.Fatal("predicate ran before invalid final references", calls, err)
@@ -456,13 +456,13 @@ func TestDocumentCheckpointSealedPredicateAndTypedExactBudget(t *testing.T) {
 		return h.ApplyOperations([]Operation{{"a", []any{"s"}, string(bytes.Repeat([]byte{'x'}, 504))}})
 	})
 	before := checkpointSnapshot(t, s)
-	if _, e = s.Commit(bg, func(tx *Tx) error {
+	if _, e = s.Commit(bg, func(tx *Tx) (any, error) {
 		h, e := tx.AcquireDocument(def, 0, nil, nil)
 		if e != nil {
-			return e
+			return nil, e
 		}
 		held = h
-		return h.ApplyOperations([]Operation{{"a", []any{"s"}, "x"}})
+		return nil, h.ApplyOperations([]Operation{{"a", []any{"s"}, "x"}})
 	}); e == nil {
 		t.Fatal("typed513 accepted")
 	}

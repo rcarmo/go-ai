@@ -32,13 +32,13 @@ func TestTaskRuntimeQueuedCapabilitySealAndCallerCancellation(t *testing.T) {
 					migrated := mustDefinition(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: document.options.Kind, Version: 2, Scope: "conversation", History: "rewindable", Fork: "asOf", Initial: document.options.Initial, Migrate: func(value JSON, _ uint64) (JSON, error) { migrations.Add(1); return value, nil }})
 					token := entryToken(t, "app.queued.entry")
 					var entry ID
-					if _, err := h.Commit(bg, func(tx *Tx) error {
+					if _, err := h.Commit(bg, func(tx *Tx) (any, error) {
 						if _, err := tx.AcquireDocument(document, 1, nil, nil); err != nil {
-							return err
+							return nil, err
 						}
 						v, err := tx.AppendTypedEntry(token, 1, EntryContent{Data: JSON{"value": 1}, HasData: true})
 						entry = v.ID
-						return err
+						return nil, err
 					}); err != nil {
 						t.Fatal(err)
 					}

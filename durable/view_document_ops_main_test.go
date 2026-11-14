@@ -72,44 +72,44 @@ func TestMainConversationDocumentOperationTuples(t *testing.T) {
 					t.Fatal(err)
 				}
 				var entryID ID
-				_, err = h.session.Commit(bg, func(tx *Tx) error {
+				_, err = h.session.Commit(bg, func(tx *Tx) (any, error) {
 					live, err := builtin(tx, 1, "pi.live")
 					if err != nil {
-						return err
+						return nil, err
 					}
 					switch mode {
 					case "replace-with-entry":
 						if err = live.Set(JSON{"detail": "replacement"}); err != nil {
-							return err
+							return nil, err
 						}
 						entryID, err = tx.MintID()
 						if err != nil {
-							return err
+							return nil, err
 						}
-						return tx.AppendEntry(Entry{ID: entryID, Conversation: 1, Kind: "app.note", Value: JSON{}})
+						return nil, tx.AppendEntry(Entry{ID: entryID, Conversation: 1, Kind: "app.note", Value: JSON{}})
 					case "explicit-revert":
-						return live.ApplyOperations([]Operation{{"s", []any{"marker"}, true}, {"d", []any{"marker"}}})
+						return nil, live.ApplyOperations([]Operation{{"s", []any{"marker"}, true}, {"d", []any{"marker"}}})
 					case "reincarnate-equal":
 						if err = live.Retire(); err != nil {
-							return err
+							return nil, err
 						}
 						id, err := tx.MintID()
 						if err != nil {
-							return err
+							return nil, err
 						}
 						_, err = tx.CreateDocument(Document{ID: id, Scope: "conversation", Owner: 1, Kind: "pi.live", Version: 3, Value: initial.Docs["pi.live"]})
-						return err
+						return nil, err
 					case "version-equal":
 						record, err := live.record()
 						if err != nil {
-							return err
+							return nil, err
 						}
 						record.Version++
-						return tx.stage(Write{Op: "put-document", Document: &record})
+						return nil, tx.stage(Write{Op: "put-document", Document: &record})
 					case "retire":
-						return live.Retire()
+						return nil, live.Retire()
 					}
-					return nil
+					return nil, nil
 				})
 				if err != nil {
 					t.Fatal(err)
@@ -159,10 +159,10 @@ func TestMainConversationDocumentOlderReplacementID(t *testing.T) {
 			t.Fatal(err)
 		}
 		var reserved ID
-		if _, err = h.session.Commit(bg, func(tx *Tx) error { var err error; reserved, err = tx.MintID(); return err }); err != nil {
+		if _, err = h.session.Commit(bg, func(tx *Tx) (any, error) { var err error; reserved, err = tx.MintID(); return nil, err }); err != nil {
 			t.Fatal(err)
 		}
-		if _, err = h.session.Commit(bg, func(tx *Tx) error { return initializeBuiltins(tx, 1) }); err != nil {
+		if _, err = h.session.Commit(bg, func(tx *Tx) (any, error) { return nil, initializeBuiltins(tx, 1) }); err != nil {
 			t.Fatal(err)
 		}
 		watch, err := detachedWatch(c, bg)
@@ -180,19 +180,19 @@ func TestMainConversationDocumentOlderReplacementID(t *testing.T) {
 		}); err != nil {
 			t.Fatal(err)
 		}
-		if _, err = h.session.Commit(bg, func(tx *Tx) error {
+		if _, err = h.session.Commit(bg, func(tx *Tx) (any, error) {
 			old, err := builtin(tx, 1, "pi.live")
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if old.id <= reserved {
-				return fmt.Errorf("fixture did not reserve an earlier ID")
+				return nil, fmt.Errorf("fixture did not reserve an earlier ID")
 			}
 			if err = old.Retire(); err != nil {
-				return err
+				return nil, err
 			}
 			_, err = tx.CreateDocument(Document{ID: reserved, Scope: "conversation", Owner: 1, Kind: "pi.live", Version: 3, Value: JSON{"detail": "new"}})
-			return err
+			return nil, err
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -206,12 +206,12 @@ func TestMainConversationDocumentOlderReplacementID(t *testing.T) {
 			}
 		}
 		assertConversationOperations(t, receive(), []Operation{{"s", []any{"docs", "pi.live"}, map[string]any{"detail": "new"}}}, h.session.limits)
-		if _, err = h.session.Commit(bg, func(tx *Tx) error {
+		if _, err = h.session.Commit(bg, func(tx *Tx) (any, error) {
 			current, err := tx.Document(reserved)
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return current.ApplyOperations([]Operation{{"s", []any{"later"}, true}})
+			return nil, current.ApplyOperations([]Operation{{"s", []any{"later"}, true}})
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -234,21 +234,21 @@ func TestMainConversationDocumentOperationOwnership(t *testing.T) {
 					t.Fatal(err)
 				}
 				defer peer.Stop()
-				if _, err = h.session.Commit(bg, func(tx *Tx) error {
+				if _, err = h.session.Commit(bg, func(tx *Tx) (any, error) {
 					live, err := builtin(tx, 1, "pi.live")
 					if err != nil {
-						return err
+						return nil, err
 					}
 					if versionChange {
 						record, err := live.record()
 						if err != nil {
-							return err
+							return nil, err
 						}
 						record.Version++
 						record.Value = JSON{"detail": "committed"}
-						return tx.stage(Write{Op: "put-document", Document: &record})
+						return nil, tx.stage(Write{Op: "put-document", Document: &record})
 					}
-					return live.Set(JSON{"detail": "committed"})
+					return nil, live.Set(JSON{"detail": "committed"})
 				}); err != nil {
 					t.Fatal(err)
 				}
@@ -328,12 +328,12 @@ func TestMainConversationDocumentAbandonedPreparation(t *testing.T) {
 		if err = watch.Start(func(_ context.Context, _ ConversationViewCopy, ops []Operation) error { frames <- ops; return nil }); err != nil {
 			t.Fatal(err)
 		}
-		if _, err = h.session.Commit(bg, func(tx *Tx) error {
+		if _, err = h.session.Commit(bg, func(tx *Tx) (any, error) {
 			live, err := tx.Document(record.ID)
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return live.ApplyOperations([]Operation{{"s", []any{"marker"}, true}})
+			return nil, live.ApplyOperations([]Operation{{"s", []any{"marker"}, true}})
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -388,7 +388,7 @@ func TestMainConversationDocumentBoundedEmptyDiffAdoptsWitness(t *testing.T) {
 		}
 		expected := map[string]ID{}
 		watch.limits.MaxMembers = 7 // eight retire/create operations cannot fit
-		if _, err = h.session.Commit(bg, func(tx *Tx) error {
+		if _, err = h.session.Commit(bg, func(tx *Tx) (any, error) {
 			for _, kind := range []string{"pi.live", "pi.inbox", "pi.usage", "pi.provider"} {
 				var old Document
 				for _, doc := range state.Documents {
@@ -397,25 +397,25 @@ func TestMainConversationDocumentBoundedEmptyDiffAdoptsWitness(t *testing.T) {
 					}
 				}
 				if old.ID == 0 {
-					return fmt.Errorf("missing %s", kind)
+					return nil, fmt.Errorf("missing %s", kind)
 				}
 				handle, err := tx.Document(old.ID)
 				if err != nil {
-					return err
+					return nil, err
 				}
 				if err = handle.Retire(); err != nil {
-					return err
+					return nil, err
 				}
 				id, err := tx.MintID()
 				if err != nil {
-					return err
+					return nil, err
 				}
 				expected[kind] = id
 				if _, err = tx.CreateDocument(Document{ID: id, Scope: "conversation", Owner: 1, Kind: kind, Version: old.Version, Value: old.Value, History: old.History, Fork: old.Fork}); err != nil {
-					return err
+					return nil, err
 				}
 			}
-			return nil
+			return nil, nil
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -437,12 +437,12 @@ func TestMainConversationDocumentBoundedEmptyDiffAdoptsWitness(t *testing.T) {
 		if err = watch.Start(func(_ context.Context, _ ConversationViewCopy, ops []Operation) error { frames <- ops; return nil }); err != nil {
 			t.Fatal(err)
 		}
-		if _, err = h.session.Commit(bg, func(tx *Tx) error {
+		if _, err = h.session.Commit(bg, func(tx *Tx) (any, error) {
 			current, err := tx.Document(expected["pi.live"])
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return current.ApplyOperations([]Operation{{"s", []any{"later"}, true}})
+			return nil, current.ApplyOperations([]Operation{{"s", []any{"later"}, true}})
 		}); err != nil {
 			t.Fatal(err)
 		}

@@ -55,7 +55,7 @@ func TestTaskOwnershipPinnedMissingDefinitionWaitingOnLiveForeignOrphansAtAbort(
 		parentID := createPublicTask(t, h, parent, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 		awaitTaskSignal(t, waiting)
 		var document ID
-		_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+		_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 			var err error
 			document, err = tx.MintID()
 			if err != nil {

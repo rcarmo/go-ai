@@ -176,11 +176,11 @@ func TestMainWatchAddressAbsentIsolationAndRollback(t *testing.T) {
 		defer w.Stop()
 		checkpointCommit(t, s, func(tx *Tx) error { _, e := tx.AcquireDocument(def, 0, &other, nil); return e })
 		refusal := errors.New("rollback")
-		if _, e = s.Commit(bg, func(tx *Tx) error {
+		if _, e = s.Commit(bg, func(tx *Tx) (any, error) {
 			if e := tx.RetireDefinition(def, 0, &key); e != nil {
-				return e
+				return nil, e
 			}
-			return refusal
+			return nil, refusal
 		}); !errors.Is(e, refusal) {
 			t.Fatal(e)
 		}

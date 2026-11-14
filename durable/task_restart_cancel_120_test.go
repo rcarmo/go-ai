@@ -18,7 +18,7 @@ func TestTask120ExplicitAbortSupersedesRestartBlockedChild(t *testing.T) {
 			return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone("unused"), nil })
 		})
 		first := taskTestHarness(t, b.store, parentDef, childDef)
-		_, e := first.CommitTasks(bg, 1, func(tx *Tx) error {
+		_, e := first.commitTasks(bg, 1, func(tx *Tx) error {
 			var e error
 			parent, e = tx.CreateTask(parentDef, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 			if e != nil {

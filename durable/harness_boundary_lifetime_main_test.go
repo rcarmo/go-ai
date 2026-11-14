@@ -120,12 +120,12 @@ func TestMainBoundaryLifetimeBeforeModelResolution(t *testing.T) {
 				if mode == "legacy-first-absent" {
 					// Explicit legacy control only: remove first from THIS actual run.
 					// Do not fabricate a run, entry, checkpoint, inbox or settlement.
-					if _, err := h.session.Commit(bg, func(tx *Tx) error {
+					if _, err := h.session.Commit(bg, func(tx *Tx) (any, error) {
 						doc, err := builtin(tx, c.ID(), "pi.live")
 						if err != nil {
-							return err
+							return nil, err
 						}
-						return doc.Update(func(value JSON) error {
+						return nil, doc.Update(func(value JSON) error {
 							delete(generationObject(value["run"]), "first")
 							return nil
 						})
@@ -308,31 +308,31 @@ func TestMainBoundaryLegacyRecoveryBusyControl(t *testing.T) {
 		cleanupTaskGates(t, release, providerRelease) // Release callbacks before Close, including failures.
 		c := root(t, h, ref)
 		var input, owner ID
-		if _, err := h.session.Commit(bg, func(tx *Tx) error {
+		if _, err := h.session.Commit(bg, func(tx *Tx) (any, error) {
 			var err error
 			input, err = tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
 			owner, err = tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if err := tx.PutSubmission(Submission{ID: input, Conversation: c.ID(), Type: "follow-up", Status: "pending", Value: JSON{"content": "A"}}); err != nil {
-				return err
+				return nil, err
 			}
 			checkpoint, err := dtoObject(generationCheckpoint{Phase: "queued", Submission: input, Input: "A"}, tx.limits)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if err := tx.PutTask(Task{ID: owner, Conversation: c.ID(), Kind: "pi.generation", Status: "pending", Checkpoint: checkpoint}); err != nil {
-				return err
+				return nil, err
 			}
 			inbox, err := builtin(tx, c.ID(), "pi.inbox")
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return inbox.Update(func(value JSON) error {
+			return nil, inbox.Update(func(value JSON) error {
 				value["items"] = []any{JSON{"id": input, "mode": "followUp", "content": "A"}}
 				return nil
 			})

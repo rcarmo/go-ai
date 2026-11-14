@@ -33,17 +33,17 @@ func TestMainPublicDocumentObserverQueuedAttachment(t *testing.T) {
 			}, 1)
 			t.Cleanup(func() { unblock() })
 			go func() {
-				_, err := s.Commit(bg, func(tx *Tx) error {
+				_, err := s.Commit(bg, func(tx *Tx) (any, error) {
 					doc, err := tx.AcquireDocument(def, owner, nil, nil)
 					if err != nil {
-						return err
+						return nil, err
 					}
 					if err = doc.ApplyOperations([]Operation{{"s", []any{"count"}, 11}}); err != nil {
-						return err
+						return nil, err
 					}
 					close(entered)
 					<-release
-					return nil
+					return nil, nil
 				})
 				commitDone <- err
 			}()

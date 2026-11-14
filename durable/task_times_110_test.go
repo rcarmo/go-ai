@@ -28,19 +28,19 @@ func TestTaskTimes110SessionLifecycleLegacyAndReopen(t *testing.T) {
 			t.Fatal(e)
 		}
 		set := func(status string) error {
-			_, err := s.Commit(bg, func(tx *Tx) error {
+			_, err := s.Commit(bg, func(tx *Tx) (any, error) {
 				// This fixture intentionally has no canonical input/version. Keep
 				// its private lifecycle control off the canonical read API.
 				state, err := tx.current()
 				if err != nil {
-					return err
+					return nil, err
 				}
 				v, err := copyTask(state.Tasks[taskID], tx.limits)
 				if err != nil {
-					return err
+					return nil, err
 				}
 				v.Status = status
-				return tx.PutTask(v)
+				return nil, tx.PutTask(v)
 			})
 			return err
 		}
@@ -111,11 +111,11 @@ func TestTaskTimes110StagedFirstAndRollback(t *testing.T) {
 		}
 		defer s.Close(bg)
 		sentinel := errors.New("rollback")
-		_, e = s.Commit(bg, func(tx *Tx) error {
+		_, e = s.Commit(bg, func(tx *Tx) (any, error) {
 			if e := tx.PutTask(Task{ID: taskID, Conversation: root, Kind: "legacy", Status: "running", Checkpoint: JSON{}}); e != nil {
-				return e
+				return nil, e
 			}
-			return sentinel
+			return nil, sentinel
 		})
 		if !errors.Is(e, sentinel) {
 			t.Fatal(e)
@@ -123,26 +123,26 @@ func TestTaskTimes110StagedFirstAndRollback(t *testing.T) {
 		if _, ok := snap(t, b.store).Tasks[taskID]; ok {
 			t.Fatal("rollback published stamp")
 		}
-		_, e = s.Commit(bg, func(tx *Tx) error {
+		_, e = s.Commit(bg, func(tx *Tx) (any, error) {
 			v := Task{ID: taskID, Conversation: root, Kind: "legacy", Status: "running", Checkpoint: JSON{}}
 			if e := tx.PutTask(v); e != nil {
-				return e
+				return nil, e
 			}
 			replacement := int64(999)
 			v.StartedAt = &replacement
 			v.Status = "done"
 			if e := tx.PutTask(v); e != nil {
-				return e
+				return nil, e
 			}
 			state, e := tx.current()
 			if e != nil {
-				return e
+				return nil, e
 			}
 			staged := state.Tasks[taskID]
 			if *staged.StartedAt != 200 || *staged.EndedAt != 300 {
 				t.Fatal(staged)
 			}
-			return nil
+			return nil, nil
 		})
 		if e != nil {
 			t.Fatal(e)

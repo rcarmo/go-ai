@@ -96,21 +96,21 @@ func TestCompactionResolvedReserveBudgetModelCapAndStreamSettings(t *testing.T) 
 				if err != nil {
 					t.Fatal(err)
 				}
-				_, err = h.session.Commit(bg, func(tx *Tx) error {
+				_, err = h.session.Commit(bg, func(tx *Tx) (any, error) {
 					for _, text := range []string{"old", "recent"} {
 						id, err := tx.MintID()
 						if err != nil {
-							return err
+							return nil, err
 						}
 						receipt, err := dtoObject(MessageReceipt{Role: goai.RoleUser, Content: []goai.ContentBlock{{Type: "text", Text: text}}}, tx.limits)
 						if err != nil {
-							return err
+							return nil, err
 						}
 						if err := tx.AppendEntry(Entry{ID: id, Conversation: conversation.ID(), Kind: "message", Value: receipt}); err != nil {
-							return err
+							return nil, err
 						}
 					}
-					return nil
+					return nil, nil
 				})
 				if err != nil {
 					t.Fatal(err)

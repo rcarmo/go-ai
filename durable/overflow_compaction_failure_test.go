@@ -39,21 +39,21 @@ func TestOverflowFailedOrDeclinedCompactionEndsWithoutAnotherRequestOrReceipt(t 
 			if err := conversation.ConfigurePatch(bg, AgentPatch{Settings: &RequestSettings{Compaction: CompactionPolicy{Enabled: true, ReserveTokens: 28000, KeepRecentTokens: 1}}}); err != nil {
 				t.Fatal(err)
 			}
-			_, err := h.session.Commit(bg, func(tx *Tx) error {
+			_, err := h.session.Commit(bg, func(tx *Tx) (any, error) {
 				for _, text := range []string{"old", "recent"} {
 					id, err := tx.MintID()
 					if err != nil {
-						return err
+						return nil, err
 					}
 					value, err := dtoObject(userReceipt(text), tx.limits)
 					if err != nil {
-						return err
+						return nil, err
 					}
 					if err := tx.AppendEntry(Entry{ID: id, Conversation: conversation.ID(), Kind: "message", Value: value}); err != nil {
-						return err
+						return nil, err
 					}
 				}
-				return nil
+				return nil, nil
 			})
 			if err != nil {
 				t.Fatal(err)

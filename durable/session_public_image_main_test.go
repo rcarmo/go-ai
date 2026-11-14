@@ -277,25 +277,25 @@ func TestSessionPrimaryRecordReadsUseExactKeys(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s := gatedSession(t)
-			if _, err := s.Commit(bg, func(tx *Tx) error {
+			if _, err := s.Commit(bg, func(tx *Tx) (any, error) {
 				id, err := tx.MintID()
 				if err != nil {
-					return err
+					return nil, err
 				}
 				if id != 2 {
-					return errors.New("unexpected test entry ID")
+					return nil, errors.New("unexpected test entry ID")
 				}
 				if err := tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", HasData: true, Data: JSON{"value": "owned"}}); err != nil {
-					return err
+					return nil, err
 				}
 				submission, err := tx.MintID()
 				if err != nil {
-					return err
+					return nil, err
 				}
 				if submission != 3 {
-					return errors.New("unexpected submission ID")
+					return nil, errors.New("unexpected submission ID")
 				}
-				return tx.PutSubmission(Submission{ID: submission, Conversation: 1, RequestIDPresent: true, Type: "write", Status: "pending", Value: JSON{}})
+				return nil, tx.PutSubmission(Submission{ID: submission, Conversation: 1, RequestIDPresent: true, Type: "write", Status: "pending", Value: JSON{}})
 			}); err != nil {
 				t.Fatal(err)
 			}

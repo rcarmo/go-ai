@@ -87,7 +87,7 @@ func checkCancelledOwnerLateWorkReopen(t *testing.T, store Storage, reopen func(
 		t.Fatal(err)
 	}
 	var lateID ID
-	_, err = h.CommitTasks(bg, childConversation, func(tx *Tx) error {
+	_, err = h.commitTasks(bg, childConversation, func(tx *Tx) error {
 		var err error
 		lateID, err = tx.CreateTask(late, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 		return err

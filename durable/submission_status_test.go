@@ -46,7 +46,7 @@ func TestSubmissionReferenceStatusAndAbortDispositionScopeQueuedWrites(t *testin
 		// Session applications may create a queued submission without
 		// Harness admission/inbox placement; abort must still settle it.
 		var raw ID
-		_, err = h.CommitTasks(bg, root.ID(), func(tx *Tx) error {
+		_, err = h.commitTasks(bg, root.ID(), func(tx *Tx) error {
 			var err error
 			raw, err = tx.MintID()
 			if err != nil {

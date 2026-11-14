@@ -12,13 +12,13 @@ func TestSubmissionPendingPublicationWaitCloseAndPoisonRemoveRegistrations(t *te
 			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				h := taskTestHarness(t, b.store)
 				var id ID
-				_, err := h.Commit(bg, func(tx *Tx) error {
+				_, err := h.Commit(bg, func(tx *Tx) (any, error) {
 					var err error
 					id, err = tx.MintID()
 					if err != nil {
-						return err
+						return nil, err
 					}
-					return tx.PutSubmission(Submission{ID: id, Conversation: 1, Type: "write", Status: "pending", Value: JSON{}})
+					return nil, tx.PutSubmission(Submission{ID: id, Conversation: 1, Type: "write", Status: "pending", Value: JSON{}})
 				})
 				if err != nil {
 					t.Fatal(err)
@@ -53,10 +53,10 @@ func TestSubmissionPendingPublicationWaitCloseAndPoisonRemoveRegistrations(t *te
 					// wake already-admitted waiters even when no publication can be adopted.
 					prior := h.session.core.appendFrame
 					h.session.core.appendFrame = func(byte, uint64, uint64, []byte) error { return errors.New("uncertain append") }
-					_, err := h.Commit(bg, func(tx *Tx) error {
+					_, err := h.Commit(bg, func(tx *Tx) (any, error) {
 						current := tx.state.Submissions[id]
 						current.Status = "done"
-						return tx.PutSubmission(current)
+						return nil, tx.PutSubmission(current)
 					})
 					h.session.core.appendFrame = prior
 					if !errors.Is(err, ErrPoisoned) {

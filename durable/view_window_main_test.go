@@ -258,13 +258,13 @@ func TestMainTranscriptWindowForkHistory(t *testing.T) {
 		frames := transcriptListener(t, watch, h.session.limits)
 		transcriptNotes(t, h, 1) // Future parent entries are beyond the fork cutoff.
 		var summary ID
-		if _, err = h.session.Commit(bg, func(tx *Tx) error {
+		if _, err = h.session.Commit(bg, func(tx *Tx) (any, error) {
 			var err error
 			summary, err = tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return tx.AppendEntry(Entry{ID: summary, Conversation: fork.id, Kind: "app.summary", Head: ids[1], Value: JSON{}})
+			return nil, tx.AppendEntry(Entry{ID: summary, Conversation: fork.id, Kind: "app.summary", Head: ids[1], Value: JSON{}})
 		}); err != nil {
 			t.Fatal(err)
 		}

@@ -26,15 +26,15 @@ func mainFailureOwnershipSeed(t *testing.T, b sqliteFixture, handoff, placed boo
 	var tasks [2]ID
 	var checkpoints [2]generationCheckpoint
 	for i := range tasks {
-		_, err := h.session.Commit(bg, func(tx *Tx) error {
+		_, err := h.session.Commit(bg, func(tx *Tx) (any, error) {
 			id, err := tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
 			tasks[i] = id
 			sub, err := tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
 			cp := generationCheckpoint{Phase: "queued", Submission: sub, Input: "current input"}
 			if i == 1 {
@@ -45,18 +45,18 @@ func mainFailureOwnershipSeed(t *testing.T, b sqliteFixture, handoff, placed boo
 			if placed || i == 1 || handoff {
 				entry, err := tx.MintID()
 				if err != nil {
-					return err
+					return nil, err
 				}
 				receipt, err := inputReceipt(cp.Input, nil, tx.limits)
 				if err != nil {
-					return err
+					return nil, err
 				}
 				wire, err := dtoObject(receipt, tx.limits)
 				if err != nil {
-					return err
+					return nil, err
 				}
 				if err := tx.AppendEntry(Entry{ID: entry, Conversation: c.ID(), Kind: "message", ByTask: id, Value: wire}); err != nil {
-					return err
+					return nil, err
 				}
 				cp.InputEntry, value["placedEntry"] = entry, entry
 			}
@@ -64,53 +64,53 @@ func mainFailureOwnershipSeed(t *testing.T, b sqliteFixture, handoff, placed boo
 				cp.Phase = "tools"
 				cp.AssistantEntry, err = tx.MintID()
 				if err != nil {
-					return err
+					return nil, err
 				}
 				// An actual stored, correctly attributed tool-calling assistant
 				// satisfies the method's receipt prerequisite; no tool is run.
 				wire, err := dtoObject(MessageReceipt{Role: goai.RoleAssistant, StopReason: goai.StopReasonToolUse,
 					Content: []goai.ContentBlock{{Type: "toolCall", ID: "ownership-call", Name: "ownership", Arguments: JSON{}}}}, tx.limits)
 				if err != nil {
-					return err
+					return nil, err
 				}
 				if err := tx.AppendEntry(Entry{ID: cp.AssistantEntry, Conversation: c.ID(), Kind: "message", ByTask: id, Value: wire}); err != nil {
-					return err
+					return nil, err
 				}
 			}
 			if err := tx.PutSubmission(Submission{ID: sub, Conversation: c.ID(), Type: "follow-up", Status: "pending", Value: value}); err != nil {
-				return err
+				return nil, err
 			}
 			if cp.InputEntry == 0 {
 				inbox, err := builtin(tx, c.ID(), "pi.inbox")
 				if err != nil {
-					return err
+					return nil, err
 				}
 				if err := inbox.Update(func(value JSON) error {
 					value["items"] = append(value["items"].([]any), JSON{"id": sub, "mode": "followUp", "content": cp.Input})
 					return nil
 				}); err != nil {
-					return err
+					return nil, err
 				}
 			}
 			wire, err := dtoObject(cp, tx.limits)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			checkpoints[i] = cp
-			return tx.PutTask(Task{ID: id, Conversation: c.ID(), Kind: "pi.generation", Status: "pending", Checkpoint: wire})
+			return nil, tx.PutTask(Task{ID: id, Conversation: c.ID(), Kind: "pi.generation", Status: "pending", Checkpoint: wire})
 		})
 		if err != nil {
 			t.Fatal("admit ownership fixture task", err)
 		}
 	}
 	var liveID ID
-	_, err := h.session.Commit(bg, func(tx *Tx) error {
+	_, err := h.session.Commit(bg, func(tx *Tx) (any, error) {
 		live, err := builtin(tx, c.ID(), "pi.live")
 		if err != nil {
-			return err
+			return nil, err
 		}
 		liveID = live.id
-		return live.Update(func(value JSON) error {
+		return nil, live.Update(func(value JSON) error {
 			if owner == "absent" {
 				return nil
 			}

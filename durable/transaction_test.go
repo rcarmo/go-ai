@@ -31,21 +31,21 @@ func TestTransactionImmediateCopyAndSealed(t *testing.T) {
 		var handle *DocumentHandle
 		var candidate JSON
 		input := JSON{"nested": JSON{"x": "original"}, "array": []any{JSON{"v": "original"}}}
-		_, e = s.Commit(bg, func(tx *Tx) error {
+		_, e = s.Commit(bg, func(tx *Tx) (any, error) {
 			escaped = tx
 			var err error
 			handle, err = tx.CreateDocument(Document{ID: doc, Scope: "session", Kind: "app.state", Version: 1, Value: JSON{}})
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if err = handle.Set(input); err != nil {
-				return err
+				return nil, err
 			}
 			input["nested"].(JSON)["x"] = "mutated-before-commit"
 			input["array"].([]any)[0].(JSON)["v"] = "mutated"
 			got, err := handle.Get()
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if got["nested"].(map[string]any)["x"] != "original" {
 				t.Fatal("Set did not immediately copy")
@@ -59,10 +59,10 @@ func TestTransactionImmediateCopyAndSealed(t *testing.T) {
 				}
 				return nil
 			}); err != nil {
-				return err
+				return nil, err
 			}
 			candidate["updated"] = "mutated-after-update"
-			return nil
+			return nil, nil
 		})
 		if e != nil {
 			t.Fatal(e)
@@ -82,12 +82,12 @@ func TestTransactionImmediateCopyAndSealed(t *testing.T) {
 			}
 		}
 		old := v.Documents[doc].Value
-		_, e = s.Commit(bg, func(tx *Tx) error {
+		_, e = s.Commit(bg, func(tx *Tx) (any, error) {
 			h, e := tx.Document(doc)
 			if e != nil {
-				return e
+				return nil, e
 			}
-			return h.Set(JSON{"revision": 2})
+			return nil, h.Set(JSON{"revision": 2})
 		})
 		if e != nil {
 			t.Fatal(e)
@@ -105,9 +105,9 @@ func TestTransactionCallbackInvalidAndRollback(t *testing.T) {
 		if e != nil {
 			t.Fatal(e)
 		}
-		_, e = s.Commit(bg, func(tx *Tx) error {
+		_, e = s.Commit(bg, func(tx *Tx) (any, error) {
 			_, e := tx.CreateDocument(Document{ID: id, Scope: "session", Kind: "state", Version: 1, Value: JSON{"x": 1}})
-			return e
+			return nil, e
 		})
 		if e != nil {
 			t.Fatal(e)
@@ -117,17 +117,17 @@ func TestTransactionCallbackInvalidAndRollback(t *testing.T) {
 			t.Fatal(e)
 		}
 		sentinel := errors.New("callback")
-		_, e = s.Commit(bg, func(tx *Tx) error {
+		_, e = s.Commit(bg, func(tx *Tx) (any, error) {
 			h, e := tx.Document(id)
 			if e != nil {
-				return e
+				return nil, e
 			}
 			if e = h.Update(func(v JSON) error { v["x"] = 2; return sentinel }); !errors.Is(e, sentinel) {
 				t.Fatal(e)
 			}
 			got, e := h.Get()
 			if e != nil {
-				return e
+				return nil, e
 			}
 			if got["x"] != json.Number("1") {
 				t.Fatal(got)
@@ -135,7 +135,7 @@ func TestTransactionCallbackInvalidAndRollback(t *testing.T) {
 			if e = h.Set(JSON{"nan": math.NaN()}); e == nil {
 				t.Fatal("NaN accepted")
 			}
-			return sentinel
+			return nil, sentinel
 		})
 		if !errors.Is(e, sentinel) {
 			t.Fatal(e)
@@ -151,13 +151,13 @@ func TestTransactionCallbackInvalidAndRollback(t *testing.T) {
 					t.Fatal("expected callback panic")
 				}
 			}()
-			_, _ = s.Commit(bg, func(tx *Tx) error { escaped = tx; panic("test") })
+			_, _ = s.Commit(bg, func(tx *Tx) (any, error) { escaped = tx; panic("test") })
 		}()
 		if _, e = escaped.MintID(); !errors.Is(e, ErrSealed) {
 			t.Fatal(e)
 		}
-		_, e = s.Commit(bg, func(tx *Tx) error {
-			return tx.AppendEntry(Entry{ID: ID(MaxID + 1), Conversation: 1, Kind: "message", Value: JSON{}})
+		_, e = s.Commit(bg, func(tx *Tx) (any, error) {
+			return nil, tx.AppendEntry(Entry{ID: ID(MaxID + 1), Conversation: 1, Kind: "message", Value: JSON{}})
 		})
 		rejected(t, e)
 	})
@@ -189,10 +189,10 @@ func TestNoCallerMarshalAuthority(t *testing.T) {
 	seedRootConversation(t, s)
 	h := sessionFor(t, s)
 	id, _ := h.MintID(bg)
-	_, e := h.Commit(bg, func(tx *Tx) error {
+	_, e := h.Commit(bg, func(tx *Tx) (any, error) {
 		doc, e := tx.CreateDocument(Document{ID: id, Scope: "session", Kind: "state", Version: 1, Value: JSON{}})
 		if e != nil {
-			return e
+			return nil, e
 		}
 		marshalCalls.Store(0)
 		if e = doc.Set(JSON{"v": hostileString("x")}); e == nil {
@@ -204,7 +204,7 @@ func TestNoCallerMarshalAuthority(t *testing.T) {
 		if marshalCalls.Load() != 0 {
 			t.Fatal("marshaler called")
 		}
-		return nil
+		return nil, nil
 	})
 	if e != nil {
 		t.Fatal(e)
@@ -227,14 +227,14 @@ func TestRetainedStoreCannotBypassSession(t *testing.T) {
 		release := make(chan struct{})
 		done := make(chan error, 1)
 		go func() {
-			_, e := s.Commit(bg, func(tx *Tx) error {
+			_, e := s.Commit(bg, func(tx *Tx) (any, error) {
 				close(entered)
 				<-release
 				id, e := tx.MintID()
 				if e != nil {
-					return e
+					return nil, e
 				}
-				return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "message", Value: JSON{"winner": true}})
+				return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "message", Value: JSON{"winner": true}})
 			})
 			done <- e
 		}()
@@ -266,8 +266,8 @@ func TestAdmittedCancellationAndCloseFence(t *testing.T) {
 	ctx, cancel := context.WithCancel(bg)
 	commit := make(chan error, 1)
 	go func() {
-		_, e := h.Commit(ctx, func(tx *Tx) error {
-			return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "message", Value: JSON{"committed": true}})
+		_, e := h.Commit(ctx, func(tx *Tx) (any, error) {
+			return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "message", Value: JSON{"committed": true}})
 		})
 		commit <- e
 	}()
@@ -327,26 +327,26 @@ func TestPublicTransactionStagedReferencesAtomic(t *testing.T) {
 		task, _ := s.MintID(bg)
 		doc, _ := s.MintID(bg)
 		ent, _ := s.MintID(bg)
-		_, e := s.Commit(bg, func(tx *Tx) error {
+		_, e := s.Commit(bg, func(tx *Tx) (any, error) {
 			// Source resolves a scope when it is acquired. Stage the task in
 			// the existing root before creating its conversation/documents.
 			if e := tx.PutTask(Task{ID: task, Conversation: 1, Kind: "generation", Status: "pending", Checkpoint: JSON{"step": 1}}); e != nil {
-				return e
+				return nil, e
 			}
 			if e := tx.CreateConversation(Conversation{ID: conversation, Owner: task}); e != nil {
-				return e
+				return nil, e
 			}
 			h, e := tx.CreateDocument(Document{ID: doc, Scope: "task", Owner: task, Kind: "state", Version: 1, Value: JSON{"ready": true}})
 			if e != nil {
-				return e
+				return nil, e
 			}
 			if e = h.Set(JSON{"phase": "prepared"}); e != nil {
-				return e
+				return nil, e
 			}
 			if e = tx.AppendEntry(Entry{ID: ent, Conversation: conversation, Kind: "message", Value: JSON{}}); e != nil {
-				return e
+				return nil, e
 			}
-			return nil
+			return nil, nil
 		})
 		if e != nil {
 			t.Fatal(e)
@@ -358,7 +358,7 @@ func TestPublicTransactionStagedReferencesAtomic(t *testing.T) {
 		// Final unresolved references reject the whole batch, but intermediate schema
 		// failures remain immediate and leave the previous Set candidate intact.
 		next, _ := s.MintID(bg)
-		_, e = s.Commit(bg, func(tx *Tx) error { return tx.CreateConversation(Conversation{ID: next, Owner: next + 1}) })
+		_, e = s.Commit(bg, func(tx *Tx) (any, error) { return nil, tx.CreateConversation(Conversation{ID: next, Owner: next + 1}) })
 		rejected(t, e)
 		after, e := s.Snapshot(bg)
 		if e != nil || after.Seq != v.Seq || len(after.Conversations) != len(v.Conversations) {

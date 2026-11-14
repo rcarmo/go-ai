@@ -49,7 +49,7 @@ func checkReopenedOwnedInspectIdle(t *testing.T, store Storage, reopen func() St
 	cleanupTaskGates(t, release)
 	parentID := createPublicTask(t, h, parent, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 	var owned, childID ID
-	_, err := h.CommitTasks(bg, 1, func(tx *Tx) error {
+	_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 		var err error
 		owned, err = tx.MintID()
 		if err != nil {
@@ -64,13 +64,13 @@ func checkReopenedOwnedInspectIdle(t *testing.T, store Storage, reopen func() St
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = h.session.Commit(bg, func(tx *Tx) error {
+	_, err = h.session.Commit(bg, func(tx *Tx) (any, error) {
 		state := TaskState{Status: "pending", Checkpoint: JSON{"phase": "work"}}
 		if variant == "foreground-hold" {
 			state = *taskDone("held")
 			state.Status = "completing"
 		}
-		return seedNativeRecoveryState(tx, parentID, state, variant == "marked")
+		return nil, seedNativeRecoveryState(tx, parentID, state, variant == "marked")
 	})
 	if err != nil {
 		t.Fatal(err)

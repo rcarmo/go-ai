@@ -46,13 +46,13 @@ func TestConversationInitPinnedCreationHookThenAgentThenInitAtomicRollback(t *te
 			t.Fatal("independent id")
 		}
 		var at ID
-		_, err = root.Commit(bg, func(tx *Tx) error {
+		_, err = root.Commit(bg, func(tx *Tx) (any, error) {
 			var err error
 			at, err = tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return tx.AppendEntry(Entry{ID: at, Conversation: root.ID(), Kind: "app.cut", Value: JSON{}})
+			return nil, tx.AppendEntry(Entry{ID: at, Conversation: root.ID(), Kind: "app.cut", Value: JSON{}})
 		})
 		if err != nil {
 			t.Fatal(err)

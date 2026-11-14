@@ -25,7 +25,7 @@ func TestV150WatchTenThousandSetsRemainIncremental(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := session.Commit(bg, func(tx *Tx) error { _, err := tx.AcquireDocument(def, 0, nil, nil); return err }); err != nil {
+	if _, err := session.Commit(bg, func(tx *Tx) (any, error) { _, err := tx.AcquireDocument(def, 0, nil, nil); return nil, err }); err != nil {
 		t.Fatal(err)
 	}
 	watch, found, err := session.WatchDefinition(bg, def, 0, nil)
@@ -34,12 +34,12 @@ func TestV150WatchTenThousandSetsRemainIncremental(t *testing.T) {
 	}
 	defer watch.Stop()
 	for _, bounds := range [][2]int{{0, 4000}, {4000, 8000}, {8000, 10000}} {
-		if _, err := session.Commit(bg, func(tx *Tx) error {
+		if _, err := session.Commit(bg, func(tx *Tx) (any, error) {
 			handle, err := tx.AcquireDocument(def, 0, nil, nil)
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return handle.Update(func(value JSON) error {
+			return nil, handle.Update(func(value JSON) error {
 				keys := value["keys"].(map[string]any)
 				for i := bounds[0]; i < bounds[1]; i++ {
 					keys[fmt.Sprintf("k%d", i)] = i

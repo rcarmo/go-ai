@@ -60,16 +60,16 @@ func TestMainSessionDeferredInfiniteWindow(t *testing.T) {
 			t.Fatal("stored observer received memory publication", count)
 		}
 		// Neither an unrelated write nor a write-free dependent read stores it.
-		if _, err := s.Commit(bg, mainDeferredSet(other, "unrelated")); err != nil {
+		if _, err := s.Commit(bg, func(tx *Tx) (any, error) { return nil, mainDeferredSet(other, "unrelated")(tx) }); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := s.Commit(bg, func(tx *Tx) error {
+		if _, err := s.Commit(bg, func(tx *Tx) (any, error) {
 			h, err := tx.Document(doc)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			_, err = h.Get()
-			return err
+			return nil, err
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -78,18 +78,18 @@ func TestMainSessionDeferredInfiniteWindow(t *testing.T) {
 		}
 		// A throwing writing callback leaves the hold and both stored docs alone.
 		failure := errors.New("callback failure")
-		if _, err := s.Commit(bg, func(tx *Tx) error {
+		if _, err := s.Commit(bg, func(tx *Tx) (any, error) {
 			h, err := tx.Document(doc)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if _, err = h.Get(); err != nil {
-				return err
+				return nil, err
 			}
 			if err = mainDeferredSet(other, "discarded")(tx); err != nil {
-				return err
+				return nil, err
 			}
-			return failure
+			return nil, failure
 		}); !errors.Is(err, failure) {
 			t.Fatal(err)
 		}
@@ -97,19 +97,19 @@ func TestMainSessionDeferredInfiniteWindow(t *testing.T) {
 			t.Fatal("failed callback changed storage")
 		}
 		// An actual writing commit that reads the document stores the held value.
-		if _, err := s.Commit(bg, func(tx *Tx) error {
+		if _, err := s.Commit(bg, func(tx *Tx) (any, error) {
 			h, err := tx.Document(doc)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			v, err := h.Get()
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if v["text"] != "ab" {
-				return errors.New("dependent read lost held value")
+				return nil, errors.New("dependent read lost held value")
 			}
-			return mainDeferredSet(other, "dependent")(tx)
+			return nil, mainDeferredSet(other, "dependent")(tx)
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -123,7 +123,7 @@ func TestMainSessionDeferredInfiniteWindow(t *testing.T) {
 		if value := watchReceive(t, values); value["text"] != "abc" {
 			t.Fatal("duplicate memory delivery at dependent flush", value)
 		}
-		if _, err := s.Commit(bg, mainDeferredAppend(doc, "d")); err != nil {
+		if _, err := s.Commit(bg, func(tx *Tx) (any, error) { return nil, mainDeferredAppend(doc, "d")(tx) }); err != nil {
 			t.Fatal(err)
 		}
 		if value := watchReceive(t, values); value["text"] != "abcd" {
@@ -273,15 +273,15 @@ func TestMainSessionDeferredOperationOverflowStoresBase(t *testing.T) {
 		if raw := mainDeferredSnapshot(t, b.store); raw.Documents[doc].Value["box"] != nil {
 			t.Fatal("overflow caused an early store")
 		}
-		if _, err := s.Commit(bg, func(tx *Tx) error {
+		if _, err := s.Commit(bg, func(tx *Tx) (any, error) {
 			h, err := tx.Document(doc)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if _, err = h.Get(); err != nil {
-				return err
+				return nil, err
 			}
-			return mainDeferredSet(other, "flush")(tx)
+			return nil, mainDeferredSet(other, "flush")(tx)
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -397,24 +397,24 @@ func openMainDeferredSession(t *testing.T, b sqliteFixture) (*Session, ID, ID) {
 		}
 	})
 	var doc, other ID
-	if _, err := s.Commit(bg, func(tx *Tx) error {
+	if _, err := s.Commit(bg, func(tx *Tx) (any, error) {
 		// Native backends already own their reserved root conversation.
 		cid := ID(1)
 		var err error
 		for _, p := range []*ID{&doc, &other} {
 			*p, err = tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
 			kind := "test.text"
 			if p == &other {
 				kind = "test.other"
 			}
 			if _, err = tx.CreateDocument(Document{ID: *p, Scope: "conversation", Owner: cid, Kind: kind, Version: 1, History: "latest", Fork: "initial", Value: JSON{"text": ""}}); err != nil {
-				return err
+				return nil, err
 			}
 		}
-		return nil
+		return nil, nil
 	}); err != nil {
 		t.Fatal(err)
 	}

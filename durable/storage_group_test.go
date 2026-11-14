@@ -150,7 +150,7 @@ func TestInternalGroupOwnershipAndEmptyCall(t *testing.T) {
 		if _, err := core.commitBatches(bg, batches, nil, false); !errors.Is(err, ErrOwned) {
 			t.Fatal("group bypassed Session ownership", err)
 		}
-		if _, err := s.Commit(bg, func(tx *Tx) error { return tx.AppendEntry(*batches[0].Writes[0].Entry) }); err != nil {
+		if _, err := s.Commit(bg, func(tx *Tx) (any, error) { return nil, tx.AppendEntry(*batches[0].Writes[0].Entry) }); err != nil {
 			t.Fatal("owned legacy Apply path failed", err)
 		}
 	})

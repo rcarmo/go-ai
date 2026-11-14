@@ -14,20 +14,20 @@ func TestConversationWatchTranscriptDeltasDetachedAndOffLine(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = h.session.Commit(bg, func(tx *Tx) error {
+		_, err = h.session.Commit(bg, func(tx *Tx) (any, error) {
 			if err := initializeBuiltins(tx, 1); err != nil {
-				return err
+				return nil, err
 			}
 			for _, text := range []string{"first", "second"} {
 				id, err := tx.MintID()
 				if err != nil {
-					return err
+					return nil, err
 				}
 				if err = tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "app.raw", Value: JSON{"text": text}}); err != nil {
-					return err
+					return nil, err
 				}
 			}
-			return nil
+			return nil, nil
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -69,15 +69,15 @@ func TestConversationWatchTranscriptDeltasDetachedAndOffLine(t *testing.T) {
 		}); err != nil {
 			t.Fatal(err)
 		}
-		_, err = h.session.Commit(bg, func(tx *Tx) error {
+		_, err = h.session.Commit(bg, func(tx *Tx) (any, error) {
 			live, err := builtin(tx, 1, "pi.live")
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if err = live.Set(JSON{"detail": "committed"}); err != nil {
-				return err
+				return nil, err
 			}
-			return appendReset(tx, 1, "reset")
+			return nil, appendReset(tx, 1, "reset")
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -113,7 +113,7 @@ func TestConversationWatchPendingStructuralOperations(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = h.session.Commit(bg, func(tx *Tx) error { return initializeBuiltins(tx, 1) })
+	_, err = h.session.Commit(bg, func(tx *Tx) (any, error) { return nil, initializeBuiltins(tx, 1) })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,12 +124,12 @@ func TestConversationWatchPendingStructuralOperations(t *testing.T) {
 	defer watch.Stop()
 	// Structural sets are barriers, not leaves; keep all pending operations.
 	for i := 0; i < 105; i++ {
-		_, err = h.session.Commit(bg, func(tx *Tx) error {
+		_, err = h.session.Commit(bg, func(tx *Tx) (any, error) {
 			live, err := builtin(tx, 1, "pi.live")
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return live.Set(JSON{"step": i})
+			return nil, live.Set(JSON{"step": i})
 		})
 		if err != nil {
 			t.Fatal(err)

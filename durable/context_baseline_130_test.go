@@ -16,10 +16,10 @@ func TestContext130BaselineLeadsImportedAssistantHistory(t *testing.T) {
 		var assistant ID
 		append130 := func(entry Entry) {
 			t.Helper()
-			if _, err := h.session.Commit(bg, func(tx *Tx) error {
+			if _, err := h.session.Commit(bg, func(tx *Tx) (any, error) {
 				id, err := tx.MintID()
 				if err != nil {
-					return err
+					return nil, err
 				}
 				entry.ID = id
 				if entry.Value == nil {
@@ -29,7 +29,7 @@ func TestContext130BaselineLeadsImportedAssistantHistory(t *testing.T) {
 				if entry.Kind == "imported" {
 					assistant = id
 				}
-				return tx.AppendEntry(entry)
+				return nil, tx.AppendEntry(entry)
 			}); err != nil {
 				t.Fatal(err)
 			}

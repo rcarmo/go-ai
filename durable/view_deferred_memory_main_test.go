@@ -15,7 +15,7 @@ import (
 func mainMemoryConversation(t *testing.T, b sqliteFixture) (*mainDeadlineSession, *ConversationHandle, ID) {
 	t.Helper()
 	f := openMainDeadlineSession(t, b, nil)
-	if _, err := f.session.Commit(bg, func(tx *Tx) error { return initializeBuiltins(tx, 1) }); err != nil {
+	if _, err := f.session.Commit(bg, func(tx *Tx) (any, error) { return nil, initializeBuiltins(tx, 1) }); err != nil {
 		t.Fatal(err)
 	}
 	state, err := f.session.Snapshot(bg)
@@ -140,24 +140,24 @@ func TestMainSessionConversationMemoryDelivery(t *testing.T) {
 					seen = append(seen, watchReceive(t, frames))
 					f.fire(t)
 				} else {
-					if _, err = f.session.Commit(bg, func(tx *Tx) error {
+					if _, err = f.session.Commit(bg, func(tx *Tx) (any, error) {
 						h, err := tx.Document(live) // Depends on the held presentation.
 						if err != nil {
-							return err
+							return nil, err
 						}
 						if _, err = h.Get(); err != nil {
-							return err
+							return nil, err
 						}
 						if flush == "changed-dependent" {
 							if err = h.ApplyOperations([]Operation{{"d", []any{"generation"}}}); err != nil {
-								return err
+								return nil, err
 							}
 						}
 						id, err := tx.MintID()
 						if err != nil {
-							return err
+							return nil, err
 						}
-						return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "test.note", Value: JSON{}})
+						return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "test.note", Value: JSON{}})
 					}); err != nil {
 						t.Fatal(err)
 					}
@@ -206,12 +206,12 @@ func TestMainSessionConversationMemoryBacklog(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		f, c, live := mainMemoryConversation(t, b)
 		// A string append detects accidental reapplication of already seen holds.
-		if _, err := f.session.Commit(bg, func(tx *Tx) error {
+		if _, err := f.session.Commit(bg, func(tx *Tx) (any, error) {
 			h, err := tx.Document(live)
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return h.ApplyOperations([]Operation{{"s", []any{"text"}, ""}})
+			return nil, h.ApplyOperations([]Operation{{"s", []any{"text"}, ""}})
 		}); err != nil {
 			t.Fatal(err)
 		}

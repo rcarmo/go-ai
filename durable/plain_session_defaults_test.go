@@ -14,13 +14,13 @@ func TestPlainSessionAbsentAgentEnvironmentAndNoModelSubmit(t *testing.T) {
 			t.Fatal(err)
 		}
 		var conversation ID
-		_, err = session.Commit(bg, func(tx *Tx) error {
+		_, err = session.Commit(bg, func(tx *Tx) (any, error) {
 			var err error
 			conversation, err = tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return tx.CreateConversation(Conversation{ID: conversation})
+			return nil, tx.CreateConversation(Conversation{ID: conversation})
 		})
 		if err != nil {
 			t.Fatal(err)

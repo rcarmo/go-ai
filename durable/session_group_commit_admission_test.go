@@ -22,7 +22,7 @@ func TestSessionV150DisjointDocumentAdmissionBatchesWaitingParts(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) {
 			var s *Session
-			var commitChange func(context.Context, func(*Tx) error) (uint64, error)
+			var commitChange func(context.Context, func(*Tx) (any, error)) (any, error)
 			if withHarness {
 				store, err := newTestSQLite(t)
 				if err != nil {
@@ -42,18 +42,18 @@ func TestSessionV150DisjointDocumentAdmissionBatchesWaitingParts(t *testing.T) {
 			}
 			keys := []string{"a", "b", "c"}
 			owners := []ID{1}
-			if _, err = commitChange(bg, func(tx *Tx) error {
+			if _, err = commitChange(bg, func(tx *Tx) (any, error) {
 				for i := 0; i < 2; i++ {
 					id, e := tx.MintID()
 					if e != nil {
-						return e
+						return nil, e
 					}
 					if e := tx.CreateConversation(Conversation{ID: id}); e != nil {
-						return e
+						return nil, e
 					}
 					owners = append(owners, id)
 				}
-				return nil
+				return nil, nil
 			}); err != nil {
 				t.Fatal(err)
 			}
@@ -97,16 +97,16 @@ func TestSessionV150DisjointDocumentAdmissionBatchesWaitingParts(t *testing.T) {
 				results[i] = make(chan error, 1)
 				i := i
 				go func() {
-					_, e := commitChange(bg, func(tx *Tx) error {
+					_, e := commitChange(bg, func(tx *Tx) (any, error) {
 						doc, e := tx.AcquireDocument(def, owners[i], nil, nil)
 						if e != nil {
-							return e
+							return nil, e
 						}
 						if e = doc.Set(JSON{"n": 1}); e != nil {
-							return e
+							return nil, e
 						}
 						ran <- keys[i]
-						return nil
+						return nil, nil
 					})
 					results[i] <- e
 				}()
@@ -193,7 +193,7 @@ func TestSessionV150BlindEntryAppendsBatchAgainstPendingPrefix(t *testing.T) {
 		ran := make(chan struct{})
 		i := i
 		go func() {
-			_, err := s.Commit(bg, func(tx *Tx) error {
+			_, err := s.Commit(bg, func(tx *Tx) (any, error) {
 				content := EntryContent{Value: JSON{"index": i}}
 				if i > 0 {
 					content.Head = firstID
@@ -203,7 +203,7 @@ func TestSessionV150BlindEntryAppendsBatchAgainstPendingPrefix(t *testing.T) {
 					firstID = entry.ID
 				}
 				close(ran)
-				return err
+				return nil, err
 			})
 			results[i] <- err
 		}()
@@ -299,19 +299,19 @@ func TestSessionV150DocumentReadsTouchOnlyTheirDependencies(t *testing.T) {
 			readA, _ := coldToken(a)
 			readB, ranB := coldToken(b)
 			var at ID
-			if _, err := s.Commit(bg, func(tx *Tx) error {
+			if _, err := s.Commit(bg, func(tx *Tx) (any, error) {
 				if _, err := tx.AcquireDocument(a, 1, nil, nil); err != nil {
-					return err
+					return nil, err
 				}
 				if _, err := tx.AcquireDocument(b, 1, nil, nil); err != nil {
-					return err
+					return nil, err
 				}
 				var err error
 				at, err = tx.MintID()
 				if err != nil {
-					return err
+					return nil, err
 				}
-				return tx.AppendEntry(Entry{ID: at, Conversation: 1, Kind: "cutoff", Value: JSON{}})
+				return nil, tx.AppendEntry(Entry{ID: at, Conversation: 1, Kind: "cutoff", Value: JSON{}})
 			}); err != nil {
 				t.Fatal(err)
 			}
@@ -333,12 +333,12 @@ func TestSessionV150DocumentReadsTouchOnlyTheirDependencies(t *testing.T) {
 			}
 			stored := make(chan error, 1)
 			go func() {
-				_, err := s.Commit(bg, func(tx *Tx) error {
+				_, err := s.Commit(bg, func(tx *Tx) (any, error) {
 					doc, err := tx.AcquireDocument(a, 1, nil, nil)
 					if err != nil {
-						return err
+						return nil, err
 					}
-					return doc.Set(JSON{"n": 1})
+					return nil, doc.Set(JSON{"n": 1})
 				})
 				stored <- err
 			}()
@@ -461,28 +461,28 @@ func TestV150SessionReadLinePendingConversation(t *testing.T) {
 				var err error
 				switch name {
 				case "latestEntryId":
-					_, err = session.Commit(ctx, func(tx *Tx) error {
+					_, err = session.Commit(ctx, func(tx *Tx) (any, error) {
 						value, found, e := tx.LatestEntryID(id)
 						if e == nil && (found || value != 0) {
-							return errors.New("unexpected latest entry")
+							return nil, errors.New("unexpected latest entry")
 						}
-						return e
+						return nil, e
 					})
 				case "latestHeadMarker":
-					_, err = session.Commit(ctx, func(tx *Tx) error {
+					_, err = session.Commit(ctx, func(tx *Tx) (any, error) {
 						_, found, e := tx.LatestHeadMarker(id, 0)
 						if e == nil && found {
-							return errors.New("unexpected head marker")
+							return nil, errors.New("unexpected head marker")
 						}
-						return e
+						return nil, e
 					})
 				case "tx.scanEntries":
-					_, err = session.Commit(ctx, func(tx *Tx) error {
+					_, err = session.Commit(ctx, func(tx *Tx) (any, error) {
 						page, e := tx.ScanEntries(EntryQuery{Conversation: id}, 1, nil)
 						if e == nil && len(page.Items) != 0 {
-							return errors.New("unexpected entries")
+							return nil, errors.New("unexpected entries")
 						}
-						return e
+						return nil, e
 					})
 				case "line.scanEntries":
 					err = session.ReadOnLine(ctx, func(line *ReadLine) error {
@@ -560,7 +560,7 @@ func TestSessionV150StoragePublicationScope(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err = s.Commit(bg, func(tx *Tx) error { _, err := tx.AcquireDocument(def, 0, nil, nil); return err }); err != nil {
+			if _, err = s.Commit(bg, func(tx *Tx) (any, error) { _, err := tx.AcquireDocument(def, 0, nil, nil); return nil, err }); err != nil {
 				t.Fatal(err)
 			}
 			marker := errors.New("no scope")
@@ -612,17 +612,17 @@ func TestSessionV150StoragePublicationScope(t *testing.T) {
 			result := make(chan error, 1)
 			var prior any
 			go func() {
-				_, err := s.Commit(context.WithValue(bg, v150ScopeContextKey{}, "producer"), func(tx *Tx) error {
+				_, err := s.Commit(context.WithValue(bg, v150ScopeContextKey{}, "producer"), func(tx *Tx) (any, error) {
 					doc, err := tx.AcquireDocument(def, 0, nil, nil)
 					if err != nil {
-						return err
+						return nil, err
 					}
 					value, err := doc.Get()
 					if err != nil {
-						return err
+						return nil, err
 					}
 					prior = value["n"]
-					return doc.ApplyOperations([]Operation{{"s", []any{"n"}, 1}})
+					return nil, doc.ApplyOperations([]Operation{{"s", []any{"n"}, 1}})
 				})
 				result <- err
 			}()
@@ -699,12 +699,12 @@ func TestSessionV150StorageScopeRechecksFailureAtDeferredEntry(t *testing.T) {
 	}
 	defer observer.detach()
 	appendKind := func(kind string) error {
-		_, err := s.Commit(bg, func(tx *Tx) error {
+		_, err := s.Commit(bg, func(tx *Tx) (any, error) {
 			id, err := tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: kind, Value: JSON{}})
+			return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: kind, Value: JSON{}})
 		})
 		return err
 	}

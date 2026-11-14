@@ -128,7 +128,7 @@ func TestToolExecutionParallelAndSequentialRounds(t *testing.T) {
 				if mode == "legacy" {
 					// A persisted old-format checkpoint has no successor metadata.
 					// It must resume into the same reference-shaped handoff.
-					_, err := h.CommitTasks(bg, conversation.ID(), func(tx *Tx) error {
+					_, err := h.commitTasks(bg, conversation.ID(), func(tx *Tx) error {
 						for _, task := range tx.state.Tasks {
 							if task.Kind != "pi.generation" || terminalStatus(task.Status) {
 								continue

@@ -70,17 +70,17 @@ func TestMainSubmissionTraceDTOOwnershipAndReopen(t *testing.T) {
 		// CreateSubmission takes a creation draft; storage assigns its ID.
 		record.ID = 0
 		var id ID
-		_, err := h.Commit(bg, func(tx *Tx) error {
+		_, err := h.Commit(bg, func(tx *Tx) (any, error) {
 			var err error
 			createdSubmission, err := tx.CreateSubmission(SubmissionCreate{Conversation: record.Conversation, Type: record.Type, Status: record.Status, RequestID: record.RequestID, RequestIDPresent: record.RequestIDPresent, Trace: record.Trace})
 			id = createdSubmission.ID
-			return err
+			return nil, err
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
 		mainTraceMutate(record)
-		_, err = h.Commit(bg, func(tx *Tx) error {
+		_, err = h.Commit(bg, func(tx *Tx) (any, error) {
 			got, found, err := tx.Submission(id)
 			if err != nil || !found {
 				t.Fatal(got, found, err)
@@ -93,7 +93,7 @@ func TestMainSubmissionTraceDTOOwnershipAndReopen(t *testing.T) {
 			if err != nil || !found || !reflect.DeepEqual(mainTraceRecordCarrier(t, again), want) {
 				t.Fatal("transaction carrier alias", again, found, err)
 			}
-			return tx.SettleSubmission(id, SubmissionSettlement{Status: "unanswered", Reason: "aborted"})
+			return nil, tx.SettleSubmission(id, SubmissionSettlement{Status: "unanswered", Reason: "aborted"})
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -159,11 +159,11 @@ func TestMainSubmissionTraceEmptyAndAbsent(t *testing.T) {
 			// Convert the public record into an ID-less creation draft.
 			record.ID = 0
 			var id ID
-			_, err := h.Commit(bg, func(tx *Tx) error {
+			_, err := h.Commit(bg, func(tx *Tx) (any, error) {
 				var err error
 				createdSubmission, err := tx.CreateSubmission(SubmissionCreate{Conversation: record.Conversation, Type: record.Type, Status: record.Status, RequestID: record.RequestID, RequestIDPresent: record.RequestIDPresent, Trace: record.Trace})
 				id = createdSubmission.ID
-				return err
+				return nil, err
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -294,11 +294,11 @@ func TestMainSubmissionTraceRollback(t *testing.T) {
 		}
 		carrier := goai.TelemetryCarrier{"span": "rolled-back"}
 		cause := errors.New("caller rollback")
-		_, err = h.Commit(bg, func(tx *Tx) error {
+		_, err = h.Commit(bg, func(tx *Tx) (any, error) {
 			if _, err := tx.CreateSubmission(SubmissionCreate{Conversation: 1, Type: "continue", Status: "placed", RequestID: "trace-rollback", Trace: &carrier}); err != nil {
-				return err
+				return nil, err
 			}
-			return cause
+			return nil, cause
 		})
 		if !errors.Is(err, cause) {
 			t.Fatal("rollback cause", err)

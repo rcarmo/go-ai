@@ -32,28 +32,28 @@ func (c *ConversationHandle) ConfigurePatch(ctx context.Context, patch AgentPatc
 	if h.closing.Load() {
 		return ErrClosed
 	}
-	_, err := h.session.Commit(ctx, func(tx *Tx) error {
+	_, err := h.session.Commit(ctx, func(tx *Tx) (any, error) {
 		if err := tx.touchKeys(ALL_KEYS); err != nil {
-			return err
+			return nil, err
 		}
 		if h.closing.Load() {
-			return ErrClosed
+			return nil, ErrClosed
 		}
 		if _, ok := tx.state.Conversations[c.id]; !ok {
-			return reject("unknown conversation")
+			return nil, reject("unknown conversation")
 		}
 		doc, found := agentDocument(tx.state, c.id)
 		var state agentState
 		if found {
 			if err := fromObject(doc.Value, &state, tx.limits); err != nil {
-				return err
+				return nil, err
 			}
 		}
 		supplied := map[string]bool{"modelTools": patch.ModelTools != nil, "model": patch.Model != nil, "thinkingLevel": patch.ThinkingLevel != nil, "name": patch.Name != nil, "cwd": patch.Cwd != nil, "systemPrompt": patch.SystemPrompt != nil, "instructions": patch.Instructions != nil, "settings": patch.Settings != nil, "extensions": patch.Extensions != nil || patch.ExtensionFilter != nil, "tools": patch.Tools != nil || patch.ToolsRemoved != nil}
 		seen := map[string]bool{}
 		for _, field := range patch.Clear {
 			if seen[field] || supplied[field] {
-				return reject("conflicting agent patch")
+				return nil, reject("conflicting agent patch")
 			}
 			seen[field] = true
 			switch field {
@@ -80,7 +80,7 @@ func (c *ConversationHandle) ConfigurePatch(ctx context.Context, patch AgentPatc
 				state.Tools = nil
 				state.ToolsRemoved = nil
 			default:
-				return reject("invalid agent clear field")
+				return nil, reject("invalid agent clear field")
 			}
 		}
 		if patch.Model != nil {
@@ -105,7 +105,7 @@ func (c *ConversationHandle) ConfigurePatch(ctx context.Context, patch AgentPatc
 			state.Settings = *patch.Settings
 		}
 		if patch.Extensions != nil && patch.ExtensionFilter != nil || patch.Tools != nil && patch.ToolsRemoved != nil {
-			return reject("conflicting agent selection")
+			return nil, reject("conflicting agent selection")
 		}
 		if patch.Extensions != nil {
 			state.Extensions = patch.Extensions
@@ -128,26 +128,26 @@ func (c *ConversationHandle) ConfigurePatch(ctx context.Context, patch AgentPatc
 		}
 		validated, err := h.agent(AgentChange{ModelTools: state.ModelTools, Name: state.Name, Cwd: state.Cwd, Model: state.Model, ThinkingLevel: state.ThinkingLevel, SystemPrompt: state.SystemPrompt, Instructions: state.Instructions, Settings: state.Settings, Extensions: state.Extensions, Tools: state.Tools, ExtensionFilter: state.ExtensionFilter, ToolsRemoved: state.ToolsRemoved})
 		if err != nil {
-			return err
+			return nil, err
 		}
 		value, err := dtoObject(validated, tx.limits)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if !found {
 			id, err := tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
 			_, err = tx.CreateDocument(Document{ID: id, Scope: "conversation", Owner: c.id, Kind: "pi.agent", Version: 1, History: "rewindable", Fork: "asOf", Value: value})
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return initializeBuiltins(tx, c.id)
+			return nil, initializeBuiltins(tx, c.id)
 		}
 		agent, err := builtin(tx, c.id, "pi.agent")
 		if err != nil {
-			return err
+			return nil, err
 		}
 		// Source applyChange assigns/deletes top-level agent fields. Preserve
 		// those operation boundaries instead of replacing the mounted document.
@@ -172,9 +172,9 @@ func (c *ConversationHandle) ConfigurePatch(ctx context.Context, patch AgentPatc
 			}
 		}
 		if len(ops) == 0 {
-			return nil
+			return nil, nil
 		}
-		return agent.ApplyOperations(ops)
+		return nil, agent.ApplyOperations(ops)
 	})
 	return err
 }

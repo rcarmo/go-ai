@@ -17,21 +17,21 @@ func TestMainSessionDeferredDeadlineStoresEveryHold(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		f := openMainDeadlineSession(t, b, nil)
 		var other, otherDoc ID
-		if _, err := f.session.Commit(bg, func(tx *Tx) error {
+		if _, err := f.session.Commit(bg, func(tx *Tx) (any, error) {
 			var err error
 			other, err = tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if err = tx.CreateConversation(Conversation{ID: other}); err != nil {
-				return err
+				return nil, err
 			}
 			otherDoc, err = tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
 			_, err = tx.CreateDocument(mainDeadlineDocument(otherDoc, other))
-			return err
+			return nil, err
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -111,7 +111,7 @@ func TestMainSessionDeferredDeadlineInfinityAndRelease(t *testing.T) {
 			t.Fatal(err)
 		}
 		f.assertArmed(t, 1000*time.Millisecond)
-		if _, err := f.session.Commit(bg, mainDeferredAppend(f.doc, "c")); err != nil {
+		if _, err := f.session.Commit(bg, func(tx *Tx) (any, error) { return nil, mainDeferredAppend(f.doc, "c")(tx) }); err != nil {
 			t.Fatal(err)
 		}
 		f.assertArmed(t)
@@ -134,7 +134,7 @@ func TestMainSessionDeferredDeadlineInvalidWindow(t *testing.T) {
 				t.Fatalf("invalid window %v: %v", window, err)
 			}
 		}
-		if _, err := f.session.Commit(bg, mainDeferredAppend(f.doc, "a")); err != nil {
+		if _, err := f.session.Commit(bg, func(tx *Tx) (any, error) { return nil, mainDeferredAppend(f.doc, "a")(tx) }); err != nil {
 			t.Fatal(err)
 		}
 	})
@@ -166,7 +166,7 @@ func TestMainSessionDeferredDeadlineHostAdmission(t *testing.T) {
 		var once sync.Once
 		defer once.Do(func() { close(release) })
 		go func() {
-			_, err := f.session.Commit(bg, func(*Tx) error { close(entered); <-release; return nil })
+			_, err := f.session.Commit(bg, func(*Tx) (any, error) { close(entered); <-release; return nil, nil })
 			committed <- err
 		}()
 		awaitTaskSignal(t, entered)
@@ -286,14 +286,14 @@ func openMainDeadlineSession(t *testing.T, b sqliteFixture, defaultWindow *float
 			t.Error(err)
 		}
 	})
-	if _, err = s.Commit(bg, func(tx *Tx) error {
+	if _, err = s.Commit(bg, func(tx *Tx) (any, error) {
 		var err error
 		f.doc, err = tx.MintID()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		_, err = tx.CreateDocument(mainDeadlineDocument(f.doc, 1))
-		return err
+		return nil, err
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -383,19 +383,19 @@ func TestMainDeferredMaintenanceDrainsBeforeSelectingHolds(t *testing.T) {
 				}
 				committed := make(chan error, 1)
 				go func() {
-					_, err := f.session.Commit(bg, func(tx *Tx) error {
+					_, err := f.session.Commit(bg, func(tx *Tx) (any, error) {
 						if consumed {
 							doc, err := tx.Document(f.doc)
 							if err != nil {
-								return err
+								return nil, err
 							}
-							return doc.ApplyOperations([]Operation{{"s", []any{"text"}, "stored"}})
+							return nil, doc.ApplyOperations([]Operation{{"s", []any{"text"}, "stored"}})
 						}
 						id, err := tx.MintID()
 						if err != nil {
-							return err
+							return nil, err
 						}
-						return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}})
+						return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}})
 					})
 					committed <- err
 				}()

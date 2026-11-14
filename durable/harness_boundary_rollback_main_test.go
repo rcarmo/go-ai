@@ -25,37 +25,37 @@ func TestMainBoundaryPassiveWriteRollback(t *testing.T) {
 				var owner, input, anchor ID
 				// Admit a valid native queued generation and place its actual input
 				// through the production boundary without enabling the scheduler.
-				if _, err := h.session.Commit(bg, func(tx *Tx) error {
+				if _, err := h.session.Commit(bg, func(tx *Tx) (any, error) {
 					var err error
 					input, err = tx.MintID()
 					if err != nil {
-						return err
+						return nil, err
 					}
 					owner, err = tx.MintID()
 					if err != nil {
-						return err
+						return nil, err
 					}
 					if err := tx.PutSubmission(Submission{ID: input, Conversation: c.ID(), Type: "follow-up", Status: "pending", Value: JSON{"content": "A"}}); err != nil {
-						return err
+						return nil, err
 					}
 					cp, err := dtoObject(generationCheckpoint{Phase: "queued", Submission: input, Input: "A"}, tx.limits)
 					if err != nil {
-						return err
+						return nil, err
 					}
 					if err := tx.PutTask(Task{ID: owner, Conversation: c.ID(), Kind: "pi.generation", Status: "pending", Checkpoint: cp}); err != nil {
-						return err
+						return nil, err
 					}
 					inbox, err := builtin(tx, c.ID(), "pi.inbox")
 					if err != nil {
-						return err
+						return nil, err
 					}
 					if err := inbox.Update(func(value JSON) error {
 						value["items"] = []any{JSON{"id": input, "mode": "followUp", "content": "A"}}
 						return nil
 					}); err != nil {
-						return err
+						return nil, err
 					}
-					return h.startQueuedRunBoundary(tx, c.ID(), 0, false)
+					return nil, h.startQueuedRunBoundary(tx, c.ID(), 0, false)
 				}); err != nil {
 					t.Fatal("admit unscheduled input", err)
 				}
@@ -75,18 +75,18 @@ func TestMainBoundaryPassiveWriteRollback(t *testing.T) {
 				// Explicit end-boundary control, not a simulated model completion:
 				// release the real live.run before taking the rollback baseline.
 				// The stale lane advances the real context head after W was queued.
-				if _, err := h.session.Commit(bg, func(tx *Tx) error {
+				if _, err := h.session.Commit(bg, func(tx *Tx) (any, error) {
 					live, err := builtin(tx, c.ID(), "pi.live")
 					if err != nil {
-						return err
+						return nil, err
 					}
 					if err := live.Update(func(value JSON) error { delete(value, "run"); return nil }); err != nil {
-						return err
+						return nil, err
 					}
 					if stale {
-						return appendReset(tx, c.ID(), "new context head")
+						return nil, appendReset(tx, c.ID(), "new context head")
 					}
-					return nil
+					return nil, nil
 				}); err != nil {
 					t.Fatal("prepare explicit boundary control", err)
 				}
@@ -121,13 +121,13 @@ func TestMainBoundaryPassiveWriteRollback(t *testing.T) {
 				refusal := &StorageRejected{Reason: "forced rollback after passive boundary classification"}
 				var candidateEntry ID
 				classified := false
-				seq, err := h.session.Commit(bg, func(tx *Tx) error {
+				value, err := h.session.Commit(bg, func(tx *Tx) (any, error) {
 					if err := h.startQueuedRunBoundary(tx, c.ID(), owner, false); err != nil {
-						return err
+						return nil, err
 					}
 					candidate, err := tx.current()
 					if err != nil {
-						return err
+						return nil, err
 					}
 					sub := candidate.Submissions[write.ID()]
 					if publicSubmission(sub).Status != "queued" {
@@ -153,11 +153,11 @@ func TestMainBoundaryPassiveWriteRollback(t *testing.T) {
 
 					requireInbox(candidate, 0)
 					classified = true
-					return refusal
+					return nil, refusal
 				})
 				var rejected *StorageRejected
-				if !classified || seq != 0 || !errors.As(err, &rejected) || rejected != refusal {
-					t.Fatal("must return the forced callback refusal after the real boundary", classified, seq, err)
+				if !classified || value != nil || !errors.As(err, &rejected) || rejected != refusal {
+					t.Fatal("must return the forced callback refusal after the real boundary", classified, value, err)
 				}
 				for _, source := range []struct {
 					name string
@@ -193,8 +193,8 @@ func TestMainBoundaryPassiveWriteRollback(t *testing.T) {
 				}
 				// Positive retry control: the same retained queue can still adopt,
 				// with a new real entry in the append lane, or no entry when stale.
-				if _, err := h.session.Commit(bg, func(tx *Tx) error {
-					return h.startQueuedRunBoundary(tx, c.ID(), owner, false)
+				if _, err := h.session.Commit(bg, func(tx *Tx) (any, error) {
+					return nil, h.startQueuedRunBoundary(tx, c.ID(), owner, false)
 				}); err != nil {
 					t.Fatal("positive boundary retry", err)
 				}

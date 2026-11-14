@@ -143,18 +143,18 @@ func TestMainWakeSleepingIndexPublication(t *testing.T) {
 		check(5000)
 		// Internal stage deliberately isolates publication bookkeeping. Public raw
 		// replacement of managed tasks remains forbidden; no authority is granted.
-		if _, err := h.Commit(bg, func(tx *Tx) error {
+		if _, err := h.Commit(bg, func(tx *Tx) (any, error) {
 			task, err := copyTask(tx.state.Tasks[id], tx.limits)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			for _, until := range []int64{6000, 7000} {
 				task.Execution.Native.State.Until = &until
 				if err := tx.stage(Write{Op: "put-task", Task: &task}); err != nil {
-					return err
+					return nil, err
 				}
 			}
-			return nil
+			return nil, nil
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -163,20 +163,20 @@ func TestMainWakeSleepingIndexPublication(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := h.Commit(bg, func(tx *Tx) error {
-			return tx.AppendEntry(Entry{ID: entry, Conversation: 1, Kind: "wake-index", Value: JSON{}})
+		if _, err := h.Commit(bg, func(tx *Tx) (any, error) {
+			return nil, tx.AppendEntry(Entry{ID: entry, Conversation: 1, Kind: "wake-index", Value: JSON{}})
 		}); err != nil {
 			t.Fatal(err)
 		}
 		check(7000)
-		if _, err := h.Commit(bg, func(tx *Tx) error {
+		if _, err := h.Commit(bg, func(tx *Tx) (any, error) {
 			task, err := copyTask(tx.state.Tasks[id], tx.limits)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			task.Status = "done"
 			task.Execution.Native.State = *taskDone(nil)
-			return tx.stage(Write{Op: "put-task", Task: &task})
+			return nil, tx.stage(Write{Op: "put-task", Task: &task})
 		}); err != nil {
 			t.Fatal(err)
 		}

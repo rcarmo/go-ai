@@ -30,21 +30,21 @@ func TestCompactionLiveStatusRetrySnapshotReopenAndRemoval(t *testing.T) {
 		options.OnWake = func(w Wake) { wakes <- copyWake(w) }
 		h := openHarness(t, b.store, options)
 		conversation := root(t, h, ref)
-		_, err := h.session.Commit(bg, func(tx *Tx) error {
+		_, err := h.session.Commit(bg, func(tx *Tx) (any, error) {
 			for _, text := range []string{"old", "recent"} {
 				id, err := tx.MintID()
 				if err != nil {
-					return err
+					return nil, err
 				}
 				value, err := dtoObject(userReceipt(text), tx.limits)
 				if err != nil {
-					return err
+					return nil, err
 				}
 				if err := tx.AppendEntry(Entry{ID: id, Conversation: conversation.ID(), Kind: "message", Value: value}); err != nil {
-					return err
+					return nil, err
 				}
 			}
-			return nil
+			return nil, nil
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -257,21 +257,21 @@ func TestCompaction120FailureReopenNoCutAndSummaryClearing(t *testing.T) {
 		if f := failure(); f == nil || f.Task != failed {
 			t.Fatal("no-cut cleared failure", f)
 		}
-		_, err = conv.Commit(bg, func(tx *Tx) error {
+		_, err = conv.Commit(bg, func(tx *Tx) (any, error) {
 			for _, text := range []string{"old question", "old answer", "recent"} {
 				id, err := tx.MintID()
 				if err != nil {
-					return err
+					return nil, err
 				}
 				value, err := dtoObject(userReceipt(text), tx.limits)
 				if err != nil {
-					return err
+					return nil, err
 				}
 				if err := tx.AppendEntry(Entry{ID: id, Conversation: conv.ID(), Kind: "message", Value: value}); err != nil {
-					return err
+					return nil, err
 				}
 			}
-			return nil
+			return nil, nil
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -354,17 +354,17 @@ func TestSourceCompactionFailureErrorMessagePresence(t *testing.T) {
 			h := openHarness(t, store, options)
 			c := root(t, h, ref)
 			configureCompactionTestPolicy(t, c, compactionTestInt(0), nil)
-			if _, err := c.Commit(bg, func(tx *Tx) error {
+			if _, err := c.Commit(bg, func(tx *Tx) (any, error) {
 				for _, text := range []string{"old", "recent"} {
 					id, err := tx.MintID()
 					if err != nil {
-						return err
+						return nil, err
 					}
 					if err := tx.AppendEntry(Entry{ID: id, Conversation: c.ID(), Kind: "pi.user", Model: []MessageReceipt{userReceipt(text)}}); err != nil {
-						return err
+						return nil, err
 					}
 				}
-				return nil
+				return nil, nil
 			}); err != nil {
 				t.Fatal(err)
 			}

@@ -28,17 +28,17 @@ func mainSQLiteSnapshotSession(tb testing.TB) *Session {
 			tb.Error(err)
 		}
 	})
-	_, err = s.Commit(context.Background(), func(tx *Tx) error {
+	_, err = s.Commit(context.Background(), func(tx *Tx) (any, error) {
 		for i := 0; i < 64; i++ {
 			id, err := tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if err = tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "fixture", Value: JSON{"body": strings.Repeat("x", 4096)}}); err != nil {
-				return err
+				return nil, err
 			}
 		}
-		return nil
+		return nil, nil
 	})
 	if err != nil {
 		tb.Fatal(err)
@@ -80,13 +80,13 @@ func TestMainSQLiteAdoptedTaskSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 	var published ID
-	_, err = s.Commit(context.Background(), func(tx *Tx) error {
+	_, err = s.Commit(context.Background(), func(tx *Tx) (any, error) {
 		var err error
 		published, err = tx.MintID()
 		if err != nil {
-			return err
+			return nil, err
 		}
-		return tx.AppendEntry(Entry{ID: published, Conversation: 1, Kind: "fixture", Value: JSON{"body": "published"}})
+		return nil, tx.AppendEntry(Entry{ID: published, Conversation: 1, Kind: "fixture", Value: JSON{"body": "published"}})
 	})
 	if err != nil {
 		t.Fatal(err)

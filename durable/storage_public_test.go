@@ -733,7 +733,7 @@ func TestV150SubmissionEmptyReasonSettlement(t *testing.T) {
 			}
 			defer session.Close(bg)
 			var id ID
-			_, err = session.Commit(bg, func(tx *Tx) error {
+			_, err = session.Commit(bg, func(tx *Tx) (any, error) {
 				var err error
 				status := "queued"
 				if kind == "continue" {
@@ -741,26 +741,26 @@ func TestV150SubmissionEmptyReasonSettlement(t *testing.T) {
 				}
 				createdSubmission, err := tx.CreateSubmission(SubmissionCreate{Conversation: 1, Type: kind, Status: status})
 				id = createdSubmission.ID
-				return err
+				return nil, err
 			})
 			if err != nil {
 				t.Fatal(err)
 			}
-			_, err = session.Commit(bg, func(tx *Tx) error {
-				return tx.SettleSubmission(id, SubmissionSettlement{Status: "unanswered", Reason: ""})
+			_, err = session.Commit(bg, func(tx *Tx) (any, error) {
+				return nil, tx.SettleSubmission(id, SubmissionSettlement{Status: "unanswered", Reason: ""})
 			})
 			if err != nil {
 				t.Fatal("empty reason settlement", err)
 			}
-			_, err = session.Commit(bg, func(tx *Tx) error {
+			_, err = session.Commit(bg, func(tx *Tx) (any, error) {
 				record, ok, err := tx.Submission(id)
 				if err != nil {
-					return err
+					return nil, err
 				}
 				if !ok || record.Status != "unanswered" || record.Reason != "" {
 					t.Fatalf("settled %+v", record)
 				}
-				return nil
+				return nil, nil
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -958,7 +958,9 @@ func TestV150SessionStillRequiresReservedIDs(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer s.Close(bg)
-	if _, err = s.Commit(bg, func(tx *Tx) error { return tx.AppendEntry(Entry{ID: 99, Conversation: 1, Kind: "test", Value: JSON{}}) }); err == nil {
+	if _, err = s.Commit(bg, func(tx *Tx) (any, error) {
+		return nil, tx.AppendEntry(Entry{ID: 99, Conversation: 1, Kind: "test", Value: JSON{}})
+	}); err == nil {
 		t.Fatal("unreserved Session ID accepted")
 	}
 }

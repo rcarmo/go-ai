@@ -98,7 +98,7 @@ func TestInvocationSubmissionQueuedStatusAbortAndWaitRejectAfterSeal(t *testing.
 				h := taskTestHarness(t, b.store, owner)
 				cleanupTaskGates(t, release)
 				var subID ID
-				_, err := h.CommitTasks(bg, 1, func(tx *Tx) error {
+				_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 					var err error
 					subID, err = tx.MintID()
 					if err != nil {

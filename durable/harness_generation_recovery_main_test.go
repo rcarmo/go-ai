@@ -542,19 +542,19 @@ func TestMainGenerationAgentEventsBeforeStorage(t *testing.T) {
 			t.Fatal("agent events waited for storage", text)
 		}
 		var marker ID
-		_, err = f.h.session.Commit(bg, func(tx *Tx) error {
+		_, err = f.h.session.Commit(bg, func(tx *Tx) (any, error) {
 			live, err := builtin(tx, f.c.ID(), "pi.live")
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if _, err := live.Get(); err != nil {
-				return err
+				return nil, err
 			}
 			marker, err = tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return tx.AppendEntry(Entry{ID: marker, Conversation: f.c.ID(), Kind: "test.marker", Value: JSON{}})
+			return nil, tx.AppendEntry(Entry{ID: marker, Conversation: f.c.ID(), Kind: "test.marker", Value: JSON{}})
 		})
 		if err != nil {
 			t.Fatal(err)

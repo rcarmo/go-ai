@@ -81,7 +81,7 @@ func TestMainContextExpiryAtPublication(t *testing.T) {
 					}
 					return tx.AppendEntry(contextEntry(id, 1, goai.RoleUser, "entry"))
 				}
-				if _, err := h.session.Commit(bg, appendContext); err != nil {
+				if _, err := h.session.Commit(bg, func(tx *Tx) (any, error) { return nil, appendContext(tx) }); err != nil {
 					t.Fatal(err)
 				}
 				if _, err := h.session.ContextView(bg, 1, 0); err != nil {
@@ -94,15 +94,15 @@ func TestMainContextExpiryAtPublication(t *testing.T) {
 					}
 				})
 				clock.Store(2500)
-				_, err := h.session.Commit(bg, func(tx *Tx) error {
+				_, err := h.session.Commit(bg, func(tx *Tx) (any, error) {
 					if change == "entry-only" {
-						return appendContext(tx)
+						return nil, appendContext(tx)
 					}
 					id, err := tx.MintID()
 					if err != nil {
-						return err
+						return nil, err
 					}
-					return tx.PutTask(Task{ID: id, Conversation: 1, Kind: "context.fixture", Status: "pending", Checkpoint: JSON{}})
+					return nil, tx.PutTask(Task{ID: id, Conversation: 1, Kind: "context.fixture", Status: "pending", Checkpoint: JSON{}})
 				})
 				if err != nil {
 					t.Fatal(err)

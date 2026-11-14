@@ -90,16 +90,16 @@ func TestMainDefinitionWrapperProjectionOverridesNativeCache(t *testing.T) {
 						return value, value != nil && err == nil, err
 					case "acquire":
 						var value JSON
-						_, err := s.Commit(bg, func(tx *Tx) error {
+						_, err := s.Commit(bg, func(tx *Tx) (any, error) {
 							handle, err := tx.AcquireDocument(def, 0, nil, nil)
 							if err != nil {
-								return err
+								return nil, err
 							}
 							value, err = handle.Get()
 							if err != nil {
-								return err
+								return nil, err
 							}
-							return rollback
+							return nil, rollback
 						})
 						if errors.Is(err, rollback) {
 							return value, true, nil

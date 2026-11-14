@@ -240,16 +240,16 @@ func TestTxRawSubmissionCreationDoesNotDeduplicate(t *testing.T) {
 	}
 	defer session.Close(bg)
 	var first, second ID
-	_, err = session.Commit(bg, func(tx *Tx) error {
+	_, err = session.Commit(bg, func(tx *Tx) (any, error) {
 		var err error
 		createdFirst, err := tx.CreateSubmission(SubmissionCreate{Conversation: 1, Type: "write", Status: "queued", RequestID: "same"})
 		first = createdFirst.ID
 		if err != nil {
-			return err
+			return nil, err
 		}
 		createdSecond, err := tx.CreateSubmission(SubmissionCreate{Conversation: 1, Type: "write", Status: "queued", RequestID: "same"})
 		second = createdSecond.ID
-		return err
+		return nil, err
 	})
 	if err != nil {
 		t.Fatal("raw creation applied Harness deduplication", err)
@@ -566,31 +566,31 @@ func TestV150SubmissionRequestPresenceSessionAndHarness(t *testing.T) {
 	// The public transaction API also expresses explicit empty presence without
 	// requiring callers to manufacture a JSON decoder side effect.
 	var id ID
-	_, err = h.Commit(bg, func(tx *Tx) error {
+	_, err = h.Commit(bg, func(tx *Tx) (any, error) {
 		var err error
 		conv, err := tx.MintID()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if err := tx.CreateConversation(Conversation{ID: conv}); err != nil {
-			return err
+			return nil, err
 		}
 		createdSubmission, err := tx.CreateSubmission(SubmissionCreate{Conversation: conv, Type: "continue", Status: "placed", RequestIDPresent: true})
 		id = createdSubmission.ID
-		return err
+		return nil, err
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = h.Commit(bg, func(tx *Tx) error {
+	_, err = h.Commit(bg, func(tx *Tx) (any, error) {
 		record, ok, err := tx.Submission(id)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if !ok || !record.RequestIDPresent {
 			t.Fatalf("tx lost presence %+v", record)
 		}
-		return tx.SettleSubmission(id, SubmissionSettlement{Status: "unanswered", Reason: ""})
+		return nil, tx.SettleSubmission(id, SubmissionSettlement{Status: "unanswered", Reason: ""})
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -628,10 +628,10 @@ func (a *submissionAdmissionInterleaveStorage) Snapshot(ctx context.Context) (Sn
 	a.once.Do(func() {
 		go func() {
 			var record SubmissionRecord
-			_, err := a.session.Commit(bg, func(tx *Tx) error {
+			_, err := a.session.Commit(bg, func(tx *Tx) (any, error) {
 				var err error
 				record, err = tx.CreateSubmission(SubmissionCreate{Conversation: 1, Type: "write", Status: "unanswered", Reason: "manual", RequestID: "atomic"})
-				return err
+				return nil, err
 			})
 			a.queuedResult <- struct {
 				record SubmissionRecord

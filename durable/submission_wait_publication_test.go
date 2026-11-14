@@ -11,7 +11,7 @@ func TestSubmissionWaitRegistersAndSettlesFromArbitraryCommitWithoutPolling(t *t
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h := taskTestHarness(t, b.store)
 		var id ID
-		_, err := h.CommitTasks(bg, 1, func(tx *Tx) error {
+		_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 			var err error
 			id, err = tx.MintID()
 			if err != nil {
@@ -57,7 +57,7 @@ func TestSubmissionWaitRegistersAndSettlesFromArbitraryCommitWithoutPolling(t *t
 		if err := <-first; !errors.Is(err, context.Canceled) {
 			t.Fatal(err)
 		}
-		_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+		_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 			sub := tx.state.Submissions[id]
 			sub.Status = "done"
 			sub.Value = JSON{"application": "settled"}

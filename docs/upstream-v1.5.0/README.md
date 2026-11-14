@@ -6,6 +6,10 @@ The sole alignment target is official upstream `v1.5.0` at `f9a26365568127461c47
 
 [Assessment fixes and verification](assessment-fixes.md) records the 166-fixture validation regression table, short OAuth interval correction, deterministic retry timer checks, catalogue verification and seven inherited durable full-suite failures. The 24 reproduced common-domain validation mismatches are fixed; broader schema/compiler and durable/codemode alignment remain open.
 
+## Commit callback results
+
+[Public callback results](../../notes/commit-callback-values.md) replace sequence returns on Session/Harness/conversation commits, preserving host identity, errors and stored-publication fencing. The native alternate task-transaction entry is private. Source persistence options and complete API/Storage/ordering acceptance remain open.
+
 ## Typed model-result presence
 
 [Image/classifier result JSON and paid calls](../../notes/typed-model-results.md) preserve optional errors and omit absent classifier error/usage fields through actual QuickJS execution and typed replay. Full repository and fault/static gates pass; complete tool/worker/API/schema/release acceptance remains open.

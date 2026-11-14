@@ -333,7 +333,7 @@ func TestTaskLegacySchedulerToolFinalPrefixBoundAndNoReplay(t *testing.T) {
 					if prefix == "at-bound" {
 						text = strings.Repeat("p", MaxToolOutputBytes)
 					}
-					_, err := h.CommitTasks(bg, 1, func(tx *Tx) error {
+					_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 						var err error
 						parentID, err = tx.MintID()
 						if err != nil {

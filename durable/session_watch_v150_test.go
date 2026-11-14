@@ -26,7 +26,7 @@ func TestV150WatchSource202MoreThanTenThousandFoldedOps(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = s.Commit(bg, func(tx *Tx) error { _, err := tx.AcquireDocument(def, 0, nil, nil); return err }); err != nil {
+	if _, err = s.Commit(bg, func(tx *Tx) (any, error) { _, err := tx.AcquireDocument(def, 0, nil, nil); return nil, err }); err != nil {
 		t.Fatal(err)
 	}
 	watch, found, err := s.WatchDefinition(bg, def, 0, nil)
@@ -35,12 +35,12 @@ func TestV150WatchSource202MoreThanTenThousandFoldedOps(t *testing.T) {
 	}
 	defer watch.Stop()
 	for _, bounds := range [][2]int{{0, 4000}, {4000, 8000}, {8000, 10001}} {
-		_, err = s.Commit(bg, func(tx *Tx) error {
+		_, err = s.Commit(bg, func(tx *Tx) (any, error) {
 			doc, err := tx.AcquireDocument(def, 0, nil, nil)
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return doc.Update(func(value JSON) error {
+			return nil, doc.Update(func(value JSON) error {
 				keys, ok := value["keys"].(map[string]any)
 				if !ok {
 					return fmt.Errorf("invalid keys object %T", value["keys"])
@@ -101,7 +101,7 @@ func TestV150WatchSource202NoEarlyRootAtEightThousand(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = s.Commit(bg, func(tx *Tx) error { _, err := tx.AcquireDocument(def, 0, nil, nil); return err }); err != nil {
+	if _, err = s.Commit(bg, func(tx *Tx) (any, error) { _, err := tx.AcquireDocument(def, 0, nil, nil); return nil, err }); err != nil {
 		t.Fatal(err)
 	}
 	watch, found, err := s.WatchDefinition(bg, def, 0, nil)
@@ -110,12 +110,12 @@ func TestV150WatchSource202NoEarlyRootAtEightThousand(t *testing.T) {
 	}
 	defer watch.Stop()
 	for _, bounds := range [][2]int{{0, 4000}, {4000, 8000}} {
-		_, err = s.Commit(bg, func(tx *Tx) error {
+		_, err = s.Commit(bg, func(tx *Tx) (any, error) {
 			doc, err := tx.AcquireDocument(def, 0, nil, nil)
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return doc.Update(func(value JSON) error {
+			return nil, doc.Update(func(value JSON) error {
 				keys, ok := value["keys"].(map[string]any)
 				if !ok {
 					return fmt.Errorf("invalid keys object %T", value["keys"])

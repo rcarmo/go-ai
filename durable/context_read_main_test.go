@@ -31,7 +31,9 @@ func appendMainContextMessage(t *testing.T, s *Session, conversation ID, text st
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.Commit(bg, func(tx *Tx) error { return tx.AppendEntry(contextEntry(id, conversation, goai.RoleUser, text)) }); err != nil {
+	if _, err := s.Commit(bg, func(tx *Tx) (any, error) {
+		return nil, tx.AppendEntry(contextEntry(id, conversation, goai.RoleUser, text))
+	}); err != nil {
 		t.Fatal(err)
 	}
 	return id
@@ -416,12 +418,12 @@ func TestMainContextReadPublicOffLine(t *testing.T) {
 							t.Fatal("read never reached off-line checkpoint")
 						}
 						ctx, cancel := context.WithTimeout(bg, time.Second)
-						_, err = h.session.Commit(ctx, func(tx *Tx) error {
+						_, err = h.session.Commit(ctx, func(tx *Tx) (any, error) {
 							id, err := tx.MintID()
 							if err != nil {
-								return err
+								return nil, err
 							}
-							return tx.AppendEntry(contextEntry(id, c.ID(), goai.RoleUser, "missed"))
+							return nil, tx.AppendEntry(contextEntry(id, c.ID(), goai.RoleUser, "missed"))
 						})
 						cancel()
 						if err != nil {

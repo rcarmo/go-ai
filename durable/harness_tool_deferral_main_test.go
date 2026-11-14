@@ -49,14 +49,14 @@ func TestMainToolProgressDeferredMemoryAndPersistence(t *testing.T) {
 						watchReceive(t, f.replicated)
 					}
 				case "dependent":
-					if _, err := f.h.Commit(bg, func(tx *Tx) error {
+					if _, err := f.h.Commit(bg, func(tx *Tx) (any, error) {
 						live, err := builtin(tx, f.c.ID(), "pi.live")
 						if err != nil {
-							return err
+							return nil, err
 						}
 						value, err := live.Get()
 						if err != nil {
-							return err
+							return nil, err
 						}
 						got, ok := mainToolOutput(value)
 						if !ok || got != text {
@@ -64,9 +64,9 @@ func TestMainToolProgressDeferredMemoryAndPersistence(t *testing.T) {
 						}
 						id, err := tx.MintID()
 						if err != nil {
-							return err
+							return nil, err
 						}
-						return tx.AppendEntry(Entry{ID: id, Conversation: f.c.ID(), Kind: "test.tool-dependent", Value: JSON{"read": got}})
+						return nil, tx.AppendEntry(Entry{ID: id, Conversation: f.c.ID(), Kind: "test.tool-dependent", Value: JSON{"read": got}})
 					}); err != nil {
 						t.Fatal(err)
 					}
@@ -167,19 +167,19 @@ func TestMainToolProgressMemoryEventsNotStorageReplay(t *testing.T) {
 		if got, ok := mainToolOutput(f.live(f.stored())); ok {
 			t.Fatal("event waited for storage", got)
 		}
-		if _, err := f.h.Commit(bg, func(tx *Tx) error {
+		if _, err := f.h.Commit(bg, func(tx *Tx) (any, error) {
 			live, err := builtin(tx, f.c.ID(), "pi.live")
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if _, err := live.Get(); err != nil {
-				return err
+				return nil, err
 			}
 			id, err := tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return tx.AppendEntry(Entry{ID: id, Conversation: f.c.ID(), Kind: "test.tool-marker", Value: JSON{}})
+			return nil, tx.AppendEntry(Entry{ID: id, Conversation: f.c.ID(), Kind: "test.tool-marker", Value: JSON{}})
 		}); err != nil {
 			t.Fatal(err)
 		}

@@ -4,8 +4,20 @@ import "context"
 
 // Commit exposes the Session commit surface without conversation binding or
 // scheduling. ConversationHandle.Commit supplies the bound form.
-func (h *Harness) Commit(ctx context.Context, change func(*Tx) error) (uint64, error) {
-	return h.CommitTasks(ctx, 0, change)
+func (h *Harness) Commit(ctx context.Context, change func(*Tx) (any, error)) (any, error) {
+	if change == nil {
+		return nil, reject("nil transaction callback")
+	}
+	var value any
+	_, err := h.commitTasks(ctx, 0, func(tx *Tx) error {
+		var callbackErr error
+		value, callbackErr = change(tx)
+		return callbackErr
+	})
+	if err != nil {
+		return nil, err
+	}
+	return value, nil
 }
 
 // Entry reads a global committed entry, as the pinned Harness reader does.

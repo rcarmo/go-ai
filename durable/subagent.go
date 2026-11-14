@@ -23,7 +23,7 @@ func (c *ConversationHandle) CreateBackgroundConversation(ctx context.Context, k
 		return nil, reject("background conversation requires a key")
 	}
 	var child ID
-	_, err := h.CommitTasks(ctx, c.id, func(tx *Tx) error {
+	_, err := h.commitTasks(ctx, c.id, func(tx *Tx) error {
 		address := DocumentAddress{Scope: "conversation", Owner: c.id, Kind: "app.subagents", Family: true, Key: key}
 		for _, doc := range tx.state.Documents {
 			if !doc.Retired && documentAddress(doc) == address {

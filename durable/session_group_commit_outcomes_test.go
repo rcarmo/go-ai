@@ -33,15 +33,15 @@ func TestSessionV150ReadOnlyCommitDeliversBehindEarlierWriter(t *testing.T) {
 	}
 	first := make(chan error, 1)
 	go func() {
-		_, err := s.Commit(bg, func(tx *Tx) error {
-			return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "fence", Value: JSON{}})
+		_, err := s.Commit(bg, func(tx *Tx) (any, error) {
+			return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "fence", Value: JSON{}})
 		})
 		first <- err
 	}()
 	<-entered
 	ran := make(chan struct{})
 	second := make(chan error, 1)
-	go func() { _, err := s.Commit(bg, func(*Tx) error { close(ran); return nil }); second <- err }()
+	go func() { _, err := s.Commit(bg, func(*Tx) (any, error) { close(ran); return nil, nil }); second <- err }()
 	awaitTaskSignal(t, ran)
 	select {
 	case err := <-second:
@@ -76,8 +76,8 @@ func holdSessionOutcome(t *testing.T, s *Session) (func(), <-chan error) {
 	}
 	result := make(chan error, 1)
 	go func() {
-		_, err := s.Commit(bg, func(tx *Tx) error {
-			return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "bound", Value: JSON{}})
+		_, err := s.Commit(bg, func(tx *Tx) (any, error) {
+			return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "bound", Value: JSON{}})
 		})
 		result <- err
 	}()
@@ -119,7 +119,10 @@ func TestSessionV150OutstandingJobsBound(t *testing.T) {
 	ran := make(chan struct{}, 255)
 	results := make(chan error, 256)
 	for i := 0; i < 255; i++ {
-		go func() { _, err := s.Commit(bg, func(*Tx) error { ran <- struct{}{}; return nil }); results <- err }()
+		go func() {
+			_, err := s.Commit(bg, func(*Tx) (any, error) { ran <- struct{}{}; return nil, nil })
+			results <- err
+		}()
 	}
 	for i := 0; i < 255; i++ {
 		select {
@@ -129,7 +132,10 @@ func TestSessionV150OutstandingJobsBound(t *testing.T) {
 		}
 	}
 	extra := make(chan struct{})
-	go func() { _, err := s.Commit(bg, func(*Tx) error { close(extra); return nil }); results <- err }()
+	go func() {
+		_, err := s.Commit(bg, func(*Tx) (any, error) { close(extra); return nil, nil })
+		results <- err
+	}()
 	select {
 	case <-extra:
 		unblock()
@@ -221,7 +227,7 @@ func TestSessionV150FailureBoundaryPoisonsLaterUndeliveredOutcomes(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = s.Commit(bg, func(tx *Tx) error { _, err := tx.AcquireDocument(base, 0, nil, nil); return err }); err != nil {
+	if _, err = s.Commit(bg, func(tx *Tx) (any, error) { _, err := tx.AcquireDocument(base, 0, nil, nil); return nil, err }); err != nil {
 		t.Fatal(err)
 	}
 	migrated := make(chan struct{})
@@ -247,8 +253,8 @@ func TestSessionV150FailureBoundaryPoisonsLaterUndeliveredOutcomes(t *testing.T)
 	}
 	first := make(chan error, 1)
 	go func() {
-		_, err := s.Commit(bg, func(tx *Tx) error {
-			return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "refused", Value: JSON{}})
+		_, err := s.Commit(bg, func(tx *Tx) (any, error) {
+			return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "refused", Value: JSON{}})
 		})
 		first <- err
 	}()
@@ -259,12 +265,12 @@ func TestSessionV150FailureBoundaryPoisonsLaterUndeliveredOutcomes(t *testing.T)
 		ran := make(chan struct{})
 		i := i
 		go func() {
-			_, err := s.Commit(bg, func(*Tx) error {
+			_, err := s.Commit(bg, func(*Tx) (any, error) {
 				close(ran)
 				if i == 0 {
-					return ownError
+					return nil, ownError
 				}
-				return nil
+				return nil, nil
 			})
 			later[i] <- err
 		}()
@@ -323,8 +329,8 @@ func TestSessionV150RejectedCallKeepsEveryOwnPartOutcome(t *testing.T) {
 			}
 			first := make(chan error, 1)
 			go func() {
-				_, err := s.Commit(bg, func(tx *Tx) error {
-					return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "prefix", Value: JSON{}})
+				_, err := s.Commit(bg, func(tx *Tx) (any, error) {
+					return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "prefix", Value: JSON{}})
 				})
 				first <- err
 			}()
@@ -334,11 +340,11 @@ func TestSessionV150RejectedCallKeepsEveryOwnPartOutcome(t *testing.T) {
 				ran := make(chan struct{})
 				i := i
 				go func() {
-					_, err := s.Commit(bg, func(tx *Tx) error {
+					_, err := s.Commit(bg, func(tx *Tx) (any, error) {
 						key := fmt.Sprint(i)
 						_, err := tx.AcquireDocument(def, 0, &key, nil)
 						close(ran)
-						return err
+						return nil, err
 					})
 					parts[i] <- err
 				}()
@@ -347,7 +353,7 @@ func TestSessionV150RejectedCallKeepsEveryOwnPartOutcome(t *testing.T) {
 			later := make(chan error, 1)
 			ran := make(chan struct{})
 			go func() {
-				_, err := s.Commit(bg, func(*Tx) error { close(ran); return errors.New("later preparation") })
+				_, err := s.Commit(bg, func(*Tx) (any, error) { close(ran); return nil, errors.New("later preparation") })
 				later <- err
 			}()
 			awaitTaskSignal(t, ran)
@@ -405,12 +411,12 @@ func TestV150SessionFailureCarriesOriginalRejectionValue(t *testing.T) {
 				}
 				defer s.Close(bg)
 				core := b.store.(nativeStorage).nativeCore()
-				if _, err := s.Commit(bg, func(tx *Tx) error {
+				if _, err := s.Commit(bg, func(tx *Tx) (any, error) {
 					id, e := tx.MintID()
 					if e != nil {
-						return e
+						return nil, e
 					}
-					return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "setup", Value: JSON{}})
+					return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "setup", Value: JSON{}})
 				}); err != nil {
 					t.Fatal(err)
 				}
@@ -419,12 +425,12 @@ func TestV150SessionFailureCarriesOriginalRejectionValue(t *testing.T) {
 				}
 
 				// The rejecting call keeps the original value.
-				_, err = s.Commit(bg, func(tx *Tx) error {
+				_, err = s.Commit(bg, func(tx *Tx) (any, error) {
 					id, e := tx.MintID()
 					if e != nil {
-						return e
+						return nil, e
 					}
-					return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "reject", Value: JSON{}})
+					return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "reject", Value: JSON{}})
 				})
 				var failure *Failure
 				if !errors.As(err, &failure) || !reflect.DeepEqual(failure.Value(), value) {
@@ -436,7 +442,7 @@ func TestV150SessionFailureCarriesOriginalRejectionValue(t *testing.T) {
 
 				// A later call reports the first cause, value intact.
 				var failed *SessionFailed
-				if _, err := s.Commit(bg, func(tx *Tx) error { return nil }); !errors.As(err, &failed) {
+				if _, err := s.Commit(bg, func(tx *Tx) (any, error) { return nil, nil }); !errors.As(err, &failed) {
 					t.Fatalf("later call not fenced with SessionFailed: %v", err)
 				} else if !reflect.DeepEqual(failed.Failure().Value(), value) {
 					t.Fatalf("SessionFailed lost the cause value: %#v", failed.Failure().Value())
@@ -470,12 +476,12 @@ func TestV150SessionFailureKeepsErrorIdentity(t *testing.T) {
 		core.appendFrame = func(byte, uint64, uint64, []byte) error {
 			return cause
 		}
-		_, err = s.Commit(bg, func(tx *Tx) error {
+		_, err = s.Commit(bg, func(tx *Tx) (any, error) {
 			id, e := tx.MintID()
 			if e != nil {
-				return e
+				return nil, e
 			}
-			return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "reject", Value: JSON{}})
+			return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "reject", Value: JSON{}})
 		})
 		if !errors.Is(err, cause) {
 			t.Fatalf("error cause identity lost: %v", err)
@@ -528,12 +534,12 @@ func TestMainSessionConfirmedAppendRefusalLatches(t *testing.T) {
 	}()
 
 	appendNote := func(body string) error {
-		_, err := s.Commit(ctx, func(tx *Tx) error {
+		_, err := s.Commit(ctx, func(tx *Tx) (any, error) {
 			id, err := tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{"body": body}})
+			return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{"body": body}})
 		})
 		return err
 	}
@@ -605,12 +611,12 @@ func TestMainSessionSQLiteConfirmedRollbackLatches(t *testing.T) {
 	defer cancel()
 
 	appendNote := func(body string) error {
-		_, err := s.Commit(ctx, func(tx *Tx) error {
+		_, err := s.Commit(ctx, func(tx *Tx) (any, error) {
 			id, err := tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{"body": body}})
+			return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{"body": body}})
 		})
 		return err
 	}

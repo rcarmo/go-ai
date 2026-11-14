@@ -84,10 +84,10 @@ func TestSession120BackendMutationFailureIsFatalEvenRejected(t *testing.T) {
 				if operation == "mint" {
 					_, e = s.MintID(bg)
 				} else if operation == "caught-mint" {
-					_, e = s.Commit(bg, func(tx *Tx) error { _, _ = tx.MintID(); return nil })
+					_, e = s.Commit(bg, func(tx *Tx) (any, error) { _, _ = tx.MintID(); return nil, nil })
 				} else {
-					_, e = s.Commit(bg, func(tx *Tx) error {
-						return tx.AppendEntry(Entry{ID: 2, Conversation: 1, Kind: "test", Value: JSON{"x": 1}})
+					_, e = s.Commit(bg, func(tx *Tx) (any, error) {
+						return nil, tx.AppendEntry(Entry{ID: 2, Conversation: 1, Kind: "test", Value: JSON{"x": 1}})
 					})
 				}
 				var failed *SessionFailed
@@ -183,10 +183,12 @@ func TestSession120LocalValidationDoesNotFailBackend(t *testing.T) {
 	}
 	defer s.Close(bg)
 	cause := reject("caller callback rejected")
-	if _, e = s.Commit(bg, func(*Tx) error { return cause }); !errors.Is(e, cause) {
+	if _, e = s.Commit(bg, func(*Tx) (any, error) { return nil, cause }); !errors.Is(e, cause) {
 		t.Fatal(e)
 	}
-	if _, e = s.Commit(bg, func(tx *Tx) error { return tx.AppendEntry(Entry{ID: 99, Conversation: 1, Kind: "test", Value: JSON{}}) }); e == nil {
+	if _, e = s.Commit(bg, func(tx *Tx) (any, error) {
+		return nil, tx.AppendEntry(Entry{ID: 99, Conversation: 1, Kind: "test", Value: JSON{}})
+	}); e == nil {
 		t.Fatal("unreserved entry accepted")
 	}
 	if _, e = s.Snapshot(bg); e != nil {

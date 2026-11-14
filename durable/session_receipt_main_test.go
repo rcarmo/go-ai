@@ -58,9 +58,14 @@ func TestMainSessionSerialReceiptCapturesExactCandidate(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		seq, err := s.Commit(bg, func(tx *Tx) error {
-			return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "legacy", Value: JSON{}})
+		value, err := s.Commit(bg, func(tx *Tx) (any, error) {
+			return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "legacy", Value: JSON{}})
 		})
+		if err != nil || value != nil {
+			t.Fatal(value, err)
+		}
+		image, err := s.Snapshot(bg)
+		seq := image.Seq
 		if err != nil || seq != 4 {
 			t.Fatal(seq, err)
 		}

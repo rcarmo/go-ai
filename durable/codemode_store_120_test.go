@@ -95,7 +95,7 @@ func TestCodemode120StoreSnapshotSuccessfulOnlyAndIdempotent(t *testing.T) {
 			t.Fatal("conversation store missing")
 		}
 		var entry ID
-		_, e = h.CommitTasks(bg, 1, func(tx *Tx) error {
+		_, e = h.commitTasks(bg, 1, func(tx *Tx) error {
 			var e error
 			entry, e = tx.MintID()
 			if e != nil {

@@ -42,21 +42,21 @@ func TestMainSessionUnpublishedScanBarriers(t *testing.T) {
 			workers.Add(1)
 			go func() {
 				defer workers.Done()
-				_, err := s.Commit(ctx, func(tx *Tx) error {
+				_, err := s.Commit(ctx, func(tx *Tx) (any, error) {
 					var err error
 					leaked, err = tx.MintID()
 					if err != nil {
-						return err
+						return nil, err
 					}
 					if err := tx.CreateConversation(Conversation{ID: leaked}); err != nil {
-						return err
+						return nil, err
 					}
 					close(held)
 					select {
 					case <-release:
-						return nil
+						return nil, nil
 					case <-ctx.Done():
-						return ctx.Err()
+						return nil, ctx.Err()
 					}
 				})
 				first <- err

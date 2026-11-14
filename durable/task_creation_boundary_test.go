@@ -11,7 +11,7 @@ func TestTaskOwnershipPinnedCreateRejectMatrixAndFinalOwnerOverlay(t *testing.T)
 		h := taskTestHarness(t, b.store, definition)
 		parent := createPublicTask(t, h, definition, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 		var other ID
-		_, err := h.CommitTasks(bg, 1, func(tx *Tx) error {
+		_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 			var err error
 			other, err = tx.MintID()
 			if err != nil {
@@ -25,7 +25,7 @@ func TestTaskOwnershipPinnedCreateRejectMatrixAndFinalOwnerOverlay(t *testing.T)
 		for name, options := range map[string]TaskOptions{"no-owner": {}, "missing": {Ownership: TaskOwnership{Kind: "task", Task: ID(MaxID)}}, "different-conversation": {Conversation: other, Ownership: TaskOwnership{Kind: "task", Task: parent}}, "background-child": {Background: true, Ownership: TaskOwnership{Kind: "task", Task: parent}}} {
 			t.Run(name, func(t *testing.T) {
 				before, _ := h.Snapshot(bg)
-				_, err := h.CommitTasks(bg, 1, func(tx *Tx) error { _, err := tx.CreateTask(definition, nil, options); return err })
+				_, err := h.commitTasks(bg, 1, func(tx *Tx) error { _, err := tx.CreateTask(definition, nil, options); return err })
 				if err == nil {
 					t.Fatal("invalid creation accepted")
 				}
@@ -35,7 +35,7 @@ func TestTaskOwnershipPinnedCreateRejectMatrixAndFinalOwnerOverlay(t *testing.T)
 				}
 			})
 		}
-		_, err = h.CommitTasks(bg, other, func(tx *Tx) error {
+		_, err = h.commitTasks(bg, other, func(tx *Tx) error {
 			id, err := tx.CreateTask(definition, nil, TaskOptions{Ownership: TaskOwnership{Kind: "task", Task: parent}})
 			if err != nil {
 				return err

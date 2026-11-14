@@ -36,7 +36,7 @@ func TestTaskOwnershipAncestorCascadeIncludesAlreadyMarkedBackgroundSubtree(t *t
 		}
 		h := taskTestHarness(t, b.store, live)
 		cleanupTaskGates(t, releaseBackground)
-		_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+		_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 			var err error
 			parentID, err = tx.CreateTask(live, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 			if err != nil {

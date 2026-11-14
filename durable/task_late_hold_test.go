@@ -58,7 +58,7 @@ func TestTaskOwnershipPinnedLateOwnedConversationWorkExtendsCompletedHold(t *tes
 			}
 		}
 		var lateID ID
-		_, err := h.CommitTasks(bg, owned, func(tx *Tx) error {
+		_, err := h.commitTasks(bg, owned, func(tx *Tx) error {
 			var err error
 			lateID, err = tx.CreateTask(late, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 			return err

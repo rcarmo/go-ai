@@ -78,10 +78,10 @@ func TestTaskGraph150BlockedMetadataWithoutEffectsOrCommits(t *testing.T) {
 		if err != nil || after.Seq != before.Seq || calls.Load() != 0 {
 			t.Fatal("metadata ran effects or committed", err, calls.Load())
 		}
-		_, err = h.session.Commit(bg, func(tx *Tx) error {
+		_, err = h.session.Commit(bg, func(tx *Tx) (any, error) {
 			task := tx.state.Tasks[id]
 			task.Restarts = 5
-			return tx.stage(Write{Op: "put-task", Task: &task})
+			return nil, tx.stage(Write{Op: "put-task", Task: &task})
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -118,10 +118,10 @@ func TestTaskGraph150MetadataWakeCoalescingAndSerialCallbacks(t *testing.T) {
 			t.Fatal(err)
 		}
 		id := createPublicTask(t, h, def, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
-		_, err = h.session.Commit(bg, func(tx *Tx) error {
+		_, err = h.session.Commit(bg, func(tx *Tx) (any, error) {
 			task := tx.state.Tasks[id]
 			task.Restarts = 5
-			return tx.stage(Write{Op: "put-task", Task: &task})
+			return nil, tx.stage(Write{Op: "put-task", Task: &task})
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -165,10 +165,10 @@ func TestTaskGraph150MetadataWakeCoalescingAndSerialCallbacks(t *testing.T) {
 			t.Fatal(err)
 		}
 		writer, cancel := context.WithCancel(bg)
-		_, err = h.session.Commit(writer, func(tx *Tx) error {
+		_, err = h.session.Commit(writer, func(tx *Tx) (any, error) {
 			task := tx.state.Tasks[id]
 			task.Restarts = 6
-			return tx.stage(Write{Op: "put-task", Task: &task})
+			return nil, tx.stage(Write{Op: "put-task", Task: &task})
 		})
 		cancel() // Already adopted: this must not terminate the graph watch.
 		if err != nil {

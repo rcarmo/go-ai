@@ -58,7 +58,7 @@ func TestConversationCreatedHelpersSeeInheritedAgentBeforeOverrideAndNilRawCompa
 	// Harness-owned transactions initialize documents even without a callback.
 	plain := taskTestHarness(t, mustMemory(t))
 	var raw ID
-	_, err = plain.CommitTasks(bg, 1, func(tx *Tx) error {
+	_, err = plain.commitTasks(bg, 1, func(tx *Tx) error {
 		var err error
 		raw, err = tx.MintID()
 		if err != nil {
@@ -86,13 +86,13 @@ func TestHarnessRawCreationWithoutCallbackInitializesButPlainSessionAgentReadDoe
 			t.Fatal(err)
 		}
 		var plain ID
-		_, err = session.Commit(bg, func(tx *Tx) error {
+		_, err = session.Commit(bg, func(tx *Tx) (any, error) {
 			var err error
 			plain, err = tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return tx.CreateConversation(Conversation{ID: plain})
+			return nil, tx.CreateConversation(Conversation{ID: plain})
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -130,7 +130,7 @@ func TestHarnessRawCreationWithoutCallbackInitializesButPlainSessionAgentReadDoe
 			t.Fatal(agent, err)
 		}
 		var created ID
-		_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+		_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 			var err error
 			created, err = tx.MintID()
 			if err != nil {

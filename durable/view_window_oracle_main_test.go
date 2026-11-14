@@ -8,13 +8,13 @@ func upstreamViewNotes(t *testing.T, h *Harness, count int) []ID {
 	out := make([]ID, 0, count)
 	for index := 0; index < count; index++ {
 		var id ID
-		_, err := h.session.Commit(bg, func(tx *Tx) error {
+		_, err := h.session.Commit(bg, func(tx *Tx) (any, error) {
 			var err error
 			id, err = tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}, HasData: true, Data: index})
+			return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}, HasData: true, Data: index})
 		})
 		if err != nil {
 			t.Fatal(err)

@@ -187,13 +187,13 @@ func TestMainCutoffSafeToolKeepsStoredOutput(t *testing.T) {
 				}
 			}
 			// Real dependent-read barrier persists output without changing task state.
-			_, err = c.Commit(bg, func(tx *Tx) error {
+			_, err = c.Commit(bg, func(tx *Tx) (any, error) {
 				doc, err := builtin(tx, c.ID(), "pi.live")
 				if err != nil {
-					return err
+					return nil, err
 				}
 				_, err = doc.Get()
-				return err
+				return nil, err
 			})
 			if err != nil {
 				t.Fatal(err)

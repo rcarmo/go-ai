@@ -135,7 +135,7 @@ func TestMainIdleNestedWorkModel(t *testing.T) {
 		}
 		commit := func(f func(*Tx) error) {
 			t.Helper()
-			if _, err := h.CommitTasks(bg, 1, f); err != nil {
+			if _, err := h.commitTasks(bg, 1, f); err != nil {
 				t.Fatal(err)
 			}
 		}

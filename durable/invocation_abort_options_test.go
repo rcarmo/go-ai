@@ -28,10 +28,10 @@ func TestInvocationConversationAbortBackgroundOptionsUsesBoundAuthority(t *testi
 			t.Fatal(err)
 		}
 		var background ID
-		if _, err := conversation.Commit(bg, func(tx *Tx) error {
+		if _, err := conversation.Commit(bg, func(tx *Tx) (any, error) {
 			var err error
 			background, err = tx.CreateTask(target, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}, Background: true})
-			return err
+			return nil, err
 		}); err != nil {
 			t.Fatal(err)
 		}

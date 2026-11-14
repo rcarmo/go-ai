@@ -246,15 +246,15 @@ func TestMainSynchronousDocumentObserverSameCommitDetach(t *testing.T) {
 			}
 			defer first.detach()
 			defer second.detach()
-			_, err := s.Commit(context.Background(), func(tx *Tx) error {
+			_, err := s.Commit(context.Background(), func(tx *Tx) (any, error) {
 				if err := tx.RetireDefinition(def, owner, nil); err != nil {
-					return err
+					return nil, err
 				}
 				doc, err := tx.AcquireDocument(def, owner, nil, nil)
 				if err != nil {
-					return err
+					return nil, err
 				}
-				return doc.ApplyOperations([]Operation{{"s", []any{"count"}, 2}})
+				return nil, doc.ApplyOperations([]Operation{{"s", []any{"count"}, 2}})
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -455,7 +455,7 @@ func TestMainSynchronousDocumentObserverRetirementValueRelease(t *testing.T) {
 	}
 	defer observation.detach()
 	oldID := observation.id
-	_, err = s.Commit(context.Background(), func(tx *Tx) error { return tx.RetireDefinition(def, owner, nil) })
+	_, err = s.Commit(context.Background(), func(tx *Tx) (any, error) { return nil, tx.RetireDefinition(def, owner, nil) })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -504,17 +504,17 @@ func TestMainSynchronousDocumentObserverQueuedAttachment(t *testing.T) {
 			t.Cleanup(unblock)
 			commitDone := make(chan error, 1)
 			go func() {
-				_, err := s.Commit(context.Background(), func(tx *Tx) error {
+				_, err := s.Commit(context.Background(), func(tx *Tx) (any, error) {
 					doc, err := tx.AcquireDocument(def, owner, nil, nil)
 					if err != nil {
-						return err
+						return nil, err
 					}
 					if err := doc.ApplyOperations([]Operation{{"s", []any{"count"}, 11}}); err != nil {
-						return err
+						return nil, err
 					}
 					close(entered)
 					<-release
-					return nil
+					return nil, nil
 				})
 				commitDone <- err
 			}()
@@ -704,17 +704,17 @@ func TestMainSynchronousDocumentObserverTaskOwnerEnds(t *testing.T) {
 		t.Fatal(err)
 	}
 	var taskID ID
-	_, err = s.Commit(context.Background(), func(tx *Tx) error {
+	_, err = s.Commit(context.Background(), func(tx *Tx) (any, error) {
 		var err error
 		taskID, err = tx.MintID()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if err := tx.PutTask(Task{ID: taskID, Conversation: 1, Kind: "observe.p06.owner", Status: "running", Checkpoint: JSON{}}); err != nil {
-			return err
+			return nil, err
 		}
 		_, err = tx.AcquireDocument(def, taskID, nil, nil)
-		return err
+		return nil, err
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -740,11 +740,11 @@ func TestMainSynchronousDocumentObserverTaskOwnerEnds(t *testing.T) {
 		t.Fatal(ok, err)
 	}
 	oldID := observation.id
-	_, err = s.Commit(context.Background(), func(tx *Tx) error {
+	_, err = s.Commit(context.Background(), func(tx *Tx) (any, error) {
 		if err := tx.RetireDefinition(def, taskID, nil); err != nil {
-			return err
+			return nil, err
 		}
-		return tx.PutTask(Task{ID: taskID, Conversation: 1, Kind: "observe.p06.owner", Status: "done", Checkpoint: JSON{}})
+		return nil, tx.PutTask(Task{ID: taskID, Conversation: 1, Kind: "observe.p06.owner", Status: "done", Checkpoint: JSON{}})
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -843,15 +843,15 @@ func TestMainSynchronousDocumentObserverRetirementErrorIsolation(t *testing.T) {
 	}
 	defer good.detach()
 	oldID := bad.id
-	_, err = s.Commit(context.Background(), func(tx *Tx) error {
+	_, err = s.Commit(context.Background(), func(tx *Tx) (any, error) {
 		if err := tx.RetireDefinition(def, owner, nil); err != nil {
-			return err
+			return nil, err
 		}
 		doc, err := tx.AcquireDocument(def, owner, nil, nil)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		return doc.ApplyOperations([]Operation{{"s", []any{"count"}, 2}})
+		return nil, doc.ApplyOperations([]Operation{{"s", []any{"count"}, 2}})
 	})
 	if err != nil {
 		t.Fatalf("observer error escaped into commit: %v", err)

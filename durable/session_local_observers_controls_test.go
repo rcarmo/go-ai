@@ -160,7 +160,7 @@ func TestMainSessionLocalListenerFatalAfterPublication(t *testing.T) {
 				if memory {
 					err = f.append(f.doc, "kept", math.Inf(1))
 				} else {
-					_, err = s.Commit(bg, mainDeferredAppend(f.doc, "kept"))
+					_, err = s.Commit(bg, func(tx *Tx) (any, error) { return nil, mainDeferredAppend(f.doc, "kept")(tx) })
 				}
 				if err != nil {
 					t.Fatal("published call must resolve despite own listener error", err)
@@ -195,7 +195,7 @@ func TestMainSessionLocalListenerFatalAfterPublication(t *testing.T) {
 				if state.Documents[f.doc].Value["text"] != wantText {
 					t.Error("committed store / dropped failed hold", state.Documents[f.doc].Value)
 				}
-				if _, err = s.Commit(bg, mainDeferredAppend(f.doc, "later")); !errors.Is(err, first) {
+				if _, err = s.Commit(bg, func(tx *Tx) (any, error) { return nil, mainDeferredAppend(f.doc, "later")(tx) }); !errors.Is(err, first) {
 					t.Error("later admission lost cause", err)
 				}
 			})

@@ -23,7 +23,7 @@ func TestContext110CacheAppendEditsBoundsAndDetachment(t *testing.T) {
 		defer s.Close(bg)
 		appendEntry := func(entry Entry) {
 			t.Helper()
-			_, e := s.Commit(bg, func(tx *Tx) error { return tx.AppendEntry(entry) })
+			_, e := s.Commit(bg, func(tx *Tx) (any, error) { return nil, tx.AppendEntry(entry) })
 			if e != nil {
 				t.Fatal(e)
 			}
@@ -115,8 +115,8 @@ func TestContext110CacheAppendEditsBoundsAndDetachment(t *testing.T) {
 		}
 		// Fork cutoff remains authoritative after the parent's later appends.
 		child := mintID()
-		_, e = s.Commit(bg, func(tx *Tx) error {
-			return tx.CreateConversation(Conversation{ID: child, Parent: root, ParentAt: baseline})
+		_, e = s.Commit(bg, func(tx *Tx) (any, error) {
+			return nil, tx.CreateConversation(Conversation{ID: child, Parent: root, ParentAt: baseline})
 		})
 		if e != nil {
 			t.Fatal(e)
@@ -142,25 +142,25 @@ func TestContext110RetentionZeroExpiryAndSettingsIsolation(t *testing.T) {
 			t.Fatal(e)
 		}
 		var entryID ID
-		_, e = c.Commit(bg, func(tx *Tx) error {
+		_, e = c.Commit(bg, func(tx *Tx) (any, error) {
 			var e error
 			entryID, e = tx.MintID()
 			if e != nil {
-				return e
+				return nil, e
 			}
-			return tx.AppendEntry(contextEntry(entryID, c.ID(), goai.RoleUser, "one"))
+			return nil, tx.AppendEntry(contextEntry(entryID, c.ID(), goai.RoleUser, "one"))
 		})
 		if e != nil {
 			t.Fatal(e)
 		}
 		var secondID ID
-		_, e = c.Commit(bg, func(tx *Tx) error {
+		_, e = c.Commit(bg, func(tx *Tx) (any, error) {
 			var e error
 			secondID, e = tx.MintID()
 			if e != nil {
-				return e
+				return nil, e
 			}
-			return tx.AppendEntry(contextEntry(secondID, c.ID(), goai.RoleUser, "two"))
+			return nil, tx.AppendEntry(contextEntry(secondID, c.ID(), goai.RoleUser, "two"))
 		})
 		if e != nil {
 			t.Fatal(e)

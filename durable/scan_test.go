@@ -212,38 +212,38 @@ func TestScan110RecordsFiltersTransactionAndDetachment(t *testing.T) {
 		}
 		var escaped *Tx
 		var staged ID
-		_, err = session.Commit(bg, func(tx *Tx) error {
+		_, err = session.Commit(bg, func(tx *Tx) (any, error) {
 			escaped = tx
 			tp, e := tx.ScanTasks(TaskQuery{Order: Descending}, 10, nil)
 			if e != nil {
-				return e
+				return nil, e
 			}
 			if tp.Items[0].ID != task2 {
 				t.Fatal(tp)
 			}
 			sp, e := tx.ScanSubmissions(SubmissionQuery{Order: Descending}, 10, nil)
 			if e != nil {
-				return e
+				return nil, e
 			}
 			if sp.Items[0].ID != sub2 {
 				t.Fatal(sp)
 			}
 			staged, e = tx.MintID()
 			if e != nil {
-				return e
+				return nil, e
 			}
 			if e = tx.CreateConversation(Conversation{ID: staged}); e != nil {
-				return e
+				return nil, e
 			}
 			if _, e = tx.ScanConversations(ConversationQuery{Order: Descending}, 1, nil); !errors.As(e, new(*ReadAfterWrite)) {
 				t.Fatal("source table read-after-write fence missing", e)
 			}
 			ent, e := tx.MintID()
 			if e != nil {
-				return e
+				return nil, e
 			}
 			if e = tx.AppendEntry(Entry{ID: ent, Conversation: staged, Kind: "event", Value: JSON{"x": 1}}); e != nil {
-				return e
+				return nil, e
 			}
 			if _, e = tx.ScanEntries(EntryQuery{Conversation: staged, Order: Ascending}, 1, nil); !errors.As(e, new(*ReadAfterWrite)) {
 				t.Fatal("source entry read-after-write fence missing", e)
@@ -251,12 +251,12 @@ func TestScan110RecordsFiltersTransactionAndDetachment(t *testing.T) {
 			// Internal assembly still owns the staged records; public reads do not.
 			candidate, e := tx.current()
 			if e != nil {
-				return e
+				return nil, e
 			}
 			if candidate.Conversations[staged].ID != staged || candidate.Entries[ent].ID != ent {
 				t.Fatal("staged record missing")
 			}
-			return nil
+			return nil, nil
 		})
 		if err != nil {
 			t.Fatal(err)

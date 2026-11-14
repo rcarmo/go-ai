@@ -67,16 +67,16 @@ func TestMainSessionUnpublishedReadBarriers(t *testing.T) {
 			var leaked ID
 			first := make(chan error, 1)
 			go func() {
-				_, err := s.Commit(ctx, func(tx *Tx) error {
+				_, err := s.Commit(ctx, func(tx *Tx) (any, error) {
 					var err error
 					leaked, err = tx.MintID()
 					if err != nil {
-						return err
+						return nil, err
 					}
 					if kind == "entry" {
-						return tx.AppendEntry(Entry{ID: leaked, Conversation: 1, Kind: "note", Value: JSON{"body": "first"}})
+						return nil, tx.AppendEntry(Entry{ID: leaked, Conversation: 1, Kind: "note", Value: JSON{"body": "first"}})
 					}
-					return tx.CreateConversation(Conversation{ID: leaked})
+					return nil, tx.CreateConversation(Conversation{ID: leaked})
 				})
 				first <- err
 			}()
@@ -97,12 +97,12 @@ func TestMainSessionUnpublishedReadBarriers(t *testing.T) {
 				}()
 			} else {
 				go func() {
-					_, err := s.Commit(admission, func(tx *Tx) error {
+					_, err := s.Commit(admission, func(tx *Tx) (any, error) {
 						id, err := tx.MintID()
 						if err != nil {
-							return err
+							return nil, err
 						}
-						return tx.AppendEntry(Entry{ID: id, Conversation: leaked, Kind: "note", Value: JSON{"body": "second"}})
+						return nil, tx.AppendEntry(Entry{ID: id, Conversation: leaked, Kind: "note", Value: JSON{"body": "second"}})
 					})
 					second <- err
 				}()
@@ -187,42 +187,42 @@ func TestMainSessionFailureFenceKeepsEarlierPartsAfterSettlementError(t *testing
 	defer cancel()
 
 	var a, b ID
-	if _, err := s.Commit(ctx, func(tx *Tx) error {
+	if _, err := s.Commit(ctx, func(tx *Tx) (any, error) {
 		var err error
 		a, err = tx.MintID()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if err := tx.CreateConversation(Conversation{ID: a}); err != nil {
-			return err
+			return nil, err
 		}
 		b, err = tx.MintID()
 		if err != nil {
-			return err
+			return nil, err
 		}
-		return tx.CreateConversation(Conversation{ID: b})
+		return nil, tx.CreateConversation(Conversation{ID: b})
 	}); err != nil {
 		t.Fatal(err)
 	}
 
 	// The earlier part that must be kept.
-	if _, err := s.Commit(ctx, func(tx *Tx) error {
+	if _, err := s.Commit(ctx, func(tx *Tx) (any, error) {
 		id, err := tx.MintID()
 		if err != nil {
-			return err
+			return nil, err
 		}
-		return tx.AppendEntry(Entry{ID: id, Conversation: a, Kind: "note", Value: JSON{"body": "kept"}})
+		return nil, tx.AppendEntry(Entry{ID: id, Conversation: a, Kind: "note", Value: JSON{"body": "kept"}})
 	}); err != nil {
 		t.Fatal(err)
 	}
 
 	// The part that fails at settlement.
-	if _, err := s.Commit(ctx, func(tx *Tx) error {
+	if _, err := s.Commit(ctx, func(tx *Tx) (any, error) {
 		id, err := tx.MintID()
 		if err != nil {
-			return err
+			return nil, err
 		}
-		return tx.AppendEntry(Entry{ID: id, Conversation: b, Kind: "note", Value: JSON{"body": "lost"}})
+		return nil, tx.AppendEntry(Entry{ID: id, Conversation: b, Kind: "note", Value: JSON{"body": "lost"}})
 	}); err == nil {
 		t.Fatal("settlement error settled without an error")
 	}
@@ -488,17 +488,17 @@ func TestMainSessionGatesJobsWaitForPublication(t *testing.T) {
 
 		seen := make(chan []ID, 1)
 		go func() {
-			_, err := s.Commit(ctx, func(tx *Tx) error {
+			_, err := s.Commit(ctx, func(tx *Tx) (any, error) {
 				page, err := tx.ScanConversations(ConversationQuery{}, 10, nil)
 				if err != nil {
-					return err
+					return nil, err
 				}
 				ids := []ID{}
 				for _, c := range page.Items {
 					ids = append(ids, c.ID)
 				}
 				seen <- ids
-				return nil
+				return nil, nil
 			})
 			scannedSettled <- err
 		}()
@@ -615,17 +615,17 @@ func TestMainSessionGatesJobsWaitForPublication(t *testing.T) {
 			t.Fatal(err)
 		}
 		var owner ID
-		if _, err := s.Commit(ctx, func(tx *Tx) error {
+		if _, err := s.Commit(ctx, func(tx *Tx) (any, error) {
 			var err error
 			owner, err = tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if err := tx.CreateConversation(Conversation{ID: owner}); err != nil {
-				return err
+				return nil, err
 			}
 			_, err = tx.AcquireDocument(deferred, owner, nil, nil)
-			return err
+			return nil, err
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -690,20 +690,20 @@ func TestMainSessionGatesJobsWaitForPublication(t *testing.T) {
 			t.Fatal(err)
 		}
 		var owner ID
-		if _, err := s.Commit(ctx, func(tx *Tx) error {
+		if _, err := s.Commit(ctx, func(tx *Tx) (any, error) {
 			var err error
 			owner, err = tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if err := tx.CreateConversation(Conversation{ID: owner}); err != nil {
-				return err
+				return nil, err
 			}
 			doc, err := tx.AcquireDocument(definition, owner, nil, nil)
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return doc.Set(JSON{"n": 1})
+			return nil, doc.Set(JSON{"n": 1})
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -995,7 +995,7 @@ func openGatesSession(t *testing.T) (*Session, *SQLiteStorage, *mainGatesHeld, c
 func runGatesJob(t *testing.T, s *Session, ctx context.Context, callback func(*Tx) error, settled chan error) {
 	t.Helper()
 	go func() {
-		_, err := s.Commit(ctx, callback)
+		_, err := s.Commit(ctx, func(tx *Tx) (any, error) { return nil, callback(tx) })
 		settled <- err
 	}()
 }
@@ -1019,12 +1019,12 @@ func TestMainGatesSessionCleanupReleasesHeldAppend(t *testing.T) {
 		s, _, held, ctx := openGatesSession(t)
 		held.holdCommits()
 		go func() {
-			_, err := s.Commit(ctx, func(tx *Tx) error {
+			_, err := s.Commit(ctx, func(tx *Tx) (any, error) {
 				id, err := tx.MintID()
 				if err != nil {
-					return err
+					return nil, err
 				}
-				return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}})
+				return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}})
 			})
 			done <- err
 		}()
@@ -1043,5 +1043,76 @@ func TestMainGatesSessionCleanupReleasesHeldAppend(t *testing.T) {
 	case <-done: // A cancelled or successful commit can both unwind safely.
 	case <-time.After(3 * time.Second):
 		t.Fatal("held commit did not return after cleanup")
+	}
+}
+
+// Direct source session-group-commit.test.ts bump contract: the resolved value
+// is what the callback read, but it cannot resolve before storage/publication.
+func TestSourceCommitReadValueResolvesAfterPublication(t *testing.T) {
+	s := gatedSession(t)
+	definition, err := DefineDocument(DefinitionOptions{Kind: "gc.note", Scope: "conversation", History: "latest", Fork: "initial", Version: 1, Initial: func(JSON) (JSON, error) { return JSON{"n": 0}, nil }, CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Commit(bg, func(tx *Tx) (any, error) { _, err := tx.AcquireDocument(definition, 1, nil, nil); return nil, err }); err != nil {
+		t.Fatal(err)
+	}
+	entered, release, computed := make(chan struct{}), make(chan struct{}), make(chan struct{})
+	var once, releaseOnce sync.Once
+	unblock := func() { releaseOnce.Do(func() { close(release) }) }
+	defer unblock()
+	original := s.writer.host.commit
+	s.writer.host.commit = func(ctx context.Context, batches []Batch, receive func(commitReceipt)) (commitGroupResult, error) {
+		once.Do(func() { close(entered); <-release })
+		return original(ctx, batches, receive)
+	}
+	defer func() { s.writer.host.commit = original }()
+	bump := func(tx *Tx) (any, error) {
+		doc, err := tx.AcquireDocument(definition, 1, nil, nil)
+		if err != nil {
+			return nil, err
+		}
+		value, err := doc.Get()
+		if err != nil {
+			return nil, err
+		}
+		number, valid := exactNumber(value["n"])
+		if !valid || !number.IsInt() {
+			return nil, errors.New("invalid source bump number")
+		}
+		before := int(number.Num().Int64())
+		if err := doc.Set(JSON{"n": before + 1}); err != nil {
+			return nil, err
+		}
+		return before, nil
+	}
+	type outcome struct {
+		value any
+		err   error
+	}
+	settled := make(chan outcome, 1)
+	go func() {
+		value, err := s.Commit(bg, func(tx *Tx) (any, error) { value, err := bump(tx); close(computed); return value, err })
+		settled <- outcome{value, err}
+	}()
+	watchReceive(t, computed)
+	watchReceive(t, entered)
+	select {
+	case result := <-settled:
+		t.Fatal("callback result escaped before stored publication", result)
+	default:
+	}
+	unblock()
+	result := watchReceive(t, settled)
+	if result.err != nil || result.value != 0 {
+		t.Error("first source bump result", result)
+	}
+	value, err := s.Commit(bg, bump)
+	if err != nil || value != 1 {
+		t.Error("second source bump result", value, err)
+	}
+	view, found, err := s.SnapshotDefinition(bg, definition, 1, nil)
+	if err != nil || !found || !equalJSONValue(view.Copy(), JSON{"n": 2}) {
+		t.Error("source bump publication", view, found, err)
 	}
 }

@@ -4,7 +4,7 @@
 
 Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Native implementation: `/work/go-ai/durable`, authorised SQLite-only, pure Go. The preceding pushed implementation checkpoint is `04726f3` (request-time model/retry authority); image-resource diagnosis is recorded at `1e0f3ad`.
 
-Latest continuation: image-generation input/output union arms retain required empty text/data/MIME strings through public and bounded SDK JSON plus actual paid calls/replay. Original objects validate before typed decoding; malformed inputs reject without effects. See [evidence](typed-model-results.md#image-generation-content-unions). Complete unions/errors, canonical generation/ToolTask/runtime/migration, worker/API/Storage and release acceptance remain open.
+Latest continuation: public Session/Harness/conversation commits now return unmodified callback values after publication, preserving host identity and errors. The native task-only public entry is private; caller signatures are migrated with AST-audited changes. See [evidence](commit-callback-values.md). Source persistence options, ToolAPI callback values, complete API/Storage/generation/ToolTask/migration/ordering and release acceptance remain open.
 
 ## Earlier queue-production checkpoint
 
@@ -18,7 +18,11 @@ Latest continuation: image-generation input/output union arms retain required em
 
 The exact input/write shape tests failed before the fixes. Idle progress and continuation already passed and required no speculative runtime changes. A failure/reopen fixture initially tried to close storage already owned/closed by Session; correcting the fixture required no runtime fix. Tests remain in the existing version-neutral transaction suite.
 
-## Latest image-content verification
+## Latest commit callback-value verification
+
+Full repository ./... passes26 packages: root0.729s, durable440.514s/tools20.322s and public consumers12.771s. Seven semantic faults, ten shuffled value/publication/batching/observer repetitions4.450s, related12.414s and three boundary/value repetitions24.927s pass. Vet/Staticcheck/logging/register, selected original268 (200 unchanged +68 probes) and original session-group40+76 supplements116 pass, zero skipped. Analysed temporary logs/AST/fault scratch are removed. Source CommitOptions persistence, ToolAPI callback values, full API/Storage/ordering and release acceptance remain open. The preceding440.940s full run failed two further obsolete zero-sequence probes; corrected controls assert nil callback result and retain exact rollback/metadata checks. No original assertions changed.
+
+## Previous image-content verification
 
 Full repository ./... passes26 packages: root0.841s, durable444.877s/tools20.573s and public consumers11.752s. Eight semantic faults, ten shuffled SDK/native repetitions0.213s/34.278s, vet/Staticcheck/logging/register pass. Selected original267 (200 unchanged +67 probes) and original codemode-models7+75 supplements82 pass, zero skipped. Analysed temporary logs/overlays are removed. Complete image/context/criteria/error/optional unions, canonical generation/ToolTask/migration, worker/API/Storage and pre-release acceptance remain open. D09/D13/D22 current evidence is condensed; historical receipts remain and no disposition closes. The stale reference to exported CommitDeferred is corrected: there is no public source CommitOptions argument, while private deferred entries remain.
 

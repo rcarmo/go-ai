@@ -22,7 +22,7 @@ func TestConversationCreatedNeverReplaysForRetiredAgentOrNilHistoryReopen(t *tes
 			t.Fatal(calls.Load())
 		}
 		for _, conversation := range []*ConversationHandle{independent, root} {
-			_, err = h.CommitTasks(bg, conversation.ID(), func(tx *Tx) error {
+			_, err = h.commitTasks(bg, conversation.ID(), func(tx *Tx) error {
 				doc, ok := agentDocument(tx.state, conversation.ID())
 				if !ok {
 					return reject("agent missing")
@@ -52,7 +52,7 @@ func TestConversationCreatedNeverReplaysForRetiredAgentOrNilHistoryReopen(t *tes
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h := taskTestHarness(t, b.store)
 		var raw ID
-		_, err := h.CommitTasks(bg, 1, func(tx *Tx) error {
+		_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 			var err error
 			raw, err = tx.MintID()
 			if err != nil {

@@ -45,21 +45,21 @@ func TestMainSessionLocalMixedOwnChanges(t *testing.T) {
 				if err = f.append(f.doc, "a"); err != nil {
 					t.Fatal(err)
 				}
-				if _, err = f.session.Commit(bg, func(tx *Tx) error {
+				if _, err = f.session.Commit(bg, func(tx *Tx) (any, error) {
 					handle, err := tx.AcquireDocument(def, 1, nil, nil)
 					if err != nil {
-						return err
+						return nil, err
 					}
 					if own != "" {
 						if err = handle.ApplyOperations([]Operation{{"a", []any{"text"}, own}}); err != nil {
-							return err
+							return nil, err
 						}
 					}
 					id, err := tx.MintID()
 					if err != nil {
-						return err
+						return nil, err
 					}
-					return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "test.note", Value: JSON{}})
+					return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "test.note", Value: JSON{}})
 				}); err != nil {
 					t.Fatal(err)
 				}

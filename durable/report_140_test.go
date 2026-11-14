@@ -517,12 +517,12 @@ func TestReport140ListenerErrorsAndPanicsKeepCommitContext(t *testing.T) {
 						t.Fatal(err)
 					}
 				}
-				if _, err := h.session.Commit(ctx, func(tx *Tx) error {
+				if _, err := h.session.Commit(ctx, func(tx *Tx) (any, error) {
 					document, err := tx.AcquireDocument(definition, 0, nil, nil)
 					if err != nil {
-						return err
+						return nil, err
 					}
-					return document.ApplyOperations([]Operation{{"s", []any{"n"}, 1}})
+					return nil, document.ApplyOperations([]Operation{{"s", []any{"n"}, 1}})
 				}); err != nil {
 					t.Fatal(err)
 				}
@@ -565,15 +565,15 @@ func TestReport140ClockPanicOffLineAndReentryBounded(t *testing.T) {
 		}})
 		definition := watchDoc(t, h.session)
 		bad.Store(true)
-		if _, err := h.session.Commit(bg, func(tx *Tx) error {
+		if _, err := h.session.Commit(bg, func(tx *Tx) (any, error) {
 			if h.session.now() <= 0 {
 				t.Error("Session clock fallback missing")
 			}
 			document, err := tx.AcquireDocument(definition, 0, nil, nil)
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return document.ApplyOperations([]Operation{{"s", []any{"n"}, 1}})
+			return nil, document.ApplyOperations([]Operation{{"s", []any{"n"}, 1}})
 		}); err != nil {
 			t.Fatal(err)
 		}

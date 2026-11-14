@@ -21,7 +21,7 @@ func TestSessionV150CachedSnapshotBypassesAdmissionAndCancellation(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = s.Commit(bg, func(tx *Tx) error { _, err := tx.AcquireDocument(def, 0, nil, nil); return err }); err != nil {
+	if _, err = s.Commit(bg, func(tx *Tx) (any, error) { _, err := tx.AcquireDocument(def, 0, nil, nil); return nil, err }); err != nil {
 		t.Fatal(err)
 	}
 	entered, release := make(chan struct{}), make(chan struct{})
@@ -36,12 +36,12 @@ func TestSessionV150CachedSnapshotBypassesAdmissionAndCancellation(t *testing.T)
 	}
 	stored := make(chan error, 1)
 	go func() {
-		_, err := s.Commit(bg, func(tx *Tx) error {
+		_, err := s.Commit(bg, func(tx *Tx) (any, error) {
 			doc, err := tx.AcquireDocument(def, 0, nil, nil)
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return doc.Set(JSON{"n": 1})
+			return nil, doc.Set(JSON{"n": 1})
 		})
 		stored <- err
 	}()
@@ -89,7 +89,7 @@ func TestSessionV150CacheVersionIsSharedAcrossDefinitionTokens(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = s.Commit(bg, func(tx *Tx) error { _, err := tx.AcquireDocument(old, 0, nil, nil); return err }); err != nil {
+	if _, err = s.Commit(bg, func(tx *Tx) (any, error) { _, err := tx.AcquireDocument(old, 0, nil, nil); return nil, err }); err != nil {
 		t.Fatal(err)
 	}
 	first, second := 0, 0
@@ -136,13 +136,13 @@ func TestDocument120IdleRetentionZeroExpiryAndWatchPin(t *testing.T) {
 				if e != nil {
 					t.Fatal(e)
 				}
-				_, e = s.Commit(bg, func(tx *Tx) error {
+				_, e = s.Commit(bg, func(tx *Tx) (any, error) {
 					id, e := tx.MintID()
 					if e != nil {
-						return e
+						return nil, e
 					}
 					_, e = tx.CreateDocument(Document{ID: id, Scope: "session", Kind: "retained", Version: 1, Value: JSON{"x": 1}})
-					return e
+					return nil, e
 				})
 				if e != nil {
 					t.Fatal(e)
@@ -211,7 +211,7 @@ func TestSessionV150SnapshotAndObserverShareReadonlyRevision(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.Commit(bg, func(tx *Tx) error { _, err := tx.AcquireDocument(def, 0, nil, nil); return err }); err != nil {
+	if _, err := s.Commit(bg, func(tx *Tx) (any, error) { _, err := tx.AcquireDocument(def, 0, nil, nil); return nil, err }); err != nil {
 		t.Fatal(err)
 	}
 	raw, found, err := s.SnapshotDefinition(bg, def, 0, nil)
@@ -235,12 +235,12 @@ func TestSessionV150SnapshotAndObserverShareReadonlyRevision(t *testing.T) {
 	if observation.Value != first {
 		t.Fatal("observer did not attach to the snapshot's tracker")
 	}
-	if _, err := s.Commit(bg, func(tx *Tx) error {
+	if _, err := s.Commit(bg, func(tx *Tx) (any, error) {
 		doc, err := tx.AcquireDocument(def, 0, nil, nil)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		return doc.ApplyOperations([]Operation{{"s", []any{"n"}, 1}})
+		return nil, doc.ApplyOperations([]Operation{{"s", []any{"n"}, 1}})
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -327,15 +327,15 @@ func TestSessionV150StoringHoldPreservesSnapshotIdentity(t *testing.T) {
 		if err != nil || !found {
 			t.Fatal(found, err)
 		}
-		if _, err := f.session.Commit(bg, func(tx *Tx) error {
+		if _, err := f.session.Commit(bg, func(tx *Tx) (any, error) {
 			if _, err := tx.AcquireDocument(def, 1, nil, nil); err != nil {
-				return err
+				return nil, err
 			}
 			id, err := tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}})
+			return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}})
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -356,7 +356,7 @@ func TestSessionV150RequiredMigrationStoreKeepsSnapshotIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.Commit(bg, func(tx *Tx) error { _, err := tx.AcquireDocument(old, 0, nil, nil); return err }); err != nil {
+	if _, err := s.Commit(bg, func(tx *Tx) (any, error) { _, err := tx.AcquireDocument(old, 0, nil, nil); return nil, err }); err != nil {
 		t.Fatal(err)
 	}
 	options.Version = 2
@@ -370,7 +370,7 @@ func TestSessionV150RequiredMigrationStoreKeepsSnapshotIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.Commit(bg, func(tx *Tx) error { _, err := tx.AcquireDocument(next, 0, nil, nil); return err }); err != nil {
+	if _, err := s.Commit(bg, func(tx *Tx) (any, error) { _, err := tx.AcquireDocument(next, 0, nil, nil); return nil, err }); err != nil {
 		t.Fatal(err)
 	}
 	after, _, err := s.SnapshotDefinition(bg, next, 0, nil)
@@ -402,7 +402,7 @@ func runWatchSharedReadonlyRevision(t *testing.T, zero bool) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = s.Commit(bg, func(tx *Tx) error { _, err := tx.AcquireDocument(def, 0, nil, nil); return err }); err != nil {
+	if _, err = s.Commit(bg, func(tx *Tx) (any, error) { _, err := tx.AcquireDocument(def, 0, nil, nil); return nil, err }); err != nil {
 		t.Fatal(err)
 	}
 	var first ReadonlyValue
@@ -436,12 +436,12 @@ func runWatchSharedReadonlyRevision(t *testing.T, zero bool) {
 	}
 	defer observation.Detach()
 	for _, n := range []int{1, 2} {
-		if _, err = s.Commit(bg, func(tx *Tx) error {
+		if _, err = s.Commit(bg, func(tx *Tx) (any, error) {
 			doc, err := tx.AcquireDocument(def, 0, nil, nil)
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return doc.ApplyOperations([]Operation{{"s", []any{"value"}, n}})
+			return nil, doc.ApplyOperations([]Operation{{"s", []any{"value"}, n}})
 		}); err != nil {
 			t.Fatal(err)
 		}

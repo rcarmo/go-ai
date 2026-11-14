@@ -9,7 +9,7 @@ import (
 func seedOwnedQueue(t *testing.T, h *Harness, conversation ID, label string) (ID, ID) {
 	t.Helper()
 	var input, write ID
-	_, err := h.CommitTasks(bg, conversation, func(tx *Tx) error {
+	_, err := h.commitTasks(bg, conversation, func(tx *Tx) error {
 		var err error
 		input, err = tx.MintID()
 		if err != nil {
@@ -77,7 +77,7 @@ func TestTaskOwnershipPinnedQueuedInputScopePreservesWritesAndBackground(t *test
 				owner := createPublicTask(t, h, live, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 				background := createPublicTask(t, h, live, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}, Background: true})
 				var owned ID
-				_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+				_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 					var err error
 					owned, err = tx.MintID()
 					if err != nil {
@@ -103,9 +103,9 @@ func TestTaskOwnershipPinnedQueuedInputScopePreservesWritesAndBackground(t *test
 				if scope == "held-failure" {
 					// A validated deciding seam models a failed owner whose aborting child
 					// keeps its outcome held; late queued input must not dispatch below it.
-					_, err = h.session.Commit(bg, func(tx *Tx) error {
+					_, err = h.session.Commit(bg, func(tx *Tx) (any, error) {
 						state := TaskState{Status: "completing", Outcome: &TaskOutcome{Status: "failed", Error: &TaskOutcomeError{Message: "declined"}}}
-						return seedNativeRecoveryState(tx, owner, state, false)
+						return nil, seedNativeRecoveryState(tx, owner, state, false)
 					})
 					if err != nil {
 						t.Fatal(err)
@@ -117,16 +117,16 @@ func TestTaskOwnershipPinnedQueuedInputScopePreservesWritesAndBackground(t *test
 				ownInput, ownWrite := seedOwnedQueue(t, h, 1, "own")
 				childInput, childWrite := seedOwnedQueue(t, h, owned, "below")
 				if scope != "held-failure" {
-					_, err = h.session.Commit(bg, func(tx *Tx) error {
+					_, err = h.session.Commit(bg, func(tx *Tx) (any, error) {
 						task := markTask(tx.state.Tasks[owner])
-						return tx.stage(Write{Op: "put-task", Task: &task})
+						return nil, tx.stage(Write{Op: "put-task", Task: &task})
 					})
 					if err != nil {
 						t.Fatal(err)
 					}
 				}
 				if scope == "conversation" {
-					_, err = h.session.Commit(bg, func(tx *Tx) error { return h.withdrawScopedInputs(tx, 1, false, nil) })
+					_, err = h.session.Commit(bg, func(tx *Tx) (any, error) { return nil, h.withdrawScopedInputs(tx, 1, false, nil) })
 					if err != nil {
 						t.Fatal(err)
 					}

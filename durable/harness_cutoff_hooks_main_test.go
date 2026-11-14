@@ -82,13 +82,13 @@ func mainCutoffHooksStart(t *testing.T, f *mainCutoffHooks, store Storage) (*Har
 	}
 	awaitTaskSignal(t, f.started)
 	// Native details and this dependent read force the actual slot into storage.
-	if _, err := c.Commit(bg, func(tx *Tx) error {
+	if _, err := c.Commit(bg, func(tx *Tx) (any, error) {
 		doc, err := builtin(tx, c.ID(), "pi.live")
 		if err != nil {
-			return err
+			return nil, err
 		}
 		_, err = doc.Get()
-		return err
+		return nil, err
 	}); err != nil {
 		t.Fatal(err)
 	}

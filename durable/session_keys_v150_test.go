@@ -180,21 +180,21 @@ func TestSessionV150WriteKeys(t *testing.T) {
 	// document address, its incarnation, and the scope it appeared in.
 	var entryID, documentID ID
 	var created []string
-	if _, err := session.Commit(bg, func(tx *Tx) error {
+	if _, err := session.Commit(bg, func(tx *Tx) (any, error) {
 		var e error
 		if entryID, e = tx.MintID(); e != nil {
-			return e
+			return nil, e
 		}
 		if err := tx.AppendEntry(Entry{ID: entryID, Conversation: 1, Kind: userEntryKind}); err != nil {
-			return err
+			return nil, err
 		}
 		handle, err := tx.AcquireDocument(def, 1, nil, nil)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		documentID = handle.id
 		created, err = tx.writeKeys()
-		return err
+		return nil, err
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -207,16 +207,16 @@ func TestSessionV150WriteKeys(t *testing.T) {
 	// Modifying an existing incarnation keys the address and the incarnation, but
 	// not the scope: which incarnations a scope scan sees did not change.
 	var modified []string
-	if _, err := session.Commit(bg, func(tx *Tx) error {
+	if _, err := session.Commit(bg, func(tx *Tx) (any, error) {
 		handle, err := tx.AcquireDocument(def, 1, nil, nil)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if err := handle.Set(JSON{"x": 1}); err != nil {
-			return err
+			return nil, err
 		}
 		modified, err = tx.writeKeys()
-		return err
+		return nil, err
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -225,12 +225,12 @@ func TestSessionV150WriteKeys(t *testing.T) {
 
 	// Retirement writes the scope again, because the incarnation left it.
 	var retired []string
-	if _, err := session.Commit(bg, func(tx *Tx) error {
+	if _, err := session.Commit(bg, func(tx *Tx) (any, error) {
 		if err := tx.RetireDefinition(def, 1, nil); err != nil {
-			return err
+			return nil, err
 		}
 		retired, err = tx.writeKeys()
-		return err
+		return nil, err
 	}); err != nil {
 		t.Fatal(err)
 	}

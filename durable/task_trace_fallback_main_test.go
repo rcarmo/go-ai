@@ -32,7 +32,7 @@ func TestMainTaskTraceUnavailableExtractionUsesRoot(t *testing.T) {
 				carrier.span.Store(creator)
 				ctx := context.WithValue(bg, telemetryContextKey{}, carrier)
 				var id ID
-				_, err := h.CommitTasks(ctx, 1, func(tx *Tx) error {
+				_, err := h.commitTasks(ctx, 1, func(tx *Tx) error {
 					var e error
 					id, e = tx.CreateTask(def, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 					return e

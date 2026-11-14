@@ -223,7 +223,7 @@ func TestTaskOwnershipBackgroundBoundaryAndTerminalOwnerNoCascade(t *testing.T) 
 				cleanupTaskGates(t, gate)
 				background := createPublicTask(t, h, done, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}, Background: true})
 				var childConversation ID
-				_, err := h.CommitTasks(bg, 1, func(tx *Tx) error {
+				_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 					var err error
 					childConversation, err = tx.MintID()
 					if err != nil {
@@ -242,7 +242,7 @@ func TestTaskOwnershipBackgroundBoundaryAndTerminalOwnerNoCascade(t *testing.T) 
 					h = taskTestHarness(t, reopenStoreAfterHarnessClose(t, b.store), live, done)
 				}
 				var child ID
-				_, err = h.CommitTasks(bg, childConversation, func(tx *Tx) error {
+				_, err = h.commitTasks(bg, childConversation, func(tx *Tx) error {
 					var err error
 					child, err = tx.CreateTask(live, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 					return err
@@ -424,7 +424,7 @@ func TestTaskOwnershipWaitingUnionRejectsAndAllSettledForeignOrder(t *testing.T)
 				second = createPublicTask(t, h, finished, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 				// Committed foreign terminal outcomes differ and remain in requested
 				// order; no handler executes on these already terminal records.
-				_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+				_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 					for index, id := range []ID{first, second} {
 						task, err := copyTask(tx.state.Tasks[id], tx.limits)
 						if err != nil {
@@ -734,7 +734,7 @@ func TestTaskOwnershipDirectBackgroundAbortStopsAtNestedBackground(t *testing.T)
 		background := createPublicTask(t, h, live, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}, Background: true})
 		ordinary := createPublicTask(t, h, live, nil, TaskOptions{Ownership: TaskOwnership{Kind: "task", Task: background}})
 		var ownedConversation ID
-		_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+		_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 			var err error
 			ownedConversation, err = tx.MintID()
 			if err != nil {
@@ -746,7 +746,7 @@ func TestTaskOwnershipDirectBackgroundAbortStopsAtNestedBackground(t *testing.T)
 			t.Fatal(err)
 		}
 		var nested, nestedChild ID
-		_, err = h.CommitTasks(bg, ownedConversation, func(tx *Tx) error {
+		_, err = h.commitTasks(bg, ownedConversation, func(tx *Tx) error {
 			var err error
 			nested, err = tx.CreateTask(live, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}, Background: true})
 			if err != nil {
@@ -1087,7 +1087,7 @@ func TestTaskOwnershipPublicRawTypedDocumentOwnerAdmission(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+					_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 						if acquisition == "typed" {
 							_, err := tx.AcquireDocument(definition, ownerID, nil, nil)
 							return err
@@ -1127,7 +1127,7 @@ func TestTaskOwnershipTerminalCandidateDocumentOverlayAndPublication(t *testing.
 			t.Fatal(err)
 		}
 		oldKey, newKey, lateKey := "committed", "new", "late"
-		_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+		_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 			_, err := tx.CreateDocument(Document{ID: committedID, Scope: "task", Owner: ownerID, Kind: "app.overlay-family", Family: true, Key: oldKey, Version: 1, Value: JSON{"value": "committed"}})
 			return err
 		})
@@ -1144,7 +1144,7 @@ func TestTaskOwnershipTerminalCandidateDocumentOverlayAndPublication(t *testing.
 			t.Fatal(err)
 		}
 		var newTypedID ID
-		seq, err := h.CommitTasks(bg, 1, func(tx *Tx) error {
+		seq, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 			acquired, err := tx.AcquireDocument(definition, ownerID, &oldKey, nil)
 			if err != nil {
 				return err
@@ -1239,11 +1239,11 @@ func TestTaskOwnershipTerminalCandidateDocumentOverlayAndPublication(t *testing.
 			}
 		}
 		before := final.Seq
-		_, err = h.CommitTasks(bg, 1, func(tx *Tx) error { _, err := tx.AcquireDocument(definition, ownerID, &lateKey, nil); return err })
+		_, err = h.commitTasks(bg, 1, func(tx *Tx) error { _, err := tx.AcquireDocument(definition, ownerID, &lateKey, nil); return err })
 		if err == nil {
 			t.Fatal("typed later terminal acquisition")
 		}
-		_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+		_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 			_, err := tx.CreateDocument(Document{ID: lateID, Scope: "task", Owner: ownerID, Kind: "app.overlay-late", Version: 1, Value: JSON{}})
 			return err
 		})
@@ -1254,7 +1254,7 @@ func TestTaskOwnershipTerminalCandidateDocumentOverlayAndPublication(t *testing.
 		if err != nil || after.Seq != before || len(after.Documents) != len(final.Documents) {
 			t.Fatal("later rejection changed sequence/docs", err)
 		}
-		_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+		_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 			terminal, err := copyTask(tx.state.Tasks[ownerID], tx.limits)
 			if err != nil {
 				return err
@@ -1266,7 +1266,7 @@ func TestTaskOwnershipTerminalCandidateDocumentOverlayAndPublication(t *testing.
 		}
 		// A later real entry publication is an ordered witness that rejected
 		// acquisitions/replacements emitted no intervening adoption frames.
-		sentinel, err := h.CommitTasks(bg, 1, func(tx *Tx) error {
+		sentinel, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 			id, err := tx.MintID()
 			if err != nil {
 				return err
@@ -1293,7 +1293,7 @@ func TestTaskOwnershipRawAbsentExecutionTerminalDocumentPolicyPreserved(t *testi
 		owner := Task{ID: id, Conversation: 1, Kind: "legacy.document-owner", Status: "done", Checkpoint: JSON{}}
 		apply(t, b.store, Write{Op: "put-task", Task: &owner})
 		h := taskTestHarness(t, b.store)
-		_, err := h.CommitTasks(bg, 1, func(tx *Tx) error {
+		_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 			_, err := tx.CreateDocument(Document{ID: doc, Scope: "task", Owner: id, Kind: "app.legacy-taskdoc", Version: 1, Value: JSON{"kept": true}})
 			return err
 		})
@@ -1670,7 +1670,7 @@ func TestTaskOwnershipInspectPausedReopenNativeBuiltinWaitBeforeDefinitionFit(t 
 					inspect(second, "waiting", on, "")
 					// Drain just the authoritative dependency; marked records ignore
 					// their still-live foreign On, ordinary records ignore ownedchild.
-					_, err = second.CommitTasks(bg, 1, func(tx *Tx) error {
+					_, err = second.commitTasks(bg, 1, func(tx *Tx) error {
 						target := foreignID
 						if marked {
 							target = childID

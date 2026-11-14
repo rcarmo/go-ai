@@ -91,7 +91,7 @@ func TestMainOwnershipEndedBridgeAbortsWorkBelowEndedTasks(t *testing.T) {
 				c := root(t, h, ref)
 				ids := map[string]ID{}
 				var convID ID
-				_, err := h.CommitTasks(bg, c.ID(), func(tx *Tx) error {
+				_, err := h.commitTasks(bg, c.ID(), func(tx *Tx) error {
 					id, err := tx.CreateTask(defs["p"], JSON{"name": "p"}, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 					if err != nil {
 						return err
@@ -137,7 +137,7 @@ func TestMainOwnershipEndedBridgeAbortsWorkBelowEndedTasks(t *testing.T) {
 					}
 				}
 				// Work created in the task-owned conversation by a public commit, after its owner ended.
-				_, err = h.CommitTasks(bg, convID, func(tx *Tx) error {
+				_, err = h.commitTasks(bg, convID, func(tx *Tx) error {
 					id, err := tx.CreateTask(defs["d"], JSON{"name": "d"}, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 					if err != nil {
 						return err

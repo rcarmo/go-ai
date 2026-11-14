@@ -78,21 +78,21 @@ func TestCompactionUTF16MainExecutionReopen(t *testing.T) {
 		})
 		first := openHarness(t, b.store, options)
 		conversation := root(t, first, ref)
-		_, err := conversation.Commit(bg, func(tx *Tx) error {
+		_, err := conversation.Commit(bg, func(tx *Tx) (any, error) {
 			for _, message := range []MessageReceipt{userReceipt("old question"), {Role: goai.RoleAssistant, Content: []goai.ContentBlock{call}, StopReason: goai.StopReasonToolUse}, {Role: goai.RoleToolResult, ToolCallID: "c", ToolName: "leaf", IsError: true, ErrorCode: "invalid_arguments", Content: []goai.ContentBlock{diagnostic}}, userReceipt("recent question")} {
 				id, err := tx.MintID()
 				if err != nil {
-					return err
+					return nil, err
 				}
 				value, err := dtoObject(message, tx.limits)
 				if err != nil {
-					return err
+					return nil, err
 				}
 				if err = tx.AppendEntry(Entry{ID: id, Conversation: conversation.ID(), Kind: "message", Value: value}); err != nil {
-					return err
+					return nil, err
 				}
 			}
-			return nil
+			return nil, nil
 		})
 		if err != nil {
 			t.Fatal(err)

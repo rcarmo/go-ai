@@ -203,7 +203,7 @@ func Open(ctx context.Context, store Storage, options Options) (*Harness, error)
 	// Failure/cancellation closes ownership; already adopted prefix survives.
 	// A later Open retries only the remaining running records.
 	for _, task := range recovered {
-		_, e = s.Commit(ctx, func(tx *Tx) error { return tx.stage(Write{Op: "put-task", Task: &task}) })
+		_, e = s.Commit(ctx, func(tx *Tx) (any, error) { return nil, tx.stage(Write{Op: "put-task", Task: &task}) })
 		if e != nil {
 			return failOpen(e)
 		}
@@ -306,29 +306,29 @@ func (h *Harness) createConversation(ctx context.Context, change AgentChange, in
 	if e != nil {
 		return nil, e
 	}
-	_, e = h.session.Commit(ctx, func(tx *Tx) error {
+	_, e = h.session.Commit(ctx, func(tx *Tx) (any, error) {
 		if err := tx.touchKeys(ALL_KEYS); err != nil {
-			return err
+			return nil, err
 		}
 		if h.closing.Load() {
-			return h.closedError()
+			return nil, h.closedError()
 		}
 		if e := tx.CreateConversation(Conversation{ID: id, Name: change.Name}); e != nil {
-			return e
+			return nil, e
 		}
 		v, e := dtoObject(state, h.session.limits)
 		if e != nil {
-			return e
+			return nil, e
 		}
 		{
 			candidate, err := tx.current()
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if existing, ok := agentDocument(candidate, id); ok {
 				handle, err := tx.Document(existing.ID)
 				if err != nil {
-					return err
+					return nil, err
 				}
 				e = handle.Set(v)
 			} else {
@@ -336,15 +336,15 @@ func (h *Harness) createConversation(ctx context.Context, change AgentChange, in
 			}
 		}
 		if e != nil {
-			return e
+			return nil, e
 		}
 		if err := initializeBuiltins(tx, id); err != nil {
-			return err
+			return nil, err
 		}
 		if init != nil {
-			return callConversationInit(init, tx, id)
+			return nil, callConversationInit(init, tx, id)
 		}
-		return nil
+		return nil, nil
 	})
 	if e != nil {
 		return nil, e
@@ -456,39 +456,39 @@ func (h *Harness) configureLockedWithInit(ctx context.Context, id ID, c AgentCha
 	if e != nil {
 		return e
 	}
-	_, e = h.session.Commit(ctx, func(tx *Tx) error {
+	_, e = h.session.Commit(ctx, func(tx *Tx) (any, error) {
 		if err := tx.touchKeys(ALL_KEYS); err != nil {
-			return err
+			return nil, err
 		}
 		if h.closing.Load() {
-			return h.closedError()
+			return nil, h.closedError()
 		}
 		if _, ok := tx.state.Conversations[id]; !ok {
 			if !rootBootstrap {
-				return reject("unknown conversation")
+				return nil, reject("unknown conversation")
 			}
 			if e := tx.CreateConversation(Conversation{ID: id}); e != nil {
-				return e
+				return nil, e
 			}
 			candidate, err := tx.current()
 			if err != nil {
-				return err
+				return nil, err
 			}
 			created, ok := agentDocument(candidate, id)
 			if !ok {
-				return reject("created agent unavailable")
+				return nil, reject("created agent unavailable")
 			}
 			handle, err := tx.Document(created.ID)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if err := handle.Set(value); err != nil {
-				return err
+				return nil, err
 			}
 			if init != nil {
-				return callConversationInit(init, tx, id)
+				return nil, callConversationInit(init, tx, id)
 			}
-			return nil
+			return nil, nil
 		}
 		doc, found := agentDocument(tx.state, id)
 		firstRoot := initializeOnly && id == 1 && !found
@@ -502,44 +502,44 @@ func (h *Harness) configureLockedWithInit(ctx context.Context, id ID, c AgentCha
 		}
 		if firstRoot {
 			if err := h.initializeCreatedConversation(tx, tx.state.Conversations[id]); err != nil {
-				return err
+				return nil, err
 			}
 			candidate, err := tx.current()
 			if err != nil {
-				return err
+				return nil, err
 			}
 			created, ok := agentDocument(candidate, id)
 			if !ok {
-				return reject("created agent unavailable")
+				return nil, reject("created agent unavailable")
 			}
 			handle, err := tx.Document(created.ID)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if err := handle.Set(value); err != nil {
-				return err
+				return nil, err
 			}
 			if init != nil {
-				return callConversationInit(init, tx, id)
+				return nil, callConversationInit(init, tx, id)
 			}
-			return nil
+			return nil, nil
 		}
 		if found {
 			handle, e := tx.Document(doc.ID)
 			if e != nil {
-				return e
+				return nil, e
 			}
-			return handle.Set(value)
+			return nil, handle.Set(value)
 		}
 		docID, e := tx.MintID()
 		if e != nil {
-			return e
+			return nil, e
 		}
 		_, e = tx.CreateDocument(Document{ID: docID, Scope: "conversation", Owner: id, Kind: "pi.agent", Version: 1, Value: value, History: "rewindable", Fork: "asOf"})
 		if e != nil {
-			return e
+			return nil, e
 		}
-		return initializeBuiltins(tx, id)
+		return nil, initializeBuiltins(tx, id)
 	})
 	return e
 }
@@ -608,7 +608,10 @@ func (c *ConversationHandle) Entries(ctx context.Context, q EntryQuery, limit in
 
 // Commit binds task/document creation to this conversation without enabling
 // scheduling. Committed application changes are allowed while work is live.
-func (c *ConversationHandle) Commit(ctx context.Context, callback func(*Tx) error) (uint64, error) {
+func (c *ConversationHandle) Commit(ctx context.Context, callback func(*Tx) (any, error)) (any, error) {
+	if callback == nil {
+		return nil, reject("nil transaction callback")
+	}
 	if c.h.options.Telemetry != nil && TelemetryFromContext(ctx) != nil {
 		buffer := &durableEventBuffer{}
 		ctx = context.WithValue(ctx, telemetryEventsContextKey{}, buffer)
@@ -616,7 +619,16 @@ func (c *ConversationHandle) Commit(ctx context.Context, callback func(*Tx) erro
 	}
 	c.h.mu.Lock()
 	defer c.h.mu.Unlock()
-	return c.h.CommitTasks(ctx, c.id, callback)
+	var value any
+	_, err := c.h.commitTasks(ctx, c.id, func(tx *Tx) error {
+		var callbackErr error
+		value, callbackErr = callback(tx)
+		return callbackErr
+	})
+	if err != nil {
+		return nil, err
+	}
+	return value, nil
 }
 func (h *Harness) Snapshot(ctx context.Context) (Snapshot, error) { return h.session.Snapshot(ctx) }
 
@@ -757,13 +769,13 @@ func initializeBuiltins(tx *Tx, conversation ID) error {
 	return nil
 }
 
-// CommitTasks binds native task creation to an optional conversation.
+// commitTasks binds native task creation to an optional conversation.
 // Execution replacements still require private runtime actions.
-func (h *Harness) CommitTasks(ctx context.Context, conversation ID, callback func(*Tx) error) (uint64, error) {
+func (h *Harness) commitTasks(ctx context.Context, conversation ID, callback func(*Tx) error) (uint64, error) {
 	if h.closing.Load() {
 		return 0, h.closedError()
 	}
-	return h.session.Commit(ctx, func(tx *Tx) error {
+	return h.session.commit(ctx, func(tx *Tx) error {
 		if h.closing.Load() {
 			return h.closedError()
 		}
@@ -777,7 +789,7 @@ func (h *Harness) CommitTasks(ctx context.Context, conversation ID, callback fun
 		}
 		tx.taskConversation = conversation
 		return callback(tx)
-	})
+	}, true, 0)
 }
 func (h *Harness) Task(ctx context.Context, id ID) (TaskRecord, bool, error) {
 	var view TaskRecord
@@ -873,23 +885,23 @@ func (h *Harness) AbortTask(ctx context.Context, id ID) (string, error) {
 	result := "marked"
 	var join <-chan struct{}
 	var cancel context.CancelFunc
-	_, err := h.session.Commit(ctx, func(tx *Tx) error {
+	_, err := h.session.Commit(ctx, func(tx *Tx) (any, error) {
 		if err := tx.touchKeys(ALL_KEYS); err != nil {
-			return err
+			return nil, err
 		}
 		if h.closing.Load() {
-			return h.closedError()
+			return nil, h.closedError()
 		}
 		task, ok := tx.state.Tasks[id]
 		if !ok {
-			return reject("unknown task")
+			return nil, reject("unknown task")
 		}
 		if terminalStatus(task.Status) {
 			result = "terminal"
-			return nil
+			return nil, nil
 		}
 		if !taskManaged(task) {
-			return reject("legacy raw task has no abort adapter")
+			return nil, reject("legacy raw task has no abort adapter")
 		}
 		if r := h.scheduler.invocations[id]; r != nil && !r.abortMode {
 			join = r.done
@@ -903,13 +915,13 @@ func (h *Harness) AbortTask(ctx context.Context, id ID) (string, error) {
 		if task.Execution != nil && task.Execution.Native != nil && !taskHasDecidedOutcome(task) && h.scheduler.invocations[id] == nil && len(h.scheduler.ownedLive(tx.state, id)) == 0 {
 			snapshot, err := h.options.Registry.taskSnapshot(tx.limits)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if reason := h.scheduler.nativeBlockedReason(task, snapshot); reason != "" {
-				return h.scheduler.orphan(tx, task, reason)
+				return nil, h.scheduler.orphan(tx, task, reason)
 			}
 		}
-		return tx.stage(Write{Op: "put-task", Task: &task})
+		return nil, tx.stage(Write{Op: "put-task", Task: &task})
 	})
 	if err != nil {
 		return "", err

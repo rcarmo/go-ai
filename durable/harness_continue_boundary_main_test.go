@@ -202,12 +202,12 @@ func mainContinueBoundaryCase(t *testing.T, legacyFirstAbsent bool) {
 		if legacyFirstAbsent {
 			// The sole fixture adaptation emulates older persisted metadata.
 			// Do not fabricate a run, inbox item, task, entry or settlement.
-			if _, err := h.Commit(bg, func(tx *Tx) error {
+			if _, err := h.Commit(bg, func(tx *Tx) (any, error) {
 				doc, err := builtin(tx, c.ID(), "pi.live")
 				if err != nil {
-					return err
+					return nil, err
 				}
-				return doc.Update(func(value JSON) error {
+				return nil, doc.Update(func(value JSON) error {
 					delete(generationObject(value["runFailure"]), "first")
 					return nil
 				})

@@ -14,19 +14,19 @@ func TestMainSubmissionContinueRawLifecycle(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h := taskTestHarness(t, b.store)
 		var id, answer ID
-		_, err := h.Commit(bg, func(tx *Tx) error {
+		_, err := h.Commit(bg, func(tx *Tx) (any, error) {
 			var err error
 			createdSubmission, err := tx.CreateSubmission(SubmissionCreate{Conversation: 1, RequestID: "continue", Type: "continue", Status: "placed"})
 			id = createdSubmission.ID
 			if err != nil {
-				return err
+				return nil, err
 			}
 			_, _, err = tx.Submission(id)
 			var fenced *ReadAfterWrite
 			if !errors.As(err, &fenced) {
 				t.Fatal("staged submission read", err)
 			}
-			return nil
+			return nil, nil
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -50,26 +50,26 @@ func TestMainSubmissionContinueRawLifecycle(t *testing.T) {
 		if err != nil || placed.Type != "continue" || placed.Status != "placed" || placed.Entry != 0 || placed.Answer != 0 {
 			t.Fatalf("status: %+v %v", placed, err)
 		}
-		_, err = h.Commit(bg, func(tx *Tx) error {
+		_, err = h.Commit(bg, func(tx *Tx) (any, error) {
 			var err error
 			answer, err = tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if err := tx.AppendEntry(Entry{ID: answer, Conversation: 1, Kind: "note", Value: JSON{"text": "answer"}}); err != nil {
-				return err
+				return nil, err
 			}
 			if err := tx.SettleSubmission(id, SubmissionSettlement{Status: "done", Answer: answer}); err != nil {
-				return err
+				return nil, err
 			}
 			// First settlement wins over a later, conflicting receipt.
 			if err := tx.SettleSubmission(id, SubmissionSettlement{Status: "unanswered", Reason: "late"}); err != nil {
-				return err
+				return nil, err
 			}
 			if _, _, err := tx.Submission(id); err == nil {
 				t.Fatal("staged settlement read")
 			}
-			return nil
+			return nil, nil
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -97,27 +97,27 @@ func TestMainSubmissionContinueCreateValidation(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h := taskTestHarness(t, b.store)
 		var entryID, foreign ID
-		_, err := h.Commit(bg, func(tx *Tx) error {
+		_, err := h.Commit(bg, func(tx *Tx) (any, error) {
 			var err error
 			entryID, err = tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if err := tx.AppendEntry(Entry{ID: entryID, Conversation: 1, Kind: "note", Value: JSON{}}); err != nil {
-				return err
+				return nil, err
 			}
 			conversation, err := tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if err := tx.CreateConversation(Conversation{ID: conversation}); err != nil {
-				return err
+				return nil, err
 			}
 			foreign, err = tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return tx.AppendEntry(Entry{ID: foreign, Conversation: conversation, Kind: "note", Value: JSON{}})
+			return nil, tx.AppendEntry(Entry{ID: foreign, Conversation: conversation, Kind: "note", Value: JSON{}})
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -166,7 +166,7 @@ func TestMainSubmissionContinueCreateValidation(t *testing.T) {
 				}
 				record := tc.record
 				record.Conversation = 1
-				_, err = h.Commit(bg, func(tx *Tx) error { _, err := tx.CreateSubmission(record); return err })
+				_, err = h.Commit(bg, func(tx *Tx) (any, error) { _, err := tx.CreateSubmission(record); return nil, err })
 				if tc.valid {
 					if err != nil {
 						t.Fatal(err)
@@ -282,32 +282,32 @@ func TestMainSubmissionContinuePlacementSettlementAndAbort(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h := taskTestHarness(t, b.store)
 		var id, answer, foreign ID
-		_, err := h.Commit(bg, func(tx *Tx) error {
+		_, err := h.Commit(bg, func(tx *Tx) (any, error) {
 			var err error
 			createdSubmission, err := tx.CreateSubmission(SubmissionCreate{Conversation: 1, Type: "continue", Status: "placed"})
 			id = createdSubmission.ID
 			if err != nil {
-				return err
+				return nil, err
 			}
 			answer, err = tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if err := tx.AppendEntry(Entry{ID: answer, Conversation: 1, Kind: "note", Value: JSON{}}); err != nil {
-				return err
+				return nil, err
 			}
 			conversation, err := tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if err := tx.CreateConversation(Conversation{ID: conversation}); err != nil {
-				return err
+				return nil, err
 			}
 			foreign, err = tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return tx.AppendEntry(Entry{ID: foreign, Conversation: conversation, Kind: "note", Value: JSON{}})
+			return nil, tx.AppendEntry(Entry{ID: foreign, Conversation: conversation, Kind: "note", Value: JSON{}})
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -317,7 +317,7 @@ func TestMainSubmissionContinuePlacementSettlementAndAbort(t *testing.T) {
 			t.Fatal(err)
 		}
 		for _, entry := range []ID{0, answer, foreign, ID(MaxID)} {
-			_, err := h.Commit(bg, func(tx *Tx) error { return tx.PlaceSubmission(id, entry) })
+			_, err := h.Commit(bg, func(tx *Tx) (any, error) { return nil, tx.PlaceSubmission(id, entry) })
 			if err == nil || !strings.Contains(err.Error(), "is not queued") {
 				t.Fatal(err)
 			}
@@ -329,7 +329,7 @@ func TestMainSubmissionContinuePlacementSettlementAndAbort(t *testing.T) {
 			{Status: "unanswered", Reason: "host", Answer: answer},
 			{Status: "queued"},
 		} {
-			_, err := h.Commit(bg, func(tx *Tx) error { return tx.SettleSubmission(id, settlement) })
+			_, err := h.Commit(bg, func(tx *Tx) (any, error) { return nil, tx.SettleSubmission(id, settlement) })
 			rejected(t, err)
 		}
 		for _, scope := range [][]ID{nil, {1}, {ID(MaxID)}} {
@@ -359,8 +359,8 @@ func TestMainSubmissionContinuePlacementSettlementAndAbort(t *testing.T) {
 		if !reflect.DeepEqual(before, after) {
 			t.Fatal("rejected placement/settlement or abort disposition mutated state")
 		}
-		_, err = h.Commit(bg, func(tx *Tx) error {
-			return tx.SettleSubmission(id, SubmissionSettlement{Status: "unanswered", Reason: "nothing_to_answer"})
+		_, err = h.Commit(bg, func(tx *Tx) (any, error) {
+			return nil, tx.SettleSubmission(id, SubmissionSettlement{Status: "unanswered", Reason: "nothing_to_answer"})
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -381,7 +381,7 @@ func TestMainSubmissionContinueOwnershipAndCopies(t *testing.T) {
 		detail := JSON{"nested": []any{"detail"}}
 		var id ID
 		var escaped *Tx
-		_, err := h.Commit(bg, func(tx *Tx) error {
+		_, err := h.Commit(bg, func(tx *Tx) (any, error) {
 			escaped = tx
 			tx.busy.Store(true)
 			if _, err := tx.CreateSubmission(SubmissionCreate{}); !errors.Is(err, ErrConcurrent) {
@@ -401,16 +401,16 @@ func TestMainSubmissionContinueOwnershipAndCopies(t *testing.T) {
 			createdSubmission, err := tx.CreateSubmission(SubmissionCreate{Conversation: 1, Type: "continue", Status: "placed"})
 			id = createdSubmission.ID
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if err := tx.SettleSubmission(id, SubmissionSettlement{Status: "unanswered", Reason: "host", Detail: &TaskValue{Present: true, Value: detail}}); err != nil {
-				return err
+				return nil, err
 			}
 			detail["nested"].([]any)[0] = "caller mutation"
 			if _, _, err := tx.Submission(id); err == nil {
 				t.Fatal("staged submission read")
 			}
-			return nil
+			return nil, nil
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -463,7 +463,7 @@ func TestMainSubmissionContinueOwnershipAndCopies(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = h.Commit(ctx, func(tx *Tx) error { t.Fatal("canceled commit entered"); return nil })
+		_, err = h.Commit(ctx, func(tx *Tx) (any, error) { t.Fatal("canceled commit entered"); return nil, nil })
 		if !errors.Is(err, context.Canceled) {
 			t.Fatal(err)
 		}
@@ -479,50 +479,50 @@ func TestMainSubmissionContinueOrdinaryInputWriteControls(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h := taskTestHarness(t, b.store)
 		var input, write, answer ID
-		_, err := h.Commit(bg, func(tx *Tx) error {
+		_, err := h.Commit(bg, func(tx *Tx) (any, error) {
 			var err error
 			createdInput, err := tx.CreateSubmission(SubmissionCreate{Conversation: 1, Type: "input", Status: "queued"})
 			input = createdInput.ID
 			if err != nil {
-				return err
+				return nil, err
 			}
 			createdWrite, err := tx.CreateSubmission(SubmissionCreate{Conversation: 1, Type: "write", Status: "queued"})
 			write = createdWrite.ID
 			if err != nil {
-				return err
+				return nil, err
 			}
 			answer, err = tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return tx.AppendEntry(Entry{ID: answer, Conversation: 1, Kind: "note", Value: JSON{}})
+			return nil, tx.AppendEntry(Entry{ID: answer, Conversation: 1, Kind: "note", Value: JSON{}})
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
 		for _, id := range []ID{input, write} {
-			_, err := h.Commit(bg, func(tx *Tx) error {
-				return tx.SettleSubmission(id, SubmissionSettlement{Status: "done", Answer: answer})
+			_, err := h.Commit(bg, func(tx *Tx) (any, error) {
+				return nil, tx.SettleSubmission(id, SubmissionSettlement{Status: "done", Answer: answer})
 			})
 			if err == nil || !strings.Contains(err.Error(), "is not a placed input") {
 				t.Fatal(err)
 			}
-			_, err = h.Commit(bg, func(tx *Tx) error { return tx.PlaceSubmission(id, 0) })
+			_, err = h.Commit(bg, func(tx *Tx) (any, error) { return nil, tx.PlaceSubmission(id, 0) })
 			rejected(t, err)
 		}
-		_, err = h.Commit(bg, func(tx *Tx) error {
+		_, err = h.Commit(bg, func(tx *Tx) (any, error) {
 			if err := tx.PlaceSubmission(input, answer); err != nil {
-				return err
+				return nil, err
 			}
 			if err := tx.SettleSubmission(input, SubmissionSettlement{Status: "done", Answer: answer}); err != nil {
-				return err
+				return nil, err
 			}
-			return tx.PlaceSubmission(write, answer)
+			return nil, tx.PlaceSubmission(write, answer)
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = h.Commit(bg, func(tx *Tx) error {
+		_, err = h.Commit(bg, func(tx *Tx) (any, error) {
 			for _, id := range []ID{input, write} {
 				got, found, err := tx.Submission(id)
 				if err != nil || !found || got.Status != "done" || got.Entry != answer {
@@ -532,7 +532,7 @@ func TestMainSubmissionContinueOrdinaryInputWriteControls(t *testing.T) {
 					t.Fatalf("ordinary answer: %+v", got)
 				}
 			}
-			return nil
+			return nil, nil
 		})
 		if err != nil {
 			t.Fatal(err)

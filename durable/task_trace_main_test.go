@@ -285,7 +285,7 @@ func TestMainTaskTraceInheritedAndExplicitRoot(t *testing.T) {
 		carrier.span.Store(creator)
 		ctx := context.WithValue(bg, telemetryContextKey{}, carrier)
 		var ids []ID
-		_, err := h.CommitTasks(ctx, 1, func(tx *Tx) error {
+		_, err := h.commitTasks(ctx, 1, func(tx *Tx) error {
 			for _, data := range []string{`{}`, `{}`, `{"trace":"root"}`} {
 				id, err := tx.CreateTask(def, nil, mainTaskTraceOptions(t, data))
 				if err != nil {
@@ -348,7 +348,7 @@ func TestMainTaskTraceSubmissionSelectionNoCarrier(t *testing.T) {
 		ctxCarrier.span.Store(creator)
 		ctx := context.WithValue(bg, telemetryContextKey{}, ctxCarrier)
 		var id ID
-		_, err := h.CommitTasks(ctx, 1, func(tx *Tx) error {
+		_, err := h.commitTasks(ctx, 1, func(tx *Tx) error {
 			createdFirst, err := tx.CreateSubmission(SubmissionCreate{Conversation: 1, Type: "input", Status: "queued"})
 			first := createdFirst.ID
 			if err != nil {

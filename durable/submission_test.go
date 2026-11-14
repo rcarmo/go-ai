@@ -57,7 +57,7 @@ func TestM1bRequestDedupQueueAndWrite(t *testing.T) {
 		t.Fatal(e)
 	}
 	committed := false
-	if _, e = r.Commit(bg, func(*Tx) error { committed = true; return nil }); e != nil || !committed {
+	if _, e = r.Commit(bg, func(*Tx) (any, error) { committed = true; return nil, nil }); e != nil || !committed {
 		t.Fatal("live passive commit rejected", e)
 	}
 	if calls.Load() != 1 {

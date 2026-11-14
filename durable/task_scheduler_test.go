@@ -60,7 +60,7 @@ func taskTestHarnessOptions(t *testing.T, store Storage, options Options, defini
 func createPublicTask(t *testing.T, h *Harness, def *TaskDefinition, input any, options TaskOptions) ID {
 	t.Helper()
 	var id ID
-	_, err := h.CommitTasks(bg, 1, func(tx *Tx) error { var err error; id, err = tx.CreateTask(def, input, options); return err })
+	_, err := h.commitTasks(bg, 1, func(tx *Tx) error { var err error; id, err = tx.CreateTask(def, input, options); return err })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -844,7 +844,7 @@ func TestTaskSchedulerIdleFrontierAdmissionAtomic(t *testing.T) {
 		})
 		h = taskTestHarness(t, store, parent, child)
 		cleanupTaskGates(t, letWait, releaseHost, releaseChildren)
-		_, err := h.CommitTasks(bg, 1, func(tx *Tx) error {
+		_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 			var err error
 			foreign, err = tx.MintID()
 			if err != nil {
@@ -1088,7 +1088,7 @@ func TestTaskSchedulerEscapedIdleCannotWakeFailedIntent(t *testing.T) {
 		})
 		h := taskTestHarness(t, b.store, caller, target)
 		cleanupTaskGates(t, releaseHost)
-		_, err := h.CommitTasks(bg, 1, func(tx *Tx) error {
+		_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 			var err error
 			foreign, err = tx.MintID()
 			if err != nil {
@@ -1168,7 +1168,7 @@ func TestTaskSchedulerBoundPendingDedupSealedAdmissionIsInert(t *testing.T) {
 		})
 		h := taskTestHarness(t, b.store, caller)
 		cleanupTaskGates(t, releaseHost)
-		_, err := h.CommitTasks(bg, 1, func(tx *Tx) error {
+		_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 			var err error
 			foreign, err = tx.MintID()
 			if err != nil {
@@ -1186,7 +1186,7 @@ func TestTaskSchedulerBoundPendingDedupSealedAdmissionIsInert(t *testing.T) {
 		awaitTaskSignal(t, entered)
 		h.session.taskBookkeeping(func() { h.scheduler.enabled.Store(false) })
 		var subID ID
-		_, err = h.CommitTasks(bg, foreign, func(tx *Tx) error {
+		_, err = h.commitTasks(bg, foreign, func(tx *Tx) error {
 			var err error
 			subID, err = tx.MintID()
 			if err != nil {
@@ -1326,7 +1326,7 @@ func TestTaskSchedulerCycleThroughDurableHoldOrWaitRejects(t *testing.T) {
 				h := taskTestHarness(t, store, a, b, parent)
 				cleanupTaskGates(t, letA, letB, releaseA)
 				aID = createPublicTask(t, h, a, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
-				_, err := h.CommitTasks(bg, 1, func(tx *Tx) error {
+				_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 					var err error
 					parentID, err = tx.CreateTask(parent, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 					if err != nil {
@@ -1338,7 +1338,7 @@ func TestTaskSchedulerCycleThroughDurableHoldOrWaitRejects(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+				_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 					task, err := copyTask(tx.state.Tasks[parentID], tx.limits)
 					if err != nil {
 						return err
@@ -1443,7 +1443,7 @@ func TestTaskSchedulerMarkedForeignWaitDoesNotCreateStaleCycle(t *testing.T) {
 		awaitTaskSignal(t, entered)
 		h.session.taskBookkeeping(func() { h.scheduler.enabled.Store(false) })
 		aID = createPublicTask(t, h, a, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
-		_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+		_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 			task, err := copyTask(tx.state.Tasks[aID], tx.limits)
 			if err != nil {
 				return err
@@ -1503,7 +1503,7 @@ func TestTaskSchedulerBoundAbortSealedOrSelfScopeAdmissionIsInert(t *testing.T) 
 		target := taskDefinition(t, "task.abort.seal.target", func(context.Context, TaskRecord, *TaskRuntime) error { return errors.New("failed target executed") })
 		h := taskTestHarness(t, b.store, caller, target)
 		cleanupTaskGates(t, releaseHost)
-		_, err := h.CommitTasks(bg, 1, func(tx *Tx) error {
+		_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 			var err error
 			foreign, err = tx.MintID()
 			if err != nil {
@@ -1521,7 +1521,7 @@ func TestTaskSchedulerBoundAbortSealedOrSelfScopeAdmissionIsInert(t *testing.T) 
 		awaitTaskSignal(t, entered)
 		h.session.taskBookkeeping(func() { h.scheduler.enabled.Store(false) })
 		var targetID ID
-		_, err = h.CommitTasks(bg, foreign, func(tx *Tx) error {
+		_, err = h.commitTasks(bg, foreign, func(tx *Tx) error {
 			var err error
 			targetID, err = tx.CreateTask(target, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 			return err
@@ -1622,7 +1622,7 @@ func TestTaskSchedulerPersistedWriteBudgetReservationsAndRetirement(t *testing.T
 					// indivisible final transition; combining both would exceed4.
 					for _, owner := range []ID{first, second} {
 						for k := 0; k < 3; k++ {
-							_, err := h.CommitTasks(bg, 1, func(tx *Tx) error {
+							_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 								id, err := tx.MintID()
 								if err != nil {
 									return err
@@ -1723,7 +1723,7 @@ func TestTaskSchedulerPersistedWriteBudgetCancellationPrefix(t *testing.T) {
 				children = append(children, createPublicTask(t, h, def, nil, TaskOptions{Ownership: TaskOwnership{Kind: "task", Task: parent}}))
 			}
 			h.session.taskBookkeeping(func() { h.scheduler.cursor = children[0] }) // rotate past first marked child
-			_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+			_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 				task := markTask(tx.state.Tasks[parent])
 				return tx.stage(Write{Op: "put-task", Task: &task})
 			})
@@ -1773,7 +1773,7 @@ func TestTaskSchedulerCascadeQueuedWithdrawalBudgetAtomicity(t *testing.T) {
 				h := taskTestHarness(t, store, def)
 				owner := createPublicTask(t, h, def, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 				var foreign, subID, generationID, inboxID, ownSubID, writeSubID ID
-				_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+				_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 					var err error
 					foreign, err = tx.MintID()
 					if err != nil {
@@ -1785,7 +1785,7 @@ func TestTaskSchedulerCascadeQueuedWithdrawalBudgetAtomicity(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				_, err = h.CommitTasks(bg, foreign, func(tx *Tx) error {
+				_, err = h.commitTasks(bg, foreign, func(tx *Tx) error {
 					var err error
 					subID, err = tx.MintID()
 					if err != nil {
@@ -1796,7 +1796,7 @@ func TestTaskSchedulerCascadeQueuedWithdrawalBudgetAtomicity(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				_, err = h.CommitTasks(bg, foreign, func(tx *Tx) error {
+				_, err = h.commitTasks(bg, foreign, func(tx *Tx) error {
 					var err error
 					generationID, err = tx.MintID()
 					if err != nil {
@@ -1811,7 +1811,7 @@ func TestTaskSchedulerCascadeQueuedWithdrawalBudgetAtomicity(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				_, err = h.CommitTasks(bg, foreign, func(tx *Tx) error {
+				_, err = h.commitTasks(bg, foreign, func(tx *Tx) error {
 					var err error
 					inboxID, err = tx.MintID()
 					if err != nil {
@@ -1828,7 +1828,7 @@ func TestTaskSchedulerCascadeQueuedWithdrawalBudgetAtomicity(t *testing.T) {
 					mode         string
 					dest         *ID
 				}{{1, "follow-up", &ownSubID}, {foreign, "write", &writeSubID}} {
-					_, err = h.CommitTasks(bg, scope.conversation, func(tx *Tx) error {
+					_, err = h.commitTasks(bg, scope.conversation, func(tx *Tx) error {
 						id, err := tx.MintID()
 						if err != nil {
 							return err
@@ -1844,7 +1844,7 @@ func TestTaskSchedulerCascadeQueuedWithdrawalBudgetAtomicity(t *testing.T) {
 						t.Fatal(err)
 					}
 				}
-				_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+				_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 					task := markTask(tx.state.Tasks[owner])
 					return tx.stage(Write{Op: "put-task", Task: &task})
 				})
@@ -1898,7 +1898,7 @@ func TestTaskSchedulerPendingDedupCloseSealDoesNotWake(t *testing.T) {
 		})
 		h := taskTestHarness(t, b.store, caller)
 		cleanupTaskGates(t, releaseHost, releaseBlocker)
-		_, err := h.CommitTasks(bg, 1, func(tx *Tx) error {
+		_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 			var err error
 			foreign, err = tx.MintID()
 			if err != nil {
@@ -1916,7 +1916,7 @@ func TestTaskSchedulerPendingDedupCloseSealDoesNotWake(t *testing.T) {
 		awaitTaskSignal(t, entered)
 		h.session.taskBookkeeping(func() { h.scheduler.enabled.Store(false) })
 		var subID ID
-		_, err = h.CommitTasks(bg, foreign, func(tx *Tx) error {
+		_, err = h.commitTasks(bg, foreign, func(tx *Tx) error {
 			var err error
 			subID, err = tx.MintID()
 			if err != nil {
@@ -2031,7 +2031,7 @@ func TestTaskSchedulerFailFastPrefixCursorCannotDispatchUnmarkedSibling(t *testi
 			for k := 0; k < 5; k++ {
 				members = append(members, createPublicTask(t, h, sibling, nil, TaskOptions{Ownership: TaskOwnership{Kind: "task", Task: parent}}))
 			}
-			_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+			_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 				task, err := copyTask(tx.state.Tasks[members[0]], tx.limits)
 				if err != nil {
 					return err
@@ -2043,7 +2043,7 @@ func TestTaskSchedulerFailFastPrefixCursorCannotDispatchUnmarkedSibling(t *testi
 			if err != nil {
 				t.Fatal(err)
 			}
-			_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+			_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 				task, err := copyTask(tx.state.Tasks[parent], tx.limits)
 				if err != nil {
 					return err
@@ -2112,7 +2112,7 @@ func TestTaskSchedulerActiveProgressRespectsPendingCascadePrefix(t *testing.T) {
 				parent := createPublicTask(t, h, parentDef, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 				child := createPublicTask(t, h, active, nil, TaskOptions{Ownership: TaskOwnership{Kind: "task", Task: parent}})
 				failed := createPublicTask(t, h, parentDef, nil, TaskOptions{Ownership: TaskOwnership{Kind: "task", Task: parent}})
-				_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+				_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 					task, err := copyTask(tx.state.Tasks[parent], tx.limits)
 					if err != nil {
 						return err
@@ -2132,7 +2132,7 @@ func TestTaskSchedulerActiveProgressRespectsPendingCascadePrefix(t *testing.T) {
 				}
 				awaitTaskSignal(t, entered)
 				h.session.taskBookkeeping(func() { h.scheduler.enabled.Store(false) })
-				_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+				_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 					if intent == "ancestor-mark" {
 						task := markTask(tx.state.Tasks[parent])
 						return tx.stage(Write{Op: "put-task", Task: &task})
@@ -2195,7 +2195,7 @@ func TestTaskSchedulerQueuedWithdrawalTaskDocumentsAtomicRetirement(t *testing.T
 					}
 					h := taskTestHarness(t, store)
 					var owner, conversation, subID, generation, docID ID
-					_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+					_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 						var err error
 						owner, err = tx.MintID()
 						if err != nil {
@@ -2207,7 +2207,7 @@ func TestTaskSchedulerQueuedWithdrawalTaskDocumentsAtomicRetirement(t *testing.T
 					if err != nil {
 						t.Fatal(err)
 					}
-					_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+					_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 						var err error
 						conversation, err = tx.MintID()
 						if err != nil {
@@ -2221,14 +2221,14 @@ func TestTaskSchedulerQueuedWithdrawalTaskDocumentsAtomicRetirement(t *testing.T
 					}
 					// Provider identity is a new 1.0.4 builtin. Seed it separately
 					// so the exact 3/4-write withdrawal budget remains unchanged.
-					_, err = h.CommitTasks(bg, conversation, func(tx *Tx) error {
+					_, err = h.commitTasks(bg, conversation, func(tx *Tx) error {
 						_, err := ensureProviderDocument(tx, conversation)
 						return err
 					})
 					if err != nil {
 						t.Fatal(err)
 					}
-					_, err = h.CommitTasks(bg, conversation, func(tx *Tx) error {
+					_, err = h.commitTasks(bg, conversation, func(tx *Tx) error {
 						if err := initializeBuiltins(tx, conversation); err != nil {
 							return err
 						}
@@ -2237,7 +2237,7 @@ func TestTaskSchedulerQueuedWithdrawalTaskDocumentsAtomicRetirement(t *testing.T
 					if err != nil {
 						t.Fatal(err)
 					}
-					_, err = h.CommitTasks(bg, conversation, func(tx *Tx) error {
+					_, err = h.commitTasks(bg, conversation, func(tx *Tx) error {
 						var err error
 						subID, err = tx.MintID()
 						if err != nil {
@@ -2266,7 +2266,7 @@ func TestTaskSchedulerQueuedWithdrawalTaskDocumentsAtomicRetirement(t *testing.T
 					if err != nil {
 						t.Fatal(err)
 					}
-					_, err = h.CommitTasks(bg, conversation, func(tx *Tx) error {
+					_, err = h.commitTasks(bg, conversation, func(tx *Tx) error {
 						var err error
 						docID, err = tx.MintID()
 						if err != nil {
@@ -2279,7 +2279,7 @@ func TestTaskSchedulerQueuedWithdrawalTaskDocumentsAtomicRetirement(t *testing.T
 						t.Fatal(err)
 					}
 					if mode == "cascade" {
-						_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+						_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 							task := markTask(tx.state.Tasks[owner])
 							return tx.stage(Write{Op: "put-task", Task: &task})
 						})
@@ -2374,7 +2374,7 @@ func TestTaskSchedulerRuntimeCommittedReadsClockReportsAndWatchLifetime(t *testi
 		})
 		h := taskTestHarnessOptions(t, b.store, Options{Now: func() int64 { return 1234 }, OnReport: func(err error) { reports <- err }}, def)
 		for index, text := range []string{"one", "two"} {
-			_, err := h.CommitTasks(bg, 1, func(tx *Tx) error {
+			_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 				doc, err := tx.AcquireDocument(notes, 1, nil, nil)
 				if err != nil {
 					return err
@@ -2709,7 +2709,7 @@ func TestTaskSchedulerWaitUnknownTerminalCancelAndClose(t *testing.T) {
 		}
 		terminalDef := taskDefinition(t, "task.wait.alreadyterminal", func(context.Context, TaskRecord, *TaskRuntime) error { return errors.New("terminal task executed") })
 		terminalID := createPublicTask(t, h, terminalDef, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
-		_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+		_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 			task, err := copyTask(tx.state.Tasks[terminalID], tx.limits)
 			if err != nil {
 				return err
@@ -2933,7 +2933,7 @@ func TestTaskSchedulerMultiFrontierFailureReleasesOnlyFailedRegistration(t *test
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+		_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 			var err error
 			foreign, err = tx.MintID()
 			if err != nil {
@@ -2952,7 +2952,7 @@ func TestTaskSchedulerMultiFrontierFailureReleasesOnlyFailedRegistration(t *test
 		awaitTaskSignal(t, aEntered)
 		awaitTaskSignal(t, bEntered)
 		h.session.taskBookkeeping(func() { h.scheduler.enabled.Store(false) })
-		_, err = h.CommitTasks(bg, foreign, func(tx *Tx) error {
+		_, err = h.commitTasks(bg, foreign, func(tx *Tx) error {
 			var err error
 			cID, err = tx.CreateTask(c, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 			if err != nil {
@@ -3054,7 +3054,7 @@ func TestTaskSchedulerLateWatchAcquisitionAttachmentSealsAndStops(t *testing.T) 
 				if err != nil {
 					t.Fatal(err)
 				}
-				_, err = h.CommitTasks(bg, 1, func(tx *Tx) error { _, err := tx.AcquireDocument(notes, 0, nil, nil); return err })
+				_, err = h.commitTasks(bg, 1, func(tx *Tx) error { _, err := tx.AcquireDocument(notes, 0, nil, nil); return err })
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -3263,7 +3263,7 @@ func TestTaskSchedulerOutcomesSingleAdmissionOrderEmptyAndDetached(t *testing.T)
 		// Terminal fixtures predate the reader invocation. Explicit null and
 		// nested result/error placements all remain detached in caller order.
 		var first, second, nullID, liveID ID
-		_, err := h.CommitTasks(bg, 1, func(tx *Tx) error {
+		_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 			for index, dest := range []*ID{&first, &second, &nullID, &liveID} {
 				id, err := tx.MintID()
 				if err != nil {
@@ -3391,7 +3391,7 @@ func TestTaskSchedulerOutcomesMemoTypedEntryQueuedSealPrecedence(t *testing.T) {
 					t.Fatal(err)
 				}
 				var terminalID, entryID ID
-				_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+				_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 					var err error
 					terminalID, err = tx.MintID()
 					if err != nil {
@@ -3490,7 +3490,7 @@ func TestTaskSchedulerOutcomesCollectionBudgetAndQueuedCancellation(t *testing.T
 			h := taskTestHarness(t, store, def)
 			cleanupTaskGates(t, releaseHost)
 			var terminal ID
-			_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+			_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 				var err error
 				terminal, err = tx.MintID()
 				if err != nil {
@@ -3899,7 +3899,7 @@ func TestTaskSchedulerInitialWatchAcquisitionQueuedSealCancelAbsent(t *testing.T
 						t.Fatal(err)
 					}
 					if present {
-						_, err = h.CommitTasks(bg, 1, func(tx *Tx) error { _, err := tx.AcquireDocument(notes, 0, nil, nil); return err })
+						_, err = h.commitTasks(bg, 1, func(tx *Tx) error { _, err := tx.AcquireDocument(notes, 0, nil, nil); return err })
 						if err != nil {
 							t.Fatal(err)
 						}
@@ -4513,7 +4513,7 @@ func TestTaskSchedulerFailFastSelectedAncestorPrefixCannotReserveOrdinaryDescend
 						first := createPublicTask(t, h, definition, nil, TaskOptions{Ownership: TaskOwnership{Kind: "task", Task: parent}})
 						selected := createPublicTask(t, h, definition, nil, TaskOptions{Ownership: TaskOwnership{Kind: "task", Task: parent}})
 						var descendant, conversation, background, backgroundChild, terminal, terminalConversation, afterTerminal, outside ID
-						_, err := h.CommitTasks(bg, 1, func(tx *Tx) error {
+						_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 							var err error
 							conversation, err = tx.MintID()
 							if err != nil {
@@ -4524,7 +4524,7 @@ func TestTaskSchedulerFailFastSelectedAncestorPrefixCannotReserveOrdinaryDescend
 						if err != nil {
 							t.Fatal(err)
 						}
-						_, err = h.CommitTasks(bg, conversation, func(tx *Tx) error {
+						_, err = h.commitTasks(bg, conversation, func(tx *Tx) error {
 							ownership := TaskOwnership{Kind: "task", Task: selected}
 							if edge == "conversation" {
 								ownership = TaskOwnership{Kind: "conversation"}
@@ -4558,7 +4558,7 @@ func TestTaskSchedulerFailFastSelectedAncestorPrefixCannotReserveOrdinaryDescend
 						}
 						// A background member is conversation-owned (background task
 						// ownership must not be forged as a task-owned child).
-						_, err = h.CommitTasks(bg, conversation, func(tx *Tx) error {
+						_, err = h.commitTasks(bg, conversation, func(tx *Tx) error {
 							var err error
 							background, err = tx.CreateTask(definition, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}, Background: true})
 							return err
@@ -4568,7 +4568,7 @@ func TestTaskSchedulerFailFastSelectedAncestorPrefixCannotReserveOrdinaryDescend
 						}
 						backgroundChild = createPublicTask(t, h, definition, nil, TaskOptions{Conversation: conversation, Ownership: TaskOwnership{Kind: "task", Task: background}})
 						terminal = createPublicTask(t, h, definition, nil, TaskOptions{Ownership: TaskOwnership{Kind: "task", Task: selected}})
-						_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+						_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 							var err error
 							terminalConversation, err = tx.MintID()
 							if err != nil {
@@ -4580,7 +4580,7 @@ func TestTaskSchedulerFailFastSelectedAncestorPrefixCannotReserveOrdinaryDescend
 							t.Fatal(err)
 						}
 						outside = createPublicTask(t, h, definition, nil, TaskOptions{Ownership: TaskOwnership{Kind: "task", Task: parent}})
-						_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+						_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 							for _, id := range []ID{failed, terminal} {
 								task, err := copyTask(tx.state.Tasks[id], tx.limits)
 								if err != nil {
@@ -4607,7 +4607,7 @@ func TestTaskSchedulerFailFastSelectedAncestorPrefixCannotReserveOrdinaryDescend
 						if err != nil {
 							t.Fatal(err)
 						}
-						_, err = h.CommitTasks(bg, terminalConversation, func(tx *Tx) error {
+						_, err = h.commitTasks(bg, terminalConversation, func(tx *Tx) error {
 							var err error
 							afterTerminal, err = tx.CreateTask(definition, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 							return err
@@ -4702,7 +4702,7 @@ func TestTaskSchedulerActiveDescendantPhaseStopsBeforeSelectedOwnerMark(t *testi
 		f := createPublicTask(t, h, control, nil, TaskOptions{Ownership: TaskOwnership{Kind: "task", Task: p}})
 		s := createPublicTask(t, h, control, nil, TaskOptions{Ownership: TaskOwnership{Kind: "task", Task: p}})
 		d := createPublicTask(t, h, definition, nil, TaskOptions{Ownership: TaskOwnership{Kind: "task", Task: s}})
-		_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+		_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 			parent, err := copyTask(tx.state.Tasks[p], tx.limits)
 			if err != nil {
 				return err
@@ -4720,7 +4720,7 @@ func TestTaskSchedulerActiveDescendantPhaseStopsBeforeSelectedOwnerMark(t *testi
 		awaitTaskSignal(t, entered)
 		picked := <-captured
 		h.session.taskBookkeeping(func() { h.scheduler.enabled.Store(false) })
-		_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
+		_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 			failed, err := copyTask(tx.state.Tasks[f], tx.limits)
 			if err != nil {
 				return err

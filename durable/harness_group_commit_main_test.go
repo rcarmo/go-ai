@@ -123,7 +123,7 @@ func TestMainGroupCommitHoldsLiveOwnerRaceCreation(t *testing.T) {
 	}
 	ids := map[string]ID{}
 	var conv ID
-	if _, err := h.CommitTasks(ctx, c.ID(), func(tx *Tx) error {
+	if _, err := h.commitTasks(ctx, c.ID(), func(tx *Tx) error {
 		id, err := tx.CreateTask(defs["p"], JSON{"name": "p"}, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 		if err != nil {
 			return err
@@ -173,13 +173,13 @@ func TestMainGroupCommitHoldsLiveOwnerRaceCreation(t *testing.T) {
 	}
 	creating := make(chan ID, 1)
 	go func() {
-		if _, err := sub.Commit(ctx, func(tx *Tx) error {
+		if _, err := sub.Commit(ctx, func(tx *Tx) (any, error) {
 			task, err := tx.CreateTask(defs["d"], JSON{"name": "d"}, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 			if err != nil {
-				return err
+				return nil, err
 			}
 			creating <- task
-			return nil
+			return nil, nil
 		}); err != nil {
 			t.Errorf("creation commit: %v", err)
 		}
@@ -318,7 +318,7 @@ func TestMainGroupCommitOwnerEndFollowsCreationBelowPendingEnd(t *testing.T) {
 	}
 	ids := map[string]ID{}
 	var conv ID
-	if _, err := h.CommitTasks(ctx, c.ID(), func(tx *Tx) error {
+	if _, err := h.commitTasks(ctx, c.ID(), func(tx *Tx) error {
 		id, err := tx.CreateTask(defs["p"], JSON{"name": "p"}, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 		if err != nil {
 			return err
@@ -363,7 +363,7 @@ func TestMainGroupCommitOwnerEndFollowsCreationBelowPendingEnd(t *testing.T) {
 	held.holdCommits()
 	blocker := make(chan error, 1)
 	go func() {
-		_, err := h.CommitTasks(ctx, c.ID(), func(tx *Tx) error {
+		_, err := h.commitTasks(ctx, c.ID(), func(tx *Tx) error {
 			id, err := tx.MintID()
 			if err != nil {
 				return err
@@ -385,13 +385,13 @@ func TestMainGroupCommitOwnerEndFollowsCreationBelowPendingEnd(t *testing.T) {
 	time.Sleep(150 * time.Millisecond)
 	creating := make(chan ID, 1)
 	go func() {
-		if _, err := sub.Commit(ctx, func(tx *Tx) error {
+		if _, err := sub.Commit(ctx, func(tx *Tx) (any, error) {
 			task, err := tx.CreateTask(defs["d"], JSON{"name": "d"}, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 			if err != nil {
-				return err
+				return nil, err
 			}
 			creating <- task
-			return nil
+			return nil, nil
 		}); err != nil {
 			t.Errorf("creation commit: %v", err)
 		}
@@ -550,7 +550,7 @@ func TestMainGroupCommitChildEndsBeforePhaseWhenMarkUnpublished(t *testing.T) {
 		t.Fatal(err)
 	}
 	var owner, child ID
-	if _, err := h.CommitTasks(ctx, c.ID(), func(tx *Tx) error {
+	if _, err := h.commitTasks(ctx, c.ID(), func(tx *Tx) error {
 		var err error
 		owner, err = tx.CreateTask(ownerDef, JSON{"name": "o"}, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 		if err != nil {
@@ -731,7 +731,7 @@ func TestMainGroupCommitLineReadsWaitForPendingMembership(t *testing.T) {
 			}
 
 			var maker ID
-			if _, err := h.CommitTasks(ctx, c.ID(), func(tx *Tx) error {
+			if _, err := h.commitTasks(ctx, c.ID(), func(tx *Tx) error {
 				var err error
 				maker, err = tx.CreateTask(makerDef, JSON{"name": "p"}, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 				if err != nil {

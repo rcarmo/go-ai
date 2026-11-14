@@ -121,26 +121,26 @@ func TestAgentEventsCommittedToolLifecycleAndReentrantListener(t *testing.T) {
 func TestEventSnapshotUsesActiveHeadAndBuiltinDocsOnly(t *testing.T) {
 	store, _ := newTestSQLite(t)
 	h := openHarness(t, store, Options{})
-	_, err := h.session.Commit(bg, func(tx *Tx) error {
+	_, err := h.session.Commit(bg, func(tx *Tx) (any, error) {
 		if err := initializeBuiltins(tx, 1); err != nil {
-			return err
+			return nil, err
 		}
 		id, err := tx.MintID()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if err = tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "app.old", Value: JSON{}}); err != nil {
-			return err
+			return nil, err
 		}
 		if err = appendReset(tx, 1, "fresh"); err != nil {
-			return err
+			return nil, err
 		}
 		id, err = tx.MintID()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		_, err = tx.CreateDocument(Document{ID: id, Scope: "conversation", Owner: 1, Kind: "app.private", Family: true, Key: "named", Version: 1, Value: JSON{"not": "mounted"}, History: "latest", Fork: "initial"})
-		return err
+		return nil, err
 	})
 	if err != nil {
 		t.Fatal(err)

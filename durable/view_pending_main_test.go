@@ -68,12 +68,12 @@ func TestMainConversationPendingDelivery(t *testing.T) {
 				commit := func(n int) {
 					ctx, cancel := context.WithCancel(context.WithValue(bg, key{}, n))
 					defer cancel()
-					if _, err := h.session.Commit(ctx, func(tx *Tx) error {
+					if _, err := h.session.Commit(ctx, func(tx *Tx) (any, error) {
 						live, err := tx.Document(liveID)
 						if err != nil {
-							return err
+							return nil, err
 						}
-						return live.ApplyOperations([]Operation{{"s", []any{"fold"}, n}})
+						return nil, live.ApplyOperations([]Operation{{"s", []any{"fold"}, n}})
 					}); err != nil {
 						t.Fatal(err)
 					}

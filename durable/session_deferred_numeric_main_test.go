@@ -125,7 +125,7 @@ func TestMainSessionDeferredNumericPolicy(t *testing.T) {
 		// Invalid configured defaults fall back to 1000ms. Store the previous
 		// hold first so its earlier deadline cannot win the next minimum.
 		for _, invalid := range []float64{math.Inf(-1), math.NaN()} {
-			if _, err := f.session.Commit(bg, mainDeferredAppend(f.doc, "stored")); err != nil {
+			if _, err := f.session.Commit(bg, func(tx *Tx) (any, error) { return nil, mainDeferredAppend(f.doc, "stored")(tx) }); err != nil {
 				t.Fatal(err)
 			}
 			window = invalid

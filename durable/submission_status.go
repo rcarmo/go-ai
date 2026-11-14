@@ -109,32 +109,32 @@ func (h *Harness) abortSubmission(ctx context.Context, id ID, scope *ID, binding
 		return "", ErrClosed
 	}
 	result := "not_found"
-	_, err := h.session.Commit(ctx, func(tx *Tx) error {
+	_, err := h.session.Commit(ctx, func(tx *Tx) (any, error) {
 		if err := tx.touchKeys(ALL_KEYS); err != nil {
-			return err
+			return nil, err
 		}
 		if h.closing.Load() {
-			return ErrClosed
+			return nil, ErrClosed
 		}
 		if binding != nil {
 			if err := binding.check(); err != nil {
-				return err
+				return nil, err
 			}
 			if taskAborted(tx.state.Tasks[binding.taskID]) && !binding.abortMode {
-				return ErrSealed
+				return nil, ErrSealed
 			}
 		}
 		sub, ok := tx.state.Submissions[id]
 		if !ok || scope != nil && sub.Conversation != *scope {
-			return nil
+			return nil, nil
 		}
 		if terminalStatus(sub.Status) {
 			result = "settled"
-			return nil
+			return nil, nil
 		}
 		if sub.Type == "continue" || submissionEntryID(sub.Value["placedEntry"]) != 0 {
 			result = "already_placed"
-			return nil
+			return nil, nil
 		}
 		var queued *Task
 		for _, taskID := range ids(tx.state.Tasks) {
@@ -144,7 +144,7 @@ func (h *Harness) abortSubmission(ctx context.Context, id ID, scope *ID, binding
 			}
 			var cp generationCheckpoint
 			if err := fromObject(task.Checkpoint, &cp, tx.limits); err != nil {
-				return err
+				return nil, err
 			}
 			if !generationIncludesSubmission(cp, id) {
 				continue
@@ -156,20 +156,20 @@ func (h *Harness) abortSubmission(ctx context.Context, id ID, scope *ID, binding
 					continue
 				}
 				result = "already_placed"
-				return nil
+				return nil, nil
 			}
 			if len(h.scheduler.ownedLive(tx.state, task.ID)) > 0 {
-				return reject("queued submission owns live work; abort its conversation")
+				return nil, reject("queued submission owns live work; abort its conversation")
 			}
 			owned, err := copyTask(task, tx.limits)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			cp.Phase = "terminal"
 			cp.Abort = true
 			owned.Checkpoint, err = dtoObject(cp, tx.limits)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			owned.Status = "aborted"
 			queued = &owned
@@ -177,21 +177,21 @@ func (h *Harness) abortSubmission(ctx context.Context, id ID, scope *ID, binding
 		// Inbox membership is authoritative for queued writes and queued inputs.
 		inbox, err := builtin(tx, sub.Conversation, "pi.inbox")
 		if err != nil {
-			return err
+			return nil, err
 		}
 		value, err := inbox.Get()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		items, ok := value["items"].([]any)
 		if !ok {
-			return reject("inbox shape")
+			return nil, reject("inbox shape")
 		}
 		keep := make([]any, 0, len(items))
 		for _, item := range items {
 			object, ok := item.(map[string]any)
 			if !ok {
-				return reject("inbox item")
+				return nil, reject("inbox item")
 			}
 			if fmt.Sprint(object["id"]) == strconv.FormatUint(uint64(id), 10) {
 				continue
@@ -206,20 +206,20 @@ func (h *Harness) abortSubmission(ctx context.Context, id ID, scope *ID, binding
 			}
 			tx.taskTerminals[queued.ID] = true
 			if err := tx.stage(Write{Op: "put-task", Task: queued}); err != nil {
-				return err
+				return nil, err
 			}
 		}
 		sub.Status = "aborted"
 		sub.Value = JSON{"errorCode": "aborted"}
 		if err := tx.PutSubmission(sub); err != nil {
-			return err
+			return nil, err
 		}
 		value["items"] = keep
 		if err := inbox.Set(value); err != nil {
-			return err
+			return nil, err
 		}
 		result = "aborted"
-		return nil
+		return nil, nil
 	})
 	return result, err
 }

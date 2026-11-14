@@ -54,16 +54,16 @@ func TestMainSessionDeferredDefinitionVersionReload(t *testing.T) {
 		if value := mainDeferredSnapshot(t, b.store).Documents[f.doc].Value; !equalJSONValue(value, JSON{"text": "held"}) {
 			t.Fatal("reload stored migration or lost hold", value)
 		}
-		if _, err := f.session.Commit(bg, func(tx *Tx) error { _, err := tx.AcquireDocument(old, 1, nil, nil); return err }); err != nil {
+		if _, err := f.session.Commit(bg, func(tx *Tx) (any, error) { _, err := tx.AcquireDocument(old, 1, nil, nil); return nil, err }); err != nil {
 			t.Fatal(err)
 		}
 		mainDeferredLifecycleAppend(t, f.session, old, 1, "+")
-		if _, err := f.session.Commit(bg, func(tx *Tx) error {
+		if _, err := f.session.Commit(bg, func(tx *Tx) (any, error) {
 			h, err := tx.AcquireDocument(next, 1, nil, nil)
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return h.ApplyOperations([]Operation{{"a", []any{"text"}, "v2"}})
+			return nil, h.ApplyOperations([]Operation{{"a", []any{"text"}, "v2"}})
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -81,7 +81,7 @@ func TestMainSessionDeferredRetirement(t *testing.T) {
 		old, _ := mainDeferredLifecycleDefinitions(t)
 		mainDeferredLifecycleAppend(t, f.session, old, 1, "held")
 		batches := mainDeferredLifecycleBatches(t, f.session)
-		if _, err := f.session.Commit(bg, func(tx *Tx) error { return tx.RetireDefinition(old, 1, nil) }); err != nil {
+		if _, err := f.session.Commit(bg, func(tx *Tx) (any, error) { return nil, tx.RetireDefinition(old, 1, nil) }); err != nil {
 			t.Fatal(err)
 		}
 		writes := batches()
@@ -112,15 +112,15 @@ func TestMainSessionDeferredReloadRollbackBarrier(t *testing.T) {
 		mainDeferredLifecycleAppend(t, f.session, old, 1, "held")
 		failure := errors.New("after reload")
 		batches := mainDeferredLifecycleBatches(t, f.session)
-		if _, err := f.session.Commit(bg, func(tx *Tx) error {
+		if _, err := f.session.Commit(bg, func(tx *Tx) (any, error) {
 			h, err := tx.AcquireDocument(next, 1, nil, nil)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if err := h.ApplyOperations([]Operation{{"a", []any{"text"}, "discard"}}); err != nil {
-				return err
+				return nil, err
 			}
-			return failure
+			return nil, failure
 		}); err != failure {
 			t.Fatal(err)
 		}
@@ -141,20 +141,20 @@ func TestMainSessionDeferredMultipleReloadPrefixes(t *testing.T) {
 		f := openMainDeadlineSession(t, b, nil)
 		old, next := mainDeferredLifecycleDefinitions(t)
 		var peer, peerDoc ID
-		if _, err := f.session.Commit(bg, func(tx *Tx) error {
+		if _, err := f.session.Commit(bg, func(tx *Tx) (any, error) {
 			var err error
 			peer, err = tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if err := tx.CreateConversation(Conversation{ID: peer}); err != nil {
-				return err
+				return nil, err
 			}
 			h, err := tx.AcquireDocument(old, peer, nil, nil)
 			if err == nil {
 				peerDoc = h.id
 			}
-			return err
+			return nil, err
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -164,24 +164,24 @@ func TestMainSessionDeferredMultipleReloadPrefixes(t *testing.T) {
 		publications := f.publications()
 		batches := mainDeferredLifecycleBatches(t, f.session)
 		var entry ID
-		seq, err := f.session.Commit(bg, func(tx *Tx) error {
+		value, err := f.session.Commit(bg, func(tx *Tx) (any, error) {
 			var err error
 			entry, err = tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if err := tx.AppendEntry(Entry{ID: entry, Conversation: 1, Kind: "note", Value: JSON{"text": "staged"}}); err != nil {
-				return err
+				return nil, err
 			}
 			h, err := tx.AcquireDocument(next, 1, nil, nil)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if err := h.ApplyOperations([]Operation{{"a", []any{"text"}, "+"}}); err != nil {
-				return err
+				return nil, err
 			}
 			_, err = tx.AcquireDocument(next, peer, nil, nil)
-			return err
+			return nil, err
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -191,7 +191,8 @@ func TestMainSessionDeferredMultipleReloadPrefixes(t *testing.T) {
 			t.Fatal("selected reload prefixes", writes)
 		}
 		raw := mainDeferredSnapshot(t, b.store)
-		if seq != before+3 || raw.Seq != seq || raw.Entries[entry].Value["text"] != "staged" || !equalJSONValue(raw.Documents[f.doc].Value, JSON{"text": "one+", "migrated": true}) || !equalJSONValue(raw.Documents[peerDoc].Value, JSON{"text": "two", "migrated": true}) {
+		seq := raw.Seq
+		if value != nil || seq != before+3 || raw.Entries[entry].Value["text"] != "staged" || !equalJSONValue(raw.Documents[f.doc].Value, JSON{"text": "one+", "migrated": true}) || !equalJSONValue(raw.Documents[peerDoc].Value, JSON{"text": "two", "migrated": true}) {
 			t.Fatal("reload lost staged work/receipts", seq, before, raw)
 		}
 		f.stored.mu.Lock()
@@ -263,7 +264,7 @@ func TestMainSessionDeferredReloadCancellation(t *testing.T) {
 						t.Fatal("admitted reader did not cancel", err)
 					}
 				} else {
-					if _, err := f.session.Commit(ctx, func(tx *Tx) error { cancel(); _, err := tx.AcquireDocument(next, 1, nil, nil); return err }); !errors.Is(err, context.Canceled) {
+					if _, err := f.session.Commit(ctx, func(tx *Tx) (any, error) { cancel(); _, err := tx.AcquireDocument(next, 1, nil, nil); return nil, err }); !errors.Is(err, context.Canceled) {
 						t.Fatal(err)
 					}
 				}

@@ -182,7 +182,7 @@ func TestV150GroupCommitRefusesSecondOfTwoOppositeWaits(t *testing.T) {
 	ctx, cancel := context.WithTimeout(bg, 12*time.Second)
 	defer cancel()
 	ids := map[string]ID{}
-	if _, err := h.CommitTasks(ctx, c.ID(), func(tx *Tx) error {
+	if _, err := h.commitTasks(ctx, c.ID(), func(tx *Tx) error {
 		x, err := tx.CreateTask(def, JSON{"name": "x"}, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 		if err != nil {
 			return err

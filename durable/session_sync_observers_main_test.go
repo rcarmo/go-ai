@@ -217,20 +217,20 @@ func mainSyncCounterSession(t *testing.T, b sqliteFixture) (*Session, func() err
 		t.Fatal(err)
 	}
 	return s, func() error {
-		_, err := s.Commit(bg, func(tx *Tx) error {
+		_, err := s.Commit(bg, func(tx *Tx) (any, error) {
 			h, err := tx.AcquireDocument(def, 0, nil, nil)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			value, err := h.Get()
 			if err != nil {
-				return err
+				return nil, err
 			}
 			count, err := value["count"].(json.Number).Int64()
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return h.ApplyOperations([]Operation{{"s", []any{"count"}, count + 1}})
+			return nil, h.ApplyOperations([]Operation{{"s", []any{"count"}, count + 1}})
 		})
 		return err
 	}
@@ -256,10 +256,12 @@ func TestMainSyncCommitObserverSeesAdoptionBeforeCommitReturns(t *testing.T) {
 	defer cancel()
 	var entry ID
 	calls := 0
+	var seq uint64
 	var callbackErr error
 	_, err = s.observeStoredCommits(sessionCommitObserver{
 		advance: func(_ context.Context, p sessionPublication) error {
 			calls++
+			seq = p.Seq
 			// These private reads avoid re-entering the Session line from its
 			// synchronous callback (which the native contract forbids).
 			if p.Seq != s.readImage.Seq {
@@ -285,18 +287,18 @@ func TestMainSyncCommitObserverSeesAdoptionBeforeCommitReturns(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	seq, err := s.Commit(ctx, func(tx *Tx) error {
+	value, err := s.Commit(ctx, func(tx *Tx) (any, error) {
 		var e error
 		entry, e = tx.MintID()
 		if e != nil {
-			return e
+			return nil, e
 		}
-		return tx.AppendEntry(Entry{ID: entry, Conversation: 1, Kind: "note", Value: JSON{"body": "published"}})
+		return nil, tx.AppendEntry(Entry{ID: entry, Conversation: 1, Kind: "note", Value: JSON{"body": "published"}})
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if calls != 1 || callbackErr != nil || seq != s.readImage.Seq {
+	if value != nil || calls != 1 || callbackErr != nil || seq != s.readImage.Seq {
 		t.Fatalf("callback before Commit return: calls=%d err=%v returned=%d adopted=%d", calls, callbackErr, seq, s.readImage.Seq)
 	}
 }

@@ -43,21 +43,21 @@ func TestCompaction140SleepAlarmResumesWithoutWaitAdmission(t *testing.T) {
 		}
 		h := openHarness(t, b.store, options)
 		conversation := root(t, h, ref)
-		if _, err := h.session.Commit(bg, func(tx *Tx) error {
+		if _, err := h.session.Commit(bg, func(tx *Tx) (any, error) {
 			for _, text := range []string{"old", "recent"} {
 				id, err := tx.MintID()
 				if err != nil {
-					return err
+					return nil, err
 				}
 				value, err := dtoObject(userReceipt(text), tx.limits)
 				if err != nil {
-					return err
+					return nil, err
 				}
 				if err = tx.AppendEntry(Entry{ID: id, Conversation: conversation.ID(), Kind: "message", Value: value}); err != nil {
-					return err
+					return nil, err
 				}
 			}
-			return nil
+			return nil, nil
 		}); err != nil {
 			t.Fatal(err)
 		}

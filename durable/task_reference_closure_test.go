@@ -138,7 +138,7 @@ func TestTaskOwnershipLiveFailedOwnerAbortsNewWorkWhileOldChildDrains(t *testing
 			t.Fatal("owner not held", current, err)
 		}
 		var late ID
-		_, err = h.CommitTasks(bg, ownedConversation, func(tx *Tx) error {
+		_, err = h.commitTasks(bg, ownedConversation, func(tx *Tx) error {
 			var err error
 			late, err = tx.CreateTask(child, "late", TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 			return err
@@ -166,7 +166,7 @@ func TestTaskOwnershipLiveFailedOwnerAbortsNewWorkWhileOldChildDrains(t *testing
 			t.Fatal(err)
 		}
 		var futureID ID
-		_, err = h.CommitTasks(bg, ownedConversation, func(tx *Tx) error {
+		_, err = h.commitTasks(bg, ownedConversation, func(tx *Tx) error {
 			var err error
 			futureID, err = tx.CreateTask(future, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 			return err

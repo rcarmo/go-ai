@@ -65,7 +65,7 @@ func TestConversationCreatedPinnedRawOwnedForkOrderAndRollback(t *testing.T) {
 		}
 		var plain, owned, at ID
 		definition := taskDefinition(t, "task.creation.owner", func(context.Context, TaskRecord, *TaskRuntime) error { return nil })
-		_, err = h.CommitTasks(bg, root.ID(), func(tx *Tx) error {
+		_, err = h.commitTasks(bg, root.ID(), func(tx *Tx) error {
 			owner, err := tx.CreateTask(definition, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 			if err != nil {
 				return err
@@ -125,7 +125,7 @@ func TestConversationCreatedPinnedRawOwnedForkOrderAndRollback(t *testing.T) {
 				t.Fatal("creation failure leaked", before.Seq, after.Seq)
 			}
 			// Catching the callback failure cannot admit other transaction writes.
-			_, err = h.CommitTasks(bg, root.ID(), func(tx *Tx) error {
+			_, err = h.commitTasks(bg, root.ID(), func(tx *Tx) error {
 				id, err := tx.MintID()
 				if err != nil {
 					return err

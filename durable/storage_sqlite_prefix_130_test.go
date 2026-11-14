@@ -22,13 +22,13 @@ func TestSQLite130PrefixIsolationReopenAndReclaim(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = s.Commit(bg, func(tx *Tx) error {
+		_, err = s.Commit(bg, func(tx *Tx) (any, error) {
 			id, err := tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
 			_, err = tx.CreateDocument(Document{ID: id, Scope: "session", Kind: "app.prefix", Version: 1, Value: JSON{"index": i}})
-			return err
+			return nil, err
 		})
 		if err != nil {
 			t.Fatal(err)

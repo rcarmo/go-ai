@@ -206,12 +206,12 @@ func TestObservationStopCancelCloseNoJoinAndListenerFailure(t *testing.T) {
 	})
 	type watchContextKey struct{}
 	producer, cancel := context.WithCancel(context.WithValue(bg, watchContextKey{}, "context-owned"))
-	if _, e = s.Commit(producer, func(tx *Tx) error {
+	if _, e = s.Commit(producer, func(tx *Tx) (any, error) {
 		h, e := tx.AcquireDocument(def, 0, nil, nil)
 		if e != nil {
-			return e
+			return nil, e
 		}
-		return h.Set(JSON{"n": 1, "xs": []any{}})
+		return nil, h.Set(JSON{"n": 1, "xs": []any{}})
 	}); e != nil {
 		t.Fatal(e)
 	}
@@ -286,12 +286,12 @@ func TestObservationNoPublicationBeforeAdoptionOrOnRejection(t *testing.T) {
 	store.appendFrame = func(byte, uint64, uint64, []byte) error { close(entered); <-release; return nil }
 	done := make(chan error, 1)
 	go func() {
-		_, e := s.Commit(bg, func(tx *Tx) error {
+		_, e := s.Commit(bg, func(tx *Tx) (any, error) {
 			h, e := tx.AcquireDocument(def, 0, nil, nil)
 			if e != nil {
-				return e
+				return nil, e
 			}
-			return h.Set(JSON{"n": 1, "xs": []any{}})
+			return nil, h.Set(JSON{"n": 1, "xs": []any{}})
 		})
 		done <- e
 	}()
@@ -307,12 +307,12 @@ func TestObservationNoPublicationBeforeAdoptionOrOnRejection(t *testing.T) {
 	}
 	watchReceive(t, delivered)
 	store.appendFrame = func(byte, uint64, uint64, []byte) error { return reject("preadmission") }
-	if _, e = s.Commit(bg, func(tx *Tx) error {
+	if _, e = s.Commit(bg, func(tx *Tx) (any, error) {
 		h, e := tx.AcquireDocument(def, 0, nil, nil)
 		if e != nil {
-			return e
+			return nil, e
 		}
-		return h.Set(JSON{"n": 2, "xs": []any{}})
+		return nil, h.Set(JSON{"n": 2, "xs": []any{}})
 	}); e == nil {
 		t.Fatal("rejection missing")
 	}
@@ -335,12 +335,12 @@ func TestObservationNoPublicationBeforeAdoptionOrOnRejection(t *testing.T) {
 	defer w.Stop()
 	startDetachedDocumentValues(w, func(context.Context, JSON, []Operation) error { delivered <- struct{}{}; return nil })
 	reopened.(*SQLiteStorage).appendFrame = func(byte, uint64, uint64, []byte) error { return errors.New("uncertain") }
-	if _, e = s.Commit(bg, func(tx *Tx) error {
+	if _, e = s.Commit(bg, func(tx *Tx) (any, error) {
 		h, e := tx.AcquireDocument(def, 0, nil, nil)
 		if e != nil {
-			return e
+			return nil, e
 		}
-		return h.Set(JSON{"n": 3, "xs": []any{}})
+		return nil, h.Set(JSON{"n": 3, "xs": []any{}})
 	}); !errors.Is(e, ErrPoisoned) {
 		t.Fatal(e)
 	}
@@ -599,12 +599,12 @@ func TestObservationRegistrationSnapshotAndCancellationBarrier(t *testing.T) {
 	committed := make(chan error, 1)
 	go func() {
 		close(started)
-		_, e := s.Commit(bg, func(tx *Tx) error {
+		_, e := s.Commit(bg, func(tx *Tx) (any, error) {
 			h, e := tx.AcquireDocument(migrated, 0, nil, nil)
 			if e != nil {
-				return e
+				return nil, e
 			}
-			return h.Set(JSON{"n": 1, "xs": []any{"a", "b"}, "migrated": true})
+			return nil, h.Set(JSON{"n": 1, "xs": []any{"a", "b"}, "migrated": true})
 		})
 		committed <- e
 	}()

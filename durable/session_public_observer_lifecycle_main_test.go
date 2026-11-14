@@ -57,15 +57,15 @@ func TestMainPublicDocumentObserverRetirementAndGuards(t *testing.T) {
 			}
 			defer first.Detach()
 			defer second.Detach()
-			_, err = s.Commit(bg, func(tx *Tx) error {
+			_, err = s.Commit(bg, func(tx *Tx) (any, error) {
 				if err := tx.RetireDefinition(def, owner, nil); err != nil {
-					return err
+					return nil, err
 				}
 				doc, err := tx.AcquireDocument(def, owner, nil, nil)
 				if err != nil {
-					return err
+					return nil, err
 				}
-				return doc.ApplyOperations([]Operation{{"s", []any{"count"}, 2}})
+				return nil, doc.ApplyOperations([]Operation{{"s", []any{"count"}, 2}})
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -125,12 +125,12 @@ func TestMainDocumentAttachmentCancellationCauseIdentity(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if _, err = s.Commit(bg, func(tx *Tx) error {
+				if _, err = s.Commit(bg, func(tx *Tx) (any, error) {
 					doc, err := tx.AcquireDocument(def, 0, nil, nil)
 					if err != nil {
-						return err
+						return nil, err
 					}
-					return doc.ApplyOperations([]Operation{{"s", []any{"count"}, 1}})
+					return nil, doc.ApplyOperations([]Operation{{"s", []any{"count"}, 1}})
 				}); err != nil {
 					t.Fatal(err)
 				}

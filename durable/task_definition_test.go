@@ -26,14 +26,14 @@ func sessionInvariantSession(t *testing.T, store Storage) *Session {
 	return session
 }
 func applySessionTaskFixture(session *Session, ctx context.Context, batch Batch) (uint64, error) {
-	return session.Commit(ctx, func(tx *Tx) error {
+	return session.commit(ctx, func(tx *Tx) error {
 		for _, write := range batch.Writes {
 			if err := tx.stage(write); err != nil {
 				return err
 			}
 		}
 		return nil
-	})
+	}, true, 0)
 }
 func applySessionTaskFixtureMust(t *testing.T, session *Session, writes ...Write) uint64 {
 	t.Helper()
@@ -265,19 +265,19 @@ func TestTaskDefinitionFoundationRawStoreSnapshotImageAndTxDetach(t *testing.T) 
 			t.Fatal(err)
 		}
 		defer session.Close(bg)
-		_, err = session.Commit(bg, func(tx *Tx) error {
+		_, err = session.Commit(bg, func(tx *Tx) (any, error) {
 			v := tx.state.Tasks[id]
 			taskCheckpointMap(v.Execution.Native.State.Checkpoint)["count"] = 1
 			// Raw public Tx.PutTask cannot replace native execution authority.
 			if err := tx.PutTask(v); err == nil {
-				return errors.New("raw execution replacement accepted")
+				return nil, errors.New("raw execution replacement accepted")
 			}
 			// Private adapter staging still performs the full copy boundary.
 			if err := tx.stage(Write{Op: "put-task", Task: &v}); err != nil {
-				return err
+				return nil, err
 			}
 			taskCheckpointMap(v.Execution.Native.State.Checkpoint)["count"] = 9
-			return nil
+			return nil, nil
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -377,9 +377,9 @@ func TestTaskDefinitionPublicCreateTaskBoundOwnershipAndSealed(t *testing.T) {
 		}
 		defer session.Close(bg)
 		beforeZero, _ := session.Snapshot(bg)
-		_, err = session.Commit(bg, func(tx *Tx) error {
+		_, err = session.Commit(bg, func(tx *Tx) (any, error) {
 			_, err := tx.CreateTask(&TaskDefinition{}, nil, TaskOptions{Conversation: 1, Ownership: TaskOwnership{Kind: "conversation"}})
-			return err
+			return nil, err
 		})
 		afterZero, _ := session.Snapshot(bg)
 		if err == nil || beforeZero.Seq != afterZero.Seq || beforeZero.HighWater != afterZero.HighWater {
@@ -387,15 +387,15 @@ func TestTaskDefinitionPublicCreateTaskBoundOwnershipAndSealed(t *testing.T) {
 		}
 		var parent, child ID
 		var escaped *Tx
-		_, err = session.Commit(bg, func(tx *Tx) error {
+		_, err = session.Commit(bg, func(tx *Tx) (any, error) {
 			escaped = tx
 			var err error
 			parent, err = tx.CreateTask(definition, nil, TaskOptions{Conversation: 1, Ownership: TaskOwnership{Kind: "conversation"}})
 			if err != nil {
-				return err
+				return nil, err
 			}
 			child, err = tx.CreateTask(definition, []any{nil, "child"}, TaskOptions{Ownership: TaskOwnership{Kind: "task", Task: parent}})
-			return err
+			return nil, err
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -408,9 +408,9 @@ func TestTaskDefinitionPublicCreateTaskBoundOwnershipAndSealed(t *testing.T) {
 			t.Fatal("escaped task creation", err)
 		}
 		before := state.Seq
-		_, err = session.Commit(bg, func(tx *Tx) error {
+		_, err = session.Commit(bg, func(tx *Tx) (any, error) {
 			_, err := tx.CreateTask(definition, nil, TaskOptions{Ownership: TaskOwnership{Kind: "task", Task: parent}, Background: true})
-			return err
+			return nil, err
 		})
 		if err == nil {
 			t.Fatal("background child accepted")
@@ -441,15 +441,15 @@ func TestTaskDefinitionOptionalFailedAbortedResultAndRawForgery(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer session.Close(bg)
-		_, err = session.Commit(bg, func(tx *Tx) error {
+		_, err = session.Commit(bg, func(tx *Tx) (any, error) {
 			id, err := tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
 			forged := foundationTask(id, nil)
 			forged.Status = "failed"
 			forged.Execution.Native.State = TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "orphaned", Reason: "forged"}}
-			return tx.PutTask(forged)
+			return nil, tx.PutTask(forged)
 		})
 		if err == nil {
 			t.Fatal("public Tx forged private scheduler outcome")

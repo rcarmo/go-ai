@@ -80,12 +80,12 @@ func TestMainHarnessProgressLaneMemoryAndFlush(t *testing.T) {
 				}
 				owner = c.ID()
 				var document ID
-				_, err = h.session.Commit(bg, func(tx *Tx) error {
+				_, err = h.session.Commit(bg, func(tx *Tx) (any, error) {
 					doc, err := tx.AcquireDocument(defDoc, owner, nil, nil)
 					if err == nil {
 						document = doc.id
 					}
-					return err
+					return nil, err
 				})
 				if err != nil {
 					t.Fatal(err)

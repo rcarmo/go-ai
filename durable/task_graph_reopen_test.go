@@ -18,7 +18,7 @@ func TestTaskGraphPinnedReopenPendingMarksAndReverseCreatedConversationOrder(t *
 		cleanupTaskGates(t, release)
 		owner := createPublicTask(t, h, definition, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 		var low, high ID
-		_, err := h.CommitTasks(bg, 1, func(tx *Tx) error {
+		_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 			var err error
 			low, err = tx.MintID()
 			if err != nil {
@@ -43,9 +43,9 @@ func TestTaskGraphPinnedReopenPendingMarksAndReverseCreatedConversationOrder(t *
 		// Seed a retained durable mark while scheduling is paused, so no abort
 		// invocation can settle before closing this actual ordinary invocation.
 		h.session.taskBookkeeping(func() { h.scheduler.enabled.Store(false) })
-		_, err = h.session.Commit(bg, func(tx *Tx) error {
+		_, err = h.session.Commit(bg, func(tx *Tx) (any, error) {
 			task := markTask(tx.state.Tasks[owner])
-			return tx.stage(Write{Op: "put-task", Task: &task})
+			return nil, tx.stage(Write{Op: "put-task", Task: &task})
 		})
 		if err != nil {
 			t.Fatal(err)

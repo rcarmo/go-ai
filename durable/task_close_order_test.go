@@ -34,7 +34,7 @@ func TestTaskSchedulerPinnedCloseSealsAdmissionStopsWatchBeforeSignalAndJoins(t 
 			default:
 				err = errors.New("handler cancellation preceded watch stop")
 			}
-			if _, rejected := h.CommitTasks(bg, 1, func(*Tx) error { return errors.New("late callback ran") }); !errors.Is(rejected, ErrClosed) {
+			if _, rejected := h.commitTasks(bg, 1, func(*Tx) error { return errors.New("late callback ran") }); !errors.Is(rejected, ErrClosed) {
 				err = errors.New("close admission not sealed before signal")
 			}
 			probed <- err
@@ -44,7 +44,7 @@ func TestTaskSchedulerPinnedCloseSealsAdmissionStopsWatchBeforeSignalAndJoins(t 
 		definition.options.Abort = func(context.Context, TaskRecord, *TaskRuntime) error { aborts.Add(1); return nil }
 		h = taskTestHarness(t, b.store, definition)
 		cleanupTaskGates(t, release)
-		_, err = h.CommitTasks(bg, 1, func(tx *Tx) error { _, err := tx.AcquireDocument(notes, 1, nil, nil); return err })
+		_, err = h.commitTasks(bg, 1, func(tx *Tx) error { _, err := tx.AcquireDocument(notes, 1, nil, nil); return err })
 		if err != nil {
 			t.Fatal(err)
 		}

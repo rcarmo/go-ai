@@ -70,7 +70,7 @@ func TestV150GroupCommitCloseSignalsInvocationDuringCallInFlight(t *testing.T) {
 		t.Fatal(err)
 	}
 	var id ID
-	if _, err := h.CommitTasks(ctx, c.ID(), func(tx *Tx) error {
+	if _, err := h.commitTasks(ctx, c.ID(), func(tx *Tx) error {
 		var err error
 		id, err = tx.CreateTask(def, JSON{"name": "one"}, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 		return err
@@ -99,12 +99,12 @@ func TestV150GroupCommitCloseSignalsInvocationDuringCallInFlight(t *testing.T) {
 	held.holdCommits()
 	writing := make(chan error, 1)
 	go func() {
-		_, err := h.session.Commit(ctx, func(tx *Tx) error {
+		_, err := h.session.Commit(ctx, func(tx *Tx) (any, error) {
 			eid, err := tx.MintID()
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return tx.AppendEntry(Entry{ID: eid, Conversation: c.ID(), Kind: "note", Value: JSON{"body": "note"}})
+			return nil, tx.AppendEntry(Entry{ID: eid, Conversation: c.ID(), Kind: "note", Value: JSON{"body": "note"}})
 		})
 		writing <- err
 	}()

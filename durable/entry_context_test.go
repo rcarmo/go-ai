@@ -133,9 +133,9 @@ func TestEntryContextContributionControlsRejectBeforeStage(t *testing.T) {
 		{Role: goai.RoleToolResult, Details: func() {}},
 	} {
 		before := checkpointSnapshot(t, s)
-		_, e = s.Commit(bg, func(tx *Tx) error {
+		_, e = s.Commit(bg, func(tx *Tx) (any, error) {
 			_, e := tx.AppendTypedEntry(d, 1, EntryContent{Model: []goai.Message{m}})
-			return e
+			return nil, e
 		})
 		if e == nil {
 			t.Fatal("unsupported control persisted")
@@ -321,9 +321,9 @@ func TestEntryContextEmptyArgumentsWitnessOwnedSnapshotReopenAndHTTP(t *testing.
 			{Role: goai.RoleAssistant, Content: []goai.ContentBlock{{Type: "toolCall", ID: "bad", Name: "bad", Arguments: map[string]any{}}}, EmptyArguments: []int{3}},
 		} {
 			before := checkpointSnapshot(t, s)
-			_, e := s.Commit(bg, func(tx *Tx) error {
+			_, e := s.Commit(bg, func(tx *Tx) (any, error) {
 				_, e := tx.AppendTypedEntry(token, 1, EntryContent{Edits: []ContextEdit{{Target: id, Action: "replace", Messages: []MessageReceipt{receipt}}}})
-				return e
+				return nil, e
 			})
 			if e == nil {
 				t.Fatal("malformed witness accepted")
