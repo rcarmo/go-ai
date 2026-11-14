@@ -2055,3 +2055,32 @@ func TestSourceTxAppendEntryPreservesEmptyReplacementMessages(t *testing.T) {
 		}
 	}
 }
+
+// Source Chord copyJson rejects cycles with this strict-JSON error. These are
+// source-derived supplements, not additional original table-test assertions.
+func TestSourceTxAppendEntryRejectsCyclesWithStrictJSONError(t *testing.T) {
+	store := taskConformanceStoreV150(t)
+	session, err := OpenSession(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close(bg)
+	object := JSON{}
+	object["self"] = object
+	array := make([]any, 1)
+	array[0] = array
+	before, err := store.Snapshot(bg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, data := range []any{object, array} {
+		_, err = session.Commit(bg, func(tx *Tx) (any, error) { return tx.AppendEntry(1, JSON{"kind": "invalid.cycle", "data": data}) })
+		if err == nil || !strings.Contains(err.Error(), "Value contains cycles and is not strict JSON") {
+			t.Error("source cycle rejection changed", err)
+		}
+	}
+	after, err := store.Snapshot(bg)
+	if err != nil || after.Seq != before.Seq {
+		t.Fatal("cyclic draft reached storage", before.Seq, after.Seq, err)
+	}
+}

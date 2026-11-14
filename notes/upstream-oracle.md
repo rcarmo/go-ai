@@ -22,7 +22,7 @@ Current probes also require exact empty, submissionId-only and entryId-only Comp
 
 ## Entry draft constructors
 
-The independent probe exercises original generic/token constructors with empty kinds/arrays/null/self head, data ownership, pre-copy metadata overrides and empty replacement messages. Selected271 (200 unchanged +71 probes), including all12 original table cases and79 supplements, pass with zero skipped. This original execution does not establish native publication-object identity or full constructor conformance.
+The latest extension also checks the exact strict-JSON cycle-error substring for map/array data; complete original table12+79 supplements91 pass with zero skipped. The independent probe exercises original generic/token constructors with empty kinds/arrays/null/self head, data ownership, pre-copy metadata overrides and empty replacement messages. Selected271 (200 unchanged +71 probes), including all12 original table cases and79 supplements, pass with zero skipped. This original execution does not establish native publication-object identity or full constructor conformance.
 
 ## Previous public commit persistence options
 

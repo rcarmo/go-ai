@@ -18,7 +18,11 @@ Latest continuation: canonical entry drafts, assigned identity/self head, metada
 
 The exact input/write shape tests failed before the fixes. Idle progress and continuation already passed and required no speculative runtime changes. A failure/reopen fixture initially tried to close storage already owned/closed by Session; correcting the fixture required no runtime fix. Tests remain in the existing version-neutral transaction suite.
 
-## Latest entry-constructor verification
+## Latest cycle-error verification
+
+Full repository ./... passes26 packages: root0.843s, durable509.123s/tools27.829s and public consumers12.499s. Ten shuffled constructor repetitions2.566s, two independently compiled cycle-message faults, vet/Staticcheck/logging/register and complete original table12+79 supplements91 pass, zero original skips. Analysed temporary logs/overlays are removed. Publication-record identity, other constructors/builtin producers and broader API/Storage/release acceptance remain open.
+
+## Previous entry-constructor verification
 
 Full repository ./... passes26 packages: root0.807s, durable537.260s/tools27.472s and public consumers12.798s. Eleven semantic faults, ten shuffled constructor/tool repetitions1.658s/6.324s, three final constructor/tool repetitions0.651s/2.045s, vet/Staticcheck/logging/register pass. Selected original271 (200 unchanged +71 probes), including complete original table12 and79 supplements, pass with zero skipped. Analysed temporary logs/overlays are removed. Publication-record identity, untyped extra-field/validation timing, other constructors/builtin producer migrations and full API/Storage/release acceptance remain open.
 

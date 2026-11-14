@@ -168,7 +168,7 @@ func (b *jsonBudget) walk(v reflect.Value, depth int, objectsOnly bool) error {
 		}
 		ptr := v.Pointer()
 		if b.active[ptr] {
-			return reject("cyclic JSON value")
+			return reject("Value contains cycles and is not strict JSON")
 		}
 		b.active[ptr] = true
 		defer delete(b.active, ptr)
@@ -187,7 +187,7 @@ func (b *jsonBudget) walk(v reflect.Value, depth int, objectsOnly bool) error {
 		}
 		ptr := v.Pointer()
 		if b.active[ptr] {
-			return reject("cyclic JSON value")
+			return reject("Value contains cycles and is not strict JSON")
 		}
 		b.active[ptr] = true
 		defer delete(b.active, ptr)
@@ -237,7 +237,7 @@ func (b *jsonBudget) walk(v reflect.Value, depth int, objectsOnly bool) error {
 		if v.Kind() == reflect.Slice {
 			ptr := v.Pointer()
 			if ptr != 0 && b.active[ptr] {
-				return reject("cyclic JSON value")
+				return reject("Value contains cycles and is not strict JSON")
 			}
 			b.active[ptr] = true
 			defer delete(b.active, ptr)

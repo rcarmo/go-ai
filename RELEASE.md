@@ -2,7 +2,11 @@
 
 The sole acceptance target is official upstream **v1.5.0**, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Alignment is unverified. Older entries below are historical receipts, not compatibility requirements or v1.5.0 acceptance. Retained tests and active identity/schema/catalogue/regeneration pins must be reconciled with this release; obsolete behaviour must change.
 
-## Development continuation: entry draft constructors
+## Development continuation: strict-JSON cycle errors
+
+Actual public entry constructors now retain the pinned Chord cycle-error substring for map/array data without changing cycle detection. [Source test and mutation controls](notes/entry-constructors.md#strict-json-cycle-errors): Full repository ./... passes26 packages: root0.843s, durable509.123s/tools27.829s and public consumers12.499s. Ten shuffled constructor repetitions2.566s, two independently compiled cycle-message faults, vet/Staticcheck/logging/register and complete original table12+79 supplements91 pass, zero original skips. Analysed temporary logs/overlays are removed. Publication-record identity, other constructors/builtin producers and broader API/Storage/release acceptance remain open.
+
+## Previous development continuation: entry draft constructors
 
 Canonical generic/token entry constructors replace the old native public inputs and return complete attributed records; Inbox placement uses the same public path. Empty kinds/arrays/null and strict-number errors follow the pinned source. Historical native fixtures are explicitly separate from source acceptance. [API mapping, failures and remaining identity gap](notes/entry-constructors.md): Full repository ./... passes26 packages: root0.807s, durable537.260s/tools27.472s and public consumers12.798s. Eleven semantic faults, ten shuffled constructor/tool repetitions1.658s/6.324s, three final constructor/tool repetitions0.651s/2.045s, vet/Staticcheck/logging/register pass. Selected original271 (200 unchanged +71 probes), including complete original table12 and79 supplements, pass with zero skipped. Analysed temporary logs/overlays are removed. Publication-record identity, untyped extra-field/validation timing, other constructors/builtin producer migrations and full API/Storage/release acceptance remain open.
 
