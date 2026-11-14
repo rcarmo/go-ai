@@ -9,21 +9,20 @@ func validatePaidClassifierContext(input goai.ClassifierContext) error {
 	if input.State == nil || len(input.Questions) == 0 {
 		return reject("classifier state/nonempty questions required")
 	}
-	for key, question := range input.Questions {
-		if key == "" || question.Instructions == "" {
-			return reject("classifier question name/instructions required")
-		}
+	for _, question := range input.Questions {
+		// IDs, instructions and criterion meanings are strings in source;
+		// empty strings are valid. Only the criteria collection is nonempty.
 		switch question.Type {
 		case "choice":
 			if choices, ok := question.Criteria.(map[string]string); !ok || len(choices) == 0 {
 				return reject("classifier choice criteria required")
 			}
 		case "score":
-			if scores, ok := question.Criteria.([]string); !ok || len(scores) < 2 {
+			if scores, ok := question.Criteria.([]string); !ok || len(scores) == 0 {
 				return reject("classifier score criteria required")
 			}
 		case "bool":
-			if criteria, ok := question.Criteria.(goai.ClassifierBoolCriteria); !ok || criteria.True == "" || criteria.False == "" {
+			if _, ok := question.Criteria.(goai.ClassifierBoolCriteria); !ok {
 				return reject("classifier bool criteria required")
 			}
 		default:

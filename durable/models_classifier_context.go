@@ -27,5 +27,9 @@ func classifierContextObject(input goai.ClassifierContext, l Limits) (JSON, erro
 		}
 		questions[key] = JSON{"type": question.Type, "instructions": question.Instructions, "criteria": criteria}
 	}
-	return dtoObject(JSON{"state": input.State, "questions": questions, "images": input.Images}, l)
+	context := JSON{"state": input.State, "questions": questions}
+	if input.Images != nil {
+		context["images"] = input.Images
+	}
+	return dtoObject(context, l)
 }

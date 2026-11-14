@@ -324,3 +324,91 @@ func TestSourceModelToolCallAndResultText(t *testing.T) {
 		})
 	}
 }
+
+// Source codemode/models.ts:123-169 accepts empty question IDs, instructions
+// and criterion strings; score criteria need one level, not two.
+func TestSourceClassifierContextEmptyStringsAndSingleScoreLevel(t *testing.T) {
+	var effects atomic.Int64
+	goai.RegisterClassifierApiProvider(&goai.ClassifierApiProvider{Api: "source-context-classifier", Classify: func(_ *goai.ClassifierModel, input goai.ClassifierContext, _ *goai.ClassifierOptions) (*goai.ClassifierResult, error) {
+		effects.Add(1)
+		question, found := input.Questions[""]
+		if !found || len(input.Questions) != 1 || question.Instructions != "" || input.State == nil {
+			t.Error("source empty classifier strings changed before provider", input)
+		}
+		switch question.Type {
+		case "choice":
+			criteria, ok := question.Criteria.(map[string]string)
+			if !ok || len(criteria) != 1 || criteria[""] != "" {
+				t.Error("empty choice label/meaning changed", question.Criteria)
+			}
+		case "score":
+			criteria, ok := question.Criteria.([]string)
+			if !ok || len(criteria) != 1 || criteria[0] != "" {
+				t.Error("single empty score level changed", question.Criteria)
+			}
+		case "bool":
+			if criteria, ok := question.Criteria.(goai.ClassifierBoolCriteria); !ok || criteria.True != "" || criteria.False != "" {
+				t.Error("empty bool meanings changed", question.Criteria)
+			}
+		default:
+			t.Error("unexpected classifier question", question)
+		}
+		return &goai.ClassifierResult{Answers: map[string]goai.ClassifierAnswer{}, StopReason: "stop"}, nil
+	}})
+	registry := NewRegistry()
+	definition := taskDefinition(t, "source.classifier-context", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+		access, err := r.Models()
+		if err != nil {
+			return err
+		}
+		for _, question := range []goai.ClassifierQuestion{
+			{Type: "choice", Criteria: map[string]string{"": ""}},
+			{Type: "score", Criteria: []string{""}},
+			{Type: "bool", Criteria: goai.ClassifierBoolCriteria{}},
+		} {
+			input := goai.ClassifierContext{State: map[string]any{}, Questions: map[string]goai.ClassifierQuestion{"": question}}
+			encoded, err := json.Marshal(input)
+			if err != nil {
+				return err
+			}
+			var object JSON
+			if err := json.Unmarshal(encoded, &object); err != nil {
+				return err
+			}
+			produced, err := classifierContextObject(input, DefaultLimits())
+			if err != nil || !equalJSONValue(produced, object) {
+				t.Error("typed producer changed source classifier context", produced, object, err)
+			}
+			for repeat := 0; repeat < 2; repeat++ {
+				result, err := r.CallTool(ctx, "raw-"+question.Type, classifierToolName, JSON{"model": JSON{"provider": "empty", "id": "judge"}, "context": object})
+				if err != nil || result.IsError || !result.HasStructuredOutput {
+					t.Error("source classifier context rejected through canonical tool", question.Type, result, err)
+				}
+				resultValue, err := access.Classify(ctx, "typed-"+question.Type, goai.TypedModelRef{Provider: "empty", ID: "judge"}, input)
+				if err != nil || resultValue == nil {
+					t.Error("source classifier context rejected through typed helper", question.Type, err)
+				}
+			}
+		}
+		return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone(nil), nil })
+	})
+	if _, err := registry.RegisterTask(definition); err != nil {
+		t.Fatal(err)
+	}
+	store, err := newTestSQLite(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	catalog := &typedCatalog120{ModelRuntime: goai.NewModelRuntime(nil), classifier: &goai.ClassifierModel{Provider: "empty", ID: "judge", Api: "source-context-classifier"}}
+	h := openHarness(t, store, Options{Registry: registry, Catalog: catalog, PaidModels: true})
+	root(t, h, ModelRef{Provider: "empty", ID: "chat"})
+	record := waitPublicTask(t, h, createPublicTask(t, h, definition, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}}))
+	if record.State.Outcome.Status != "completed" || effects.Load() != 6 {
+		t.Errorf("source classifier effect/replay changed: outcome=%+v error=%+v effects=%d", record.State.Outcome, record.State.Outcome.Error, effects.Load())
+	}
+	for _, invalid := range []goai.ClassifierQuestion{{Type: "choice", Criteria: map[string]string{}}, {Type: "score", Criteria: []string{}}, {Type: "bool", Criteria: map[string]string{"true": ""}}, {Type: "other"}} {
+		if err := validatePaidClassifierContext(goai.ClassifierContext{State: map[string]any{}, Questions: map[string]goai.ClassifierQuestion{"": invalid}}); err == nil {
+			t.Error("invalid classifier criteria admitted", invalid)
+		}
+	}
+}
