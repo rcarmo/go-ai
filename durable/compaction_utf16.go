@@ -114,8 +114,8 @@ func compactionRequestBlock(source, instructions string, native bool) goai.Conte
 	return block
 }
 
-// A valid pair remains a complete scalar at the existing Go cut boundary;
-// an isolated unit counts once instead of becoming three replacement runes.
+// Count a valid scalar as its source UTF-16 width; a carried isolated unit
+// counts once instead of becoming three replacement runes.
 func compactionRune(text string) (rune, int, int) {
 	r, size := utf8.DecodeRuneInString(text)
 	if r == utf8.RuneError && size == 1 && len(text) >= 3 && text[0] == 0xed && text[1] >= 0xa0 && text[1] <= 0xbf && text[2] >= 0x80 && text[2] <= 0xbf {

@@ -128,9 +128,13 @@ func (w *DocumentWatch) Stop() WatchEnd {
 	return end
 }
 func (w *DocumentWatch) terminate(end WatchEnd) {
+	// Registration and end become visible together. Keep the same lock order
+	// as documentPinned; Closed must not release a waiter before removal.
+	w.session.observerMu.Lock()
 	w.mu.Lock()
 	if w.ended {
 		w.mu.Unlock()
+		w.session.observerMu.Unlock()
 		return
 	}
 	w.ended = true
@@ -142,10 +146,9 @@ func (w *DocumentWatch) terminate(end WatchEnd) {
 	w.observed = nil
 	w.observedReadonly = nil
 	w.id = 0
+	delete(w.session.watches, w)
 	close(w.closed)
 	w.mu.Unlock()
-	w.session.observerMu.Lock()
-	delete(w.session.watches, w)
 	w.session.observerMu.Unlock()
 	if !w.session.closing.Load() {
 		go w.session.taskBookkeeping(func() {

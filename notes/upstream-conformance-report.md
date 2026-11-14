@@ -2,9 +2,9 @@
 
 **Overall migration: incomplete. Full parity and release acceptance are not established.** This report closes a verified development slice, not the complete upstream port.
 
-Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Native implementation: `/work/go-ai/durable`, authorised SQLite-only, pure Go. The preceding pushed checkpoint is `d892a4f` (canonical Inbox input consumption).
+Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Native implementation: `/work/go-ai/durable`, authorised SQLite-only, pure Go. The preceding pushed checkpoint is `d9c1af2` (original compaction transcript/prompts).
 
-Latest continuation: compaction omits thinking under the full original serialization packet and uses the exact pinned summarization prompts. See [compaction evidence](canonical-compaction-kind.md#source-transcript-and-prompt-literals). See [submission admission](submission-admission.md#canonical-string-content-and-placement-clock). Selected reference coverage is200 unchanged cases +53 probes. Exact reference assets repair the original Cloudflare suite (36 pass); two provider suites now reach original credential skips, not live acceptance. Image execution still exceeds its768 MiB worker cap. The full99-file oracle is not green; see [oracle limits](upstream-oracle.md).
+Latest continuation: tool truncation retains the source UTF-16 slice boundary; watch completion follows registration removal; the failed-commit/deferred-successor fixture now checks the original packet. See [compaction evidence](canonical-compaction-kind.md#source-transcript-and-prompt-literals). See [submission admission](submission-admission.md#canonical-string-content-and-placement-clock). Selected reference coverage is200 unchanged cases +54 probes. Exact reference assets repair the original Cloudflare suite (36 pass); two provider suites now reach original credential skips, not live acceptance. Image execution still exceeds its768 MiB worker cap. The full99-file oracle is not green; see [oracle limits](upstream-oracle.md).
 
 ## Earlier queue-production checkpoint
 
@@ -18,7 +18,13 @@ Latest continuation: compaction omits thinking under the full original serializa
 
 The exact input/write shape tests failed before the fixes. Idle progress and continuation already passed and required no speculative runtime changes. A failure/reopen fixture initially tried to close storage already owned/closed by Session; correcting the fixture required no runtime fix. Tests remain in the existing version-neutral transaction suite.
 
-## Latest compaction verification
+## Latest truncation/lifecycle verification
+
+Full uncached durable849.377s/tools26.940s;100 shuffled targeted repetitions39.619s; two semantic slice/count faults; vet, Staticcheck and logging pass. Following dead fixture-helper cleanup, three full gate-suite repetitions6.941s and static gates pass. Selected reference254 cases pass (200 unchanged +54 probes).
+
+Earlier complete runs failed:855.848s on the repeated-provider-call-ID three-second native wait (25 isolated repeats pass; root cause unknown), then848.604s on the watch-cleanup race and incorrect case680 fixture. The latter two are fixed; the timing caveat remains open, with failure-only progress diagnostics. No failing receipt is relabelled green.
+
+## Previous compaction verification
 
 Full uncached durable829.093s/tools24.860s; ten new shuffled repetitions0.588s; focused compaction/summary/search16.213s; three semantic faults; vet, Staticcheck, logging and register pass. The original compaction file passes110 unchanged cases plus61 supplements,171 total and zero skipped. Exact prompt source bytes independently match the remote commit. Broader compaction selection/checkpoints/recovery, UTF-16 truncation, argument ordering and explicit-empty instruction variants remain unaccepted.
 

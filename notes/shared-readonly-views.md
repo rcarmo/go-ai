@@ -47,3 +47,7 @@ A full run exposed stale prepared storage baselines during withdrawal/recovery. 
 1. Complete wrapper fallback and repeated attach/detach lifetime acceptance, queued cancellation/close races, and every pinned view assertion.
 2. Integrate readonly values into document/stored observation and finish host dispatch/waiter ordering (D16/D17).
 3. Continue precise private scheduler dependencies, continuation and full durable assertion-crosswalk work. Acceptance profiling and release gates are outstanding.
+
+## Document-watch completion ordering
+
+A later full regression found DocumentWatch.Closed observable while the watch still occupied its Session registration. Termination now acquires observerMu before watch.mu, removes the registration and then closes the completion channel. This matches documentPinned lock order and makes End/Stop/Closed observe completed removal. Existing cancelled task-owner cleanup assertions pass100 shuffled repetitions alongside the source gate/truncation controls; the combined full suite passes849.377s/tools26.940s. This fixes the demonstrated cleanup race, not the remaining D14/D15 lifetime/identity corpus.

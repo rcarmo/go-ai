@@ -684,67 +684,87 @@ func TestMainSessionGatesJobsWaitForPublication(t *testing.T) {
 	})
 
 	t.Run("case-680-deferred-commit-behind-a-failed-commit-never-publishes", func(t *testing.T) {
-		s, _, held, ctx := openGatesSession(t)
-		held.holdCommits()
-		held.failOn = `"refuse"`
-
-		values := make(chan ID, 4)
-		failedSettled := make(chan error, 1)
-		laterSettled := make(chan error, 1)
-
+		s, _, _, ctx := openGatesSession(t)
+		definition, err := DefineDocument(DefinitionOptions{Kind: "gc.failed.deferred", Scope: "conversation", Version: 1, History: "latest", Fork: "initial", Initial: func(JSON) (JSON, error) { return JSON{"n": 0}, nil }, CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var owner ID
+		if _, err := s.Commit(ctx, func(tx *Tx) error {
+			var err error
+			owner, err = tx.MintID()
+			if err != nil {
+				return err
+			}
+			if err := tx.CreateConversation(Conversation{ID: owner}); err != nil {
+				return err
+			}
+			doc, err := tx.AcquireDocument(definition, owner, nil, nil)
+			if err != nil {
+				return err
+			}
+			return doc.Set(JSON{"n": 1})
+		}); err != nil {
+			t.Fatal(err)
+		}
+		var mu sync.Mutex
+		var published []string
+		detach, err := s.followSessionCommits(&sessionCommitListener{callback: func(_ context.Context, publication sessionObservedCommit) error {
+			mu.Lock()
+			published = append(published, publication.kind)
+			mu.Unlock()
+			return nil
+		}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer detach()
+		// The source refuses a storage batch, not an uncertain SQLite append.
+		// Inject that result at the installed writer sink until D10 admits the
+		// original conforming Storage wrapper through the public boundary.
+		entered, release := make(chan struct{}), make(chan struct{})
+		var releaseOnce sync.Once
+		unblock := func() { releaseOnce.Do(func() { close(release) }) }
+		defer unblock()
+		refusal := errors.New("refused")
+		s.writer.host.commit = func(context.Context, []Batch, func(commitReceipt)) (commitGroupResult, error) {
+			close(entered)
+			<-release
+			return commitGroupResult{refused: &commitRefusal{value: refusal}}, nil
+		}
+		first, later := make(chan error, 1), make(chan error, 1)
 		runGatesJob(t, s, ctx, func(tx *Tx) error {
 			id, err := tx.MintID()
 			if err != nil {
 				return err
 			}
-			if err := tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "refuse", Value: JSON{"text": "refuse"}}); err != nil {
-				return err
-			}
-			values <- id
-			return nil
-		}, failedSettled)
-
-		select {
-		case id := <-values:
-			if id == 0 {
-				t.Fatal("no entry staged")
-			}
-		case <-time.After(3 * time.Second):
-			t.Fatal("refused commit did not reach storage while held")
+			return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "refuse"})
+		}, first)
+		awaitTaskSignal(t, entered)
+		admission := &mainCommitAdmissionContext{Context: ctx, entered: make(chan struct{})}
+		go func() {
+			_, err := s.commitDeferred(admission, func(tx *Tx) error {
+				doc, err := tx.AcquireDocument(definition, owner, nil, nil)
+				if err != nil {
+					return err
+				}
+				return doc.Set(JSON{"n": 2})
+			})
+			later <- err
+		}()
+		awaitTaskSignal(t, admission.entered)
+		unblock()
+		if err := settleWithinGate(t, first, 3); err != refusal {
+			t.Fatalf("first lost original refusal identity: %v", err)
 		}
-
-		runGatesJob(t, s, ctx, func(tx *Tx) error {
-			id, err := tx.MintID()
-			if err != nil {
-				return err
-			}
-			if err := tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{"text": "after"}}); err != nil {
-				return err
-			}
-			return nil
-		}, laterSettled)
-
-		held.releaseHold()
-
-		err := settleWithinGate(t, failedSettled, 3)
-		if err == nil {
-			t.Fatal("refused commit must fail")
+		var failed *SessionFailed
+		if err := settleWithinGate(t, later, 3); !errors.As(err, &failed) || !errors.Is(failed, refusal) {
+			t.Fatalf("deferred successor did not inherit SessionFailed with original cause: %v", err)
 		}
-		// Native reports its own classification rather than the storage error, so the source's error
-		// identity is not preserved (already recorded through the pending refusal fixture).
-		if !strings.Contains(err.Error(), "refused") && !strings.Contains(err.Error(), "uncertain storage outcome") {
-			t.Fatalf("refused commit must report the refusal or native classification, got %v", err)
-		}
-
-		err = settleWithinGate(t, laterSettled, 3)
-		if err == nil {
-			t.Fatal("job after a refused commit must be refused, not settled")
-		}
-		if !strings.Contains(err.Error(), "SessionFailed") && !strings.Contains(err.Error(), "session failed") {
-			t.Fatalf("job after a refused commit must report SessionFailed, got %v", err)
-		}
-		if len(held.landedOrdinals()) != 0 {
-			t.Fatalf("no part may publish after a refused commit, landed frames: %v", held.landedOrdinals())
+		mu.Lock()
+		defer mu.Unlock()
+		if len(published) != 0 {
+			t.Fatalf("publication escaped failed boundary: %v", published)
 		}
 	})
 }
@@ -884,8 +904,6 @@ type mainGatesHeld struct {
 	release     chan struct{}
 	putFrames   int
 	deltaFrames int
-	landed      []uint64
-	failOn      string
 }
 
 func (h *mainGatesHeld) holdCommits() { h.mu.Lock(); h.hold = true; h.mu.Unlock() }
@@ -910,7 +928,6 @@ func (h *mainGatesHeld) install(appendFrame func(byte, uint64, uint64, []byte) e
 		if bytes.Contains(payload, []byte(`"delta-document"`)) {
 			h.deltaFrames++
 		}
-		fail := h.failOn != "" && bytes.Contains(payload, []byte(h.failOn))
 		hold := typ == 2 && h.hold
 		h.mu.Unlock()
 
@@ -923,35 +940,11 @@ func (h *mainGatesHeld) install(appendFrame func(byte, uint64, uint64, []byte) e
 			<-h.release
 		}
 
-		if fail {
-			return errors.New("refused")
-		}
-
 		if appendFrame == nil {
 			return nil
 		}
-		err := appendFrame(typ, ordinal, high, payload)
-		if err == nil && typ == 2 {
-			h.mu.Lock()
-			h.landedLocked(ordinal)
-			h.mu.Unlock()
-		}
-		return err
+		return appendFrame(typ, ordinal, high, payload)
 	}
-}
-
-func (h *mainGatesHeld) landedLocked(ordinal uint64) {
-	if len(h.landed) < 16 {
-		h.landed = append(h.landed, ordinal)
-	}
-}
-
-func (h *mainGatesHeld) landedOrdinals() []uint64 {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	out := make([]uint64, len(h.landed))
-	copy(out, h.landed)
-	return out
 }
 
 func gateNumber(v any) int64 {

@@ -46,8 +46,8 @@ Keep each section concise. Preserve exact file paths, function names, and error 
 
 // SerializeConversation presents model context as an inert text transcript.
 // System contributions, thinking and image payloads are omitted. Tool results retain at
-// most 2000 UTF-16 units, cutting only at a complete Unicode scalar in Go.
-// Isolated units from explicitly typed arguments/diagnostics use WTF-8 in the
+// most 2000 UTF-16 units, using the source String.slice boundary.
+// Isolated units from slicing or explicitly typed arguments/diagnostics use WTF-8 in the
 // returned string; compaction persists them through its scoped source state.
 func SerializeConversation(messages []MessageReceipt, limits Limits) (string, error) {
 	parts := []string{}
@@ -116,7 +116,11 @@ func SerializeConversation(messages []MessageReceipt, limits Limits) (string, er
 			}
 		case goai.RoleToolResult:
 			if joined != "" {
-				parts = append(parts, "[Tool result]: "+truncateCompactionText(joined, 2000))
+				truncated := truncateCompactionText(joined, 2000)
+				if !utf8.ValidString(truncated) {
+					nativeText = true // validated text can be sliced between surrogate units
+				}
+				parts = append(parts, "[Tool result]: "+truncated)
 			}
 		}
 	}
@@ -128,11 +132,17 @@ func SerializeConversation(messages []MessageReceipt, limits Limits) (string, er
 }
 func truncateCompactionText(text string, maximum int) string {
 	units, kept, cut := 0, 0, len(text)
+	partial := ""
 	for offset := 0; offset < len(text); {
-		_, size, width := compactionRune(text[offset:])
+		r, size, width := compactionRune(text[offset:])
 		if units+width > maximum && cut == len(text) {
 			cut = offset
 			kept = units
+			if width == 2 && maximum-units == 1 {
+				high := rune(0xd800) + (r-0x10000)>>10
+				partial = string([]byte{0xe0 | byte(high>>12), 0x80 | byte(high>>6)&0x3f, 0x80 | byte(high)&0x3f})
+				kept++
+			}
 		}
 		units += width
 		offset += size
@@ -140,7 +150,7 @@ func truncateCompactionText(text string, maximum int) string {
 	if cut == len(text) {
 		return text
 	}
-	return text[:cut] + fmt.Sprintf("\n\n[... %d more characters truncated]", units-kept)
+	return text[:cut] + partial + fmt.Sprintf("\n\n[... %d more characters truncated]", units-kept)
 }
 
 func compactionRequestText(source, instructions string) string {

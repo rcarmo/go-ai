@@ -909,6 +909,23 @@ func TestM1cRepeatedProviderCallIDUsesDistinctDurableTasks(t *testing.T) {
 	options.Registry = registry
 	s, _ := newTestSQLite(t)
 	h := openHarness(t, s, options)
+	t.Cleanup(func() {
+		if !t.Failed() {
+			return
+		}
+		t.Logf("repeated call-ID progress: provider requests=%d tool effects=%d", requests.Load(), effects.Load())
+		ctx, cancel := context.WithTimeout(bg, time.Second)
+		defer cancel()
+		state, err := s.Snapshot(ctx)
+		if err != nil {
+			t.Log("failed-test snapshot:", err)
+			return
+		}
+		for _, id := range ids(state.Tasks) {
+			task := state.Tasks[id]
+			t.Logf("task %d %s status=%s phase=%v owner=%d", id, task.Kind, task.Status, task.Checkpoint["phase"], task.Owner)
+		}
+	})
 	sub, e := root(t, h, ref).Submit(bg, Input{Content: "two rounds"})
 	if e != nil {
 		t.Fatal(e)

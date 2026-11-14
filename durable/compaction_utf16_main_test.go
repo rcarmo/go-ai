@@ -64,8 +64,9 @@ func TestCompactionUTF16MainFormattingAndState(t *testing.T) {
 		t.Fatal("isolated unit truncation count")
 	}
 	cut = truncateCompactionText(prefix+"😀"+low.WTF8()+"end", 2000)
-	if !strings.HasPrefix(cut, prefix+"\n\n") || !strings.Contains(cut, "6 more characters") || !utf8.ValidString(cut) {
-		t.Fatal("complete-scalar boundary changed")
+	want := prefix + toolUTF16Scalar(t, `"\ud83d"`).WTF8() + "\n\n[... 5 more characters truncated]"
+	if cut != want || utf8.ValidString(cut) {
+		t.Fatal("source UTF-16 slice boundary changed")
 	}
 }
 

@@ -548,3 +548,10 @@ it("places content and metadata from the canonical Inbox item, not a submission 
   expect(entry.kind).toBe("app.canonical");expect(entry.data).toBe(null);expect(entry.model).toEqual([{role:"user",content:[],timestamp:42}]);
  }finally{release.resolve();await harness.close(context)}
 });
+
+it("truncates a tool result at the exact UTF-16 slice boundary",async()=>{
+ const {serializeConversation}=await import("@pinned/compaction");
+ const text="x".repeat(1999)+"🙂";
+ const serialized=serializeConversation([{role:"toolResult",toolCallId:"c",toolName:"read",content:[{type:"text",text}],isError:false,timestamp:0}]);
+ expect(serialized).toBe("[Tool result]: "+"x".repeat(1999)+"\ud83d\n\n[... 1 more characters truncated]");
+});

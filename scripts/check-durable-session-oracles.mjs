@@ -51,6 +51,7 @@ const aliases = [
   ["@pinned/harness-support", join(durable, "test/harness-support.ts")],
   ["@pinned/sqlite-node", join(durable, "src/storage/sqlite/node.ts")],
   ["@pinned/views", join(durable,"src/harness/view.ts")],
+  ["@pinned/compaction", join(durable,"src/harness/compaction.ts")],
   ["vitest", join(vitest, "dist/index.js")],
 ].map(([name, replacement]) => ({ find: name, replacement }));
 try {

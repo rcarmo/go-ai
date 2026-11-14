@@ -74,6 +74,32 @@ func TestCompactionSerializationPreservesSourceStringContent(t *testing.T) {
 	}
 }
 
+func TestSourceCompactionTruncationKeepsUTF16SliceBoundary(t *testing.T) {
+	// Source compaction.ts:419-422 uses String.slice, not scalar truncation.
+	input := strings.Repeat("x", 1999) + "🙂"
+	want := "[Tool result]: " + strings.Repeat("x", 1999) + string([]byte{0xed, 0xa0, 0xbd}) + "\n\n[... 1 more characters truncated]"
+	got, err := SerializeConversation([]MessageReceipt{{Role: goai.RoleToolResult, Content: []goai.ContentBlock{{Type: "text", Text: input}}}}, DefaultLimits())
+	if err != nil || got != want {
+		t.Fatalf("source UTF-16 slice = %q; expected %q; err=%v", got, want, err)
+	}
+	state := JSON{}
+	if err := storeCompactionSource(state, got, DefaultLimits()); err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := encodeBounded(state, DefaultLimits(), DefaultLimits().MaxRecordBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var restored JSON
+	if err := decodeStrict(encoded, DefaultLimits(), DefaultLimits().MaxRecordBytes, &restored); err != nil {
+		t.Fatal(err)
+	}
+	text, native, err := loadCompactionSource(restored, DefaultLimits())
+	if err != nil || !native || text != want {
+		t.Fatal("truncated source changed across checkpoint", text, native, err)
+	}
+}
+
 func TestCompactionPromptsMatchPinnedSourceLiterals(t *testing.T) {
 	data, err := os.ReadFile("testdata/pi-durable-v150/compaction-prompts.json")
 	if err != nil {
