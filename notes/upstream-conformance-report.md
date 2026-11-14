@@ -4,7 +4,7 @@
 
 Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Native implementation: `/work/go-ai/durable`, authorised SQLite-only, pure Go. The preceding pushed implementation checkpoint is `04726f3` (request-time model/retry authority); image-resource diagnosis is recorded at `1e0f3ad`.
 
-Latest continuation: canonical entry drafts, assigned identity/self head, metadata overrides and attributed record results on generic/token public constructors. See [evidence and precise gaps](entry-constructors.md). Go publication-record object identity remains unimplemented; other constructors, builtin producers, full API/worker/runtime/Storage and release acceptance remain open.
+Latest continuation: public Tx.CreateConversation ownership options, internal ID allocation, staged owner metadata and record results. Source option evaluation and no-drain constructor controls pass. See [evidence and remaining identity/atomic packet gaps](conversation-constructors.md). Full API/Storage, builtin execution and release acceptance remain open.
 
 ## Earlier queue-production checkpoint
 
@@ -18,7 +18,11 @@ Latest continuation: canonical entry drafts, assigned identity/self head, metada
 
 The exact input/write shape tests failed before the fixes. Idle progress and continuation already passed and required no speculative runtime changes. A failure/reopen fixture initially tried to close storage already owned/closed by Session; correcting the fixture required no runtime fix. Tests remain in the existing version-neutral transaction suite.
 
-## Latest cycle-error verification
+## Latest conversation-constructor verification
+
+Full repository ./... passes26 packages: root0.871s, durable525.645s/tools28.155s and public consumers12.505s. Nine compiled semantic faults, ten constructor repetitions1.951s, final ten blind-admission repetitions0.413s, vet/Staticcheck/logging/register pass. Selected original273 (200 unchanged +73 probes), including complete original table12+81 supplements93, pass with zero skipped. Analysed temporary logs/overlays are removed. Publication-record identity, ForkConversation/SetTask and atomic owner packets, untyped/schema timing, complete builtin/API/Storage and pre-release acceptance remain open.
+
+## Previous cycle-error verification
 
 Full repository ./... passes26 packages: root0.843s, durable509.123s/tools27.829s and public consumers12.499s. Ten shuffled constructor repetitions2.566s, two independently compiled cycle-message faults, vet/Staticcheck/logging/register and complete original table12+79 supplements91 pass, zero original skips. Analysed temporary logs/overlays are removed. Publication-record identity, other constructors/builtin producers and broader API/Storage/release acceptance remain open.
 

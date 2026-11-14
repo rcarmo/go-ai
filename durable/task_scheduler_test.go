@@ -850,7 +850,7 @@ func TestTaskSchedulerIdleFrontierAdmissionAtomic(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			return tx.CreateConversation(Conversation{ID: foreign})
+			return tx.createConversationRecord(Conversation{ID: foreign})
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -1094,7 +1094,7 @@ func TestTaskSchedulerEscapedIdleCannotWakeFailedIntent(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			return tx.CreateConversation(Conversation{ID: foreign})
+			return tx.createConversationRecord(Conversation{ID: foreign})
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -1174,7 +1174,7 @@ func TestTaskSchedulerBoundPendingDedupSealedAdmissionIsInert(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			return tx.CreateConversation(Conversation{ID: foreign})
+			return tx.createConversationRecord(Conversation{ID: foreign})
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -1509,7 +1509,7 @@ func TestTaskSchedulerBoundAbortSealedOrSelfScopeAdmissionIsInert(t *testing.T) 
 			if err != nil {
 				return err
 			}
-			return tx.CreateConversation(Conversation{ID: foreign})
+			return tx.createConversationRecord(Conversation{ID: foreign})
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -1904,7 +1904,7 @@ func TestTaskSchedulerPendingDedupCloseSealDoesNotWake(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			return tx.CreateConversation(Conversation{ID: foreign})
+			return tx.createConversationRecord(Conversation{ID: foreign})
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -2939,7 +2939,7 @@ func TestTaskSchedulerMultiFrontierFailureReleasesOnlyFailedRegistration(t *test
 			if err != nil {
 				return err
 			}
-			return tx.CreateConversation(Conversation{ID: foreign})
+			return tx.createConversationRecord(Conversation{ID: foreign})
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -4519,7 +4519,7 @@ func TestTaskSchedulerFailFastSelectedAncestorPrefixCannotReserveOrdinaryDescend
 							if err != nil {
 								return err
 							}
-							return tx.CreateConversation(Conversation{ID: conversation, Owner: selected})
+							return tx.createConversationRecord(Conversation{ID: conversation, Owner: selected})
 						})
 						if err != nil {
 							t.Fatal(err)
@@ -4574,7 +4574,7 @@ func TestTaskSchedulerFailFastSelectedAncestorPrefixCannotReserveOrdinaryDescend
 							if err != nil {
 								return err
 							}
-							return tx.CreateConversation(Conversation{ID: terminalConversation, Owner: terminal})
+							return tx.createConversationRecord(Conversation{ID: terminalConversation, Owner: terminal})
 						})
 						if err != nil {
 							t.Fatal(err)

@@ -23,7 +23,7 @@ func TestMainSessionDeferredDeadlineStoresEveryHold(t *testing.T) {
 			if err != nil {
 				return nil, err
 			}
-			if err = tx.CreateConversation(Conversation{ID: other}); err != nil {
+			if err = tx.createConversationRecord(Conversation{ID: other}); err != nil {
 				return nil, err
 			}
 			otherDoc, err = tx.MintID()

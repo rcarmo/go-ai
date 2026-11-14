@@ -44,7 +44,7 @@ func mainEligibilityHarness(t *testing.T, b sqliteFixture, owned bool, settings 
 			if err != nil {
 				return nil, err
 			}
-			if err := tx.CreateConversation(Conversation{ID: ownerConversation}); err != nil {
+			if err := tx.createConversationRecord(Conversation{ID: ownerConversation}); err != nil {
 				return nil, err
 			}
 			parent, err = tx.CreateTask(definition, nil, TaskOptions{Conversation: ownerConversation, Ownership: TaskOwnership{Kind: "conversation"}})
@@ -57,7 +57,7 @@ func mainEligibilityHarness(t *testing.T, b sqliteFixture, owned bool, settings 
 		if err != nil {
 			return nil, err
 		}
-		return nil, tx.CreateConversation(Conversation{ID: conversation, Owner: parent})
+		return nil, tx.createConversationRecord(Conversation{ID: conversation, Owner: parent})
 	}); err != nil {
 		t.Fatal(err)
 	}

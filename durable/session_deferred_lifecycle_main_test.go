@@ -147,7 +147,7 @@ func TestMainSessionDeferredMultipleReloadPrefixes(t *testing.T) {
 			if err != nil {
 				return nil, err
 			}
-			if err := tx.CreateConversation(Conversation{ID: peer}); err != nil {
+			if err := tx.createConversationRecord(Conversation{ID: peer}); err != nil {
 				return nil, err
 			}
 			h, err := tx.AcquireDocument(old, peer, nil, nil)

@@ -59,7 +59,7 @@ func TestPendingSessionGroupCommitBatchesAdmittedParts(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			if err := tx.CreateConversation(Conversation{ID: id}); err != nil {
+			if err := tx.createConversationRecord(Conversation{ID: id}); err != nil {
 				return err
 			}
 			conversations[i] = id

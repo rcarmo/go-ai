@@ -177,7 +177,7 @@ func BenchmarkMainContextBusyHistory(b *testing.B) {
 						return nil, err
 					}
 					cid = id
-					return nil, tx.CreateConversation(Conversation{ID: id})
+					return nil, tx.createConversationRecord(Conversation{ID: id})
 				}); err != nil {
 					b.Fatal(err)
 				}

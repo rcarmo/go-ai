@@ -48,7 +48,7 @@ func TestSessionV150DisjointDocumentAdmissionBatchesWaitingParts(t *testing.T) {
 					if e != nil {
 						return nil, e
 					}
-					if e := tx.CreateConversation(Conversation{ID: id}); e != nil {
+					if e := tx.createConversationRecord(Conversation{ID: id}); e != nil {
 						return nil, e
 					}
 					owners = append(owners, id)
@@ -437,7 +437,7 @@ func TestV150SessionReadLinePendingConversation(t *testing.T) {
 				if err != nil {
 					return err
 				}
-				if err := tx.CreateConversation(Conversation{ID: id}); err != nil {
+				if err := tx.createConversationRecord(Conversation{ID: id}); err != nil {
 					return err
 				}
 				created <- id
@@ -724,5 +724,98 @@ func TestSessionV150StorageScopeRechecksFailureAtDeferredEntry(t *testing.T) {
 	}
 	if calls != 2 {
 		t.Fatal("scope calls", calls)
+	}
+}
+
+// Source-derived transaction.ts348-418: ownerless construction has no committed
+// read dependency and must not drain an unrelated unpublished entry write.
+func TestSourceConversationConstructorAdmitsBlindCreatesDuringWriterFlight(t *testing.T) {
+	store := taskConformanceStoreV150(t)
+	session, err := OpenSession(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close(bg)
+	entered, release := make(chan struct{}), make(chan struct{})
+	var once sync.Once
+	unblock := func() { once.Do(func() { close(release) }) }
+	defer unblock()
+	original := session.writer.host.commit
+	var mu sync.Mutex
+	var calls []int
+	session.writer.host.commit = func(ctx context.Context, batches []Batch, receive func(commitReceipt)) (commitGroupResult, error) {
+		mu.Lock()
+		calls = append(calls, len(batches))
+		first := len(calls) == 1
+		mu.Unlock()
+		if first {
+			close(entered)
+			<-release
+		}
+		return original(ctx, batches, receive)
+	}
+	first := make(chan error, 1)
+	go func() {
+		_, err := session.Commit(bg, func(tx *Tx) (any, error) { return tx.AppendEntry(1, JSON{"kind": "source.held"}) })
+		first <- err
+	}()
+	<-entered
+	results := make([]chan error, 2)
+	ran := make(chan ID, 2)
+	for i := range results {
+		results[i] = make(chan error, 1)
+		result := results[i]
+		go func() {
+			_, err := session.Commit(bg, func(tx *Tx) (any, error) {
+				record, err := tx.CreateConversation(JSON{"ownership": JSON{"kind": "ownerless"}})
+				if err == nil {
+					ran <- record.ID
+				}
+				return record, err
+			})
+			result <- err
+		}()
+	}
+	identities := map[ID]bool{}
+	for range 2 {
+		select {
+		case id := <-ran:
+			if id == 0 || identities[id] {
+				t.Fatal("blind constructor identity", id)
+			}
+			identities[id] = true
+		case <-time.After(5 * time.Second):
+			t.Fatal("ownerless constructor drained unrelated writer flight")
+		}
+	}
+	// A later no-op admission callback proves both earlier preparations have
+	// finished before releasing storage; callback-return timing is not a gate.
+	barrierEntered, barrierResult := make(chan struct{}), make(chan error, 1)
+	go func() {
+		_, err := session.Commit(bg, func(*Tx) (any, error) { close(barrierEntered); return nil, nil })
+		barrierResult <- err
+	}()
+	select {
+	case <-barrierEntered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("later admission callback did not progress")
+	}
+	unblock()
+	if err := <-barrierResult; err != nil {
+		t.Fatal(err)
+	}
+	if err := <-first; err != nil {
+		t.Fatal(err)
+	}
+	for _, result := range results {
+		if err := <-result; err != nil {
+			t.Fatal(err)
+		}
+	}
+	mu.Lock()
+	got := append([]int(nil), calls...)
+	mu.Unlock()
+	if !reflect.DeepEqual(got, []int{1, 2}) {
+		t.Fatal("blind creations lost source grouping", got)
 	}
 }

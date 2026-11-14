@@ -55,7 +55,7 @@ func checkReopenedOwnedInspectIdle(t *testing.T, store Storage, reopen func() St
 		if err != nil {
 			return err
 		}
-		if err = tx.CreateConversation(Conversation{ID: owned, Owner: parentID}); err != nil {
+		if err = tx.createConversationRecord(Conversation{ID: owned, Owner: parentID}); err != nil {
 			return err
 		}
 		childID, err = tx.CreateTask(child, nil, TaskOptions{Conversation: owned, Ownership: TaskOwnership{Kind: "conversation"}})

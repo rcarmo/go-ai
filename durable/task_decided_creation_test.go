@@ -84,7 +84,7 @@ func TestTaskOwnershipPinnedDecidedAndMarkedOwnersRejectNewWorkAtomically(t *tes
 								_, err := tx.CreateTask(child, nil, TaskOptions{Ownership: TaskOwnership{Kind: "task", Task: parentID}})
 								return err
 							}
-							return tx.CreateConversation(Conversation{ID: conversationID, Owner: parentID})
+							return tx.createConversationRecord(Conversation{ID: conversationID, Owner: parentID})
 						})
 						if err == nil {
 							t.Fatal("new work below decided owner", ending, creation)

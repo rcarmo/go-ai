@@ -5,6 +5,8 @@ Compact index. Read a linked note only when it is relevant to the current task.
 - [Upstream conformance completion report](upstream-conformance-report.md) — latest verified
   model-tool and compaction slices, exact evidence and remaining migration/release blockers.
 
+- [Conversation ownership constructors](conversation-constructors.md) — public ownership options, staged task owners, admission controls and remaining identity/atomic API scope.
+
 - [Entry draft constructors](entry-constructors.md) — canonical generic/token inputs, record results, source-derived controls and explicit identity/constructor gaps.
 
 - [Commit callback results](commit-callback-values.md) — source result identity/publication, public persistence policies on five paths, caller migration and remaining lifecycle/API scope.

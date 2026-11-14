@@ -64,7 +64,7 @@ func TestConversationCreatedHelpersSeeInheritedAgentBeforeOverrideAndNilRawCompa
 		if err != nil {
 			return err
 		}
-		return tx.CreateConversation(Conversation{ID: raw})
+		return tx.createConversationRecord(Conversation{ID: raw})
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -92,7 +92,7 @@ func TestHarnessRawCreationWithoutCallbackInitializesButPlainSessionAgentReadDoe
 			if err != nil {
 				return nil, err
 			}
-			return nil, tx.CreateConversation(Conversation{ID: plain})
+			return nil, tx.createConversationRecord(Conversation{ID: plain})
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -136,7 +136,7 @@ func TestHarnessRawCreationWithoutCallbackInitializesButPlainSessionAgentReadDoe
 			if err != nil {
 				return err
 			}
-			return tx.CreateConversation(Conversation{ID: created})
+			return tx.createConversationRecord(Conversation{ID: created})
 		})
 		if err != nil {
 			t.Fatal(err)

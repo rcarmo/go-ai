@@ -333,7 +333,7 @@ func TestPublicTransactionStagedReferencesAtomic(t *testing.T) {
 			if e := tx.PutTask(Task{ID: task, Conversation: 1, Kind: "generation", Status: "pending", Checkpoint: JSON{"step": 1}}); e != nil {
 				return nil, e
 			}
-			if e := tx.CreateConversation(Conversation{ID: conversation, Owner: task}); e != nil {
+			if e := tx.createConversationRecord(Conversation{ID: conversation, Owner: task}); e != nil {
 				return nil, e
 			}
 			h, e := tx.CreateDocument(Document{ID: doc, Scope: "task", Owner: task, Kind: "state", Version: 1, Value: JSON{"ready": true}})
@@ -358,7 +358,7 @@ func TestPublicTransactionStagedReferencesAtomic(t *testing.T) {
 		// Final unresolved references reject the whole batch, but intermediate schema
 		// failures remain immediate and leave the previous Set candidate intact.
 		next, _ := s.MintID(bg)
-		_, e = s.Commit(bg, func(tx *Tx) (any, error) { return nil, tx.CreateConversation(Conversation{ID: next, Owner: next + 1}) })
+		_, e = s.Commit(bg, func(tx *Tx) (any, error) { return nil, tx.createConversationRecord(Conversation{ID: next, Owner: next + 1}) })
 		rejected(t, e)
 		after, e := s.Snapshot(bg)
 		if e != nil || after.Seq != v.Seq || len(after.Conversations) != len(v.Conversations) {

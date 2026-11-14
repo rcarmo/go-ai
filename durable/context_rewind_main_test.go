@@ -99,7 +99,7 @@ func TestContextMainHeadRewindRestoresDiscardedHistory(t *testing.T) {
 				t.Fatal(err)
 			}
 			if _, err = s.Commit(bg, func(tx *Tx) (any, error) {
-				return nil, tx.CreateConversation(Conversation{ID: child, Parent: root, ParentAt: at})
+				return nil, tx.createConversationRecord(Conversation{ID: child, Parent: root, ParentAt: at})
 			}); err != nil {
 				t.Fatal(err)
 			}

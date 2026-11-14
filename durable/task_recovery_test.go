@@ -3160,7 +3160,7 @@ func TestTaskRecoveryQueuedWithdrawalOwnedChildDefersSettlement(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			return tx.CreateConversation(Conversation{ID: foreign, Owner: ownerID})
+			return tx.createConversationRecord(Conversation{ID: foreign, Owner: ownerID})
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -4287,7 +4287,7 @@ func TestTaskRecoveryLateOwnedConversationEdgesHeldFailureOrMark(t *testing.T) {
 					if err != nil {
 						return err
 					}
-					return tx.CreateConversation(Conversation{ID: conversation, Owner: ownerID})
+					return tx.createConversationRecord(Conversation{ID: conversation, Owner: ownerID})
 				})
 				if err != nil {
 					t.Fatal(err)
@@ -4412,7 +4412,7 @@ func TestTaskRecoveryRejectedLateEdgeCascadeNeedsGenuineWake(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			return tx.CreateConversation(Conversation{ID: conversation, Owner: ownerID})
+			return tx.createConversationRecord(Conversation{ID: conversation, Owner: ownerID})
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -4874,7 +4874,7 @@ func TestTaskRecoveryRejectedCascadeExactOwnerVariants(t *testing.T) {
 					if err != nil {
 						return err
 					}
-					return tx.CreateConversation(Conversation{ID: conversation, Owner: ownerID})
+					return tx.createConversationRecord(Conversation{ID: conversation, Owner: ownerID})
 				})
 				if err != nil {
 					t.Fatal(err)
@@ -6505,7 +6505,7 @@ func TestTaskRecoveryOrderedToolContinuationAdmissionCloseAndLateOwnedWork(t *te
 					if err != nil {
 						return err
 					}
-					return tx.CreateConversation(Conversation{ID: ownedConversation, Owner: parent})
+					return tx.createConversationRecord(Conversation{ID: ownedConversation, Owner: parent})
 				})
 				if err != nil {
 					t.Fatal(err)

@@ -226,7 +226,7 @@ func TestTaskTablesPinnedStagedOwnerSameBatchDocumentsAndLegacyReplacement(t *te
 			if err != nil {
 				return err
 			}
-			if err := tx.CreateConversation(Conversation{ID: conversation, Owner: owner}); err != nil {
+			if err := tx.createConversationRecord(Conversation{ID: conversation, Owner: owner}); err != nil {
 				return err
 			}
 			document, err = tx.MintID()
@@ -377,7 +377,7 @@ func TestTaskTablesPinnedTypedSameBatchOwnerAndLaterPublication(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			if err := tx.CreateConversation(Conversation{ID: other}); err != nil {
+			if err := tx.createConversationRecord(Conversation{ID: other}); err != nil {
 				return err
 			}
 			doc, err := tx.AcquireDocument(progress, owner, nil, nil)
@@ -2082,5 +2082,231 @@ func TestSourceTxAppendEntryRejectsCyclesWithStrictJSONError(t *testing.T) {
 	after, err := store.Snapshot(bg)
 	if err != nil || after.Seq != before.Seq {
 		t.Fatal("cyclic draft reached storage", before.Seq, after.Seq, err)
+	}
+}
+
+// Constructor field assertions from session-tables.test.ts136-181 at the
+// pinned source. The original publication-object identity assertions remain a
+// separate open packet; they are not replaced with value equality here.
+func TestSourceTxCreateConversationOptionsAndConstructedRecords(t *testing.T) {
+	store := taskConformanceStoreV150(t)
+	session, err := OpenSession(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close(bg)
+	idle := func(context.Context, TaskRecord, *TaskRuntime) error { return nil }
+	work, err := DefineTask(TaskDefinitionOptions{Kind: "test.work", Version: 1, Initial: func(any) (JSON, error) { return JSON{"phase": "start"}, nil }, Phases: map[string]TaskPhase{"start": idle, "next": idle}, Abort: idle})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var conversation Conversation
+	var first, headed Entry
+	var task ID
+	_, err = session.Commit(bg, func(tx *Tx) (any, error) {
+		create, ok := any(tx.CreateConversation).(func(JSON) (Conversation, error))
+		if !ok {
+			t.Fatal("source CreateConversation(ownership options) record-result signature missing")
+		}
+		var err error
+		conversation, err = create(JSON{"ownership": JSON{"kind": "ownerless"}})
+		if err != nil {
+			return nil, err
+		}
+		first, err = tx.AppendEntry(conversation.ID, JSON{"kind": "note", "data": "one"})
+		if err != nil {
+			return nil, err
+		}
+		headed, err = tx.AppendEntry(conversation.ID, JSON{"kind": "summary", "head": "self"})
+		if err != nil {
+			return nil, err
+		}
+		task, err = tx.CreateTask(work, JSON{"path": "x"}, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}, Conversation: conversation.ID, Background: true})
+		return nil, err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ids := map[ID]bool{}
+	for _, id := range []ID{conversation.ID, first.ID, headed.ID, task} {
+		if id == 0 || ids[id] {
+			t.Fatal("source constructor identities not distinct", conversation, first, headed, task)
+		}
+		ids[id] = true
+	}
+	if headed.Head != headed.ID {
+		t.Fatal("source headed record changed", headed)
+	}
+	firstWire, err := first.MarshalJSON()
+	if err != nil || !reflect.DeepEqual(dropinJSON(t, firstWire), dropinJSON(t, []byte(fmt.Sprintf(`{"id":%d,"conversationId":%d,"kind":"note","data":"one"}`, first.ID, conversation.ID)))) {
+		t.Fatal("source first record changed", string(firstWire), err)
+	}
+	stored, found, err := store.Entry(bg, headed.ID)
+	if err != nil || !found {
+		t.Fatal(found, err)
+	}
+	got, err := stored.Entry.MarshalJSON()
+	want, e := headed.MarshalJSON()
+	if err != nil || e != nil || string(got) != string(want) {
+		t.Fatal("source stored headed record changed", string(got), string(want), err, e)
+	}
+	record, found, err := store.Task(bg, task)
+	if err != nil || !found {
+		t.Fatal(found, err)
+	}
+	wire, err := record.MarshalJSON()
+	expected := fmt.Sprintf(`{"id":%d,"conversationId":%d,"kind":"test.work","version":1,"input":{"path":"x"},"background":true,"abortRequested":false,"state":{"status":"pending","checkpoint":{"phase":"start"}}}`, task, conversation.ID)
+	if err != nil || !reflect.DeepEqual(dropinJSON(t, wire), dropinJSON(t, []byte(expected))) {
+		t.Fatal("source literal task record changed", string(wire), err)
+	}
+}
+
+// Original session-tables.test.ts191-215 staged-owner record assertions, plus
+// the exact missing-owner error from257. Identity/other atomic cases stay open.
+func TestSourceTxCreateConversationStagedOwnerAndMissingOwner(t *testing.T) {
+	store := taskConformanceStoreV150(t)
+	session, err := OpenSession(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close(bg)
+	idle := func(context.Context, TaskRecord, *TaskRuntime) error { return nil }
+	work, err := DefineTask(TaskDefinitionOptions{Kind: "test.work", Version: 1, Initial: func(any) (JSON, error) { return JSON{"phase": "start"}, nil }, Phases: map[string]TaskPhase{"start": idle}, Abort: idle})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var supervisor ID
+	var child Conversation
+	_, err = session.Commit(bg, func(tx *Tx) (any, error) {
+		create, ok := any(tx.CreateConversation).(func(JSON) (Conversation, error))
+		if !ok {
+			t.Fatal("source ownership-options constructor missing")
+		}
+		var err error
+		supervisor, err = tx.CreateTask(work, JSON{"path": "background"}, TaskOptions{Conversation: 1, Ownership: TaskOwnership{Kind: "conversation"}, Background: true})
+		if err != nil {
+			return nil, err
+		}
+		child, err = create(JSON{"ownership": JSON{"kind": "task", "taskId": supervisor}})
+		return child, err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wire, err := child.MarshalJSON()
+	want := fmt.Sprintf(`{"id":%d,"owner":{"conversationId":1,"taskId":%d}}`, child.ID, supervisor)
+	if err != nil || !reflect.DeepEqual(dropinJSON(t, wire), dropinJSON(t, []byte(want))) {
+		t.Fatal("staged owner record changed", string(wire), err)
+	}
+	stored, found, err := store.Conversation(bg, child.ID)
+	if err != nil || !found || stored != child {
+		t.Fatal("stored owner record changed", stored, found, err)
+	}
+	_, err = session.Commit(bg, func(tx *Tx) (any, error) {
+		create := any(tx.CreateConversation).(func(JSON) (Conversation, error))
+		return create(JSON{"ownership": JSON{"kind": "task", "taskId": ID(999)}})
+	})
+	if err == nil || !strings.Contains(err.Error(), "Conversation owner task 999 does not exist") {
+		t.Fatal("source missing-owner error changed", err)
+	}
+}
+
+// Source-derived ownership-property evaluation, before allocation, confirmed by
+// the original constructor probe. Unused option fields are never JSON-copied.
+func TestSourceTxCreateConversationOwnershipEvaluation(t *testing.T) {
+	store := taskConformanceStoreV150(t)
+	session, err := OpenSession(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close(bg)
+	for _, test := range []struct {
+		options JSON
+		message string
+	}{{nil, "Cannot read properties of null (reading 'ownership')"}, {JSON{}, "Cannot read properties of undefined (reading 'kind')"}, {JSON{"ownership": nil}, "Cannot read properties of null (reading 'kind')"}} {
+		_, err = session.Commit(bg, func(tx *Tx) (any, error) {
+			before := tx.state.HighWater
+			_, err := tx.CreateConversation(test.options)
+			if err == nil || !strings.Contains(err.Error(), test.message) {
+				t.Error("source option error changed", err)
+			}
+			if tx.state.HighWater != before {
+				t.Error("option property error minted identity")
+			}
+			_, _, readErr := tx.Task(1)
+			var fenced *ReadAfterWrite
+			if !errors.As(readErr, &fenced) {
+				t.Error("failed option write did not fence tables", readErr)
+			}
+			return nil, err
+		})
+		if err == nil {
+			t.Fatal("invalid options stored")
+		}
+	}
+	for _, ownership := range []any{JSON{"kind": "unknown", "ignored": func() {}}, true} {
+		value, err := session.Commit(bg, func(tx *Tx) (any, error) {
+			return tx.CreateConversation(JSON{"ownership": ownership, "ignored": func() {}})
+		})
+		if err != nil {
+			t.Fatal("unused option fields validated", err)
+		}
+		record := value.(Conversation)
+		wire, err := record.MarshalJSON()
+		if err != nil || !reflect.DeepEqual(dropinJSON(t, wire), dropinJSON(t, []byte(fmt.Sprintf(`{"id":%d}`, record.ID)))) {
+			t.Fatal("source ownerless record changed", string(wire), err)
+		}
+	}
+}
+func TestSourceTxCreateConversationRunsHarnessInitialization(t *testing.T) {
+	store, err := newTestSQLite(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var created ID
+	var note Entry
+	h := openHarness(t, store, Options{ConversationCreated: func(tx *Tx, record Conversation) error {
+		created = record.ID
+		var err error
+		note, err = tx.AppendEntry(record.ID, JSON{"kind": "source.created"})
+		return err
+	}})
+	value, err := h.Commit(bg, func(tx *Tx) (any, error) { return tx.CreateConversation(JSON{"ownership": JSON{"kind": "ownerless"}}) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	record := value.(Conversation)
+	if record.ID == 0 || record.ID != created || note.Conversation != record.ID {
+		t.Fatal("creation/initialization order", record, created, note)
+	}
+	stored, found, err := h.Entry(bg, note.ID)
+	if err != nil || !found || stored.Kind != "source.created" {
+		t.Fatal("creation callback write not adopted", stored, found, err)
+	}
+}
+
+// transaction.ts370-377 tests the extracted taskId against undefined, not just
+// ownership.kind. Omitted taskId is ownerless; explicit null remains a lookup.
+func TestSourceTxCreateConversationOmittedVersusNullTaskOwner(t *testing.T) {
+	store := taskConformanceStoreV150(t)
+	session, err := OpenSession(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close(bg)
+	value, err := session.Commit(bg, func(tx *Tx) (any, error) { return tx.CreateConversation(JSON{"ownership": JSON{"kind": "task"}}) })
+	if err != nil {
+		t.Error("source omitted taskId became owner lookup", err)
+	} else {
+		record := value.(Conversation)
+		if record.ID == 0 || record.Owner != 0 || record.OwnerConversation != 0 {
+			t.Error("omitted owner record changed", record)
+		}
+	}
+	_, err = session.Commit(bg, func(tx *Tx) (any, error) {
+		return tx.CreateConversation(JSON{"ownership": JSON{"kind": "task", "taskId": nil}})
+	})
+	if err == nil || !strings.Contains(err.Error(), "Conversation owner task null does not exist") {
+		t.Error("source explicit-null lookup changed", err)
 	}
 }

@@ -2,7 +2,11 @@
 
 The sole acceptance target is official upstream **v1.5.0**, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Alignment is unverified. Older entries below are historical receipts, not compatibility requirements or v1.5.0 acceptance. Retained tests and active identity/schema/catalogue/regeneration pins must be reconciled with this release; obsolete behaviour must change.
 
-## Development continuation: strict-JSON cycle errors
+## Development continuation: conversation ownership options
+
+Public Tx.CreateConversation now consumes upstream ownership options, allocates identity and returns its record, including staged task owners. The old full-record constructor is private; Harness creation is unchanged. [Source packet, independent probes and precise gaps](notes/conversation-constructors.md): Full repository ./... passes26 packages: root0.871s, durable525.645s/tools28.155s and public consumers12.505s. Nine compiled semantic faults, ten constructor repetitions1.951s, final ten blind-admission repetitions0.413s, vet/Staticcheck/logging/register pass. Selected original273 (200 unchanged +73 probes), including complete original table12+81 supplements93, pass with zero skipped. Analysed temporary logs/overlays are removed. Publication-record identity, ForkConversation/SetTask and atomic owner packets, untyped/schema timing, complete builtin/API/Storage and pre-release acceptance remain open.
+
+## Previous development continuation: strict-JSON cycle errors
 
 Actual public entry constructors now retain the pinned Chord cycle-error substring for map/array data without changing cycle detection. [Source test and mutation controls](notes/entry-constructors.md#strict-json-cycle-errors): Full repository ./... passes26 packages: root0.843s, durable509.123s/tools27.829s and public consumers12.499s. Ten shuffled constructor repetitions2.566s, two independently compiled cycle-message faults, vet/Staticcheck/logging/register and complete original table12+79 supplements91 pass, zero original skips. Analysed temporary logs/overlays are removed. Publication-record identity, other constructors/builtin producers and broader API/Storage/release acceptance remain open.
 

@@ -58,7 +58,7 @@ func TestConversationCreatedNeverReplaysForRetiredAgentOrNilHistoryReopen(t *tes
 			if err != nil {
 				return err
 			}
-			return tx.CreateConversation(Conversation{ID: raw})
+			return tx.createConversationRecord(Conversation{ID: raw})
 		})
 		if err != nil {
 			t.Fatal(err)

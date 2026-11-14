@@ -31,7 +31,7 @@ func TestTaskGraphCommittedWatchFamilyAndDetachedRebuild(t *testing.T) {
 						if err != nil {
 							return nil, err
 						}
-						if err = tx.CreateConversation(Conversation{ID: id, Owner: r.TaskID()}); err != nil {
+						if err = tx.createConversationRecord(Conversation{ID: id, Owner: r.TaskID()}); err != nil {
 							return nil, err
 						}
 					}

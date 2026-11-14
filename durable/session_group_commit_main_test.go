@@ -76,7 +76,7 @@ func TestMainSessionUnpublishedReadBarriers(t *testing.T) {
 					if kind == "entry" {
 						return nil, tx.appendEntryRecord(Entry{ID: leaked, Conversation: 1, Kind: "note", Value: JSON{"body": "first"}})
 					}
-					return nil, tx.CreateConversation(Conversation{ID: leaked})
+					return nil, tx.createConversationRecord(Conversation{ID: leaked})
 				})
 				first <- err
 			}()
@@ -193,14 +193,14 @@ func TestMainSessionFailureFenceKeepsEarlierPartsAfterSettlementError(t *testing
 		if err != nil {
 			return nil, err
 		}
-		if err := tx.CreateConversation(Conversation{ID: a}); err != nil {
+		if err := tx.createConversationRecord(Conversation{ID: a}); err != nil {
 			return nil, err
 		}
 		b, err = tx.MintID()
 		if err != nil {
 			return nil, err
 		}
-		return nil, tx.CreateConversation(Conversation{ID: b})
+		return nil, tx.createConversationRecord(Conversation{ID: b})
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -386,7 +386,7 @@ func TestMainSessionGatesJobsWaitForPublication(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			if err := tx.CreateConversation(Conversation{ID: id}); err != nil {
+			if err := tx.createConversationRecord(Conversation{ID: id}); err != nil {
 				return err
 			}
 			createdID = id
@@ -469,7 +469,7 @@ func TestMainSessionGatesJobsWaitForPublication(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			if err := tx.CreateConversation(Conversation{ID: id}); err != nil {
+			if err := tx.createConversationRecord(Conversation{ID: id}); err != nil {
 				return err
 			}
 			createdID = id
@@ -548,7 +548,7 @@ func TestMainSessionGatesJobsWaitForPublication(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			if err := tx.CreateConversation(Conversation{ID: created}); err != nil {
+			if err := tx.createConversationRecord(Conversation{ID: created}); err != nil {
 				return err
 			}
 			entryID, err := tx.MintID()
@@ -621,7 +621,7 @@ func TestMainSessionGatesJobsWaitForPublication(t *testing.T) {
 			if err != nil {
 				return nil, err
 			}
-			if err := tx.CreateConversation(Conversation{ID: owner}); err != nil {
+			if err := tx.createConversationRecord(Conversation{ID: owner}); err != nil {
 				return nil, err
 			}
 			_, err = tx.AcquireDocument(deferred, owner, nil, nil)
@@ -696,7 +696,7 @@ func TestMainSessionGatesJobsWaitForPublication(t *testing.T) {
 			if err != nil {
 				return nil, err
 			}
-			if err := tx.CreateConversation(Conversation{ID: owner}); err != nil {
+			if err := tx.createConversationRecord(Conversation{ID: owner}); err != nil {
 				return nil, err
 			}
 			doc, err := tx.AcquireDocument(definition, owner, nil, nil)
@@ -838,7 +838,7 @@ func TestMainSessionCase256ReadSurfacesWaitForPendingCreation(t *testing.T) {
 				if err != nil {
 					return err
 				}
-				if err := tx.CreateConversation(Conversation{ID: id}); err != nil {
+				if err := tx.createConversationRecord(Conversation{ID: id}); err != nil {
 					return err
 				}
 				created <- id

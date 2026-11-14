@@ -28,10 +28,10 @@ func TestTaskGraphPinnedReopenPendingMarksAndReverseCreatedConversationOrder(t *
 			if err != nil {
 				return err
 			}
-			if err = tx.CreateConversation(Conversation{ID: high, Owner: owner}); err != nil {
+			if err = tx.createConversationRecord(Conversation{ID: high, Owner: owner}); err != nil {
 				return err
 			}
-			return tx.CreateConversation(Conversation{ID: low, Owner: owner})
+			return tx.createConversationRecord(Conversation{ID: low, Owner: owner})
 		})
 		if err != nil {
 			t.Fatal(err)

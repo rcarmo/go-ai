@@ -235,12 +235,18 @@ func (t *Tx) MintID() (ID, error) {
 	}
 	return id, e
 }
-func (t *Tx) CreateConversation(v Conversation) error {
+func (t *Tx) createConversationRecord(v Conversation) error {
 	if e := t.enter(); e != nil {
 		return e
 	}
 	defer t.leave()
 	t.hasTableWrite = true
+	return t.stageConversationRecord(v)
+}
+
+// Already-assigned records remain private to bootstrap/legacy producers.
+// The public constructor owns allocation and derives ownership from its task.
+func (t *Tx) stageConversationRecord(v Conversation) error {
 	before := t.writes
 	if err := t.stage(Write{Op: "create-conversation", Conversation: &v}); err != nil {
 		return err

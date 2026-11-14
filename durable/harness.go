@@ -313,7 +313,7 @@ func (h *Harness) createConversation(ctx context.Context, change AgentChange, in
 		if h.closing.Load() {
 			return nil, h.closedError()
 		}
-		if e := tx.CreateConversation(Conversation{ID: id, Name: change.Name}); e != nil {
+		if e := tx.createConversationRecord(Conversation{ID: id, Name: change.Name}); e != nil {
 			return nil, e
 		}
 		v, e := dtoObject(state, h.session.limits)
@@ -467,7 +467,7 @@ func (h *Harness) configureLockedWithInit(ctx context.Context, id ID, c AgentCha
 			if !rootBootstrap {
 				return nil, reject("unknown conversation")
 			}
-			if e := tx.CreateConversation(Conversation{ID: id}); e != nil {
+			if e := tx.createConversationRecord(Conversation{ID: id}); e != nil {
 				return nil, e
 			}
 			candidate, err := tx.current()

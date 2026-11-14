@@ -48,7 +48,7 @@ func TestMainSessionUnpublishedScanBarriers(t *testing.T) {
 					if err != nil {
 						return nil, err
 					}
-					if err := tx.CreateConversation(Conversation{ID: leaked}); err != nil {
+					if err := tx.createConversationRecord(Conversation{ID: leaked}); err != nil {
 						return nil, err
 					}
 					close(held)

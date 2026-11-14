@@ -966,7 +966,7 @@ func TestM1cProviderPartialPointersObservedDetachedAtBoundary(t *testing.T) {
 		t.Fatal(e)
 	}
 	_, e = h.session.Commit(bg, func(tx *Tx) (any, error) {
-		if err := tx.CreateConversation(Conversation{ID: conversation}); err != nil {
+		if err := tx.createConversationRecord(Conversation{ID: conversation}); err != nil {
 			return nil, err
 		}
 		if err := initializeBuiltins(tx, conversation); err != nil {

@@ -177,7 +177,7 @@ func TestMainIdleNestedWorkModel(t *testing.T) {
 					if err != nil {
 						return err
 					}
-					if err = tx.CreateConversation(Conversation{ID: cid}); err != nil {
+					if err = tx.createConversationRecord(Conversation{ID: cid}); err != nil {
 						return err
 					}
 					return note(tx, cid)
@@ -222,7 +222,7 @@ func TestMainIdleNestedWorkModel(t *testing.T) {
 					if err != nil {
 						return err
 					}
-					if err = tx.CreateConversation(Conversation{ID: into, Owner: owner.id}); err != nil {
+					if err = tx.createConversationRecord(Conversation{ID: into, Owner: owner.id}); err != nil {
 						return err
 					}
 					if err = note(tx, into); err != nil {

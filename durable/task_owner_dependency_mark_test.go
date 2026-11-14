@@ -53,7 +53,7 @@ func TestTaskOwnershipPinnedOwnerMarkWinsDependencyCompletionSameCommit(t *testi
 			if err != nil {
 				return err
 			}
-			if err = tx.CreateConversation(Conversation{ID: owned, Owner: ownerID}); err != nil {
+			if err = tx.createConversationRecord(Conversation{ID: owned, Owner: ownerID}); err != nil {
 				return err
 			}
 			waiterID, err = tx.CreateTask(waiter, nil, TaskOptions{Conversation: owned, Ownership: TaskOwnership{Kind: "conversation"}})

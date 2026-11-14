@@ -63,7 +63,7 @@ func (c *ConversationHandle) CreateBackgroundConversation(ctx context.Context, k
 		if err != nil {
 			return err
 		}
-		if err = tx.CreateConversation(Conversation{ID: child, Owner: owner}); err != nil {
+		if err = tx.createConversationRecord(Conversation{ID: child, Owner: owner}); err != nil {
 			return err
 		}
 		value, err := dtoObject(agent, tx.limits)

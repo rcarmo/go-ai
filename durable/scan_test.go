@@ -232,7 +232,7 @@ func TestScan110RecordsFiltersTransactionAndDetachment(t *testing.T) {
 			if e != nil {
 				return nil, e
 			}
-			if e = tx.CreateConversation(Conversation{ID: staged}); e != nil {
+			if e = tx.createConversationRecord(Conversation{ID: staged}); e != nil {
 				return nil, e
 			}
 			if _, e = tx.ScanConversations(ConversationQuery{Order: Descending}, 1, nil); !errors.As(e, new(*ReadAfterWrite)) {

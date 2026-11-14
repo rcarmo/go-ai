@@ -572,7 +572,7 @@ func TestV150SubmissionRequestPresenceSessionAndHarness(t *testing.T) {
 		if err != nil {
 			return nil, err
 		}
-		if err := tx.CreateConversation(Conversation{ID: conv}); err != nil {
+		if err := tx.createConversationRecord(Conversation{ID: conv}); err != nil {
 			return nil, err
 		}
 		createdSubmission, err := tx.CreateSubmission(SubmissionCreate{Conversation: conv, Type: "continue", Status: "placed", RequestIDPresent: true})

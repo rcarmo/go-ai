@@ -83,7 +83,7 @@ func TestTaskOwnershipPinnedQueuedInputScopePreservesWritesAndBackground(t *test
 					if err != nil {
 						return err
 					}
-					return tx.CreateConversation(Conversation{ID: owned, Owner: owner})
+					return tx.createConversationRecord(Conversation{ID: owned, Owner: owner})
 				})
 				if err != nil {
 					t.Fatal(err)

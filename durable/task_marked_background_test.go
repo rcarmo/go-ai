@@ -47,7 +47,7 @@ func TestTaskOwnershipAncestorCascadeIncludesAlreadyMarkedBackgroundSubtree(t *t
 			if err != nil {
 				return err
 			}
-			if err = tx.CreateConversation(Conversation{ID: conversation, Owner: parentID}); err != nil {
+			if err = tx.createConversationRecord(Conversation{ID: conversation, Owner: parentID}); err != nil {
 				return err
 			}
 			backgroundID, err = tx.CreateTask(live, nil, TaskOptions{Conversation: conversation, Ownership: TaskOwnership{Kind: "conversation"}, Background: true})

@@ -40,7 +40,7 @@ func (r *TaskRuntime) CreateOwnedConversation(ctx context.Context, key string, c
 		if err != nil {
 			return nil, err
 		}
-		if err = tx.CreateConversation(Conversation{ID: id, Owner: r.TaskID()}); err != nil {
+		if err = tx.createConversationRecord(Conversation{ID: id, Owner: r.TaskID()}); err != nil {
 			return nil, err
 		}
 		value, err := dtoObject(state, tx.limits)

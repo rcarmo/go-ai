@@ -143,7 +143,7 @@ func TestMainGroupCommitHoldsLiveOwnerRaceCreation(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		return tx.CreateConversation(Conversation{ID: conv, Owner: id})
+		return tx.createConversationRecord(Conversation{ID: conv, Owner: id})
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -333,7 +333,7 @@ func TestMainGroupCommitOwnerEndFollowsCreationBelowPendingEnd(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		return tx.CreateConversation(Conversation{ID: conv, Owner: id})
+		return tx.createConversationRecord(Conversation{ID: conv, Owner: id})
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -742,7 +742,7 @@ func TestMainGroupCommitLineReadsWaitForPendingMembership(t *testing.T) {
 					if err != nil {
 						return err
 					}
-					return tx.CreateConversation(Conversation{ID: targetConversation, Owner: maker})
+					return tx.createConversationRecord(Conversation{ID: targetConversation, Owner: maker})
 				}
 				targetConversation = c.ID()
 				return nil

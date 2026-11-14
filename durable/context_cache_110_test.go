@@ -116,7 +116,7 @@ func TestContext110CacheAppendEditsBoundsAndDetachment(t *testing.T) {
 		// Fork cutoff remains authoritative after the parent's later appends.
 		child := mintID()
 		_, e = s.Commit(bg, func(tx *Tx) (any, error) {
-			return nil, tx.CreateConversation(Conversation{ID: child, Parent: root, ParentAt: baseline})
+			return nil, tx.createConversationRecord(Conversation{ID: child, Parent: root, ParentAt: baseline})
 		})
 		if e != nil {
 			t.Fatal(e)

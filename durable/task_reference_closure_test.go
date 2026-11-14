@@ -105,7 +105,7 @@ func TestTaskOwnershipLiveFailedOwnerAbortsNewWorkWhileOldChildDrains(t *testing
 				if err != nil {
 					return nil, err
 				}
-				if err = tx.CreateConversation(Conversation{ID: ownedConversation, Owner: task.ID}); err != nil {
+				if err = tx.createConversationRecord(Conversation{ID: ownedConversation, Owner: task.ID}); err != nil {
 					return nil, err
 				}
 				_, err = tx.CreateTask(child, "old", TaskOptions{Conversation: ownedConversation, Ownership: TaskOwnership{Kind: "conversation"}})
@@ -196,7 +196,7 @@ func TestTaskOwnershipActiveBackgroundOwnerStopsRootIdleButOwnedScopeRemainsBusy
 				if err != nil {
 					return nil, err
 				}
-				if err = tx.CreateConversation(Conversation{ID: conversation, Owner: task.ID}); err != nil {
+				if err = tx.createConversationRecord(Conversation{ID: conversation, Owner: task.ID}); err != nil {
 					return nil, err
 				}
 				childID, err = tx.CreateTask(child, nil, TaskOptions{Conversation: conversation, Ownership: TaskOwnership{Kind: "conversation"}})

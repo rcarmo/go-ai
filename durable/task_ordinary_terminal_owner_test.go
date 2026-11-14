@@ -31,7 +31,7 @@ func TestTaskOwnershipPinnedTerminalOrdinaryOwnerDoesNotRecascadeNewConversation
 			if err != nil {
 				return err
 			}
-			return tx.CreateConversation(Conversation{ID: owned, Owner: ownerID})
+			return tx.createConversationRecord(Conversation{ID: owned, Owner: ownerID})
 		})
 		if err != nil {
 			t.Fatal(err)

@@ -36,7 +36,7 @@ func TestTaskOwnershipFailedOwnerCascadesButCompletedOwnerDrainsNormally(t *test
 							if err != nil {
 								return nil, err
 							}
-							if err := tx.CreateConversation(Conversation{ID: conversation, Owner: r.TaskID()}); err != nil {
+							if err := tx.createConversationRecord(Conversation{ID: conversation, Owner: r.TaskID()}); err != nil {
 								return nil, err
 							}
 							childID, err = tx.CreateTask(child, nil, TaskOptions{Conversation: conversation, Ownership: TaskOwnership{Kind: "conversation"}})

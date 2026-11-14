@@ -74,14 +74,14 @@ func TestConversationCreatedPinnedRawOwnedForkOrderAndRollback(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			if err := tx.CreateConversation(Conversation{ID: plain}); err != nil {
+			if err := tx.createConversationRecord(Conversation{ID: plain}); err != nil {
 				return err
 			}
 			owned, err = tx.MintID()
 			if err != nil {
 				return err
 			}
-			if err := tx.CreateConversation(Conversation{ID: owned, Owner: owner}); err != nil {
+			if err := tx.createConversationRecord(Conversation{ID: owned, Owner: owner}); err != nil {
 				return err
 			}
 			candidate, err := tx.current()
@@ -130,7 +130,7 @@ func TestConversationCreatedPinnedRawOwnedForkOrderAndRollback(t *testing.T) {
 				if err != nil {
 					return err
 				}
-				_ = tx.CreateConversation(Conversation{ID: id})
+				_ = tx.createConversationRecord(Conversation{ID: id})
 				entry, err := tx.MintID()
 				if err != nil {
 					return err

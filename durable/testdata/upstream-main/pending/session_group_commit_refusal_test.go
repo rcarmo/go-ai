@@ -48,7 +48,7 @@ func TestPendingGroupCommitRefusalFailsTheSession(t *testing.T) {
 				return err
 			}
 			*target = id
-			if err := tx.CreateConversation(Conversation{ID: id}); err != nil {
+			if err := tx.createConversationRecord(Conversation{ID: id}); err != nil {
 				return err
 			}
 		}

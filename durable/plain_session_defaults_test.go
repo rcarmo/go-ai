@@ -20,7 +20,7 @@ func TestPlainSessionAbsentAgentEnvironmentAndNoModelSubmit(t *testing.T) {
 			if err != nil {
 				return nil, err
 			}
-			return nil, tx.CreateConversation(Conversation{ID: conversation})
+			return nil, tx.createConversationRecord(Conversation{ID: conversation})
 		})
 		if err != nil {
 			t.Fatal(err)

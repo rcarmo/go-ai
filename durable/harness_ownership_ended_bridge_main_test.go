@@ -111,7 +111,7 @@ func TestMainOwnershipEndedBridgeAbortsWorkBelowEndedTasks(t *testing.T) {
 					if err != nil {
 						return err
 					}
-					if err := tx.CreateConversation(Conversation{ID: convID, Owner: owner}); err != nil {
+					if err := tx.createConversationRecord(Conversation{ID: convID, Owner: owner}); err != nil {
 						return err
 					}
 					return nil

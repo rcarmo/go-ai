@@ -34,7 +34,7 @@ func checkCancelledOwnerLateWorkReopen(t *testing.T, store Storage, reopen func(
 				if err != nil {
 					return nil, err
 				}
-				if err := tx.CreateConversation(Conversation{ID: childConversation, Owner: r.TaskID()}); err != nil {
+				if err := tx.createConversationRecord(Conversation{ID: childConversation, Owner: r.TaskID()}); err != nil {
 					return nil, err
 				}
 				inner, err = tx.CreateTask(done, nil, TaskOptions{Conversation: childConversation, Ownership: TaskOwnership{Kind: "conversation"}})

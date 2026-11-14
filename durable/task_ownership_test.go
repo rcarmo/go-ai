@@ -229,7 +229,7 @@ func TestTaskOwnershipBackgroundBoundaryAndTerminalOwnerNoCascade(t *testing.T) 
 					if err != nil {
 						return err
 					}
-					return tx.CreateConversation(Conversation{ID: childConversation, Owner: background})
+					return tx.createConversationRecord(Conversation{ID: childConversation, Owner: background})
 				})
 				if err != nil {
 					t.Fatal(err)
@@ -329,7 +329,7 @@ func TestTaskOwnershipRejectFinishingChildButOwnedConversationWorkHolds(t *testi
 				if err != nil {
 					return nil, err
 				}
-				if err := tx.CreateConversation(Conversation{ID: conversation, Owner: r.TaskID()}); err != nil {
+				if err := tx.createConversationRecord(Conversation{ID: conversation, Owner: r.TaskID()}); err != nil {
 					return nil, err
 				}
 				return &TaskState{Status: "running", Checkpoint: JSON{"phase": "finish"}}, nil
@@ -740,7 +740,7 @@ func TestTaskOwnershipDirectBackgroundAbortStopsAtNestedBackground(t *testing.T)
 			if err != nil {
 				return err
 			}
-			return tx.CreateConversation(Conversation{ID: ownedConversation, Owner: background})
+			return tx.createConversationRecord(Conversation{ID: ownedConversation, Owner: background})
 		})
 		if err != nil {
 			t.Fatal(err)
