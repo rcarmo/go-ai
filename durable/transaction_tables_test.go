@@ -2367,3 +2367,416 @@ func TestSourceTxLatestHeadMarkerUsesCurrentOneArgumentShape(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// Internal Transaction.setTask, not the public Tx interface: original
+// session-tables.test.ts333-354's complete state/memos replacement packet.
+func TestSourceInternalSetTaskReplacesCanonicalRecord(t *testing.T) {
+	type internalSetter interface{ setTask(TaskRecord) error }
+	store := taskConformanceStoreV150(t)
+	session, err := OpenSession(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close(bg)
+	idle := func(context.Context, TaskRecord, *TaskRuntime) error { return nil }
+	work, err := DefineTask(TaskDefinitionOptions{Kind: "test.work", Version: 1, Initial: func(any) (JSON, error) { return JSON{"phase": "start"}, nil }, Phases: map[string]TaskPhase{"start": idle, "next": idle}, Abort: idle})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var id ID
+	_, err = session.Commit(bg, func(tx *Tx) (any, error) {
+		var err error
+		id, err = tx.CreateTask(work, JSON{"path": "a"}, TaskOptions{Conversation: 1, Ownership: TaskOwnership{Kind: "conversation"}})
+		return nil, err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = session.Commit(bg, func(tx *Tx) (any, error) {
+		setter, ok := any(tx).(internalSetter)
+		if !ok {
+			t.Fatal("source internal canonical setTask missing")
+		}
+		task, found, err := tx.Task(id)
+		if err != nil || !found {
+			t.Fatal(found, err)
+		}
+		return nil, setter.setTask(TaskRecord{ID: task.ID, Conversation: task.Conversation, Kind: task.Kind, Version: task.Version, Input: task.Input, Background: task.Background, AbortRequested: task.AbortRequested, State: TaskState{Status: "running", Checkpoint: JSON{"phase": "next", "step": 2}}, Memos: map[string]*TaskValue{"choice": {Present: true, Value: "b"}}})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	task, found, err := store.Task(bg, id)
+	if err != nil || !found || task.State.Status != "running" || !equalJSONValue(task.State.Checkpoint, JSON{"phase": "next", "step": 2}) || len(task.Memos) != 1 || task.Memos["choice"] == nil || task.Memos["choice"].Value != "b" {
+		t.Fatal("source canonical replacement changed", task, found, err)
+	}
+}
+
+// Source #assemble resolves a replacement's committed task only after the
+// callback; setTask itself only rejects a staged terminal/conversation change.
+func TestSourceInternalSetTaskMissingRecordRejectsOnlyDuringAssembly(t *testing.T) {
+	type internalSetter interface{ setTask(TaskRecord) error }
+	store := taskConformanceStoreV150(t)
+	session, err := OpenSession(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close(bg)
+	before, err := store.Snapshot(bg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	finished := false
+	_, err = session.Commit(bg, func(tx *Tx) (any, error) {
+		setter, ok := any(tx).(internalSetter)
+		if !ok {
+			t.Fatal("source internal task setter missing")
+		}
+		if err := setter.setTask(TaskRecord{ID: 999, Conversation: 1, Kind: "test.work", Version: 1, Input: &TaskValue{Present: true, Value: JSON{"path": "missing"}}, State: TaskState{Status: "pending", Checkpoint: JSON{"phase": "start"}}}); err != nil {
+			t.Error("missing task resolved inside source setter", err)
+			return nil, err
+		}
+		finished = true
+		return nil, nil
+	})
+	if !finished || err == nil || !strings.Contains(err.Error(), "Task 999 does not exist") {
+		t.Error("source missing replacement assembly changed", finished, err)
+	}
+	after, err := store.Snapshot(bg)
+	if err != nil || after.Seq != before.Seq {
+		t.Fatal("missing replacement stored", before.Seq, after.Seq, err)
+	}
+}
+func TestSourceInternalSetTaskUsesStagedCandidateGuards(t *testing.T) {
+	type internalSetter interface{ setTask(TaskRecord) error }
+	store := taskConformanceStoreV150(t)
+	session, err := OpenSession(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close(bg)
+	idle := func(context.Context, TaskRecord, *TaskRuntime) error { return nil }
+	work, err := DefineTask(TaskDefinitionOptions{Kind: "test.work", Version: 1, Initial: func(any) (JSON, error) { return JSON{"phase": "start"}, nil }, Phases: map[string]TaskPhase{"start": idle}, Abort: idle})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var id ID
+	_, err = session.Commit(bg, func(tx *Tx) (any, error) {
+		setter, ok := any(tx).(internalSetter)
+		if !ok {
+			t.Fatal("source internal task setter missing")
+		}
+		var err error
+		id, err = tx.CreateTask(work, JSON{"path": "guard"}, TaskOptions{Conversation: 1, Ownership: TaskOwnership{Kind: "conversation"}, Background: true})
+		if err != nil {
+			return nil, err
+		}
+		record := TaskRecord{ID: id, Conversation: 998, Kind: "test.work", Version: 1, Input: &TaskValue{Present: true, Value: JSON{"path": "guard"}}, Background: true, State: TaskState{Status: "pending", Checkpoint: JSON{"phase": "start"}}}
+		if err = setter.setTask(record); err == nil || !strings.Contains(err.Error(), fmt.Sprintf("Task %d cannot change conversations", id)) {
+			t.Error("staged conversation guard changed", err)
+		}
+		record.Conversation = 1
+		record.State = TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "completed", Result: &TaskValue{Present: true, Value: JSON{"ok": true}}}}
+		if err = setter.setTask(record); err != nil {
+			return nil, err
+		}
+		record.State = TaskState{Status: "pending", Checkpoint: JSON{"phase": "start"}}
+		if err = setter.setTask(record); err == nil || !strings.Contains(err.Error(), fmt.Sprintf("Task %d already has a terminal candidate", id)) {
+			t.Error("staged terminal guard changed", err)
+		}
+		return nil, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	record, found, err := store.Task(bg, id)
+	if err != nil || !found || record.State.Status != "terminal" {
+		t.Fatal("guard failure changed retained candidate", record, found, err)
+	}
+}
+
+// Original session-tables.test.ts261-302: new owned conversation is checked
+// against the owner's final candidate, not an intermediate live state.
+func TestSourceInternalSetTaskValidatesConversationOwnerFinalCandidate(t *testing.T) {
+	type internalSetter interface{ setTask(TaskRecord) error }
+	for _, mode := range []string{"abort-marked", "terminal"} {
+		t.Run(mode, func(t *testing.T) {
+			store := taskConformanceStoreV150(t)
+			session, err := OpenSession(store)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer session.Close(bg)
+			idle := func(context.Context, TaskRecord, *TaskRuntime) error { return nil }
+			work, err := DefineTask(TaskDefinitionOptions{Kind: "test.work", Version: 1, Initial: func(any) (JSON, error) { return JSON{"phase": "start"}, nil }, Phases: map[string]TaskPhase{"start": idle}, Abort: idle})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var child Conversation
+			finished := false
+			_, err = session.Commit(bg, func(tx *Tx) (any, error) {
+				setter, ok := any(tx).(internalSetter)
+				if !ok {
+					t.Fatal("source internal task setter missing")
+				}
+				id, err := tx.CreateTask(work, JSON{"path": mode}, TaskOptions{Conversation: 1, Ownership: TaskOwnership{Kind: "conversation"}})
+				if err != nil {
+					return nil, err
+				}
+				child, err = tx.CreateConversation(JSON{"ownership": JSON{"kind": "task", "taskId": id}})
+				if err != nil {
+					return nil, err
+				}
+				record := TaskRecord{ID: id, Conversation: 1, Kind: "test.work", Version: 1, Input: &TaskValue{Present: true, Value: JSON{"path": mode}}, AbortRequested: mode == "abort-marked", State: TaskState{Status: "pending", Checkpoint: JSON{"phase": "start"}}}
+				if mode == "terminal" {
+					record.State = TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "completed", Result: &TaskValue{Present: true, Value: JSON{"ok": true}}}}
+				}
+				if err = setter.setTask(record); err != nil {
+					return nil, err
+				}
+				finished = true
+				return nil, nil
+			})
+			if child.ID == 0 || !finished || err == nil || !strings.Contains(err.Error(), "is "+mode) {
+				t.Error("source final-owner validation changed", child, finished, err)
+			}
+			if record, found, err := store.Conversation(bg, child.ID); err != nil || found {
+				t.Error("invalid owned child survived", record, found, err)
+			}
+		})
+	}
+}
+
+// Source #assemble rejects fork plans before resolving replacement tasks. An
+// invalid replacement must not mask the earlier fork error or run predicates.
+func TestSourceInternalSetTaskPreservesForkValidationPrecedence(t *testing.T) {
+	type internalSetter interface{ setTask(TaskRecord) error }
+	store := taskConformanceStoreV150(t)
+	session, err := OpenSession(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close(bg)
+	predicates := 0
+	def, err := DefineDocument(DefinitionOptions{Kind: "source.task-fork-priority", Version: 1, Scope: "conversation", History: "latest", Fork: "current", Initial: func(JSON) (JSON, error) { return JSON{"value": "committed"}, nil }, CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { predicates++; return false, nil }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cut ID
+	_, err = session.Commit(bg, func(tx *Tx) (any, error) {
+		entry, err := tx.AppendEntry(1, JSON{"kind": "point"})
+		if err != nil {
+			return nil, err
+		}
+		cut = entry.ID
+		_, err = tx.AcquireDocument(def, 1, nil, nil)
+		return nil, err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	finished := false
+	_, err = session.Commit(bg, func(tx *Tx) (any, error) {
+		setter, ok := any(tx).(internalSetter)
+		if !ok {
+			t.Fatal("source internal task setter missing")
+		}
+		doc, err := tx.AcquireDocument(def, 1, nil, nil)
+		if err != nil {
+			return nil, err
+		}
+		if err = doc.Set(JSON{"value": "changed"}); err != nil {
+			return nil, err
+		}
+		if _, err = tx.ForkConversation(1, cut, JSON{"ownership": JSON{"kind": "ownerless"}}); err != nil {
+			return nil, err
+		}
+		if err = setter.setTask(TaskRecord{ID: 999, Conversation: 1, Kind: "test.work", Version: 1, Input: &TaskValue{Present: true, Value: nil}, State: TaskState{Status: "pending", Checkpoint: JSON{"phase": "start"}}}); err != nil {
+			return nil, err
+		}
+		finished = true
+		return nil, nil
+	})
+	if !finished || err == nil || !strings.Contains(err.Error(), "Cannot change fork source document") || predicates != 0 {
+		t.Fatal("source validation precedence changed", finished, err, predicates)
+	}
+}
+
+// Source internal setTask is complete replacement: assembly freezes only the
+// committed conversation/terminal status, not kind/input/background/marks.
+func TestSourceInternalSetTaskReplacesAllCanonicalMetadata(t *testing.T) {
+	type internalSetter interface{ setTask(TaskRecord) error }
+	store := taskConformanceStoreV150(t)
+	session, err := OpenSession(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close(bg)
+	idle := func(context.Context, TaskRecord, *TaskRuntime) error { return nil }
+	work, err := DefineTask(TaskDefinitionOptions{Kind: "test.work", Version: 1, Initial: func(any) (JSON, error) { return JSON{"phase": "start"}, nil }, Phases: map[string]TaskPhase{"start": idle}, Abort: idle})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var id ID
+	_, err = session.Commit(bg, func(tx *Tx) (any, error) {
+		var err error
+		id, err = tx.CreateTask(work, JSON{"path": "old"}, TaskOptions{Conversation: 1, Ownership: TaskOwnership{Kind: "conversation"}})
+		return nil, err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	finished := false
+	_, err = session.Commit(bg, func(tx *Tx) (any, error) {
+		setter, ok := any(tx).(internalSetter)
+		if !ok {
+			t.Fatal("source internal task setter missing")
+		}
+		err := setter.setTask(TaskRecord{ID: id, Conversation: 1, Kind: "source.replaced", Version: 2, Input: &TaskValue{Present: true, Value: nil}, Background: true, AbortRequested: true, State: TaskState{Status: "pending", Checkpoint: JSON{"phase": "custom"}}, Memos: map[string]*TaskValue{"choice": {Present: true, Value: "b"}}})
+		finished = err == nil
+		return nil, err
+	})
+	if err != nil || !finished {
+		t.Fatal("source complete replacement rejected", finished, err)
+	}
+	record, found, err := store.Task(bg, id)
+	if err != nil || !found {
+		t.Fatal(found, err)
+	}
+	wire, err := record.MarshalJSON()
+	want := fmt.Sprintf(`{"id":%d,"conversationId":1,"kind":"source.replaced","version":2,"input":null,"background":true,"abortRequested":true,"state":{"status":"pending","checkpoint":{"phase":"custom"}},"memos":{"choice":"b"}}`, id)
+	if err != nil || !reflect.DeepEqual(dropinJSON(t, wire), dropinJSON(t, []byte(want))) {
+		t.Fatal("source complete task metadata changed", string(wire), err)
+	}
+}
+
+// Original session-tables.test.ts390-410's terminal-candidate document packet.
+func TestSourceInternalSetTaskTerminalCandidateOwnsDocumentLifetime(t *testing.T) {
+	type internalSetter interface{ setTask(TaskRecord) error }
+	store := taskConformanceStoreV150(t)
+	session, err := OpenSession(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close(bg)
+	idle := func(context.Context, TaskRecord, *TaskRuntime) error { return nil }
+	work, err := DefineTask(TaskDefinitionOptions{Kind: "test.work", Version: 1, Initial: func(any) (JSON, error) { return JSON{"phase": "start"}, nil }, Phases: map[string]TaskPhase{"start": idle}, Abort: idle})
+	if err != nil {
+		t.Fatal(err)
+	}
+	def, err := DefineDocument(DefinitionOptions{Kind: "test.progress", Version: 1, Scope: "task", Initial: func(JSON) (JSON, error) { return JSON{"lines": []any{}}, nil }, CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var id ID
+	_, err = session.Commit(bg, func(tx *Tx) (any, error) {
+		var err error
+		id, err = tx.CreateTask(work, JSON{"path": "x"}, TaskOptions{Conversation: 1, Background: true, Ownership: TaskOwnership{Kind: "conversation"}})
+		return nil, err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = session.Commit(bg, func(tx *Tx) (any, error) {
+		setter, ok := any(tx).(internalSetter)
+		if !ok {
+			t.Fatal("source internal task setter missing")
+		}
+		record, found, err := tx.Task(id)
+		if err != nil || !found {
+			t.Fatal(found, err)
+		}
+		progress, err := tx.AcquireDocument(def, id, nil, nil)
+		if err != nil {
+			return nil, err
+		}
+		terminal := record
+		terminal.State = TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "completed", Result: &TaskValue{Present: true, Value: JSON{"ok": true}}}}
+		if err = setter.setTask(terminal); err != nil {
+			return nil, err
+		}
+		if _, err = tx.AcquireDocument(def, id, nil, nil); err == nil || !strings.Contains(err.Error(), fmt.Sprintf("Task %d is terminal", id)) {
+			t.Error("source terminal candidate doc acquisition changed", err)
+		}
+		if err = setter.setTask(record); err == nil || !strings.Contains(err.Error(), "terminal candidate") {
+			t.Error("source terminal candidate replaced", err)
+		}
+		return nil, progress.Set(JSON{"lines": []any{"final"}})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = session.Commit(bg, func(tx *Tx) (any, error) { _, err := tx.AcquireDocument(def, id, nil, nil); return nil, err })
+	if err == nil || !strings.Contains(err.Error(), fmt.Sprintf("Task %d is terminal", id)) {
+		t.Error("source committed terminal doc acquisition changed", err)
+	}
+}
+
+// Source #stampTimes carries staged candidate timestamps, not an implicit
+// merge of omitted committed fields; strict copying owns nested memo JSON.
+func TestSourceInternalSetTaskOwnsValuesAndStagedTimes(t *testing.T) {
+	type internalSetter interface{ setTask(TaskRecord) error }
+	store := taskConformanceStoreV150(t)
+	clock, calls := int64(100), 0
+	session, err := OpenSessionWithOptions(store, SessionOptions{Now: func() int64 { calls++; return clock }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close(bg)
+	idle := func(context.Context, TaskRecord, *TaskRuntime) error { return nil }
+	work, err := DefineTask(TaskDefinitionOptions{Kind: "test.work", Version: 1, Initial: func(any) (JSON, error) { return JSON{"phase": "start"}, nil }, Phases: map[string]TaskPhase{"start": idle}, Abort: idle})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var id ID
+	_, err = session.Commit(bg, func(tx *Tx) (any, error) {
+		var err error
+		id, err = tx.CreateTask(work, nil, TaskOptions{Conversation: 1, Ownership: TaskOwnership{Kind: "conversation"}})
+		return nil, err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := TaskRecord{ID: id, Conversation: 1, Kind: "test.work", Version: 1, Input: &TaskValue{Present: true, Value: nil}, State: TaskState{Status: "running", Checkpoint: JSON{"phase": "start"}}}
+	payload := JSON{"nested": JSON{"value": "owned"}}
+	setterCalls := 0
+	_, err = session.Commit(bg, func(tx *Tx) (any, error) {
+		setter, ok := any(tx).(internalSetter)
+		if !ok {
+			t.Fatal("source internal task setter missing")
+		}
+		beforeCalls := calls
+		record := base
+		if err := setter.setTask(record); err != nil {
+			return nil, err
+		}
+		clock = 200
+		record.StartedAt = &clock
+		record.Memos = map[string]*TaskValue{"memo": {Present: true, Value: payload}}
+		if err := setter.setTask(record); err != nil {
+			return nil, err
+		}
+		payload["nested"].(JSON)["value"] = "caller mutation"
+		setterCalls = calls - beforeCalls
+		return nil, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	record, found, err := store.Task(bg, id)
+	if err != nil || !found || record.StartedAt == nil || *record.StartedAt != 100 || setterCalls != 1 || !equalJSONValue(record.Memos["memo"].Value, JSON{"nested": JSON{"value": "owned"}}) {
+		t.Fatal("source staged times/owned values changed", record, found, err, setterCalls)
+	}
+	_, err = session.Commit(bg, func(tx *Tx) (any, error) {
+		record := base
+		record.State = TaskState{Status: "pending", Checkpoint: JSON{"phase": "start"}}
+		return nil, any(tx).(internalSetter).setTask(record)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	record, found, err = store.Task(bg, id)
+	if err != nil || !found || record.StartedAt != nil || record.Memos != nil {
+		t.Fatal("source omitted committed fields were merged", record, found, err)
+	}
+}

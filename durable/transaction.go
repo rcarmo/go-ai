@@ -10,21 +10,24 @@ import (
 // accessor exists. Reentrant/overlapping methods reject; escaped methods reject
 // after settlement. Concurrent mutation DURING copy is unsupported Go misuse.
 type Tx struct {
-	store             *storeCore
-	session           *Session
-	identity          *Tx // Session-owned object identity; copying/wrapping does not confer ownership
-	submissions       map[ID]SubmissionRecord
-	submissionOrder   []ID
-	submissionChanges []transactionSubmissionChange
-	ctx               context.Context
-	limits            Limits
-	state             Snapshot
-	writes            []Write
-	hasTableWrite     bool      // pinned Transaction.#hasTableWrite; failed table writes count too
-	stagedState       *Snapshot // private immutable prepare result; exact write-slice identity
-	stagedWrites      []Write
-	publicationState  *Snapshot // sealed final candidate; reused only before storage admission
-	creationError     error     // creation callback failure poisons only this transaction
+	store                  *storeCore
+	session                *Session
+	identity               *Tx // Session-owned object identity; copying/wrapping does not confer ownership
+	submissions            map[ID]SubmissionRecord
+	submissionOrder        []ID
+	submissionChanges      []transactionSubmissionChange
+	taskCandidates         map[ID]TaskRecord // internal source replacement candidates
+	taskCandidateOrder     []ID
+	sourceTaskReplacements map[ID]bool // trusted internal canonical setter authority
+	ctx                    context.Context
+	limits                 Limits
+	state                  Snapshot
+	writes                 []Write
+	hasTableWrite          bool      // pinned Transaction.#hasTableWrite; failed table writes count too
+	stagedState            *Snapshot // private immutable prepare result; exact write-slice identity
+	stagedWrites           []Write
+	publicationState       *Snapshot // sealed final candidate; reused only before storage admission
+	creationError          error     // creation callback failure poisons only this transaction
 	// Bound only by Harness task commits or invocation admission. Callers never
 	// supply executable authority by copying a raw task record.
 	taskConversation   ID
@@ -137,6 +140,14 @@ func (t *Tx) stage(w Write) error {
 		if t.session != nil {
 			stamped = stampTaskTimes(stamped, prior, t.session.now)
 		}
+		// Private raw runtime paths keep their existing capability restrictions.
+		// The internal canonical setter materializes separately after source
+		// validation, and raw Storage has complete-record replacement semantics.
+		if prior.Execution != nil && prior.Execution.Native != nil && stamped.Execution != nil && stamped.Execution.Native != nil {
+			if err := validateTaskReplacement(prior, stamped, t.limits); err != nil {
+				return err
+			}
+		}
 		owned, e := copyTask(stamped, t.limits)
 		if e != nil {
 			return e
@@ -182,6 +193,41 @@ func (t *Tx) stage(w Write) error {
 		plan.ops = []Operation{{"r", map[string]any(d.Value)}}
 	}
 	return nil
+}
+
+// prevalidateForkSourceWrites applies the source plan-first validation order
+// before canonical task replacement lookups. Skip loaded no-op content using
+// the same last-write/operation selection as final document assembly.
+func (t *Tx) prevalidateForkSourceWrites() error {
+	if len(t.forkParents) == 0 {
+		return nil
+	}
+	last := map[ID]int{}
+	for i, write := range t.writes {
+		if write.Op == "put-document" {
+			last[write.Document.ID] = i
+		}
+	}
+	plans := make([]Write, 0, len(t.writes))
+	for i, write := range t.writes {
+		if write.Op == "put-document" {
+			id := write.Document.ID
+			if last[id] != i {
+				continue
+			}
+			plan := t.documentPlan(id)
+			if !plan.requiredBase {
+				if len(plan.ops) == 0 {
+					continue
+				}
+				if !plan.explicit && equalDeltaJSON(t.state.Documents[id].Value, write.Document.Value) {
+					continue
+				}
+			}
+		}
+		plans = append(plans, write)
+	}
+	return t.rejectForkSourceWrites(plans)
 }
 
 // rejectForkSourceWrites is the source assembly check, after callback and
@@ -337,14 +383,18 @@ func (t *Tx) putSubmissionRecord(v Submission) error {
 }
 func (t *Tx) current() (Snapshot, error) {
 	if len(t.writes) == 0 {
-		return t.state, nil
+		return t.withCanonicalTaskCandidates(t.state)
 	}
 	if t.stagedState != nil && len(t.stagedWrites) == len(t.writes) && &t.stagedWrites[0] == &t.writes[0] {
 		state := *t.stagedState
 		state.HighWater = t.state.HighWater
-		return state, nil
+		return t.withCanonicalTaskCandidates(state)
 	}
-	return t.prepareCandidate(t.writes, false)
+	state, err := t.prepareCandidate(t.writes, false)
+	if err != nil {
+		return Snapshot{}, err
+	}
+	return t.withCanonicalTaskCandidates(state)
 }
 
 // A transaction validates held values against their real durable history by
@@ -628,6 +678,23 @@ func (t *Tx) documentPlan(id ID) *transactionDocumentPlan {
 // finalizeTaskWrites operates after public Tx seal, before document predicates.
 // It uses private stage only; no public capability is reopened.
 func (t *Tx) finalizeTaskWrites() error {
+	// Also cover trusted runtime batches assembled without the raw stage helper.
+	priorTasks := map[ID]Task{}
+	for _, write := range t.writes {
+		if write.Task == nil {
+			continue
+		}
+		prior, exists := priorTasks[write.Task.ID]
+		if !exists {
+			prior = t.state.Tasks[write.Task.ID]
+		}
+		if !t.sourceTaskReplacements[write.Task.ID] && prior.Execution != nil && prior.Execution.Native != nil && write.Task.Execution != nil && write.Task.Execution.Native != nil {
+			if err := validateTaskReplacement(prior, *write.Task, t.limits); err != nil {
+				return err
+			}
+		}
+		priorTasks[write.Task.ID] = *write.Task
+	}
 	needsCandidate := len(t.taskTerminals) > 0
 	for _, write := range t.writes {
 		if write.Task != nil && write.Task.Execution != nil && (write.Task.Execution.Native != nil || terminalStatus(write.Task.Status)) ||

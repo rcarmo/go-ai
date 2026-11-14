@@ -1,6 +1,9 @@
 package durable
 
-import "context"
+import (
+	"context"
+	"fmt"
+)
 
 // DefinitionOptions describes host-owned code for one persisted document kind.
 // Callbacks are process-local; returned values are strictly copied before use.
@@ -424,7 +427,7 @@ func (t *Tx) acquireDefinition(def *DocumentDefinition, owner ID, key *string, s
 		}
 	}
 	state := t.state
-	if len(t.writes) > 0 {
+	if len(t.writes) > 0 || len(t.taskCandidates) > 0 {
 		state, err = t.current()
 		if err != nil {
 			return nil, err
@@ -437,8 +440,11 @@ func (t *Tx) acquireDefinition(def *DocumentDefinition, owner ID, key *string, s
 	}
 	if address.Scope == "task" {
 		task, ok := state.Tasks[owner]
-		if !ok || terminalStatus(task.Status) {
-			return nil, reject("definition task owner is not live")
+		if !ok {
+			return nil, reject(fmt.Sprintf("Task %d does not exist", owner))
+		}
+		if terminalStatus(task.Status) {
+			return nil, reject(fmt.Sprintf("Task %d is terminal", owner))
 		}
 	}
 	d, found := findDocumentState(state, address, CurrentDocumentPoint())
@@ -538,7 +544,7 @@ func (t *Tx) RetireDefinition(def *DocumentDefinition, owner ID, key *string) er
 		return err
 	}
 	state := t.state
-	if len(t.writes) > 0 {
+	if len(t.writes) > 0 || len(t.taskCandidates) > 0 {
 		state, err = t.current()
 	}
 	if err != nil {

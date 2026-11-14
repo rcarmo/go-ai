@@ -489,6 +489,15 @@ func (s *Session) commitJob(ctx context.Context, callback func(*Tx) error, exter
 	if err = contextError(ctx); err != nil {
 		return 0, err
 	}
+	// Source validates fork plans before final owners/replacement lookups.
+	if err = tx.prevalidateForkSourceWrites(); err != nil {
+		return 0, err
+	}
+	// Internal canonical replacements resolve committed reads only now, after
+	// callback settlement. Public Tx exposes no raw task replacement operation.
+	if err = tx.finalizeCanonicalTasks(); err != nil {
+		return 0, err
+	}
 	// Task owner validation and same-batch retirement precede document content
 	// selection. This private sealed-Tx path executes no task/host callbacks.
 	if err = s.finalizeTaskWrites(tx); err != nil {

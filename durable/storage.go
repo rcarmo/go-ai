@@ -523,10 +523,10 @@ func prepareRecord(s Snapshot, r commitRecord, l Limits, final, explicit bool) (
 				return Snapshot{}, e
 			}
 			if old, ok := n.Tasks[id]; ok {
-				// Canonical raw Storage replaces the entire record. Frozen
-				// identity/marks/outcomes belong to Session admission, not storage.
+				// Canonical records replace completely. Legacy private-runtime
+				// capability restrictions are checked by Tx, not raw storage.
 				canonical := old.Execution != nil && old.Execution.Native != nil && v.Execution != nil && v.Execution.Native != nil
-				if !explicit || !canonical {
+				if !canonical {
 					if e = validateTaskReplacement(old, v, l); e != nil {
 						return Snapshot{}, e
 					}

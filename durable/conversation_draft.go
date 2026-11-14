@@ -62,7 +62,10 @@ func (t *Tx) allocateConversationRecord(options JSON) (Conversation, error) {
 	if taskOwned {
 		var task Task
 		found := false
-		for i := len(t.writes) - 1; i >= 0; i-- {
+		if candidate, exists := t.taskCandidates[owner]; exists {
+			task, found = Task{ID: owner, Conversation: candidate.Conversation}, true
+		}
+		for i := len(t.writes) - 1; !found && i >= 0; i-- {
 			if candidate := t.writes[i].Task; candidate != nil && candidate.ID == owner {
 				task, found = *candidate, true
 				break
