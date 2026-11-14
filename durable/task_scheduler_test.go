@@ -143,7 +143,7 @@ func TestTaskSchedulerPhasesMemoWinnerAndEndedCapabilities(t *testing.T) {
 				if err != nil {
 					return nil, err
 				}
-				if err := tx.AppendEntry(Entry{ID: id, Conversation: current.Conversation, Kind: "task.answer", Value: JSON{"answer": "owned"}}); err != nil {
+				if err := tx.appendEntryRecord(Entry{ID: id, Conversation: current.Conversation, Kind: "task.answer", Value: JSON{"answer": "owned"}}); err != nil {
 					return nil, err
 				}
 				return taskDone(JSON{"entryId": id}), nil
@@ -3407,7 +3407,7 @@ func TestTaskSchedulerOutcomesMemoTypedEntryQueuedSealPrecedence(t *testing.T) {
 					if err != nil {
 						return err
 					}
-					return tx.AppendEntry(Entry{ID: entryID, Conversation: 1, Kind: "app.read-token", Value: JSON{"entry": "owned"}})
+					return tx.appendEntryRecord(Entry{ID: entryID, Conversation: 1, Kind: "app.read-token", Value: JSON{"entry": "owned"}})
 				})
 				if err != nil {
 					t.Fatal(err)

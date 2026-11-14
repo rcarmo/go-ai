@@ -58,7 +58,7 @@ func TestMainBoundaryWritesFirstAndSequentialHeads(t *testing.T) {
 							return nil, err
 						}
 						entries[text] = id
-						if err := tx.AppendEntry(Entry{ID: id, Conversation: c.ID(), Kind: "app.anchor", Value: JSON{}, Model: []MessageReceipt{userReceipt(text)}}); err != nil {
+						if err := tx.appendEntryRecord(Entry{ID: id, Conversation: c.ID(), Kind: "app.anchor", Value: JSON{}, Model: []MessageReceipt{userReceipt(text)}}); err != nil {
 							return nil, err
 						}
 					}

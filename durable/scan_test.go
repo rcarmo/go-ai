@@ -242,7 +242,7 @@ func TestScan110RecordsFiltersTransactionAndDetachment(t *testing.T) {
 			if e != nil {
 				return nil, e
 			}
-			if e = tx.AppendEntry(Entry{ID: ent, Conversation: staged, Kind: "event", Value: JSON{"x": 1}}); e != nil {
+			if e = tx.appendEntryRecord(Entry{ID: ent, Conversation: staged, Kind: "event", Value: JSON{"x": 1}}); e != nil {
 				return nil, e
 			}
 			if _, e = tx.ScanEntries(EntryQuery{Conversation: staged, Order: Ascending}, 1, nil); !errors.As(e, new(*ReadAfterWrite)) {

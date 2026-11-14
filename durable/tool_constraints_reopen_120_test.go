@@ -18,7 +18,7 @@ func TestTool120ConstraintContributionReopenAndProjectionIsolation(t *testing.T)
 		var entry Entry
 		_, err = session.Commit(bg, func(tx *Tx) (any, error) {
 			var err error
-			entry, err = tx.AppendTypedEntry(token, 1, EntryContent{Model: []goai.Message{{Role: goai.RoleSystem, ToolsAdded: []goai.Tool{{Name: "grammar", Parameters: json.RawMessage(`{"type":"object"}`), ConstrainedSampling: grammar}}}}})
+			entry, err = tx.appendTypedEntryFixture(token, 1, entryContentFixture{Model: []goai.Message{{Role: goai.RoleSystem, ToolsAdded: []goai.Tool{{Name: "grammar", Parameters: json.RawMessage(`{"type":"object"}`), ConstrainedSampling: grammar}}}}})
 			return nil, err
 		})
 		if err != nil {

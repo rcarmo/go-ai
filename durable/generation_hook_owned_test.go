@@ -132,7 +132,7 @@ func TestGenerationAfterToolsHookOwnsWorkAndLateEventsDoNotRepeatTurnEnd(t *test
 					if err != nil {
 						return nil, err
 					}
-					return nil, tx.AppendEntry(Entry{ID: id, Conversation: conversation.ID(), Kind: "app.events.barrier", Value: JSON{}})
+					return nil, tx.appendEntryRecord(Entry{ID: id, Conversation: conversation.ID(), Kind: "app.events.barrier", Value: JSON{}})
 				}); err != nil {
 					t.Fatal(err)
 				}

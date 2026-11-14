@@ -131,7 +131,7 @@ func TestMainIdleNestedWorkModel(t *testing.T) {
 				return err
 			}
 			e := contextEntry(id, cid, goai.RoleUser, "note")
-			return tx.AppendEntry(e)
+			return tx.appendEntryRecord(e)
 		}
 		commit := func(f func(*Tx) error) {
 			t.Helper()

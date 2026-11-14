@@ -28,7 +28,7 @@ func appendPassiveWrite(tx *Tx, conversation ID, value JSON) error {
 		text, _ := value["content"].(string)
 		draft.Model = []MessageReceipt{userReceipt(text)}
 	}
-	if err := tx.AppendEntry(draft); err != nil {
+	if err := tx.appendEntryRecord(draft); err != nil {
 		return err
 	}
 	value["placedEntry"] = id
@@ -153,28 +153,6 @@ func inboxEntryDraft(entry Entry, limits Limits) (JSON, error) {
 // The draft is canonical JSON. Resolve head:"self" only after assigning its ID,
 // then use the public Entry codec rather than the native stored-entry envelope.
 func appendInboxEntry(tx *Tx, conversation ID, draft JSON) (ID, error) {
-	record, err := copyObject(draft, tx.limits)
-	if err != nil {
-		return 0, err
-	}
-	id, err := tx.MintID()
-	if err != nil {
-		return 0, err
-	}
-	record["id"], record["conversationId"] = id, conversation
-	if record["head"] == "self" {
-		record["head"] = id
-	}
-	wire, err := encodeBounded(record, tx.limits, tx.limits.MaxRecordBytes)
-	if err != nil {
-		return 0, err
-	}
-	var entry Entry
-	if err = entry.UnmarshalJSON(wire); err != nil {
-		return 0, err
-	}
-	if err = tx.AppendEntry(entry); err != nil {
-		return 0, err
-	}
-	return id, nil
+	entry, err := tx.AppendEntry(conversation, draft)
+	return entry.ID, err
 }

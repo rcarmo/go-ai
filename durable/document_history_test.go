@@ -584,7 +584,7 @@ func TestDocumentHistoryForkFamilyPagesAndDuplicatePolicyRollback(t *testing.T) 
 			if e != nil {
 				return nil, e
 			}
-			return nil, tx.AppendEntry(Entry{ID: cut, Conversation: 1, Kind: "note", Value: JSON{}})
+			return nil, tx.appendEntryRecord(Entry{ID: cut, Conversation: 1, Kind: "note", Value: JSON{}})
 		})
 		if err != nil {
 			t.Fatal(err)

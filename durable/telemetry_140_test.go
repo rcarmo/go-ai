@@ -181,7 +181,7 @@ func TestTelemetry140BackendPanicsCannotReplaceTaskOutcome(t *testing.T) {
 						if err != nil {
 							return nil, err
 						}
-						if err := tx.AppendEntry(Entry{ID: id, Conversation: r.ConversationID(), Kind: "app.test", Value: JSON{}}); err != nil {
+						if err := tx.appendEntryRecord(Entry{ID: id, Conversation: r.ConversationID(), Kind: "app.test", Value: JSON{}}); err != nil {
 							return nil, err
 						}
 					}
@@ -681,7 +681,7 @@ func TestTelemetry140AdoptedEntryAndSettlementEvents(t *testing.T) {
 			if err != nil {
 				return nil, err
 			}
-			return nil, tx.AppendEntry(Entry{ID: id, Conversation: conv.id, Kind: "app.note", Value: JSON{"private": "payload"}})
+			return nil, tx.appendEntryRecord(Entry{ID: id, Conversation: conv.id, Kind: "app.note", Value: JSON{"private": "payload"}})
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -693,7 +693,7 @@ func TestTelemetry140AdoptedEntryAndSettlementEvents(t *testing.T) {
 			if err != nil {
 				return nil, err
 			}
-			if err := tx.AppendEntry(Entry{ID: id, Conversation: conv.id, Kind: "app.rejected", Value: JSON{}}); err != nil {
+			if err := tx.appendEntryRecord(Entry{ID: id, Conversation: conv.id, Kind: "app.rejected", Value: JSON{}}); err != nil {
 				return nil, err
 			}
 			return nil, errors.New("reject after staging")

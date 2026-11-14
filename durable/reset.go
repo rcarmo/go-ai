@@ -59,7 +59,7 @@ func appendResetEntry(tx *Tx, conversation ID, text string) (ID, error) {
 	if text != "" {
 		model = append(model, userReceipt(text))
 	}
-	if err := tx.AppendEntry(Entry{ID: id, Conversation: conversation, Kind: "pi.reset", Head: id, Value: JSON{}, Model: model}); err != nil {
+	if err := tx.appendEntryRecord(Entry{ID: id, Conversation: conversation, Kind: "pi.reset", Head: id, Value: JSON{}, Model: model}); err != nil {
 		return 0, err
 	}
 	return id, nil

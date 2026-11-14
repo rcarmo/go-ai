@@ -101,7 +101,7 @@ func TestCodemode120StoreSnapshotSuccessfulOnlyAndIdempotent(t *testing.T) {
 			if e != nil {
 				return e
 			}
-			return tx.AppendEntry(Entry{ID: entry, Conversation: 1, Kind: "app", Value: JSON{"text": "fork point"}})
+			return tx.appendEntryRecord(Entry{ID: entry, Conversation: 1, Kind: "app", Value: JSON{"text": "fork point"}})
 		})
 		if e != nil {
 			t.Fatal(e)

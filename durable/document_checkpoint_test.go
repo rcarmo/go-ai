@@ -279,7 +279,7 @@ func TestDocumentCheckpointOperationErrorHandledAndForkFence(t *testing.T) {
 				return err
 			}
 			entry = id
-			return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "cutoff", Value: JSON{}})
+			return tx.appendEntryRecord(Entry{ID: id, Conversation: 1, Kind: "cutoff", Value: JSON{}})
 		})
 		checkpointCommit(t, s, func(tx *Tx) error {
 			h, err := tx.AcquireDocument(def, 1, nil, nil)
@@ -337,7 +337,7 @@ func TestDocumentCheckpointMigrationResetCopyAndRetirement(t *testing.T) {
 				return e
 			}
 			cutoff = id
-			return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "cutoff", Value: JSON{}})
+			return tx.appendEntryRecord(Entry{ID: id, Conversation: 1, Kind: "cutoff", Value: JSON{}})
 		})
 		checkpointCommit(t, s, func(tx *Tx) error {
 			h, e := tx.AcquireDocument(old, 1, nil, nil)
@@ -409,7 +409,7 @@ func TestDocumentCheckpointInvalidFinalReferencesSkipPredicate(t *testing.T) {
 			if e != nil {
 				return nil, e
 			}
-			return nil, tx.AppendEntry(Entry{ID: id, Conversation: ID(MaxID), Kind: "invalid", Value: JSON{}})
+			return nil, tx.appendEntryRecord(Entry{ID: id, Conversation: ID(MaxID), Kind: "invalid", Value: JSON{}})
 		})
 		if err == nil || calls != 0 {
 			t.Fatal("predicate ran before invalid final references", calls, err)

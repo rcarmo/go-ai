@@ -45,7 +45,7 @@ func mainAfterRunTask(t *testing.T, probe *mainAfterRunProbe) *TaskDefinition {
 				if err != nil {
 					return nil, err
 				}
-				err = tx.AppendEntry(Entry{ID: id, Conversation: r.ConversationID(), Kind: "test.tests", Value: JSON{"label": label}, ByTask: r.TaskID()})
+				err = tx.appendEntryRecord(Entry{ID: id, Conversation: r.ConversationID(), Kind: "test.tests", Value: JSON{"label": label}, ByTask: r.TaskID()})
 				return taskDone(JSON{"label": label}), err
 			})
 		}}, Abort: taskAbort})

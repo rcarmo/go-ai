@@ -785,7 +785,7 @@ func (h *Harness) prepareRequest(runtime *TaskRuntime, task *Task, cp *generatio
 				return err
 			}
 			draft.ID, draft.Conversation = id, task.Conversation
-			if err = tx.AppendEntry(draft); err != nil {
+			if err = tx.appendEntryRecord(draft); err != nil {
 				return err
 			}
 		}

@@ -959,7 +959,7 @@ func TestV150SessionStillRequiresReservedIDs(t *testing.T) {
 	}
 	defer s.Close(bg)
 	if _, err = s.Commit(bg, func(tx *Tx) (any, error) {
-		return nil, tx.AppendEntry(Entry{ID: 99, Conversation: 1, Kind: "test", Value: JSON{}})
+		return nil, tx.appendEntryRecord(Entry{ID: 99, Conversation: 1, Kind: "test", Value: JSON{}})
 	}); err == nil {
 		t.Fatal("unreserved Session ID accepted")
 	}

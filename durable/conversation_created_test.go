@@ -96,7 +96,7 @@ func TestConversationCreatedPinnedRawOwnedForkOrderAndRollback(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			return tx.AppendEntry(Entry{ID: at, Conversation: root.ID(), Kind: "app.cut", Value: JSON{}})
+			return tx.appendEntryRecord(Entry{ID: at, Conversation: root.ID(), Kind: "app.cut", Value: JSON{}})
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -135,7 +135,7 @@ func TestConversationCreatedPinnedRawOwnedForkOrderAndRollback(t *testing.T) {
 				if err != nil {
 					return err
 				}
-				return tx.AppendEntry(Entry{ID: entry, Conversation: root.ID(), Kind: "app.must-rollback", Value: JSON{}})
+				return tx.appendEntryRecord(Entry{ID: entry, Conversation: root.ID(), Kind: "app.must-rollback", Value: JSON{}})
 			})
 			if err == nil {
 				t.Fatal("caught creation failure committed")

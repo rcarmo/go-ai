@@ -173,7 +173,7 @@ func TestMainSessionDeferredFallbackAndClose(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{"text": "note"}})
+			return tx.appendEntryRecord(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{"text": "note"}})
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -590,7 +590,7 @@ func TestSourcePublicCommitPersistenceOptions(t *testing.T) {
 				if err != nil {
 					return nil, err
 				}
-				return id, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "source.options-note", HasData: true, Data: JSON{"mixed": true}})
+				return id, tx.appendEntryRecord(Entry{ID: id, Conversation: 1, Kind: "source.options-note", HasData: true, Data: JSON{"mixed": true}})
 			}, CommitOptions{Persistence: &CommitPersistence{Kind: "deferred", WithinMs: &infinite}})
 			entryID, validID := value.(ID)
 			raw, readErr := store.Snapshot(bg)

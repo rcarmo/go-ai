@@ -34,7 +34,7 @@ func TestMainSessionFailureDuringSettlementPreventsPublication(t *testing.T) {
 			return nil
 		}
 		_, err = s.Commit(bg, func(tx *Tx) (any, error) {
-			return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "stored-not-published", Value: JSON{}})
+			return nil, tx.appendEntryRecord(Entry{ID: id, Conversation: 1, Kind: "stored-not-published", Value: JSON{}})
 		})
 		if !fired || !errors.Is(err, failure) {
 			t.Fatalf("settlement-time failure did not fence publication: fired=%v err=%v", fired, err)
@@ -62,7 +62,7 @@ func mainPrepareOnlyPublication(t *testing.T, s *Session, ctx context.Context, i
 	}
 	tx := &Tx{store: s.core, ctx: ctx, limits: s.limits, state: state, session: s}
 	defer tx.seal()
-	if err := tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "publication-stage", Value: JSON{}}); err != nil {
+	if err := tx.appendEntryRecord(Entry{ID: id, Conversation: 1, Kind: "publication-stage", Value: JSON{}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := tx.seal(); err != nil {

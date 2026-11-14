@@ -51,7 +51,7 @@ func TestTxV150TaskAndTableReadsBeforeFirstTableWrite(t *testing.T) {
 			if err != nil {
 				return nil, err
 			}
-			if err = tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note"}); err != nil {
+			if err = tx.appendEntryRecord(Entry{ID: id, Conversation: 1, Kind: "note"}); err != nil {
 				return nil, err
 			}
 			for _, read := range []func() error{
@@ -117,7 +117,7 @@ func TestTxV150TaskAndTableReadsBeforeFirstTableWrite(t *testing.T) {
 		if err != nil {
 			return nil, err
 		}
-		if err = tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}}); err != nil {
+		if err = tx.appendEntryRecord(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}}); err != nil {
 			return nil, err
 		}
 		checks := []struct {
@@ -188,7 +188,7 @@ func TestTxV150DocumentWritesAllowReadsButFailedTableWriteFencesThem(t *testing.
 		if err != nil {
 			return nil, err
 		}
-		if err = tx.AppendEntry(Entry{ID: bad, Conversation: 12345, Kind: "note", Value: JSON{}}); err == nil {
+		if err = tx.appendEntryRecord(Entry{ID: bad, Conversation: 12345, Kind: "note", Value: JSON{}}); err == nil {
 			t.Fatal("missing conversation accepted")
 		}
 		for _, taskID := range []ID{99, ID(MaxID + 1)} {
@@ -442,7 +442,7 @@ func TestTxTypedEntryReadsGlobalCommittedRecordAndNarrowsKind(t *testing.T) {
 		if err != nil {
 			return nil, err
 		}
-		if err = tx.AppendEntry(Entry{ID: fresh, Conversation: 1, Kind: "note", Value: JSON{}}); err != nil {
+		if err = tx.appendEntryRecord(Entry{ID: fresh, Conversation: 1, Kind: "note", Value: JSON{}}); err != nil {
 			return nil, err
 		}
 		_, _, err = tx.TypedEntry(token, id)
@@ -507,7 +507,7 @@ func TestTxSubmissionByRequestCommittedLookupAndFence(t *testing.T) {
 		if err != nil {
 			return nil, err
 		}
-		if err = tx.AppendEntry(Entry{ID: fresh, Conversation: 1, Kind: "note"}); err != nil {
+		if err = tx.appendEntryRecord(Entry{ID: fresh, Conversation: 1, Kind: "note"}); err != nil {
 			return nil, err
 		}
 		_, _, err = reader.SubmissionByRequest(1, "")
@@ -540,7 +540,7 @@ func TestSubmissionTransactionCurrentRecordPlacementFirstSettlementAndDetached(t
 			if err != nil {
 				return nil, err
 			}
-			return nil, tx.AppendEntry(Entry{ID: entry, Conversation: 1, Kind: "note"})
+			return nil, tx.appendEntryRecord(Entry{ID: entry, Conversation: 1, Kind: "note"})
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -607,7 +607,7 @@ func TestSubmissionTransactionCurrentRecordPlacementFirstSettlementAndDetached(t
 			if err != nil {
 				return nil, err
 			}
-			if err = tx.AppendEntry(Entry{ID: entry, Conversation: 1, Kind: "note", Value: JSON{}}); err != nil {
+			if err = tx.appendEntryRecord(Entry{ID: entry, Conversation: 1, Kind: "note", Value: JSON{}}); err != nil {
 				return nil, err
 			}
 			createdInput, err := tx.CreateSubmission(SubmissionCreate{Conversation: 1, Type: "input", Status: "queued"})
@@ -1115,7 +1115,7 @@ func TestSubmitInReadAfterWriteFenceAndOneCommit(t *testing.T) {
 		if err != nil {
 			return nil, err
 		}
-		return nil, tx.AppendEntry(Entry{ID: entry, Conversation: 1, Kind: "app.sent", HasData: true, Data: JSON{"submission": id}})
+		return nil, tx.appendEntryRecord(Entry{ID: entry, Conversation: 1, Kind: "app.sent", HasData: true, Data: JSON{"submission": id}})
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -1139,7 +1139,7 @@ func TestSubmitInReadAfterWriteFenceAndOneCommit(t *testing.T) {
 				if err != nil {
 					return nil, err
 				}
-				if err = tx.AppendEntry(Entry{ID: entry, Conversation: 1, Kind: "app.note"}); err != nil {
+				if err = tx.appendEntryRecord(Entry{ID: entry, Conversation: 1, Kind: "app.note"}); err != nil {
 					return nil, err
 				}
 			}
@@ -1381,7 +1381,7 @@ func TestSubmitInBusyHostCheckAndWritesAreOneCommit(t *testing.T) {
 		if err != nil {
 			return nil, err
 		}
-		return nil, tx.AppendEntry(Entry{ID: entry, Conversation: c.ID(), Kind: "app.sent", HasData: true, Data: JSON{"submission": id}})
+		return nil, tx.appendEntryRecord(Entry{ID: entry, Conversation: c.ID(), Kind: "app.sent", HasData: true, Data: JSON{"submission": id}})
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -1520,7 +1520,7 @@ func TestSubmitInStorageFailureHasNoAdmissionAfterReopen(t *testing.T) {
 		if err != nil {
 			return nil, err
 		}
-		return nil, tx.AppendEntry(Entry{ID: id, Conversation: c.ID(), Kind: "app.sent"})
+		return nil, tx.appendEntryRecord(Entry{ID: id, Conversation: c.ID(), Kind: "app.sent"})
 	})
 	if err != failure {
 		t.Fatal("failure identity", err, failure)
@@ -1645,7 +1645,7 @@ func TestSubmitInContinuesFailedRunBeforeHostTableWrite(t *testing.T) {
 		if err != nil {
 			return nil, err
 		}
-		if err = tx.AppendEntry(Entry{ID: id, Conversation: c.ID(), Kind: "app.note"}); err != nil {
+		if err = tx.appendEntryRecord(Entry{ID: id, Conversation: c.ID(), Kind: "app.note"}); err != nil {
 			return nil, err
 		}
 		_, err = c.SubmitIn(tx, Input{Type: "continue"})
@@ -1682,7 +1682,7 @@ func TestSubmitInContinuesFailedRunBeforeHostTableWrite(t *testing.T) {
 		if err != nil {
 			return nil, err
 		}
-		return nil, tx.AppendEntry(Entry{ID: id, Conversation: c.ID(), Kind: "app.note"})
+		return nil, tx.appendEntryRecord(Entry{ID: id, Conversation: c.ID(), Kind: "app.note"})
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -1790,6 +1790,10 @@ func TestSourceTxAppendEntryDraftReturnsRecord(t *testing.T) {
 	if first.Conversation != 1 || first.Kind != "note" || !first.HasData || first.Data != "one" || first.ByTask != 0 {
 		t.Fatal("complete returned record", first)
 	}
+	firstWire, err := first.MarshalJSON()
+	if err != nil || !reflect.DeepEqual(dropinJSON(t, firstWire), dropinJSON(t, []byte(fmt.Sprintf(`{"id":%d,"conversationId":1,"kind":"note","data":"one"}`, first.ID)))) {
+		t.Fatal("source literal first record changed", string(firstWire), err)
+	}
 	if !reflect.DeepEqual(value, headed) {
 		t.Fatal("commit replaced constructor record", value, headed)
 	}
@@ -1869,8 +1873,8 @@ func TestSourceTxAppendEntryTakesJSONOwnership(t *testing.T) {
 	_, err = session.Commit(bg, func(tx *Tx) (any, error) {
 		return any(tx.AppendEntry).(func(ID, JSON) (Entry, error))(1, JSON{"kind": "invalid", "data": math.NaN()})
 	})
-	if err == nil {
-		t.Fatal("non-strict JSON accepted")
+	if err == nil || !strings.Contains(err.Error(), "strict JSON") {
+		t.Fatal("source strict-JSON error changed", err)
 	}
 	after, err := store.Snapshot(bg)
 	if err != nil || after.Seq != before.Seq {
@@ -1891,7 +1895,7 @@ func TestSourceTxAppendEntryMissingConversationBeforeMint(t *testing.T) {
 		}
 		high := tx.state.HighWater
 		_, err := appendEntry(12345, JSON{"kind": "note"})
-		if err == nil || err.Error() != "Conversation 12345 does not exist" {
+		if err == nil || !strings.Contains(err.Error(), "Conversation 12345 does not exist") {
 			t.Fatal("source missing-conversation error changed", err)
 		}
 		if tx.state.HighWater != high {
@@ -1906,5 +1910,148 @@ func TestSourceTxAppendEntryMissingConversationBeforeMint(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+// transaction.ts425-446 overrides identity/task fields before strict copying;
+// EntryRecord.kind is any string, unlike defineEntry's non-empty token guard.
+func TestSourceTxAppendEntryOverridesCallerMetadataAndAllowsEmptyKind(t *testing.T) {
+	store := taskConformanceStoreV150(t)
+	session, err := OpenSession(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close(bg)
+	value, err := session.Commit(bg, func(tx *Tx) (any, error) {
+		return tx.AppendEntry(1, JSON{"kind": "", "data": nil, "id": func() {}, "conversationId": math.NaN(), "byTaskId": func() {}})
+	})
+	if err != nil {
+		t.Fatal("source overrides/empty string rejected", err)
+	}
+	entry := value.(Entry)
+	if entry.ID == 0 || entry.Conversation != 1 || entry.ByTask != 0 || entry.Kind != "" || !entry.HasData || entry.Data != nil {
+		t.Fatal(entry)
+	}
+	stored, found, err := store.Entry(bg, entry.ID)
+	if err != nil || !found || stored.Entry.Kind != "" || !stored.Entry.HasData {
+		t.Fatal(stored, found, err)
+	}
+}
+
+// transaction.ts410-422's token overload replaces draft.kind before delegating
+// to the same constructor; it does not accept the old native Value envelope.
+func TestSourceTxAppendTypedEntryUsesDraftAndTokenKind(t *testing.T) {
+	store := taskConformanceStoreV150(t)
+	session, err := OpenSession(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close(bg)
+	token := entryToken(t, "source.typed")
+	value, err := session.Commit(bg, func(tx *Tx) (any, error) {
+		appendEntry, ok := any(tx.AppendTypedEntry).(func(*EntryDefinition, ID, JSON) (Entry, error))
+		if !ok {
+			t.Fatal("source typed draft constructor missing")
+		}
+		return appendEntry(token, 1, JSON{"kind": "caller.kind", "data": nil, "head": "self", "model": []any{}, "edits": []any{}})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	entry := value.(Entry)
+	if entry.ID == 0 || entry.Head != entry.ID || entry.Kind != token.kind || !entry.HasData || entry.Data != nil || entry.Model == nil || entry.Edits == nil {
+		t.Fatal("token draft/record changed", entry)
+	}
+	stored, found, err := store.Entry(bg, entry.ID)
+	if err != nil || !found || stored.Entry.Kind != token.kind {
+		t.Fatal(stored, found, err)
+	}
+}
+
+// Native SQLite persistence control for source-present empty arrays/null and
+// the constructor's callback lifetime; source publication object identity is
+// deliberately not inferred from detached Go record comparisons.
+func TestSourceTxAppendEntryArraysNullAndLifetimeSurviveReopen(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "entry-draft.sqlite")
+	store, err := OpenSQLite(path, SQLiteOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	seedRootConversation(t, store)
+	session, err := OpenSession(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close(bg)
+	token := entryToken(t, "source.reopen")
+	var escaped *Tx
+	value, err := session.Commit(bg, func(tx *Tx) (any, error) {
+		escaped = tx
+		return tx.AppendTypedEntry(token, 1, JSON{"data": nil, "head": "self", "model": []any{}, "edits": []any{}})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	entry := value.(Entry)
+	for _, call := range []func() (Entry, error){func() (Entry, error) { return escaped.AppendEntry(1, JSON{"kind": "late"}) }, func() (Entry, error) { return escaped.AppendTypedEntry(token, 1, JSON{}) }} {
+		if _, err := call(); !errors.Is(err, ErrSealed) {
+			t.Fatal("escaped source constructor accepted", err)
+		}
+	}
+	want, err := entry.MarshalJSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = session.Close(bg); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := OpenSQLite(path, SQLiteOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Close(bg)
+	stored, found, err := reopened.Entry(bg, entry.ID)
+	if err != nil || !found {
+		t.Fatal(found, err)
+	}
+	got, err := stored.Entry.MarshalJSON()
+	if err != nil || string(got) != string(want) {
+		t.Fatal("canonical constructor fields lost after reopen", string(got), string(want), err)
+	}
+}
+
+// ContextEdit's replacement message array may be empty (types.ts441-453).
+func TestSourceTxAppendEntryPreservesEmptyReplacementMessages(t *testing.T) {
+	store := taskConformanceStoreV150(t)
+	session, err := OpenSession(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close(bg)
+	first, err := session.Commit(bg, func(tx *Tx) (any, error) { return tx.AppendEntry(1, JSON{"kind": "note"}) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	value, err := session.Commit(bg, func(tx *Tx) (any, error) {
+		return tx.AppendEntry(1, JSON{"kind": "edit", "edits": []any{JSON{"target": first.(Entry).ID, "action": "replace", "messages": []any{}}}})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	record := value.(Entry)
+	stored, found, err := store.Entry(bg, record.ID)
+	if err != nil || !found {
+		t.Fatal(found, err)
+	}
+	for _, entry := range []Entry{record, stored.Entry} {
+		wire, err := entry.MarshalJSON()
+		if err != nil {
+			t.Fatal(err)
+		}
+		edit := dropinJSON(t, wire).(map[string]any)["edits"].([]any)[0].(map[string]any)
+		messages, present := edit["messages"]
+		if !present || !reflect.DeepEqual(messages, []any{}) {
+			t.Fatal("source replacement array omitted", string(wire))
+		}
 	}
 }

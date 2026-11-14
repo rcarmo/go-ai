@@ -33,7 +33,7 @@ func transcriptNotes(t *testing.T, h *Harness, count int) []ID {
 			if err != nil {
 				return nil, err
 			}
-			if err = tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "app.note", Value: JSON{"ordinal": i}}); err != nil {
+			if err = tx.appendEntryRecord(Entry{ID: id, Conversation: 1, Kind: "app.note", Value: JSON{"ordinal": i}}); err != nil {
 				return nil, err
 			}
 			ids = append(ids, id)
@@ -136,7 +136,7 @@ func TestMainTranscriptHeadMarkersAppend(t *testing.T) {
 			if err != nil {
 				return nil, err
 			}
-			return nil, tx.AppendEntry(Entry{ID: summary, Conversation: 1, Kind: "app.summary", Head: ids[1], Value: JSON{}})
+			return nil, tx.appendEntryRecord(Entry{ID: summary, Conversation: 1, Kind: "app.summary", Head: ids[1], Value: JSON{}})
 		}); err != nil {
 			t.Fatal(err)
 		}

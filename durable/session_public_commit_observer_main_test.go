@@ -106,7 +106,7 @@ func TestMainPublicCommitObserverLifecycleAndGuards(t *testing.T) {
 					if err != nil {
 						return nil, err
 					}
-					return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}})
+					return nil, tx.appendEntryRecord(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}})
 				})
 				if err != nil {
 					t.Fatal(err)
@@ -164,7 +164,7 @@ func TestMainPublicCommitObserverStorageScopeDispatchMembership(t *testing.T) {
 				if err != nil {
 					return nil, err
 				}
-				return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}})
+				return nil, tx.appendEntryRecord(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}})
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -226,7 +226,7 @@ func TestMainPublicCommitObserverDeferredStorageTurn(t *testing.T) {
 			if err != nil {
 				return nil, err
 			}
-			return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}})
+			return nil, tx.appendEntryRecord(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}})
 		})
 		result <- err
 	}()
@@ -276,7 +276,7 @@ func TestMainPublicCommitObserverCanonicalTableRecords(t *testing.T) {
 		if err != nil {
 			return nil, err
 		}
-		if err = tx.AppendEntry(Entry{ID: entry, Conversation: conversation, Kind: "note", Data: JSON{"n": 1}, HasData: true, Value: JSON{}}); err != nil {
+		if err = tx.appendEntryRecord(Entry{ID: entry, Conversation: conversation, Kind: "note", Data: JSON{"n": 1}, HasData: true, Value: JSON{}}); err != nil {
 			return nil, err
 		}
 		task, err = tx.CreateTask(work, nil, TaskOptions{Conversation: conversation, Ownership: TaskOwnership{Kind: "conversation"}})
@@ -329,7 +329,7 @@ func TestMainPublicCommitObserverCopyAndRetirement(t *testing.T) {
 		if err != nil {
 			return nil, err
 		}
-		return nil, tx.AppendEntry(Entry{ID: entry, Conversation: 1, Kind: "note", Value: JSON{}})
+		return nil, tx.appendEntryRecord(Entry{ID: entry, Conversation: 1, Kind: "note", Value: JSON{}})
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -419,7 +419,7 @@ func TestMainPublicCommitObserverHeldStoresAndClose(t *testing.T) {
 					if err != nil {
 						return nil, err
 					}
-					return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}})
+					return nil, tx.appendEntryRecord(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}})
 				})
 			case "unload":
 				err = s.UnloadDocuments(bg)
@@ -474,7 +474,7 @@ func TestMainPublicCommitObserverFirstFailureCause(t *testing.T) {
 		if err != nil {
 			return nil, err
 		}
-		return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}})
+		return nil, tx.appendEntryRecord(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}})
 	})
 	if err != marker {
 		t.Fatal("own storage failure", err)
@@ -604,7 +604,7 @@ func TestMainPublicCommitObserverArbitraryPanicValue(t *testing.T) {
 					if err != nil {
 						return nil, err
 					}
-					return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}})
+					return nil, tx.appendEntryRecord(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}})
 				}); err != nil {
 					t.Fatal(err)
 				}
@@ -693,7 +693,7 @@ func TestMainPublicCommitObserverReentrantDetachAndDispatchSnapshot(t *testing.T
 					if err != nil {
 						return nil, err
 					}
-					return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}})
+					return nil, tx.appendEntryRecord(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}})
 				}); err != nil {
 					t.Fatal(err)
 				}
@@ -769,7 +769,7 @@ func TestMainPublicCommitObserverObjectAndNumberPanicValue(t *testing.T) {
 				if err != nil {
 					return nil, err
 				}
-				return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}})
+				return nil, tx.appendEntryRecord(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}})
 			}); err != nil {
 				t.Fatal(err)
 			}

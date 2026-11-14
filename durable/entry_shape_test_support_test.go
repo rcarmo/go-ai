@@ -66,3 +66,62 @@ func opItemIsUserMessage(item map[string]any) bool {
 	}
 	return false
 }
+
+// Historical native fixture only, not a public constructor or source JSON
+// acceptance adapter. Source constructor tests call the public methods directly.
+// entryContentFixture is additive to the legacy object Value surface. Data may be a
+// primitive, array or object; HasData distinguishes explicit null from absent.
+// Model contributions are strict detached protocol messages, not credentials.
+type entryContentFixture struct {
+	Value    JSON
+	Data     any
+	HasData  bool
+	Model    []goai.Message
+	Edits    []ContextEdit
+	Head     ID
+	HeadSelf bool
+	ByTask   ID
+}
+
+func (t *Tx) appendTypedEntryFixture(def *EntryDefinition, conversation ID, c entryContentFixture) (Entry, error) {
+	if e := t.enterKeys(conversationKey(conversation)); e != nil {
+		return Entry{}, e
+	}
+	defer t.leave()
+	t.hasTableWrite = true
+	if def == nil {
+		return Entry{}, reject("nil entry definition")
+	}
+	if err := t.requireConversation(conversation); err != nil {
+		return Entry{}, err
+	}
+	id, e := t.store.mintID(t.ctx, true)
+	if e != nil {
+		return Entry{}, e
+	}
+	t.state.HighWater = uint64(id)
+	head := c.Head
+	if c.HeadSelf {
+		if head != 0 {
+			return Entry{}, reject("ambiguous entry head")
+		}
+		head = id
+	}
+	value := c.Value
+	if value == nil {
+		value = JSON{}
+	}
+	model, e := contributionReceipts(c.Model, t.limits)
+	if e != nil {
+		return Entry{}, e
+	}
+	v := Entry{ID: id, Conversation: conversation, Kind: def.kind, Value: value, Head: head, Data: c.Data, HasData: c.HasData, Model: model, Edits: c.Edits, ByTask: c.ByTask}
+	owned, e := copyEntry(v, t.limits)
+	if e != nil {
+		return Entry{}, e
+	}
+	if e = t.stage(Write{Op: "append-entry", Entry: &owned}); e != nil {
+		return Entry{}, e
+	}
+	return copyEntry(owned, t.limits)
+}

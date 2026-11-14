@@ -132,7 +132,7 @@ func TestTaskRecoveryInvalidMigrationCachesDefinitionIdentityAndNoReadEffects(t 
 			if err != nil {
 				return err
 			}
-			return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "migration.wake", Value: JSON{}})
+			return tx.appendEntryRecord(Entry{ID: id, Conversation: 1, Kind: "migration.wake", Value: JSON{}})
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -267,7 +267,7 @@ func TestTaskRecoveryPoisonUnrelatedCommitRetainsActualJoin(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "poison", Value: JSON{}})
+		return tx.appendEntryRecord(Entry{ID: id, Conversation: 1, Kind: "poison", Value: JSON{}})
 	})
 	if !errors.Is(err, ErrPoisoned) {
 		t.Fatal(err)
@@ -3042,7 +3042,7 @@ func TestTaskRecoveryCloseSealRejectsPublicNonterminalOrigins(t *testing.T) {
 							if err != nil {
 								return nil, err
 							}
-							return nil, tx.AppendEntry(Entry{ID: id, Conversation: foreign.ID(), Kind: "app.late", Value: JSON{}})
+							return nil, tx.appendEntryRecord(Entry{ID: id, Conversation: foreign.ID(), Kind: "app.late", Value: JSON{}})
 						})
 					case "withdraw":
 						err = (&SubmissionHandle{h: h, id: subID}).Withdraw(bg)
@@ -3495,7 +3495,7 @@ func TestTaskRecoveryBuiltinPredispatchAncestorCancellation(t *testing.T) {
 						if err != nil {
 							return err
 						}
-						if err := tx.AppendEntry(Entry{ID: entryID, Conversation: conv.ID(), Kind: "message", Value: entryValue, ByTask: generationID}); err != nil {
+						if err := tx.appendEntryRecord(Entry{ID: entryID, Conversation: conv.ID(), Kind: "message", Value: entryValue, ByTask: generationID}); err != nil {
 							return err
 						}
 					}

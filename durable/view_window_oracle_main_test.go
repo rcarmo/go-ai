@@ -14,7 +14,7 @@ func upstreamViewNotes(t *testing.T, h *Harness, count int) []ID {
 			if err != nil {
 				return nil, err
 			}
-			return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}, HasData: true, Data: index})
+			return nil, tx.appendEntryRecord(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}, HasData: true, Data: index})
 		})
 		if err != nil {
 			t.Fatal(err)

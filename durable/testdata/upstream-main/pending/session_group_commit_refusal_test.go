@@ -63,7 +63,7 @@ func TestPendingGroupCommitRefusalFailsTheSession(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		return tx.AppendEntry(Entry{ID: id, Conversation: a, Kind: "note", Value: JSON{"body": "kept"}})
+		return tx.appendEntryRecord(Entry{ID: id, Conversation: a, Kind: "note", Value: JSON{"body": "kept"}})
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +75,7 @@ func TestPendingGroupCommitRefusalFailsTheSession(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			if err := tx.AppendEntry(Entry{ID: id, Conversation: b, Kind: "refuse", Value: JSON{"body": "x"}}); err != nil {
+			if err := tx.appendEntryRecord(Entry{ID: id, Conversation: b, Kind: "refuse", Value: JSON{"body": "x"}}); err != nil {
 				return err
 			}
 		}
@@ -97,7 +97,7 @@ func TestPendingGroupCommitRefusalFailsTheSession(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		return tx.AppendEntry(Entry{ID: id, Conversation: c, Kind: "note", Value: JSON{"body": "after"}})
+		return tx.appendEntryRecord(Entry{ID: id, Conversation: c, Kind: "note", Value: JSON{"body": "after"}})
 	}); err != nil {
 		var failed *SessionFailed
 		if !errors.As(err, &failed) {

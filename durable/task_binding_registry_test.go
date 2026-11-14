@@ -53,7 +53,7 @@ func TestTaskLifecyclePinnedRegistryReplacementBeforeResumeAndConversationBindin
 			if err != nil {
 				return nil, err
 			}
-			return nil, tx.AppendEntry(Entry{ID: entry, Conversation: conversation.ID(), Kind: "note", Value: JSON{}})
+			return nil, tx.appendEntryRecord(Entry{ID: entry, Conversation: conversation.ID(), Kind: "note", Value: JSON{}})
 		})
 		if err != nil {
 			t.Fatal("live conversation commit rejected", err)

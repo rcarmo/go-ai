@@ -91,6 +91,19 @@ func nativeJSONField(v reflect.Value, field jsonStructField) (reflect.Value, err
 	return value, nil
 }
 func nativeFieldPresent(v reflect.Value, name string) bool {
+	// Source-prescribed optional arrays retain present-empty values, while
+	// historical private frames must continue omitting nil fields.
+	if v.Type() == reflect.TypeFor[Entry]() || v.Type() == reflect.TypeFor[storedEntry]() {
+		switch name {
+		case "model":
+			return !v.FieldByName("Model").IsNil()
+		case "edits":
+			return !v.FieldByName("Edits").IsNil()
+		}
+	}
+	if v.Type() == reflect.TypeFor[ContextEdit]() && name == "messages" {
+		return v.FieldByName("Action").String() == "replace" && !v.FieldByName("Messages").IsNil()
+	}
 	if v.Type() == reflect.TypeFor[images.ImageInput]() || v.Type() == reflect.TypeFor[images.ImageOutput]() {
 		kind := v.FieldByName("Type").String()
 		return kind == "text" && name == "text" || kind == "image" && (name == "data" || name == "mimeType")

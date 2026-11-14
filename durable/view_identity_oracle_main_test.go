@@ -70,7 +70,7 @@ func source525Notes(t *testing.T, session *Session, conversation ID, count int) 
 			if err != nil {
 				return err
 			}
-			if err := tx.AppendEntry(Entry{ID: id, Conversation: conversation, Kind: "note", Value: JSON{}}); err != nil {
+			if err := tx.appendEntryRecord(Entry{ID: id, Conversation: conversation, Kind: "note", Value: JSON{}}); err != nil {
 				return err
 			}
 			ids = append(ids, id)
@@ -640,7 +640,7 @@ func TestMainSharedViewSynchronousMountAndCloseOrder(t *testing.T) {
 				if err != nil {
 					return err
 				}
-				if err := tx.AppendEntry(Entry{ID: id, Conversation: conversation, Kind: "note", Value: JSON{}}); err != nil {
+				if err := tx.appendEntryRecord(Entry{ID: id, Conversation: conversation, Kind: "note", Value: JSON{}}); err != nil {
 					return err
 				}
 			}

@@ -34,7 +34,7 @@ func mainSQLiteSnapshotSession(tb testing.TB) *Session {
 			if err != nil {
 				return nil, err
 			}
-			if err = tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "fixture", Value: JSON{"body": strings.Repeat("x", 4096)}}); err != nil {
+			if err = tx.appendEntryRecord(Entry{ID: id, Conversation: 1, Kind: "fixture", Value: JSON{"body": strings.Repeat("x", 4096)}}); err != nil {
 				return nil, err
 			}
 		}
@@ -86,7 +86,7 @@ func TestMainSQLiteAdoptedTaskSnapshot(t *testing.T) {
 		if err != nil {
 			return nil, err
 		}
-		return nil, tx.AppendEntry(Entry{ID: published, Conversation: 1, Kind: "fixture", Value: JSON{"body": "published"}})
+		return nil, tx.appendEntryRecord(Entry{ID: published, Conversation: 1, Kind: "fixture", Value: JSON{"body": "published"}})
 	})
 	if err != nil {
 		t.Fatal(err)

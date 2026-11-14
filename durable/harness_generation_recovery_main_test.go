@@ -554,7 +554,7 @@ func TestMainGenerationAgentEventsBeforeStorage(t *testing.T) {
 			if err != nil {
 				return nil, err
 			}
-			return nil, tx.AppendEntry(Entry{ID: marker, Conversation: f.c.ID(), Kind: "test.marker", Value: JSON{}})
+			return nil, tx.appendEntryRecord(Entry{ID: marker, Conversation: f.c.ID(), Kind: "test.marker", Value: JSON{}})
 		})
 		if err != nil {
 			t.Fatal(err)

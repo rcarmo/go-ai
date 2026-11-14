@@ -22,7 +22,7 @@ func TestV150FailurePrecedesHarnessClosedErrors(t *testing.T) {
 	}
 	store.appendFrame = func(byte, uint64, uint64, []byte) error { return errors.New("injected uncertain storage failure") }
 	_, err = harness.session.Commit(bg, func(tx *Tx) (any, error) {
-		return nil, tx.AppendEntry(Entry{ID: id, Conversation: conversation.ID(), Kind: "failure", Value: JSON{}})
+		return nil, tx.appendEntryRecord(Entry{ID: id, Conversation: conversation.ID(), Kind: "failure", Value: JSON{}})
 	})
 	if !errors.Is(err, ErrPoisoned) {
 		t.Fatalf("initial own storage failure=%v", err)

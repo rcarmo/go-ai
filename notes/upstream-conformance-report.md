@@ -4,7 +4,7 @@
 
 Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Native implementation: `/work/go-ai/durable`, authorised SQLite-only, pure Go. The preceding pushed implementation checkpoint is `04726f3` (request-time model/retry authority); image-resource diagnosis is recorded at `1e0f3ad`.
 
-Latest continuation: public persistence options on all five commit APIs, with deferred memory/raw SQLite, fold/mixed-write, before-admission capture, Number windows and validation/health precedence controls. See [evidence](commit-callback-values.md#public-commit-persistence-options). Complete persistence lifecycle/order, Tx constructor record results, full API/worker/runtime/Storage and release acceptance remain open.
+Latest continuation: canonical entry drafts, assigned identity/self head, metadata overrides and attributed record results on generic/token public constructors. See [evidence and precise gaps](entry-constructors.md). Go publication-record object identity remains unimplemented; other constructors, builtin producers, full API/worker/runtime/Storage and release acceptance remain open.
 
 ## Earlier queue-production checkpoint
 
@@ -18,7 +18,11 @@ Latest continuation: public persistence options on all five commit APIs, with de
 
 The exact input/write shape tests failed before the fixes. Idle progress and continuation already passed and required no speculative runtime changes. A failure/reopen fixture initially tried to close storage already owned/closed by Session; correcting the fixture required no runtime fix. Tests remain in the existing version-neutral transaction suite.
 
-## Latest public persistence verification
+## Latest entry-constructor verification
+
+Full repository ./... passes26 packages: root0.807s, durable537.260s/tools27.472s and public consumers12.798s. Eleven semantic faults, ten shuffled constructor/tool repetitions1.658s/6.324s, three final constructor/tool repetitions0.651s/2.045s, vet/Staticcheck/logging/register pass. Selected original271 (200 unchanged +71 probes), including complete original table12 and79 supplements, pass with zero skipped. Analysed temporary logs/overlays are removed. Publication-record identity, untyped extra-field/validation timing, other constructors/builtin producer migrations and full API/Storage/release acceptance remain open.
+
+## Previous public persistence verification
 
 Full repository ./... passes26 packages: root0.693s, durable439.106s/tools19.928s and public consumers12.206s. Eleven semantic faults, ten shuffled options/value/numeric/policy repetitions20.851s, vet/Staticcheck/logging/register pass. Selected original270 (200 unchanged +70 probes) and complete original session-deferred25+78 supplements103 pass, zero skipped. Analysed logs/overlays are removed. Complete persistence lifecycle/ordering, Tx constructor record results, canonical generation/ToolTask/migration, broader API/Storage and pre-release profiling remain open.
 

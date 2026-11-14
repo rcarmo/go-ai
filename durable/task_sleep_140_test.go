@@ -214,7 +214,7 @@ func TestSleep140AutomaticTimerAndInvalidStates(t *testing.T) {
 					if err != nil {
 						return nil, err
 					}
-					if err = tx.AppendEntry(Entry{ID: id, Conversation: r.ConversationID(), Kind: "sleep.marker", Value: JSON{"ok": true}}); err != nil {
+					if err = tx.appendEntryRecord(Entry{ID: id, Conversation: r.ConversationID(), Kind: "sleep.marker", Value: JSON{"ok": true}}); err != nil {
 						return nil, err
 					}
 					return &TaskState{Status: "sleeping", Until: &until, Checkpoint: JSON{"phase": "after"}}, nil

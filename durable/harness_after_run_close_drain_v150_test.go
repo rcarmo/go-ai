@@ -32,7 +32,7 @@ func TestV150AfterRunCloseInDrainResumesInterruptedAttempt(t *testing.T) {
 					if err != nil {
 						return nil, err
 					}
-					if err := tx.AppendEntry(Entry{ID: id, Conversation: r.ConversationID(), Kind: "test.tests", Value: JSON{"label": "drain"}, ByTask: r.TaskID()}); err != nil {
+					if err := tx.appendEntryRecord(Entry{ID: id, Conversation: r.ConversationID(), Kind: "test.tests", Value: JSON{"label": "drain"}, ByTask: r.TaskID()}); err != nil {
 						return nil, err
 					}
 					return taskDone(JSON{"label": "drain"}), nil

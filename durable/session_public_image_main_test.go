@@ -285,7 +285,7 @@ func TestSessionPrimaryRecordReadsUseExactKeys(t *testing.T) {
 				if id != 2 {
 					return nil, errors.New("unexpected test entry ID")
 				}
-				if err := tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", HasData: true, Data: JSON{"value": "owned"}}); err != nil {
+				if err := tx.appendEntryRecord(Entry{ID: id, Conversation: 1, Kind: "note", HasData: true, Data: JSON{"value": "owned"}}); err != nil {
 					return nil, err
 				}
 				submission, err := tx.MintID()

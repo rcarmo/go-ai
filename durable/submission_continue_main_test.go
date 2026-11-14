@@ -56,7 +56,7 @@ func TestMainSubmissionContinueRawLifecycle(t *testing.T) {
 			if err != nil {
 				return nil, err
 			}
-			if err := tx.AppendEntry(Entry{ID: answer, Conversation: 1, Kind: "note", Value: JSON{"text": "answer"}}); err != nil {
+			if err := tx.appendEntryRecord(Entry{ID: answer, Conversation: 1, Kind: "note", Value: JSON{"text": "answer"}}); err != nil {
 				return nil, err
 			}
 			if err := tx.SettleSubmission(id, SubmissionSettlement{Status: "done", Answer: answer}); err != nil {
@@ -103,7 +103,7 @@ func TestMainSubmissionContinueCreateValidation(t *testing.T) {
 			if err != nil {
 				return nil, err
 			}
-			if err := tx.AppendEntry(Entry{ID: entryID, Conversation: 1, Kind: "note", Value: JSON{}}); err != nil {
+			if err := tx.appendEntryRecord(Entry{ID: entryID, Conversation: 1, Kind: "note", Value: JSON{}}); err != nil {
 				return nil, err
 			}
 			conversation, err := tx.MintID()
@@ -117,7 +117,7 @@ func TestMainSubmissionContinueCreateValidation(t *testing.T) {
 			if err != nil {
 				return nil, err
 			}
-			return nil, tx.AppendEntry(Entry{ID: foreign, Conversation: conversation, Kind: "note", Value: JSON{}})
+			return nil, tx.appendEntryRecord(Entry{ID: foreign, Conversation: conversation, Kind: "note", Value: JSON{}})
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -293,7 +293,7 @@ func TestMainSubmissionContinuePlacementSettlementAndAbort(t *testing.T) {
 			if err != nil {
 				return nil, err
 			}
-			if err := tx.AppendEntry(Entry{ID: answer, Conversation: 1, Kind: "note", Value: JSON{}}); err != nil {
+			if err := tx.appendEntryRecord(Entry{ID: answer, Conversation: 1, Kind: "note", Value: JSON{}}); err != nil {
 				return nil, err
 			}
 			conversation, err := tx.MintID()
@@ -307,7 +307,7 @@ func TestMainSubmissionContinuePlacementSettlementAndAbort(t *testing.T) {
 			if err != nil {
 				return nil, err
 			}
-			return nil, tx.AppendEntry(Entry{ID: foreign, Conversation: conversation, Kind: "note", Value: JSON{}})
+			return nil, tx.appendEntryRecord(Entry{ID: foreign, Conversation: conversation, Kind: "note", Value: JSON{}})
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -495,7 +495,7 @@ func TestMainSubmissionContinueOrdinaryInputWriteControls(t *testing.T) {
 			if err != nil {
 				return nil, err
 			}
-			return nil, tx.AppendEntry(Entry{ID: answer, Conversation: 1, Kind: "note", Value: JSON{}})
+			return nil, tx.appendEntryRecord(Entry{ID: answer, Conversation: 1, Kind: "note", Value: JSON{}})
 		})
 		if err != nil {
 			t.Fatal(err)

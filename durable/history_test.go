@@ -224,7 +224,7 @@ func TestHistoryAncestryFailureAtomicAndTxForwardReferences(t *testing.T) {
 			if err = tx.CreateConversation(Conversation{ID: child, Parent: 1, ParentAt: forward}); err != nil {
 				return nil, err
 			}
-			return nil, tx.AppendEntry(Entry{ID: forward, Conversation: 1, Kind: "note", Value: JSON{}, Head: forward})
+			return nil, tx.appendEntryRecord(Entry{ID: forward, Conversation: 1, Kind: "note", Value: JSON{}, Head: forward})
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -295,7 +295,7 @@ func TestHistoryProductionHTTPInheritedContextAndHead(t *testing.T) {
 					return nil, err
 				}
 			}
-			if err = tx.AppendEntry(e); err != nil {
+			if err = tx.appendEntryRecord(e); err != nil {
 				return nil, err
 			}
 		}

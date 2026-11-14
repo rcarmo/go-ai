@@ -74,7 +74,7 @@ func TestMainSessionUnpublishedReadBarriers(t *testing.T) {
 						return nil, err
 					}
 					if kind == "entry" {
-						return nil, tx.AppendEntry(Entry{ID: leaked, Conversation: 1, Kind: "note", Value: JSON{"body": "first"}})
+						return nil, tx.appendEntryRecord(Entry{ID: leaked, Conversation: 1, Kind: "note", Value: JSON{"body": "first"}})
 					}
 					return nil, tx.CreateConversation(Conversation{ID: leaked})
 				})
@@ -102,7 +102,7 @@ func TestMainSessionUnpublishedReadBarriers(t *testing.T) {
 						if err != nil {
 							return nil, err
 						}
-						return nil, tx.AppendEntry(Entry{ID: id, Conversation: leaked, Kind: "note", Value: JSON{"body": "second"}})
+						return nil, tx.appendEntryRecord(Entry{ID: id, Conversation: leaked, Kind: "note", Value: JSON{"body": "second"}})
 					})
 					second <- err
 				}()
@@ -211,7 +211,7 @@ func TestMainSessionFailureFenceKeepsEarlierPartsAfterSettlementError(t *testing
 		if err != nil {
 			return nil, err
 		}
-		return nil, tx.AppendEntry(Entry{ID: id, Conversation: a, Kind: "note", Value: JSON{"body": "kept"}})
+		return nil, tx.appendEntryRecord(Entry{ID: id, Conversation: a, Kind: "note", Value: JSON{"body": "kept"}})
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -222,7 +222,7 @@ func TestMainSessionFailureFenceKeepsEarlierPartsAfterSettlementError(t *testing
 		if err != nil {
 			return nil, err
 		}
-		return nil, tx.AppendEntry(Entry{ID: id, Conversation: b, Kind: "note", Value: JSON{"body": "lost"}})
+		return nil, tx.appendEntryRecord(Entry{ID: id, Conversation: b, Kind: "note", Value: JSON{"body": "lost"}})
 	}); err == nil {
 		t.Fatal("settlement error settled without an error")
 	}
@@ -408,7 +408,7 @@ func TestMainSessionGatesJobsWaitForPublication(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			if err := tx.AppendEntry(Entry{ID: entryID, Conversation: createdID, Kind: "note", Value: JSON{"text": "note"}}); err != nil {
+			if err := tx.appendEntryRecord(Entry{ID: entryID, Conversation: createdID, Kind: "note", Value: JSON{"text": "note"}}); err != nil {
 				return err
 			}
 			values <- entryID
@@ -555,7 +555,7 @@ func TestMainSessionGatesJobsWaitForPublication(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			if err := tx.AppendEntry(Entry{ID: entryID, Conversation: created, Kind: "note", Value: JSON{"text": "note"}}); err != nil {
+			if err := tx.appendEntryRecord(Entry{ID: entryID, Conversation: created, Kind: "note", Value: JSON{"text": "note"}}); err != nil {
 				return err
 			}
 			convID = created
@@ -648,7 +648,7 @@ func TestMainSessionGatesJobsWaitForPublication(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "first", Value: JSON{}})
+			return tx.appendEntryRecord(Entry{ID: id, Conversation: 1, Kind: "first", Value: JSON{}})
 		}, firstSettled)
 		awaitTaskSignal(t, held.entered)
 		secondSettled := make(chan error, 1)
@@ -738,7 +738,7 @@ func TestMainSessionGatesJobsWaitForPublication(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "refuse"})
+			return tx.appendEntryRecord(Entry{ID: id, Conversation: 1, Kind: "refuse"})
 		}, first)
 		awaitTaskSignal(t, entered)
 		admission := &mainCommitAdmissionContext{Context: ctx, entered: make(chan struct{})}
@@ -1024,7 +1024,7 @@ func TestMainGatesSessionCleanupReleasesHeldAppend(t *testing.T) {
 				if err != nil {
 					return nil, err
 				}
-				return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}})
+				return nil, tx.appendEntryRecord(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}})
 			})
 			done <- err
 		}()

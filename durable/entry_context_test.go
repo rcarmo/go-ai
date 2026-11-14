@@ -28,7 +28,7 @@ func TestEntryContextTypedOwnedDataAndNarrowing(t *testing.T) {
 		input := map[string]any{"x": []any{1}}
 		var id ID
 		checkpointCommit(t, s, func(tx *Tx) error {
-			v, e := tx.AppendTypedEntry(d, 1, EntryContent{Data: input, HasData: true, Model: []goai.Message{goai.UserMessage("owned")}})
+			v, e := tx.appendTypedEntryFixture(d, 1, entryContentFixture{Data: input, HasData: true, Model: []goai.Message{goai.UserMessage("owned")}})
 			if e != nil {
 				return e
 			}
@@ -53,7 +53,7 @@ func TestEntryContextTypedOwnedDataAndNarrowing(t *testing.T) {
 			t.Fatal("reopen data", got, e)
 		}
 		checkpointCommit(t, s, func(tx *Tx) error {
-			_, e := tx.AppendTypedEntry(d, 1, EntryContent{Data: nil, HasData: true})
+			_, e := tx.appendTypedEntryFixture(d, 1, entryContentFixture{Data: nil, HasData: true})
 			return e
 		})
 	})
@@ -63,12 +63,12 @@ func TestEntryContextHeadEditsToolPairsAndAncestor(t *testing.T) {
 		d := entryToken(t, "entry.context")
 		var first, cutoff ID
 		checkpointCommit(t, s, func(tx *Tx) error {
-			v, e := tx.AppendTypedEntry(d, 1, EntryContent{Model: []goai.Message{goai.UserMessage("old")}})
+			v, e := tx.appendTypedEntryFixture(d, 1, entryContentFixture{Model: []goai.Message{goai.UserMessage("old")}})
 			if e != nil {
 				return e
 			}
 			first = v.ID
-			v, e = tx.AppendTypedEntry(d, 1, EntryContent{Model: []goai.Message{{Role: goai.RoleAssistant, StopReason: goai.StopReasonToolUse, Content: []goai.ContentBlock{{Type: "toolCall", ID: "a", Name: "one", Arguments: map[string]any{}}, {Type: "toolCall", ID: "b", Name: "two", Arguments: map[string]any{}}}}}})
+			v, e = tx.appendTypedEntryFixture(d, 1, entryContentFixture{Model: []goai.Message{{Role: goai.RoleAssistant, StopReason: goai.StopReasonToolUse, Content: []goai.ContentBlock{{Type: "toolCall", ID: "a", Name: "one", Arguments: map[string]any{}}, {Type: "toolCall", ID: "b", Name: "two", Arguments: map[string]any{}}}}}})
 			if e != nil {
 				return e
 			}
@@ -79,7 +79,7 @@ func TestEntryContextHeadEditsToolPairsAndAncestor(t *testing.T) {
 		checkpointCommit(t, s, func(tx *Tx) error { var e error; child, e = tx.ForkConversation(1, cutoff, 0); return e })
 		replacement := []MessageReceipt{{Role: goai.RoleUser, Content: []goai.ContentBlock{{Type: "text", Text: "edited ancestor"}}}}
 		checkpointCommit(t, s, func(tx *Tx) error {
-			_, e := tx.AppendTypedEntry(d, child.ID, EntryContent{Head: first, Edits: []ContextEdit{{Target: first, Action: "replace", Messages: replacement}}, Model: []goai.Message{{Role: goai.RoleToolResult, ToolCallID: "b", ToolName: "two", Content: []goai.ContentBlock{{Type: "text", Text: "result b"}}}, {Role: goai.RoleToolResult, ToolCallID: "extra", Content: []goai.ContentBlock{{Type: "text", Text: "discard"}}}}})
+			_, e := tx.appendTypedEntryFixture(d, child.ID, entryContentFixture{Head: first, Edits: []ContextEdit{{Target: first, Action: "replace", Messages: replacement}}, Model: []goai.Message{{Role: goai.RoleToolResult, ToolCallID: "b", ToolName: "two", Content: []goai.ContentBlock{{Type: "text", Text: "result b"}}}, {Role: goai.RoleToolResult, ToolCallID: "extra", Content: []goai.ContentBlock{{Type: "text", Text: "discard"}}}}})
 			return e
 		})
 		view, e := s.ContextView(bg, child.ID, 0)
@@ -103,7 +103,7 @@ func TestEntryContextHeadEditsToolPairsAndAncestor(t *testing.T) {
 			t.Fatal("edit reopen", view, e)
 		}
 		checkpointCommit(t, s, func(tx *Tx) error {
-			_, e := tx.AppendTypedEntry(d, child.ID, EntryContent{HeadSelf: true, Model: []goai.Message{goai.UserMessage("new head")}})
+			_, e := tx.appendTypedEntryFixture(d, child.ID, entryContentFixture{HeadSelf: true, Model: []goai.Message{goai.UserMessage("new head")}})
 			return e
 		})
 		view, e = s.ContextView(bg, child.ID, 0)
@@ -134,7 +134,7 @@ func TestEntryContextContributionControlsRejectBeforeStage(t *testing.T) {
 	} {
 		before := checkpointSnapshot(t, s)
 		_, e = s.Commit(bg, func(tx *Tx) (any, error) {
-			_, e := tx.AppendTypedEntry(d, 1, EntryContent{Model: []goai.Message{m}})
+			_, e := tx.appendTypedEntryFixture(d, 1, entryContentFixture{Model: []goai.Message{m}})
 			return nil, e
 		})
 		if e == nil {
@@ -147,7 +147,7 @@ func TestEntryContextContributionControlsRejectBeforeStage(t *testing.T) {
 		}
 	}
 	checkpointCommit(t, s, func(tx *Tx) error {
-		_, e := tx.AppendTypedEntry(d, 1, EntryContent{Model: []goai.Message{{Role: goai.RoleToolResult, Details: []any{1, "owned"}}}})
+		_, e := tx.appendTypedEntryFixture(d, 1, entryContentFixture{Model: []goai.Message{{Role: goai.RoleToolResult, Details: []any{1, "owned"}}}})
 		return e
 	})
 	for _, v := range checkpointSnapshot(t, s).Entries {
@@ -192,18 +192,18 @@ func TestEntryContextActualHTTPSystemToolsEditedAncestorReopen(t *testing.T) {
 	section := "section-owned"
 	tool := goai.Tool{Name: "keep", Description: "kept", Parameters: json.RawMessage(`{"type":"object","properties":{}}`)}
 	checkpointCommit(t, h.session, func(tx *Tx) error {
-		v, e := tx.AppendTypedEntry(token, root.ID(), EntryContent{Model: []goai.Message{goai.UserMessage("ancestor original")}})
+		v, e := tx.appendTypedEntryFixture(token, root.ID(), entryContentFixture{Model: []goai.Message{goai.UserMessage("ancestor original")}})
 		if e != nil {
 			return e
 		}
 		first = v.ID
-		v, e = tx.AppendTypedEntry(token, root.ID(), EntryContent{Model: []goai.Message{{Role: goai.RoleSystem, Content: []goai.ContentBlock{}, Sections: map[string]*string{"policy": &section}, ToolsAdded: []goai.Tool{tool, {Name: "remove", Description: "removed", Parameters: json.RawMessage(`{"type":"object"}`)}}}}})
+		v, e = tx.appendTypedEntryFixture(token, root.ID(), entryContentFixture{Model: []goai.Message{{Role: goai.RoleSystem, Content: []goai.ContentBlock{}, Sections: map[string]*string{"policy": &section}, ToolsAdded: []goai.Tool{tool, {Name: "remove", Description: "removed", Parameters: json.RawMessage(`{"type":"object"}`)}}}}})
 		if e != nil {
 			return e
 		}
 		at = v.ID
 		for _, stop := range []goai.StopReason{goai.StopReasonPending, goai.StopReasonAborted, goai.StopReasonError, goai.StopReasonDeferred} {
-			v, e = tx.AppendTypedEntry(token, root.ID(), EntryContent{Model: []goai.Message{{Role: goai.RoleAssistant, StopReason: stop, Content: []goai.ContentBlock{{Type: "text", Text: "literal-" + string(stop)}}}}})
+			v, e = tx.appendTypedEntryFixture(token, root.ID(), entryContentFixture{Model: []goai.Message{{Role: goai.RoleAssistant, StopReason: stop, Content: []goai.ContentBlock{{Type: "text", Text: "literal-" + string(stop)}}}}})
 			if e != nil {
 				return e
 			}
@@ -218,7 +218,7 @@ func TestEntryContextActualHTTPSystemToolsEditedAncestorReopen(t *testing.T) {
 		t.Fatal(e)
 	}
 	checkpointCommit(t, h.session, func(tx *Tx) error {
-		_, e := tx.AppendTypedEntry(token, child.ID(), EntryContent{Edits: []ContextEdit{{Target: first, Action: "replace", Messages: []MessageReceipt{{Role: goai.RoleUser, Content: []goai.ContentBlock{{Type: "text", Text: "edited ancestor"}}}}}}, Model: []goai.Message{{Role: goai.RoleSystem, Content: []goai.ContentBlock{}, ToolsRemoved: []goai.ToolReference{{Name: "remove"}}}}})
+		_, e := tx.appendTypedEntryFixture(token, child.ID(), entryContentFixture{Edits: []ContextEdit{{Target: first, Action: "replace", Messages: []MessageReceipt{{Role: goai.RoleUser, Content: []goai.ContentBlock{{Type: "text", Text: "edited ancestor"}}}}}}, Model: []goai.Message{{Role: goai.RoleSystem, Content: []goai.ContentBlock{}, ToolsRemoved: []goai.ToolReference{{Name: "remove"}}}}})
 		return e
 	})
 	childID := child.ID()
@@ -262,14 +262,14 @@ func TestEntryContextPendingPreservedAndExactExcludedStops(t *testing.T) {
 		token := entryToken(t, "entry.pending")
 		checkpointCommit(t, s, func(tx *Tx) error {
 			for _, stop := range []goai.StopReason{goai.StopReasonAborted, goai.StopReasonError, goai.StopReasonDeferred} {
-				if _, e := tx.AppendTypedEntry(token, 1, EntryContent{Model: []goai.Message{{Role: goai.RoleAssistant, StopReason: stop, Content: []goai.ContentBlock{{Type: "text", Text: "excluded-" + string(stop)}}}}}); e != nil {
+				if _, e := tx.appendTypedEntryFixture(token, 1, entryContentFixture{Model: []goai.Message{{Role: goai.RoleAssistant, StopReason: stop, Content: []goai.ContentBlock{{Type: "text", Text: "excluded-" + string(stop)}}}}}); e != nil {
 					return e
 				}
 			}
-			if _, e := tx.AppendTypedEntry(token, 1, EntryContent{Model: []goai.Message{{Role: goai.RoleAssistant, StopReason: goai.StopReasonPending, Content: []goai.ContentBlock{{Type: "toolCall", ID: "pending-call", Name: "pending_tool", Arguments: map[string]any{}}}}}}); e != nil {
+			if _, e := tx.appendTypedEntryFixture(token, 1, entryContentFixture{Model: []goai.Message{{Role: goai.RoleAssistant, StopReason: goai.StopReasonPending, Content: []goai.ContentBlock{{Type: "toolCall", ID: "pending-call", Name: "pending_tool", Arguments: map[string]any{}}}}}}); e != nil {
 				return e
 			}
-			_, e := tx.AppendTypedEntry(token, 1, EntryContent{Model: []goai.Message{{Role: goai.RoleToolResult, ToolCallID: "pending-call", ToolName: "pending_tool", Content: []goai.ContentBlock{{Type: "text", Text: "kept-result"}}}}})
+			_, e := tx.appendTypedEntryFixture(token, 1, entryContentFixture{Model: []goai.Message{{Role: goai.RoleToolResult, ToolCallID: "pending-call", ToolName: "pending_tool", Content: []goai.ContentBlock{{Type: "text", Text: "kept-result"}}}}})
 			return e
 		})
 		view, e := s.ContextView(bg, 1, 0)
@@ -286,7 +286,7 @@ func TestEntryContextEmptyArgumentsWitnessOwnedSnapshotReopenAndHTTP(t *testing.
 		nonempty := map[string]any{"nested": []any{"owned"}}
 		var id ID
 		checkpointCommit(t, s, func(tx *Tx) error {
-			v, e := tx.AppendTypedEntry(token, 1, EntryContent{Model: []goai.Message{{Role: goai.RoleAssistant, StopReason: goai.StopReasonToolUse, Content: []goai.ContentBlock{{Type: "toolCall", ID: "empty", Name: "empty_tool", Arguments: empty}, {Type: "toolCall", ID: "full", Name: "full_tool", Arguments: nonempty}}}}})
+			v, e := tx.appendTypedEntryFixture(token, 1, entryContentFixture{Model: []goai.Message{{Role: goai.RoleAssistant, StopReason: goai.StopReasonToolUse, Content: []goai.ContentBlock{{Type: "toolCall", ID: "empty", Name: "empty_tool", Arguments: empty}, {Type: "toolCall", ID: "full", Name: "full_tool", Arguments: nonempty}}}}})
 			id = v.ID
 			empty["mutated"] = true
 			nonempty["nested"].([]any)[0] = "caller"
@@ -322,7 +322,7 @@ func TestEntryContextEmptyArgumentsWitnessOwnedSnapshotReopenAndHTTP(t *testing.
 		} {
 			before := checkpointSnapshot(t, s)
 			_, e := s.Commit(bg, func(tx *Tx) (any, error) {
-				_, e := tx.AppendTypedEntry(token, 1, EntryContent{Edits: []ContextEdit{{Target: id, Action: "replace", Messages: []MessageReceipt{receipt}}}})
+				_, e := tx.appendTypedEntryFixture(token, 1, entryContentFixture{Edits: []ContextEdit{{Target: id, Action: "replace", Messages: []MessageReceipt{receipt}}}})
 				return nil, e
 			})
 			if e == nil {
@@ -370,7 +370,7 @@ func TestEntryContextEmptyArgumentsWitnessOwnedSnapshotReopenAndHTTP(t *testing.
 	}
 	token := entryToken(t, "entry.empty.http")
 	checkpointCommit(t, h.session, func(tx *Tx) error {
-		_, e := tx.AppendTypedEntry(token, 1, EntryContent{Model: []goai.Message{{Role: goai.RoleAssistant, StopReason: goai.StopReasonToolUse, Content: []goai.ContentBlock{{Type: "toolCall", ID: "empty-wire", Name: "empty_tool", Arguments: map[string]any{}}}}, {Role: goai.RoleToolResult, ToolCallID: "empty-wire", ToolName: "empty_tool", Content: []goai.ContentBlock{{Type: "text", Text: "result-owned"}}}}})
+		_, e := tx.appendTypedEntryFixture(token, 1, entryContentFixture{Model: []goai.Message{{Role: goai.RoleAssistant, StopReason: goai.StopReasonToolUse, Content: []goai.ContentBlock{{Type: "toolCall", ID: "empty-wire", Name: "empty_tool", Arguments: map[string]any{}}}}, {Role: goai.RoleToolResult, ToolCallID: "empty-wire", ToolName: "empty_tool", Content: []goai.ContentBlock{{Type: "text", Text: "result-owned"}}}}})
 		return e
 	})
 	h.Close(bg)

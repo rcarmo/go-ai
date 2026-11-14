@@ -38,7 +38,7 @@ func TestMainHarnessThirdPartyCommitStoresDerivedPartialAtomically(t *testing.T)
 					return nil, err
 				}
 				// Native Entry.Value is an object rather than source Entry.data:string.
-				if err := tx.AppendEntry(Entry{ID: id, Conversation: r.ConversationID(), Kind: "test.audit", Value: JSON{"text": text}}); err != nil {
+				if err := tx.appendEntryRecord(Entry{ID: id, Conversation: r.ConversationID(), Kind: "test.audit", Value: JSON{"text": text}}); err != nil {
 					return nil, err
 				}
 				return taskDone(nil), nil

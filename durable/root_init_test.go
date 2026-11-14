@@ -25,7 +25,7 @@ func TestRootWithInitAtomicOnceAfterAgentAndCreationRollback(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			if err = tx.AppendEntry(Entry{ID: entry, Conversation: id, Kind: "note", Value: JSON{}}); err != nil {
+			if err = tx.appendEntryRecord(Entry{ID: entry, Conversation: id, Kind: "note", Value: JSON{}}); err != nil {
 				return err
 			}
 			if fail {

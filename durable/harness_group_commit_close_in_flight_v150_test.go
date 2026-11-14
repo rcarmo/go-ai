@@ -104,7 +104,7 @@ func TestV150GroupCommitCloseSignalsInvocationDuringCallInFlight(t *testing.T) {
 			if err != nil {
 				return nil, err
 			}
-			return nil, tx.AppendEntry(Entry{ID: eid, Conversation: c.ID(), Kind: "note", Value: JSON{"body": "note"}})
+			return nil, tx.appendEntryRecord(Entry{ID: eid, Conversation: c.ID(), Kind: "note", Value: JSON{"body": "note"}})
 		})
 		writing <- err
 	}()

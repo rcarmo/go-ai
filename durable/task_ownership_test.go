@@ -930,7 +930,7 @@ func TestTaskOwnershipTaskDocumentsRetainedHeldAndSameBatchTerminalRetired(t *te
 						if err != nil {
 							return nil, err
 						}
-						if err := tx.AppendEntry(Entry{ID: entryID, Conversation: r.ConversationID(), Kind: "task.document-result", Value: JSON{"document": taskDoc}}); err != nil {
+						if err := tx.appendEntryRecord(Entry{ID: entryID, Conversation: r.ConversationID(), Kind: "task.document-result", Value: JSON{"document": taskDoc}}); err != nil {
 							return nil, err
 						}
 						return taskDone(JSON{"entry": entryID}), nil
@@ -1271,7 +1271,7 @@ func TestTaskOwnershipTerminalCandidateDocumentOverlayAndPublication(t *testing.
 			if err != nil {
 				return err
 			}
-			return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "app.retirement-sentinel", Value: JSON{}})
+			return tx.appendEntryRecord(Entry{ID: id, Conversation: 1, Kind: "app.retirement-sentinel", Value: JSON{}})
 		})
 		if err != nil || sentinel != before+1 {
 			t.Fatal("post-reject sentinel sequence", sentinel, err)

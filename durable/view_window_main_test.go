@@ -264,7 +264,7 @@ func TestMainTranscriptWindowForkHistory(t *testing.T) {
 			if err != nil {
 				return nil, err
 			}
-			return nil, tx.AppendEntry(Entry{ID: summary, Conversation: fork.id, Kind: "app.summary", Head: ids[1], Value: JSON{}})
+			return nil, tx.appendEntryRecord(Entry{ID: summary, Conversation: fork.id, Kind: "app.summary", Head: ids[1], Value: JSON{}})
 		}); err != nil {
 			t.Fatal(err)
 		}

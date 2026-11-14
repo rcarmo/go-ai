@@ -85,7 +85,7 @@ func TestMainViewUpstreamAtomicPublication(t *testing.T) {
 				if e != nil {
 					return e
 				}
-				if e = tx.AppendEntry(Entry{ID: id, Conversation: c.ID(), Kind: "note", Data: n, HasData: true, Value: JSON{}}); e != nil {
+				if e = tx.appendEntryRecord(Entry{ID: id, Conversation: c.ID(), Kind: "note", Data: n, HasData: true, Value: JSON{}}); e != nil {
 					return e
 				}
 				ids = append(ids, id)

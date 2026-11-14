@@ -40,7 +40,7 @@ func TestCompactionLiveStatusRetrySnapshotReopenAndRemoval(t *testing.T) {
 				if err != nil {
 					return nil, err
 				}
-				if err := tx.AppendEntry(Entry{ID: id, Conversation: conversation.ID(), Kind: "message", Value: value}); err != nil {
+				if err := tx.appendEntryRecord(Entry{ID: id, Conversation: conversation.ID(), Kind: "message", Value: value}); err != nil {
 					return nil, err
 				}
 			}
@@ -267,7 +267,7 @@ func TestCompaction120FailureReopenNoCutAndSummaryClearing(t *testing.T) {
 				if err != nil {
 					return nil, err
 				}
-				if err := tx.AppendEntry(Entry{ID: id, Conversation: conv.ID(), Kind: "message", Value: value}); err != nil {
+				if err := tx.appendEntryRecord(Entry{ID: id, Conversation: conv.ID(), Kind: "message", Value: value}); err != nil {
 					return nil, err
 				}
 			}
@@ -360,7 +360,7 @@ func TestSourceCompactionFailureErrorMessagePresence(t *testing.T) {
 					if err != nil {
 						return nil, err
 					}
-					if err := tx.AppendEntry(Entry{ID: id, Conversation: c.ID(), Kind: "pi.user", Model: []MessageReceipt{userReceipt(text)}}); err != nil {
+					if err := tx.appendEntryRecord(Entry{ID: id, Conversation: c.ID(), Kind: "pi.user", Model: []MessageReceipt{userReceipt(text)}}); err != nil {
 						return nil, err
 					}
 				}

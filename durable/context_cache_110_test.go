@@ -23,7 +23,7 @@ func TestContext110CacheAppendEditsBoundsAndDetachment(t *testing.T) {
 		defer s.Close(bg)
 		appendEntry := func(entry Entry) {
 			t.Helper()
-			_, e := s.Commit(bg, func(tx *Tx) (any, error) { return nil, tx.AppendEntry(entry) })
+			_, e := s.Commit(bg, func(tx *Tx) (any, error) { return nil, tx.appendEntryRecord(entry) })
 			if e != nil {
 				t.Fatal(e)
 			}
@@ -148,7 +148,7 @@ func TestContext110RetentionZeroExpiryAndSettingsIsolation(t *testing.T) {
 			if e != nil {
 				return nil, e
 			}
-			return nil, tx.AppendEntry(contextEntry(entryID, c.ID(), goai.RoleUser, "one"))
+			return nil, tx.appendEntryRecord(contextEntry(entryID, c.ID(), goai.RoleUser, "one"))
 		})
 		if e != nil {
 			t.Fatal(e)
@@ -160,7 +160,7 @@ func TestContext110RetentionZeroExpiryAndSettingsIsolation(t *testing.T) {
 			if e != nil {
 				return nil, e
 			}
-			return nil, tx.AppendEntry(contextEntry(secondID, c.ID(), goai.RoleUser, "two"))
+			return nil, tx.appendEntryRecord(contextEntry(secondID, c.ID(), goai.RoleUser, "two"))
 		})
 		if e != nil {
 			t.Fatal(e)

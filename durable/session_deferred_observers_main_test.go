@@ -63,7 +63,7 @@ func TestMainSessionDeferredStoredObserverOracle(t *testing.T) {
 			if err != nil {
 				return nil, err
 			}
-			return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "test.note", Value: JSON{}})
+			return nil, tx.appendEntryRecord(Entry{ID: id, Conversation: 1, Kind: "test.note", Value: JSON{}})
 		}); err != nil {
 			t.Fatal(err)
 		}

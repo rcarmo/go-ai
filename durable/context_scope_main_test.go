@@ -79,7 +79,7 @@ func TestMainContextExpiryAtPublication(t *testing.T) {
 					if err != nil {
 						return err
 					}
-					return tx.AppendEntry(contextEntry(id, 1, goai.RoleUser, "entry"))
+					return tx.appendEntryRecord(contextEntry(id, 1, goai.RoleUser, "entry"))
 				}
 				if _, err := h.session.Commit(bg, func(tx *Tx) (any, error) { return nil, appendContext(tx) }); err != nil {
 					t.Fatal(err)

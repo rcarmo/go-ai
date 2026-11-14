@@ -54,7 +54,7 @@ func mainAfterRecoverySetup(t *testing.T, hooks, gates map[int64]chan struct{}, 
 				if err != nil {
 					return nil, err
 				}
-				err = tx.AppendEntry(Entry{ID: id, Conversation: r.ConversationID(), Kind: "test.tests", Value: JSON{"label": label}, ByTask: r.TaskID()})
+				err = tx.appendEntryRecord(Entry{ID: id, Conversation: r.ConversationID(), Kind: "test.tests", Value: JSON{"label": label}, ByTask: r.TaskID()})
 				return taskDone(nil), err
 			})
 		}}, Abort: taskAbort})

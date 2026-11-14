@@ -46,7 +46,7 @@ func TestAutomaticCompactionRetryDecisionFollowsCurrentSettingsAfterResponse(t *
 				if err != nil {
 					return err
 				}
-				if err := tx.AppendEntry(Entry{ID: id, Conversation: conversation.ID(), Kind: "message", Value: value}); err != nil {
+				if err := tx.appendEntryRecord(Entry{ID: id, Conversation: conversation.ID(), Kind: "message", Value: value}); err != nil {
 					return err
 				}
 			}
@@ -118,7 +118,7 @@ func TestSourceCompactionIgnoresLegacyTaskRetryOverride(t *testing.T) {
 				if err != nil {
 					return nil, err
 				}
-				if err := tx.AppendEntry(Entry{ID: id, Conversation: c.ID(), Kind: "pi.user", Model: []MessageReceipt{userReceipt(text)}}); err != nil {
+				if err := tx.appendEntryRecord(Entry{ID: id, Conversation: c.ID(), Kind: "pi.user", Model: []MessageReceipt{userReceipt(text)}}); err != nil {
 					return nil, err
 				}
 			}

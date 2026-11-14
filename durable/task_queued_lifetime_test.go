@@ -36,7 +36,7 @@ func TestTaskRuntimeQueuedCapabilitySealAndCallerCancellation(t *testing.T) {
 						if _, err := tx.AcquireDocument(document, 1, nil, nil); err != nil {
 							return nil, err
 						}
-						v, err := tx.AppendTypedEntry(token, 1, EntryContent{Data: JSON{"value": 1}, HasData: true})
+						v, err := tx.appendTypedEntryFixture(token, 1, entryContentFixture{Data: JSON{"value": 1}, HasData: true})
 						entry = v.ID
 						return nil, err
 					}); err != nil {

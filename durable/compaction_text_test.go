@@ -183,7 +183,7 @@ func TestCompactionReopenPinsRequestButRehydratesModel(t *testing.T) {
 				if err != nil {
 					return nil, err
 				}
-				if err = tx.AppendEntry(Entry{ID: id, Conversation: conversation.ID(), Kind: "message", Value: wire}); err != nil {
+				if err = tx.appendEntryRecord(Entry{ID: id, Conversation: conversation.ID(), Kind: "message", Value: wire}); err != nil {
 					return nil, err
 				}
 			}
@@ -353,7 +353,7 @@ func TestSourceManualCompactionInstructionPresence(t *testing.T) {
 					if err != nil {
 						return nil, err
 					}
-					if err := tx.AppendEntry(Entry{ID: id, Conversation: c.ID(), Kind: "pi.user", Model: []MessageReceipt{userReceipt(text)}}); err != nil {
+					if err := tx.appendEntryRecord(Entry{ID: id, Conversation: c.ID(), Kind: "pi.user", Model: []MessageReceipt{userReceipt(text)}}); err != nil {
 						return nil, err
 					}
 				}
@@ -531,7 +531,7 @@ func TestSourceCompactionProviderSummaryTrim(t *testing.T) {
 					if err != nil {
 						return nil, err
 					}
-					if err := tx.AppendEntry(Entry{ID: id, Conversation: c.ID(), Kind: "pi.user", Model: []MessageReceipt{userReceipt(text)}}); err != nil {
+					if err := tx.appendEntryRecord(Entry{ID: id, Conversation: c.ID(), Kind: "pi.user", Model: []MessageReceipt{userReceipt(text)}}); err != nil {
 						return nil, err
 					}
 				}

@@ -36,7 +36,7 @@ func TestConversationInitPinnedCreationHookThenAgentThenInitAtomicRollback(t *te
 			if err != nil {
 				return err
 			}
-			return tx.AppendEntry(Entry{ID: entry, Conversation: id, Kind: "app.init", Value: JSON{"cwd": cwd}})
+			return tx.appendEntryRecord(Entry{ID: entry, Conversation: id, Kind: "app.init", Value: JSON{"cwd": cwd}})
 		}
 		child, err := h.CreateConversationWithInit(bg, AgentChange{Model: ModelRef{Provider: "openai", ID: "model"}, Cwd: "/child"}, init)
 		if err != nil {
@@ -52,7 +52,7 @@ func TestConversationInitPinnedCreationHookThenAgentThenInitAtomicRollback(t *te
 			if err != nil {
 				return nil, err
 			}
-			return nil, tx.AppendEntry(Entry{ID: at, Conversation: root.ID(), Kind: "app.cut", Value: JSON{}})
+			return nil, tx.appendEntryRecord(Entry{ID: at, Conversation: root.ID(), Kind: "app.cut", Value: JSON{}})
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -72,7 +72,7 @@ func TestConversationInitPinnedCreationHookThenAgentThenInitAtomicRollback(t *te
 				if err != nil {
 					return err
 				}
-				if err := tx.AppendEntry(Entry{ID: entry, Conversation: id, Kind: "app.init-fail", Value: JSON{}}); err != nil {
+				if err := tx.appendEntryRecord(Entry{ID: entry, Conversation: id, Kind: "app.init-fail", Value: JSON{}}); err != nil {
 					return err
 				}
 				if panicCase {
@@ -92,7 +92,7 @@ func TestConversationInitPinnedCreationHookThenAgentThenInitAtomicRollback(t *te
 				if err != nil {
 					return err
 				}
-				if err := tx.AppendEntry(Entry{ID: entry, Conversation: id, Kind: "app.fork-init-fail", Value: JSON{}}); err != nil {
+				if err := tx.appendEntryRecord(Entry{ID: entry, Conversation: id, Kind: "app.fork-init-fail", Value: JSON{}}); err != nil {
 					return err
 				}
 				if panicCase {

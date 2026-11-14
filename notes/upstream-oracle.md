@@ -14,19 +14,23 @@ bun run scripts/check-durable-session-oracles.mjs --upstream /path/to/pinned/pi 
 bun run scripts/check-durable-session-oracles.mjs --upstream /path/to/pinned/pi --file test/tools-images.test.ts --case 'gives the same result as the calling thread'
 ```
 
-The selected mode now passes **200 unchanged cases +70 independent probes**:192 tests in ten original files (including all11 input-entry cases), eight unchanged Storage conformance cases and70 probes. It reports zero skipped/todo cases. The runner reports270 total cases:192 original-file cases plus78 supplemental cases; the supplemental total includes those eight unchanged conformance cases.
+The selected mode now passes **200 unchanged cases +71 independent probes**:192 tests in ten original files (including all11 input-entry cases), eight unchanged Storage conformance cases and71 probes. It reports zero skipped/todo cases. The runner reports271 total cases:192 original-file cases plus79 supplemental cases; the supplemental total includes those eight unchanged conformance cases.
 
 `--all` discovers all 99 files under `packages/durable/test`. It starts a fresh Vitest process per file, one worker at a time, with a384 MiB V8 heap cap (768 MiB for the image file). A single process for the whole corpus previously stopped this 2 GiB workspace with an OOM; the sharded attempts completed without a workspace OOM. Subprocess failures remain failures, not skips. The full command continues to collect failures and exits nonzero if any group failed. JSON reports and transform caches are temporary and deleted on exit.
 
 Current probes also require exact empty, submissionId-only and entryId-only CompactionResult arms. The latest selected258 and separate original compaction176 cases pass, zero skipped.
 
-## Public commit persistence options
+## Entry draft constructors
+
+The independent probe exercises original generic/token constructors with empty kinds/arrays/null/self head, data ownership, pre-copy metadata overrides and empty replacement messages. Selected271 (200 unchanged +71 probes), including all12 original table cases and79 supplements, pass with zero skipped. This original execution does not establish native publication-object identity or full constructor conformance.
+
+## Previous public commit persistence options
 
 The added original probe drives SessionImpl, Harness and conversation public commit options: held raw storage versus snapshots, immediate dependency, mixed entry/document writes, invalid/non-deferred/extra windows and closed precedence. Selected270 (200 unchanged +70 probes) and complete original deferred25+78 supplements103 pass, zero skipped. Native TaskRuntime/ToolAPI option controls are separately source-derived; this probe does not execute those two source paths. Complete persistence lifecycle/order remains unaccepted.
 
 ## Previous tool execution callback results
 
-An added original tool API probe returns the appended record with byTaskId, cyclic host identity and the original callback failure, then rejects after invocation end. Selected269 and complete original harness-tools42+77 supplements119 pass, zero skipped. The earlier isolated original case had41 filtered tests and establishes no acceptance for those; the subsequent complete-file run covers all42. Native Tx.appendEntry still has a different result API, so native callback controls are separately source-derived.
+An added original tool API probe returns the appended record with byTaskId, cyclic host identity and the original callback failure, then rejects after invocation end. Selected269 and complete original harness-tools42+77 supplements119 pass, zero skipped. The earlier isolated original case had41 filtered tests and establishes no acceptance for those; the subsequent complete-file run covers all42. At that checkpoint native Tx.appendEntry had a different result API, so those callback controls were separately source-derived.
 
 ## Commit callback results
 

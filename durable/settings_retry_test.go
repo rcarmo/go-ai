@@ -106,7 +106,7 @@ func TestCompactionResolvedReserveBudgetModelCapAndStreamSettings(t *testing.T) 
 						if err != nil {
 							return nil, err
 						}
-						if err := tx.AppendEntry(Entry{ID: id, Conversation: conversation.ID(), Kind: "message", Value: receipt}); err != nil {
+						if err := tx.appendEntryRecord(Entry{ID: id, Conversation: conversation.ID(), Kind: "message", Value: receipt}); err != nil {
 							return nil, err
 						}
 					}

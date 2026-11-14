@@ -66,7 +66,7 @@ func appendQueuedInput(tx *Tx, conversation, submission ID, now int64, by ID) (I
 		if err != nil {
 			return 0, err
 		}
-		if err := tx.AppendEntry(inputMetadataEntry(metadata, id, conversation, nil, receipt, by)); err != nil {
+		if err := tx.appendEntryRecord(inputMetadataEntry(metadata, id, conversation, nil, receipt, by)); err != nil {
 			return 0, err
 		}
 		return id, nil

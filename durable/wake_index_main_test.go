@@ -164,7 +164,7 @@ func TestMainWakeSleepingIndexPublication(t *testing.T) {
 			t.Fatal(err)
 		}
 		if _, err := h.Commit(bg, func(tx *Tx) (any, error) {
-			return nil, tx.AppendEntry(Entry{ID: entry, Conversation: 1, Kind: "wake-index", Value: JSON{}})
+			return nil, tx.appendEntryRecord(Entry{ID: entry, Conversation: 1, Kind: "wake-index", Value: JSON{}})
 		}); err != nil {
 			t.Fatal(err)
 		}

@@ -34,7 +34,7 @@ func TestSessionV150ReadOnlyCommitDeliversBehindEarlierWriter(t *testing.T) {
 	first := make(chan error, 1)
 	go func() {
 		_, err := s.Commit(bg, func(tx *Tx) (any, error) {
-			return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "fence", Value: JSON{}})
+			return nil, tx.appendEntryRecord(Entry{ID: id, Conversation: 1, Kind: "fence", Value: JSON{}})
 		})
 		first <- err
 	}()
@@ -77,7 +77,7 @@ func holdSessionOutcome(t *testing.T, s *Session) (func(), <-chan error) {
 	result := make(chan error, 1)
 	go func() {
 		_, err := s.Commit(bg, func(tx *Tx) (any, error) {
-			return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "bound", Value: JSON{}})
+			return nil, tx.appendEntryRecord(Entry{ID: id, Conversation: 1, Kind: "bound", Value: JSON{}})
 		})
 		result <- err
 	}()
@@ -254,7 +254,7 @@ func TestSessionV150FailureBoundaryPoisonsLaterUndeliveredOutcomes(t *testing.T)
 	first := make(chan error, 1)
 	go func() {
 		_, err := s.Commit(bg, func(tx *Tx) (any, error) {
-			return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "refused", Value: JSON{}})
+			return nil, tx.appendEntryRecord(Entry{ID: id, Conversation: 1, Kind: "refused", Value: JSON{}})
 		})
 		first <- err
 	}()
@@ -330,7 +330,7 @@ func TestSessionV150RejectedCallKeepsEveryOwnPartOutcome(t *testing.T) {
 			first := make(chan error, 1)
 			go func() {
 				_, err := s.Commit(bg, func(tx *Tx) (any, error) {
-					return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "prefix", Value: JSON{}})
+					return nil, tx.appendEntryRecord(Entry{ID: id, Conversation: 1, Kind: "prefix", Value: JSON{}})
 				})
 				first <- err
 			}()
@@ -416,7 +416,7 @@ func TestV150SessionFailureCarriesOriginalRejectionValue(t *testing.T) {
 					if e != nil {
 						return nil, e
 					}
-					return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "setup", Value: JSON{}})
+					return nil, tx.appendEntryRecord(Entry{ID: id, Conversation: 1, Kind: "setup", Value: JSON{}})
 				}); err != nil {
 					t.Fatal(err)
 				}
@@ -430,7 +430,7 @@ func TestV150SessionFailureCarriesOriginalRejectionValue(t *testing.T) {
 					if e != nil {
 						return nil, e
 					}
-					return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "reject", Value: JSON{}})
+					return nil, tx.appendEntryRecord(Entry{ID: id, Conversation: 1, Kind: "reject", Value: JSON{}})
 				})
 				var failure *Failure
 				if !errors.As(err, &failure) || !reflect.DeepEqual(failure.Value(), value) {
@@ -481,7 +481,7 @@ func TestV150SessionFailureKeepsErrorIdentity(t *testing.T) {
 			if e != nil {
 				return nil, e
 			}
-			return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "reject", Value: JSON{}})
+			return nil, tx.appendEntryRecord(Entry{ID: id, Conversation: 1, Kind: "reject", Value: JSON{}})
 		})
 		if !errors.Is(err, cause) {
 			t.Fatalf("error cause identity lost: %v", err)
@@ -539,7 +539,7 @@ func TestMainSessionConfirmedAppendRefusalLatches(t *testing.T) {
 			if err != nil {
 				return nil, err
 			}
-			return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{"body": body}})
+			return nil, tx.appendEntryRecord(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{"body": body}})
 		})
 		return err
 	}
@@ -616,7 +616,7 @@ func TestMainSessionSQLiteConfirmedRollbackLatches(t *testing.T) {
 			if err != nil {
 				return nil, err
 			}
-			return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{"body": body}})
+			return nil, tx.appendEntryRecord(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{"body": body}})
 		})
 		return err
 	}

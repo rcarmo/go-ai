@@ -185,7 +185,7 @@ func TestSessionV150WriteKeys(t *testing.T) {
 		if entryID, e = tx.MintID(); e != nil {
 			return nil, e
 		}
-		if err := tx.AppendEntry(Entry{ID: entryID, Conversation: 1, Kind: userEntryKind}); err != nil {
+		if err := tx.appendEntryRecord(Entry{ID: entryID, Conversation: 1, Kind: userEntryKind}); err != nil {
 			return nil, err
 		}
 		handle, err := tx.AcquireDocument(def, 1, nil, nil)

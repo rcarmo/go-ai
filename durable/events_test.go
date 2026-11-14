@@ -129,7 +129,7 @@ func TestEventSnapshotUsesActiveHeadAndBuiltinDocsOnly(t *testing.T) {
 		if err != nil {
 			return nil, err
 		}
-		if err = tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "app.old", Value: JSON{}}); err != nil {
+		if err = tx.appendEntryRecord(Entry{ID: id, Conversation: 1, Kind: "app.old", Value: JSON{}}); err != nil {
 			return nil, err
 		}
 		if err = appendReset(tx, 1, "fresh"); err != nil {

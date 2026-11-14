@@ -32,7 +32,7 @@ func appendMainContextMessage(t *testing.T, s *Session, conversation ID, text st
 		t.Fatal(err)
 	}
 	if _, err := s.Commit(bg, func(tx *Tx) (any, error) {
-		return nil, tx.AppendEntry(contextEntry(id, conversation, goai.RoleUser, text))
+		return nil, tx.appendEntryRecord(contextEntry(id, conversation, goai.RoleUser, text))
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -423,7 +423,7 @@ func TestMainContextReadPublicOffLine(t *testing.T) {
 							if err != nil {
 								return nil, err
 							}
-							return nil, tx.AppendEntry(contextEntry(id, c.ID(), goai.RoleUser, "missed"))
+							return nil, tx.appendEntryRecord(contextEntry(id, c.ID(), goai.RoleUser, "missed"))
 						})
 						cancel()
 						if err != nil {

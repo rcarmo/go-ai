@@ -20,7 +20,7 @@ const (
 func (t *Tx) appendMessage(id, conversation, by ID, value JSON) error {
 	var receipt MessageReceipt
 	if err := fromObject(value, &receipt, t.limits); err != nil {
-		return t.AppendEntry(Entry{ID: id, Conversation: conversation, Kind: legacyMessageKind, Value: value, ByTask: by})
+		return t.appendEntryRecord(Entry{ID: id, Conversation: conversation, Kind: legacyMessageKind, Value: value, ByTask: by})
 	}
 	entry := Entry{ID: id, Conversation: conversation, Model: []MessageReceipt{receipt}, ByTask: by}
 	switch receipt.Role {
@@ -37,9 +37,9 @@ func (t *Tx) appendMessage(id, conversation, by ID, value JSON) error {
 		entry.Data = data
 		entry.HasData = true
 	default:
-		return t.AppendEntry(Entry{ID: id, Conversation: conversation, Kind: legacyMessageKind, Value: value, ByTask: by})
+		return t.appendEntryRecord(Entry{ID: id, Conversation: conversation, Kind: legacyMessageKind, Value: value, ByTask: by})
 	}
-	return t.AppendEntry(entry)
+	return t.appendEntryRecord(entry)
 }
 
 // toolResultEntryData is the original `data` payload of a tool-result entry:

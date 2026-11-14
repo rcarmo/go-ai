@@ -524,7 +524,7 @@ func placeCompactionSummary(tx *Tx, r *TaskRuntime, task TaskRecord, firstKept I
 			return nil, err
 		}
 		draft.ID, draft.Conversation = id, r.ConversationID()
-		if err = tx.AppendEntry(draft); err != nil {
+		if err = tx.appendEntryRecord(draft); err != nil {
 			return nil, err
 		}
 		result["entryId"] = id

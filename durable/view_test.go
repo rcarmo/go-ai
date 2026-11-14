@@ -23,7 +23,7 @@ func TestConversationWatchTranscriptDeltasDetachedAndOffLine(t *testing.T) {
 				if err != nil {
 					return nil, err
 				}
-				if err = tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "app.raw", Value: JSON{"text": text}}); err != nil {
+				if err = tx.appendEntryRecord(Entry{ID: id, Conversation: 1, Kind: "app.raw", Value: JSON{"text": text}}); err != nil {
 					return nil, err
 				}
 			}

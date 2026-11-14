@@ -139,7 +139,7 @@ func TestMainViewUpstreamAdvanceOracles(t *testing.T) {
 							if err != nil {
 								return err
 							}
-							if err = tx.AppendEntry(Entry{ID: id, Conversation: c.ID(), Kind: "burst", Value: JSON{}}); err != nil {
+							if err = tx.appendEntryRecord(Entry{ID: id, Conversation: c.ID(), Kind: "burst", Value: JSON{}}); err != nil {
 								return err
 							}
 							burst = append(burst, id)

@@ -276,7 +276,7 @@ func (t *Tx) requireConversation(id ID) error {
 	return nil
 }
 
-func (t *Tx) AppendEntry(v Entry) error {
+func (t *Tx) appendEntryRecord(v Entry) error {
 	if e := t.enterKeys(conversationKey(v.Conversation)); e != nil {
 		return e
 	}

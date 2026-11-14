@@ -39,7 +39,7 @@ func TestManualCompactionPinsCutUsageAndReopensWithoutReplay(t *testing.T) {
 				if err != nil {
 					return nil, err
 				}
-				if err = tx.AppendEntry(Entry{ID: id, Conversation: conversation.ID(), Kind: "message", Value: value}); err != nil {
+				if err = tx.appendEntryRecord(Entry{ID: id, Conversation: conversation.ID(), Kind: "message", Value: value}); err != nil {
 					return nil, err
 				}
 			}
@@ -108,7 +108,7 @@ func TestManualCompactionBusyQueuesSummaryUntilBoundary(t *testing.T) {
 				if err != nil {
 					return nil, err
 				}
-				if err = tx.AppendEntry(Entry{ID: id, Conversation: conversation.ID(), Kind: "message", Value: wire}); err != nil {
+				if err = tx.appendEntryRecord(Entry{ID: id, Conversation: conversation.ID(), Kind: "message", Value: wire}); err != nil {
 					return nil, err
 				}
 			}
@@ -182,7 +182,7 @@ func TestQueuedCompactionHeadOlderThanResetSettlesStale(t *testing.T) {
 		if err != nil {
 			return nil, err
 		}
-		if err = tx.AppendEntry(Entry{ID: old, Conversation: 1, Kind: "app.old", Value: JSON{}}); err != nil {
+		if err = tx.appendEntryRecord(Entry{ID: old, Conversation: 1, Kind: "app.old", Value: JSON{}}); err != nil {
 			return nil, err
 		}
 		if err = initializeBuiltins(tx, 1); err != nil {

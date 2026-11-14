@@ -14,7 +14,7 @@ func appendUpstreamHistory(t *testing.T, h *Harness, c *ConversationHandle, kind
 		if err != nil {
 			return err
 		}
-		return tx.AppendEntry(Entry{ID: id, Conversation: c.ID(), Kind: kind, Head: head, Value: JSON{}})
+		return tx.appendEntryRecord(Entry{ID: id, Conversation: c.ID(), Kind: kind, Head: head, Value: JSON{}})
 	})
 	return id
 }

@@ -55,7 +55,7 @@ func mainFailureOwnershipSeed(t *testing.T, b sqliteFixture, handoff, placed boo
 				if err != nil {
 					return nil, err
 				}
-				if err := tx.AppendEntry(Entry{ID: entry, Conversation: c.ID(), Kind: "message", ByTask: id, Value: wire}); err != nil {
+				if err := tx.appendEntryRecord(Entry{ID: entry, Conversation: c.ID(), Kind: "message", ByTask: id, Value: wire}); err != nil {
 					return nil, err
 				}
 				cp.InputEntry, value["placedEntry"] = entry, entry
@@ -73,7 +73,7 @@ func mainFailureOwnershipSeed(t *testing.T, b sqliteFixture, handoff, placed boo
 				if err != nil {
 					return nil, err
 				}
-				if err := tx.AppendEntry(Entry{ID: cp.AssistantEntry, Conversation: c.ID(), Kind: "message", ByTask: id, Value: wire}); err != nil {
+				if err := tx.appendEntryRecord(Entry{ID: cp.AssistantEntry, Conversation: c.ID(), Kind: "message", ByTask: id, Value: wire}); err != nil {
 					return nil, err
 				}
 			}

@@ -745,11 +745,10 @@ func validateState(candidate *Snapshot, l Limits, final bool, prior Snapshot, wr
 		return err
 	}
 	for _, v := range s.Entries {
-		// Upstream EntryRecord carries no value payload at all: kind is required and
-		// model/data are optional, so a harness message entry is valid with model:[message]
-		// alone. Requiring a value here was a native-only rule that made the original
-		// entry shape unloadable.
-		if uint64(v.Conversation) > MaxID || uint64(v.Head) > MaxID || (final && !existsConv(v.Conversation)) || v.Kind == "" {
+		// EntryRecord.kind is any string, including empty. Only defineEntry's
+		// typed token requires a non-empty kind. model/data are optional and
+		// there is no required native Value payload.
+		if uint64(v.Conversation) > MaxID || uint64(v.Head) > MaxID || (final && !existsConv(v.Conversation)) {
 			return reject("invalid entry")
 		}
 		if prior.retained == nil || changedEntries[v.ID] {

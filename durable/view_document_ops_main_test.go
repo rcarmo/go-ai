@@ -86,7 +86,7 @@ func TestMainConversationDocumentOperationTuples(t *testing.T) {
 						if err != nil {
 							return nil, err
 						}
-						return nil, tx.AppendEntry(Entry{ID: entryID, Conversation: 1, Kind: "app.note", Value: JSON{}})
+						return nil, tx.appendEntryRecord(Entry{ID: entryID, Conversation: 1, Kind: "app.note", Value: JSON{}})
 					case "explicit-revert":
 						return nil, live.ApplyOperations([]Operation{{"s", []any{"marker"}, true}, {"d", []any{"marker"}}})
 					case "reincarnate-equal":

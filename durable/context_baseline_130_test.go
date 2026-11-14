@@ -29,7 +29,7 @@ func TestContext130BaselineLeadsImportedAssistantHistory(t *testing.T) {
 				if entry.Kind == "imported" {
 					assistant = id
 				}
-				return nil, tx.AppendEntry(entry)
+				return nil, tx.appendEntryRecord(entry)
 			}); err != nil {
 				t.Fatal(err)
 			}

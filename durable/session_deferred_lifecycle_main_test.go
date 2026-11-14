@@ -170,7 +170,7 @@ func TestMainSessionDeferredMultipleReloadPrefixes(t *testing.T) {
 			if err != nil {
 				return nil, err
 			}
-			if err := tx.AppendEntry(Entry{ID: entry, Conversation: 1, Kind: "note", Value: JSON{"text": "staged"}}); err != nil {
+			if err := tx.appendEntryRecord(Entry{ID: entry, Conversation: 1, Kind: "note", Value: JSON{"text": "staged"}}); err != nil {
 				return nil, err
 			}
 			h, err := tx.AcquireDocument(next, 1, nil, nil)

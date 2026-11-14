@@ -156,7 +156,7 @@ func (b *jsonBudget) walk(v reflect.Value, depth int, objectsOnly bool) error {
 	case reflect.Float32, reflect.Float64:
 		b.hint(24)
 		if math.IsNaN(v.Float()) || math.IsInf(v.Float(), 0) {
-			return reject("nonfinite JSON number")
+			return reject("Value contains a non-finite number and is not strict JSON")
 		}
 		return nil
 	case reflect.Pointer:

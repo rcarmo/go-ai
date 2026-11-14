@@ -27,7 +27,7 @@ func TestMainSessionReadImageGapFailsClosed(t *testing.T) {
 			if err != nil {
 				return nil, err
 			}
-			return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "gap", Value: JSON{}})
+			return nil, tx.appendEntryRecord(Entry{ID: id, Conversation: 1, Kind: "gap", Value: JSON{}})
 		})
 		var failed *SessionFailed
 		if err == nil || !errors.As(s.failure(), &failed) || failed.Cause != err {
@@ -106,7 +106,7 @@ func TestMainSessionReadImageAdoptsOnlyReceiptedPrefix(t *testing.T) {
 			t.Fatal("allocator lost reservations", id, err)
 		}
 		value, err := s.Commit(bg, func(tx *Tx) (any, error) {
-			return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "after", Value: JSON{}})
+			return nil, tx.appendEntryRecord(Entry{ID: id, Conversation: 1, Kind: "after", Value: JSON{}})
 		})
 		if err != nil || value != nil {
 			t.Fatal(value, err)

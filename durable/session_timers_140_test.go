@@ -250,7 +250,7 @@ func TestSessionTimer140HarnessContextExpiryUsesHost(t *testing.T) {
 			t.Fatal(err)
 		}
 		if _, err = h.session.Commit(bg, func(tx *Tx) (any, error) {
-			return nil, tx.AppendEntry(contextEntry(id, root, goai.RoleUser, "context"))
+			return nil, tx.appendEntryRecord(contextEntry(id, root, goai.RoleUser, "context"))
 		}); err != nil {
 			t.Fatal(err)
 		}

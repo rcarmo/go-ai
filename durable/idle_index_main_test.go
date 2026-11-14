@@ -130,7 +130,7 @@ func TestMainIdleIndexPublicationWitness(t *testing.T) {
 			if err != nil {
 				return nil, err
 			}
-			return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{"text": "entry only"}})
+			return nil, tx.appendEntryRecord(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{"text": "entry only"}})
 		}); err != nil {
 			t.Fatal(err)
 		}

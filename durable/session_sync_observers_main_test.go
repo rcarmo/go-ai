@@ -293,7 +293,7 @@ func TestMainSyncCommitObserverSeesAdoptionBeforeCommitReturns(t *testing.T) {
 		if e != nil {
 			return nil, e
 		}
-		return nil, tx.AppendEntry(Entry{ID: entry, Conversation: 1, Kind: "note", Value: JSON{"body": "published"}})
+		return nil, tx.appendEntryRecord(Entry{ID: entry, Conversation: 1, Kind: "note", Value: JSON{"body": "published"}})
 	})
 	if err != nil {
 		t.Fatal(err)

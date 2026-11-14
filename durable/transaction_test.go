@@ -157,7 +157,7 @@ func TestTransactionCallbackInvalidAndRollback(t *testing.T) {
 			t.Fatal(e)
 		}
 		_, e = s.Commit(bg, func(tx *Tx) (any, error) {
-			return nil, tx.AppendEntry(Entry{ID: ID(MaxID + 1), Conversation: 1, Kind: "message", Value: JSON{}})
+			return nil, tx.appendEntryRecord(Entry{ID: ID(MaxID + 1), Conversation: 1, Kind: "message", Value: JSON{}})
 		})
 		rejected(t, e)
 	})
@@ -234,7 +234,7 @@ func TestRetainedStoreCannotBypassSession(t *testing.T) {
 				if e != nil {
 					return nil, e
 				}
-				return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "message", Value: JSON{"winner": true}})
+				return nil, tx.appendEntryRecord(Entry{ID: id, Conversation: 1, Kind: "message", Value: JSON{"winner": true}})
 			})
 			done <- e
 		}()
@@ -267,7 +267,7 @@ func TestAdmittedCancellationAndCloseFence(t *testing.T) {
 	commit := make(chan error, 1)
 	go func() {
 		_, e := h.Commit(ctx, func(tx *Tx) (any, error) {
-			return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "message", Value: JSON{"committed": true}})
+			return nil, tx.appendEntryRecord(Entry{ID: id, Conversation: 1, Kind: "message", Value: JSON{"committed": true}})
 		})
 		commit <- e
 	}()
@@ -343,7 +343,7 @@ func TestPublicTransactionStagedReferencesAtomic(t *testing.T) {
 			if e = h.Set(JSON{"phase": "prepared"}); e != nil {
 				return nil, e
 			}
-			if e = tx.AppendEntry(Entry{ID: ent, Conversation: conversation, Kind: "message", Value: JSON{}}); e != nil {
+			if e = tx.appendEntryRecord(Entry{ID: ent, Conversation: conversation, Kind: "message", Value: JSON{}}); e != nil {
 				return nil, e
 			}
 			return nil, nil

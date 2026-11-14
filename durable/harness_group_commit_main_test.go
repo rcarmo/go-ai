@@ -368,7 +368,7 @@ func TestMainGroupCommitOwnerEndFollowsCreationBelowPendingEnd(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			return tx.AppendEntry(Entry{ID: id, Conversation: c.ID(), Kind: "note", Value: JSON{"body": "blocker"}})
+			return tx.appendEntryRecord(Entry{ID: id, Conversation: c.ID(), Kind: "note", Value: JSON{"body": "blocker"}})
 		})
 		blocker <- err
 	}()

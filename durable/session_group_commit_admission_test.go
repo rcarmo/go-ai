@@ -194,11 +194,11 @@ func TestSessionV150BlindEntryAppendsBatchAgainstPendingPrefix(t *testing.T) {
 		i := i
 		go func() {
 			_, err := s.Commit(bg, func(tx *Tx) (any, error) {
-				content := EntryContent{Value: JSON{"index": i}}
+				content := entryContentFixture{Value: JSON{"index": i}}
 				if i > 0 {
 					content.Head = firstID
 				}
-				entry, err := tx.AppendTypedEntry(def, 1, content)
+				entry, err := tx.appendTypedEntryFixture(def, 1, content)
 				if i == 0 {
 					firstID = entry.ID
 				}
@@ -311,7 +311,7 @@ func TestSessionV150DocumentReadsTouchOnlyTheirDependencies(t *testing.T) {
 				if err != nil {
 					return nil, err
 				}
-				return nil, tx.AppendEntry(Entry{ID: at, Conversation: 1, Kind: "cutoff", Value: JSON{}})
+				return nil, tx.appendEntryRecord(Entry{ID: at, Conversation: 1, Kind: "cutoff", Value: JSON{}})
 			}); err != nil {
 				t.Fatal(err)
 			}
@@ -704,7 +704,7 @@ func TestSessionV150StorageScopeRechecksFailureAtDeferredEntry(t *testing.T) {
 			if err != nil {
 				return nil, err
 			}
-			return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: kind, Value: JSON{}})
+			return nil, tx.appendEntryRecord(Entry{ID: id, Conversation: 1, Kind: kind, Value: JSON{}})
 		})
 		return err
 	}

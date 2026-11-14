@@ -225,7 +225,7 @@ func TestMainTranscriptProjectionFailureIsLocalAndOffLine(t *testing.T) {
 				if err != nil {
 					return nil, err
 				}
-				if err = tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "app.note", Value: JSON{"blob": strings.Repeat("x", 64<<10)}}); err != nil {
+				if err = tx.appendEntryRecord(Entry{ID: id, Conversation: 1, Kind: "app.note", Value: JSON{"blob": strings.Repeat("x", 64<<10)}}); err != nil {
 					return nil, err
 				}
 				last = id
@@ -301,7 +301,7 @@ func TestMainTranscriptProjectionRetainsByteQuota(t *testing.T) {
 					return nil, err
 				}
 				ids = append(ids, id)
-				return nil, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "app.note", Value: JSON{"blob": strings.Repeat("x", 80<<10)}})
+				return nil, tx.appendEntryRecord(Entry{ID: id, Conversation: 1, Kind: "app.note", Value: JSON{"blob": strings.Repeat("x", 80<<10)}})
 			}); err != nil {
 				t.Fatal("observer byte quota rejected commit", err)
 			}
@@ -373,7 +373,7 @@ func TestMainTranscriptProjectionDoesNotCombineDTOValidationBudgets(t *testing.T
 					return nil, err
 				}
 				ids = append(ids, id)
-				if err = tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "app.note", Value: JSON{"items": items}}); err != nil {
+				if err = tx.appendEntryRecord(Entry{ID: id, Conversation: 1, Kind: "app.note", Value: JSON{"items": items}}); err != nil {
 					return nil, err
 				}
 			}

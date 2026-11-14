@@ -288,7 +288,7 @@ func TestDocumentDefinitionHistoricalAncestorAndCopyMigration(t *testing.T) {
 			if e != nil {
 				return nil, e
 			}
-			if e = tx.AppendEntry(Entry{ID: cut, Conversation: 1, Kind: "note", Value: JSON{}}); e != nil {
+			if e = tx.appendEntryRecord(Entry{ID: cut, Conversation: 1, Kind: "note", Value: JSON{}}); e != nil {
 				return nil, e
 			}
 			h, e := tx.AcquireDocument(old, 1, nil, nil)
@@ -677,7 +677,7 @@ func TestDocumentDefinitionHistoricalMigrationDocumentBudget(t *testing.T) {
 				if e != nil {
 					return nil, e
 				}
-				if e = tx.AppendEntry(Entry{ID: cutoff, Conversation: 1, Kind: "note", Value: JSON{}}); e != nil {
+				if e = tx.appendEntryRecord(Entry{ID: cutoff, Conversation: 1, Kind: "note", Value: JSON{}}); e != nil {
 					return nil, e
 				}
 				_, e = tx.AcquireDocument(old, 1, nil, nil)

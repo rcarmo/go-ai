@@ -87,7 +87,7 @@ func TestSession120BackendMutationFailureIsFatalEvenRejected(t *testing.T) {
 					_, e = s.Commit(bg, func(tx *Tx) (any, error) { _, _ = tx.MintID(); return nil, nil })
 				} else {
 					_, e = s.Commit(bg, func(tx *Tx) (any, error) {
-						return nil, tx.AppendEntry(Entry{ID: 2, Conversation: 1, Kind: "test", Value: JSON{"x": 1}})
+						return nil, tx.appendEntryRecord(Entry{ID: 2, Conversation: 1, Kind: "test", Value: JSON{"x": 1}})
 					})
 				}
 				var failed *SessionFailed
@@ -187,7 +187,7 @@ func TestSession120LocalValidationDoesNotFailBackend(t *testing.T) {
 		t.Fatal(e)
 	}
 	if _, e = s.Commit(bg, func(tx *Tx) (any, error) {
-		return nil, tx.AppendEntry(Entry{ID: 99, Conversation: 1, Kind: "test", Value: JSON{}})
+		return nil, tx.appendEntryRecord(Entry{ID: 99, Conversation: 1, Kind: "test", Value: JSON{}})
 	}); e == nil {
 		t.Fatal("unreserved entry accepted")
 	}

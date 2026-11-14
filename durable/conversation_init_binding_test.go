@@ -30,7 +30,7 @@ func TestConversationInitializersBindTaskCreationToRootNewAndFork(t *testing.T) 
 			if err != nil {
 				return nil, err
 			}
-			return nil, tx.AppendEntry(Entry{ID: at, Conversation: root.ID(), Kind: "note", Value: JSON{}})
+			return nil, tx.appendEntryRecord(Entry{ID: at, Conversation: root.ID(), Kind: "note", Value: JSON{}})
 		})
 		if err != nil {
 			t.Fatal(err)

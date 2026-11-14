@@ -684,7 +684,7 @@ func TestObservationPublicationCompleteAdoptedTablePlacementAndReopen(t *testing
 			if e = h.ApplyOperations([]Operation{{"s", []any{"n"}, 1}}); e != nil {
 				return e
 			}
-			a, e := tx.AppendTypedEntry(token, 1, EntryContent{Data: "a", HasData: true})
+			a, e := tx.appendTypedEntryFixture(token, 1, entryContentFixture{Data: "a", HasData: true})
 			if e != nil {
 				return e
 			}
@@ -697,7 +697,7 @@ func TestObservationPublicationCompleteAdoptedTablePlacementAndReopen(t *testing
 			if e = tx.PutTask(Task{ID: id, Conversation: 1, Kind: "publication.task", Status: "pending", Checkpoint: JSON{"phase": "start"}}); e != nil {
 				return e
 			}
-			b, e := tx.AppendTypedEntry(token, 1, EntryContent{Data: "b", HasData: true})
+			b, e := tx.appendTypedEntryFixture(token, 1, entryContentFixture{Data: "b", HasData: true})
 			second = b.ID
 			return e
 		})

@@ -66,7 +66,7 @@ func TestMainToolProgressDeferredMemoryAndPersistence(t *testing.T) {
 						if err != nil {
 							return nil, err
 						}
-						return nil, tx.AppendEntry(Entry{ID: id, Conversation: f.c.ID(), Kind: "test.tool-dependent", Value: JSON{"read": got}})
+						return nil, tx.appendEntryRecord(Entry{ID: id, Conversation: f.c.ID(), Kind: "test.tool-dependent", Value: JSON{"read": got}})
 					}); err != nil {
 						t.Fatal(err)
 					}
@@ -179,7 +179,7 @@ func TestMainToolProgressMemoryEventsNotStorageReplay(t *testing.T) {
 			if err != nil {
 				return nil, err
 			}
-			return nil, tx.AppendEntry(Entry{ID: id, Conversation: f.c.ID(), Kind: "test.tool-marker", Value: JSON{}})
+			return nil, tx.appendEntryRecord(Entry{ID: id, Conversation: f.c.ID(), Kind: "test.tool-marker", Value: JSON{}})
 		}); err != nil {
 			t.Fatal(err)
 		}
