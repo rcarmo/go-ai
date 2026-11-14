@@ -18,6 +18,26 @@ type CompactionPolicy struct {
 
 const compactionSummaryPrefix = "The conversation history before this point was compacted into the following summary:\n\n<summary>\n"
 
+// CompactionInput is the persisted task input exported by the pinned source.
+// BeforeCompactInput separately describes the selected range passed to hooks.
+type CompactionInput struct {
+	Reason       string  `json:"reason"`
+	Instructions *string `json:"instructions,omitempty"`
+}
+
+var builtinCompactionTask = func() *TaskDefinition {
+	definition, err := newCompactionDefinition()
+	if err != nil {
+		panic(err)
+	}
+	return definition
+}()
+
+// CompactionTask returns the pinned source's immutable builtin task token.
+// A getter preserves the source constant binding: callers cannot replace the
+// token registered by Harness.Open through an assignable exported Go variable.
+func CompactionTask() *TaskDefinition { return builtinCompactionTask }
+
 // Compact creates a durable manual summarisation task. Selection and request
 // intent survive reopen; summary placement is a passive write, queued while a
 // generation runs. Generation-owned blocking compactions append directly.
@@ -38,10 +58,9 @@ func (c *ConversationHandle) Compact(ctx context.Context, instructions *string) 
 	}
 	var id ID
 	_, err = h.CommitTasks(ctx, c.id, func(tx *Tx) error {
-		var err error
-		input := JSON{"reason": "manual"}
-		if instructions != nil {
-			input["instructions"] = *instructions
+		input, err := dtoObject(CompactionInput{Reason: "manual", Instructions: instructions}, tx.limits)
+		if err != nil {
+			return err
 		}
 		id, err = tx.CreateTask(definition, input, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 		return err
@@ -51,7 +70,7 @@ func (c *ConversationHandle) Compact(ctx context.Context, instructions *string) 
 	}
 	return id, err
 }
-func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
+func newCompactionDefinition() (*TaskDefinition, error) {
 	definition, err := DefineTask(TaskDefinitionOptions{Kind: "pi.compaction", Version: 1, Initial: func(any) (JSON, error) { return JSON{"phase": "select"}, nil }, Phases: map[string]TaskPhase{
 		"select": func(ctx context.Context, task TaskRecord, r *TaskRuntime) error {
 			h := r.harness
@@ -127,7 +146,7 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 						return err
 					}
 				}
-				decision, err := callBeforeCompact(ctx, hook.BeforeCompact, CompactionInput{Reason: reason, Entries: entries, Messages: messages, FirstKept: view.Entries[cut].ID, Instructions: instructions}, r)
+				decision, err := callBeforeCompact(ctx, hook.BeforeCompact, BeforeCompactInput{Reason: reason, Entries: entries, Messages: messages, FirstKept: view.Entries[cut].ID, Instructions: instructions}, r)
 				if err != nil {
 					if ctx.Err() != nil {
 						return ctx.Err()

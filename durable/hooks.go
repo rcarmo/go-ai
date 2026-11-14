@@ -53,7 +53,7 @@ type ToolHooks struct {
 	AfterTool  func(context.Context, goai.ToolCall, ToolResult, *HookAPI) (*ToolResult, error)
 }
 type CompactionHooks struct {
-	BeforeCompact func(context.Context, CompactionInput, *HookAPI) (*CompactionDecision, error)
+	BeforeCompact func(context.Context, BeforeCompactInput, *HookAPI) (*CompactionDecision, error)
 }
 
 // Private selections keep provenance without changing the public hook structs.
@@ -70,7 +70,7 @@ type selectedCompactionHook struct {
 	extension string
 }
 
-type CompactionInput struct {
+type BeforeCompactInput struct {
 	Reason       string
 	Entries      []Entry
 	Messages     []MessageReceipt
@@ -510,7 +510,7 @@ func (r *Registry) selectedCompactionHooks(agent agentState) []selectedCompactio
 	}
 	return hooks
 }
-func callBeforeCompact(ctx context.Context, hook func(context.Context, CompactionInput, *HookAPI) (*CompactionDecision, error), input CompactionInput, r *TaskRuntime) (result *CompactionDecision, err error) {
+func callBeforeCompact(ctx context.Context, hook func(context.Context, BeforeCompactInput, *HookAPI) (*CompactionDecision, error), input BeforeCompactInput, r *TaskRuntime) (result *CompactionDecision, err error) {
 	defer func() {
 		if recover() != nil {
 			err = reject("beforeCompact hook panic")

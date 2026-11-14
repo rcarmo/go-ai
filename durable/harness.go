@@ -219,11 +219,7 @@ func Open(ctx context.Context, store Storage, options Options) (*Harness, error)
 	if options.Registry == nil {
 		h.options.Registry = NewRegistry()
 	}
-	compaction, err := h.compactionDefinition()
-	if err != nil {
-		return failOpen(err)
-	}
-	if err = h.options.Registry.registerBuiltinTask(compaction); err != nil {
+	if err := h.options.Registry.registerBuiltinTask(CompactionTask()); err != nil {
 		return failOpen(err)
 	}
 	anchor, err := backgroundAnchorDefinition()

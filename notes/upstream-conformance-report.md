@@ -4,7 +4,7 @@
 
 Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Native implementation: `/work/go-ai/durable`, authorised SQLite-only, pure Go. The preceding pushed implementation checkpoint is `04726f3` (request-time model/retry authority); image-resource diagnosis is recorded at `1e0f3ad`.
 
-Latest continuation: summary budget follows original binary64 multiplication before floor, fixing two valid large-integer reserves that were one token low under native rational arithmetic. Real provider-path assertions failed before the fix; independent pinned-source requests match exact values. See [evidence](canonical-compaction-kind.md#number-rounding-in-summary-budget). Overall alignment remains incomplete.
+Latest continuation: exported CompactionInput now represents the canonical task DTO; the hook context is separately named BeforeCompactInput. The source constant token maps to CompactionTask(), an immutable shared getter used by Harness and direct CreateTask callers. DTO wire assertions failed before changes; absent token is explicitly a compile/API baseline. See [evidence](canonical-compaction-kind.md#exported-input-and-task-token). Complete API/Storage/generation/tool and overall alignment remain open.
 
 ## Earlier queue-production checkpoint
 
@@ -18,7 +18,11 @@ Latest continuation: summary budget follows original binary64 multiplication bef
 
 The exact input/write shape tests failed before the fixes. Idle progress and continuation already passed and required no speculative runtime changes. A failure/reopen fixture initially tried to close storage already owned/closed by Session; correcting the fixture required no runtime fix. Tests remain in the existing version-neutral transaction suite.
 
-## Latest summary-budget verification
+## Latest compaction export verification
+
+Full durable430.967s/tools20.341s; ten shuffled targeted repetitions11.855s; four semantic faults, vet, Staticcheck, logging and register pass. Selected reference259 and separate original compaction177 pass, zero skipped. Analysed logs/overlays are removed. Full manual/automatic input presence, actual public-token execution, hook ownership and alarm-only continuation controls retain their assertions. The touched alarm fixture now waits through commit signals rather than polling.
+
+## Previous summary-budget verification
 
 Full durable431.008s/tools20.204s; ten shuffled budget/settings repetitions8.347s; two semantic faults, vet, Staticcheck, logging and register pass. Selected reference259 cases (200 unchanged +59 probes) and separate original compaction177 pass, zero skipped. Analysed logs/overlays are removed. Existing zero/model cap/override/settings/ownership/retry assertions remain. Fractional inputs and complete numeric/API acceptance remain open.
 

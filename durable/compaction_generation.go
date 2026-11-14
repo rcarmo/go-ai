@@ -100,7 +100,11 @@ func (h *Harness) startGenerationCompaction(runtime *TaskRuntime, task Task, cp 
 		}
 		// Automatic work follows current retry settings after each response;
 		// never convert host defaults into an explicit task-local override.
-		child, err := tx.CreateTask(definition, JSON{"reason": reason}, TaskOptions{Ownership: ownership, Background: background})
+		input, err := dtoObject(CompactionInput{Reason: reason}, tx.limits)
+		if err != nil {
+			return err
+		}
+		child, err := tx.CreateTask(definition, input, TaskOptions{Ownership: ownership, Background: background})
 		if err != nil {
 			return err
 		}

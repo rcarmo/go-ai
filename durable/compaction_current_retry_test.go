@@ -107,9 +107,8 @@ func TestSourceCompactionIgnoresLegacyTaskRetryOverride(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		registry, err := h.options.Registry.taskSnapshot(h.session.limits)
-		if err != nil {
-			t.Fatal(err)
+		if token := CompactionTask(); token != CompactionTask() || token.Kind() != "pi.compaction" || token.Version() != 1 {
+			t.Fatal("wrong exported source token", token)
 		}
 		input := JSON{"reason": "manual", "retry": JSON{"enabled": false, "maxRetries": 9, "baseDelayMs": 1, "maxDelayMs": 2}}
 		var task ID
@@ -124,7 +123,7 @@ func TestSourceCompactionIgnoresLegacyTaskRetryOverride(t *testing.T) {
 				}
 			}
 			var err error
-			task, err = tx.CreateTask(registry.Task("pi.compaction"), input, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
+			task, err = tx.CreateTask(CompactionTask(), input, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 			return err
 		}); err != nil {
 			t.Fatal(err)

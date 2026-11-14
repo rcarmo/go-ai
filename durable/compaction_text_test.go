@@ -284,12 +284,25 @@ func configureCompactionTestPolicy(t *testing.T, conversation *ConversationHandl
 func compactionTestInt(value int) *int { return &value }
 
 func TestSourceManualCompactionInstructionPresence(t *testing.T) {
+	// Source index.ts exports CompactionInput from compaction.ts; it is not
+	// the larger anonymous object passed to beforeCompact in harness/types.ts.
+	if typ := reflect.TypeFor[CompactionInput](); typ.NumField() != 2 {
+		t.Error("task CompactionInput must contain only reason and instructions", typ)
+	}
 	empty, focus := "", "preserve paths"
 	for _, test := range []struct {
 		name         string
 		instructions *string
 	}{{"absent", nil}, {"empty", &empty}, {"nonempty", &focus}} {
 		t.Run(test.name, func(t *testing.T) {
+			wire, err := json.Marshal(CompactionInput{Reason: "manual", Instructions: test.instructions})
+			want := JSON{"reason": "manual"}
+			if test.instructions != nil {
+				want["instructions"] = *test.instructions
+			}
+			if err != nil || !equalJSONValue(dropinJSON(t, wire), want) {
+				t.Error("public CompactionInput wire differs from original", string(wire), err)
+			}
 			store, err := newTestSQLite(t)
 			if err != nil {
 				t.Fatal(err)
@@ -306,7 +319,7 @@ func TestSourceManualCompactionInstructionPresence(t *testing.T) {
 				return ch
 			})
 			options.Registry = NewRegistry()
-			if err := options.Registry.Install(&Extension{Name: "instruction-owner", CompactionHooks: CompactionHooks{BeforeCompact: func(_ context.Context, input CompactionInput, _ *HookAPI) (*CompactionDecision, error) {
+			if err := options.Registry.Install(&Extension{Name: "instruction-owner", CompactionHooks: CompactionHooks{BeforeCompact: func(_ context.Context, input BeforeCompactInput, _ *HookAPI) (*CompactionDecision, error) {
 				if (input.Instructions == nil) != (test.instructions == nil) {
 					t.Error("hook lost instruction presence")
 				}
@@ -315,6 +328,17 @@ func TestSourceManualCompactionInstructionPresence(t *testing.T) {
 						t.Error("hook input changed")
 					}
 					*input.Instructions = "hook mutation"
+				}
+				return nil, nil
+			}}}); err != nil {
+				t.Fatal(err)
+			}
+			if err := options.Registry.Install(&Extension{Name: "instruction-observer", CompactionHooks: CompactionHooks{BeforeCompact: func(_ context.Context, input BeforeCompactInput, _ *HookAPI) (*CompactionDecision, error) {
+				if (input.Instructions == nil) != (test.instructions == nil) {
+					t.Error("later hook lost instruction presence")
+				}
+				if input.Instructions != nil && test.instructions != nil && *input.Instructions != *test.instructions {
+					t.Error("earlier hook mutation escaped into later hook", *input.Instructions)
 				}
 				return nil, nil
 			}}}); err != nil {

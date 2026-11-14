@@ -81,25 +81,39 @@ func TestCompaction140SleepAlarmResumesWithoutWaitAdmission(t *testing.T) {
 		if calls.Load() != 1 {
 			t.Fatal("retry ran before due", calls.Load())
 		}
-		clock.Store(3000)
-		alarm.fire()
 		ctx, cancel := context.WithTimeout(bg, 3*time.Second)
 		defer cancel()
-		// Only observational reads here: WaitForTask would itself Resume and mask a
-		// lost deadline wakeup. The host alarm alone must admit the continuation.
-		for {
-			state, err = h.Snapshot(ctx)
-			if err != nil {
-				t.Fatal(err)
+		// Subscribe before firing. Observation never resumes work, so the host
+		// alarm alone must admit the continuation; no polling or WaitForTask.
+		_, subscription, err := h.SubscribeCommits(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer subscription.Stop()
+		completed := make(chan struct{}, 1)
+		if err := subscription.Start(func(_ context.Context, frame PublicationFrame) error {
+			for _, write := range frame.Publication.Tables {
+				if write.Task != nil && write.Task.ID == id && terminalStatus(write.Task.Status) {
+					select {
+					case completed <- struct{}{}:
+					default:
+					}
+				}
 			}
-			if terminalStatus(state.Tasks[id].Status) {
-				break
-			}
-			select {
-			case <-ctx.Done():
-				t.Fatal(ctx.Err())
-			case <-time.After(time.Millisecond):
-			}
+			return nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+		clock.Store(3000)
+		alarm.fire()
+		select {
+		case <-completed:
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+		state, err = h.Snapshot(ctx)
+		if err != nil {
+			t.Fatal(err)
 		}
 		if state.Tasks[id].Status != "done" || calls.Load() != 2 {
 			t.Fatal(state.Tasks[id].Status, calls.Load())
@@ -107,10 +121,7 @@ func TestCompaction140SleepAlarmResumesWithoutWaitAdmission(t *testing.T) {
 	})
 }
 func TestCompaction140RetryDeadlineRejectsNonIntegerAndWideCheckpoint(t *testing.T) {
-	definition, err := (&Harness{}).compactionDefinition()
-	if err != nil {
-		t.Fatal(err)
-	}
+	definition := CompactionTask()
 	for _, until := range []any{nil, "invalid", 1.5, json.Number("9223372036854775808")} {
 		err := definition.options.Phases["retry"](bg, TaskRecord{State: TaskState{Checkpoint: JSON{"until": until}}}, nil)
 		var rejected *StorageRejected

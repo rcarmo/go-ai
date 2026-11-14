@@ -350,7 +350,7 @@ func TestBeforeCompactDecisionDetachmentAndFirstWins(t *testing.T) {
 		t.Run(mode, func(t *testing.T) {
 			registry := NewRegistry()
 			var first, later, requests, reports atomic.Int64
-			if err := registry.Install(&Extension{Name: "first", CompactionHooks: CompactionHooks{BeforeCompact: func(ctx context.Context, input CompactionInput, api *HookAPI) (*CompactionDecision, error) {
+			if err := registry.Install(&Extension{Name: "first", CompactionHooks: CompactionHooks{BeforeCompact: func(ctx context.Context, input BeforeCompactInput, api *HookAPI) (*CompactionDecision, error) {
 				first.Add(1)
 				if input.Reason != "manual" || input.FirstKept == 0 || len(input.Messages) != 2 || len(input.Entries) != 2 {
 					t.Error("compaction hook selection", input)
@@ -371,7 +371,7 @@ func TestBeforeCompactDecisionDetachmentAndFirstWins(t *testing.T) {
 			}}}); err != nil {
 				t.Fatal(err)
 			}
-			if err := registry.Install(&Extension{Name: "later", CompactionHooks: CompactionHooks{BeforeCompact: func(context.Context, CompactionInput, *HookAPI) (*CompactionDecision, error) {
+			if err := registry.Install(&Extension{Name: "later", CompactionHooks: CompactionHooks{BeforeCompact: func(context.Context, BeforeCompactInput, *HookAPI) (*CompactionDecision, error) {
 				later.Add(1)
 				return nil, nil
 			}}}); err != nil {

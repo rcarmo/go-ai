@@ -15,7 +15,7 @@ func TestCompactionMissingModelFailsBeforeNoCutOrHooks(t *testing.T) {
 		options.Models = func(goai.Provider, string) *goai.Model { return nil }
 		hooks := 0
 		registry := NewRegistry()
-		if err := registry.Install(&Extension{Name: "compaction-no-model", CompactionHooks: CompactionHooks{BeforeCompact: func(context.Context, CompactionInput, *HookAPI) (*CompactionDecision, error) {
+		if err := registry.Install(&Extension{Name: "compaction-no-model", CompactionHooks: CompactionHooks{BeforeCompact: func(context.Context, BeforeCompactInput, *HookAPI) (*CompactionDecision, error) {
 			hooks++
 			summary := "hook summary"
 			return &CompactionDecision{Summary: &summary}, nil

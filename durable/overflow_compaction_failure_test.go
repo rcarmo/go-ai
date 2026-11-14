@@ -27,7 +27,7 @@ func TestOverflowFailedOrDeclinedCompactionEndsWithoutAnotherRequestOrReceipt(t 
 			})
 			if decline {
 				registry := NewRegistry()
-				if err := registry.Install(&Extension{Name: "decline", CompactionHooks: CompactionHooks{BeforeCompact: func(context.Context, CompactionInput, *HookAPI) (*CompactionDecision, error) {
+				if err := registry.Install(&Extension{Name: "decline", CompactionHooks: CompactionHooks{BeforeCompact: func(context.Context, BeforeCompactInput, *HookAPI) (*CompactionDecision, error) {
 					return &CompactionDecision{Decline: true}, nil
 				}}}); err != nil {
 					t.Fatal(err)

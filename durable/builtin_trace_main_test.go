@@ -34,7 +34,7 @@ func TestMainBuiltinTraceBackgroundCompaction(t *testing.T) {
 		}
 		options.Telemetry = backend.root
 		registry := NewRegistry()
-		if err := registry.Install(&Extension{Name: "trace-background", CompactionHooks: CompactionHooks{BeforeCompact: func(context.Context, CompactionInput, *HookAPI) (*CompactionDecision, error) {
+		if err := registry.Install(&Extension{Name: "trace-background", CompactionHooks: CompactionHooks{BeforeCompact: func(context.Context, BeforeCompactInput, *HookAPI) (*CompactionDecision, error) {
 			hooks.Add(1)
 			return &CompactionDecision{Decline: true}, nil
 		}}}); err != nil {

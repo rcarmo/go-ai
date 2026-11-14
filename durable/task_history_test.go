@@ -219,7 +219,7 @@ func TestV150AfterRunHookHistoryKeepsRunStartHiddenByMidRunCompaction(t *testing
 				}
 				return ToolResult{Content: "edited"}, nil
 			}}},
-			CompactionHooks: CompactionHooks{BeforeCompact: func(context.Context, CompactionInput, *HookAPI) (*CompactionDecision, error) {
+			CompactionHooks: CompactionHooks{BeforeCompact: func(context.Context, BeforeCompactInput, *HookAPI) (*CompactionDecision, error) {
 				return &CompactionDecision{Summary: &summary}, nil
 			}},
 			Hooks: GenerationHooks{AfterRun: func(ctx context.Context, run RunSummary, api *HookAPI) (*AfterRunResult, error) {
