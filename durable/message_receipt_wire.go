@@ -34,7 +34,8 @@ func (r *MessageReceipt) UnmarshalJSON(data []byte) error {
 	value := plain{}
 	wire := struct {
 		*plain
-		Content json.RawMessage `json:"content"`
+		Content      json.RawMessage `json:"content"`
+		ErrorMessage json.RawMessage `json:"errorMessage"`
 	}{plain: &value}
 	decode := func(data []byte, target any) error {
 		decoder := json.NewDecoder(bytes.NewReader(data))
@@ -50,6 +51,12 @@ func (r *MessageReceipt) UnmarshalJSON(data []byte) error {
 	}
 	if err := decode(data, &wire); err != nil {
 		return err
+	}
+	if len(wire.ErrorMessage) != 0 && !bytes.Equal(bytes.TrimSpace(wire.ErrorMessage), []byte("null")) {
+		if err := decode(wire.ErrorMessage, &value.ErrorMessage); err != nil {
+			return err
+		}
+		value.ErrorMessagePresent = value.ErrorMessage == ""
 	}
 	content := bytes.TrimSpace(wire.Content)
 	if len(content) > 0 && content[0] == '"' {

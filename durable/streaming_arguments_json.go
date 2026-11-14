@@ -24,7 +24,7 @@ func isNativeJSONType(t reflect.Type) bool {
 	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
-	return t == nativeReceiptType || t == reflect.TypeFor[readonlyJSON]() || t == reflect.TypeFor[ImmutableValue]() || t == reflect.TypeFor[NativeTaskExecution]() || t == reflect.TypeFor[TaskState]() || t == reflect.TypeFor[Conversation]() || t == reflect.TypeFor[Submission]() || t == reflect.TypeFor[Entry]() || t == reflect.TypeFor[ProgressSettings]() || t == reflect.TypeFor[CodemodeCall]() || t == nativeUsageType || t == nativeToolCallType || t == nativeContentBlockType || t == nativeUTF16Type || t == nativeArgumentsType
+	return t == nativeReceiptType || t == reflect.TypeFor[goai.Message]() || t == reflect.TypeFor[readonlyJSON]() || t == reflect.TypeFor[ImmutableValue]() || t == reflect.TypeFor[NativeTaskExecution]() || t == reflect.TypeFor[TaskState]() || t == reflect.TypeFor[Conversation]() || t == reflect.TypeFor[Submission]() || t == reflect.TypeFor[Entry]() || t == reflect.TypeFor[ProgressSettings]() || t == reflect.TypeFor[CodemodeCall]() || t == nativeUsageType || t == nativeToolCallType || t == nativeContentBlockType || t == nativeUTF16Type || t == nativeArgumentsType
 }
 func nativeStreamingFields(v reflect.Value) bool {
 	if nativeArgumentDTO(v.Type()) {
@@ -90,6 +90,9 @@ func nativeJSONField(v reflect.Value, field jsonStructField) (reflect.Value, err
 	return value, nil
 }
 func nativeFieldPresent(v reflect.Value, name string) bool {
+	if (v.Type() == nativeReceiptType || v.Type() == reflect.TypeFor[goai.Message]()) && name == "errorMessage" {
+		return v.FieldByName("ErrorMessagePresent").Bool()
+	}
 	if v.Type() == nativeContentBlockType && v.FieldByName("Type").String() == "text" && name == "text" {
 		return true
 	}

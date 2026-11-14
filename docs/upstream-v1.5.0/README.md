@@ -6,6 +6,10 @@ The sole alignment target is official upstream `v1.5.0` at `f9a26365568127461c47
 
 [Assessment fixes and verification](assessment-fixes.md) records the 166-fixture validation regression table, short OAuth interval correction, deterministic retry timer checks, catalogue verification and seven inherited durable full-suite failures. The 24 reproduced common-domain validation mismatches are fixed; broader schema/compiler and durable/codemode alignment remain open.
 
+## Optional assistant error text
+
+The [current development continuation](../../notes/canonical-compaction-kind.md#optional-provider-error-text) preserves optional empty assistant errors across root/durable JSON and actual summary failure handling. Other message variants/fields and full API/schema/release acceptance remain open.
+
 ## Current durable deviations
 
 The [durable deviation register](durable-deviations.md) tracks current evidence for29 groups and165 pinned durable test/support/fixture obligations, including101 test files. The [biggest deviations and path to zero](alignment-roadmap.md) separates confirmed API/record/ordering failures from unverified coverage. The builtin publication gate now passes in the ordinary suite; raw builtin admission/reopen and the primary canonical task read API also pass. Three original task-storage cases and exposed transaction read/write fences are ported. Canonical builtin execution, complete Storage semantics, nested tools, migrations and edge states still need acceptance. State counts are group labels, not a parity percentage.

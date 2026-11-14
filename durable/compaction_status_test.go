@@ -289,3 +289,93 @@ func TestCompaction120FailureReopenNoCutAndSummaryClearing(t *testing.T) {
 		}
 	})
 }
+
+// Source summaryFailure uses errorMessage ?? stopReason: present empty text
+// remains empty. Decode original JSON so the Go zero value cannot hide loss.
+func TestSourceCompactionFailureErrorMessagePresence(t *testing.T) {
+	var invalid goai.Message
+	limits := DefaultLimits()
+	if err := decodeStrict([]byte(`{"role":"assistant","content":[],"timestamp":0,"unexpected":true}`), limits, limits.MaxRecordBytes, &invalid); err == nil {
+		t.Error("message presence codec bypassed strict unknown-field validation")
+	}
+	for _, test := range []struct {
+		name, field, want string
+		present           bool
+	}{
+		{"absent", "", "Summarization failed: error", false},
+		{"empty", `,"errorMessage":""`, "Summarization failed: ", true},
+		{"space", `,"errorMessage":" "`, "Summarization failed:  ", true},
+		{"nonempty", `,"errorMessage":"bad request"`, "Summarization failed: bad request", true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			raw := []byte(`{"role":"assistant","content":[],"timestamp":0,"stopReason":"error"` + test.field + `}`)
+			var message goai.Message
+			if err := json.Unmarshal(raw, &message); err != nil {
+				t.Fatal(err)
+			}
+			wire, err := json.Marshal(message)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, present := dropinJSON(t, wire).(map[string]any)["errorMessage"]
+			if present != test.present {
+				t.Error("provider message JSON lost error presence", string(wire))
+			}
+			var receipt MessageReceipt
+			if err := json.Unmarshal(raw, &receipt); err != nil {
+				t.Fatal(err)
+			}
+			wire, err = json.Marshal(receipt)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, present = dropinJSON(t, wire).(map[string]any)["errorMessage"]
+			if present != test.present {
+				t.Error("receipt JSON lost error presence", string(wire))
+			}
+			wire, err = json.Marshal(receiptMessage(receipt))
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, present = dropinJSON(t, wire).(map[string]any)["errorMessage"]
+			if present != test.present {
+				t.Error("provider projection lost error presence", string(wire))
+			}
+			store, err := newTestSQLite(t)
+			if err != nil {
+				t.Fatal(err)
+			}
+			ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
+				ch := make(chan goai.Event, 1)
+				ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: &message}
+				close(ch)
+				return ch
+			})
+			h := openHarness(t, store, options)
+			c := root(t, h, ref)
+			configureCompactionTestPolicy(t, c, compactionTestInt(0), nil)
+			if _, err := c.Commit(bg, func(tx *Tx) error {
+				for _, text := range []string{"old", "recent"} {
+					id, err := tx.MintID()
+					if err != nil {
+						return err
+					}
+					if err := tx.AppendEntry(Entry{ID: id, Conversation: c.ID(), Kind: "pi.user", Model: []MessageReceipt{userReceipt(text)}}); err != nil {
+						return err
+					}
+				}
+				return nil
+			}); err != nil {
+				t.Fatal(err)
+			}
+			id, err := c.Compact(bg, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			record := waitPublicTask(t, h, id)
+			if record.State.Outcome.Status != "failed" || record.State.Outcome.Error == nil || record.State.Outcome.Error.Message != test.want {
+				t.Error("source failure text changed", record.State.Outcome)
+			}
+		})
+	}
+}

@@ -667,3 +667,14 @@ it("trims provider summary text with ECMAScript whitespace semantics",async()=>{
   }finally{await harness.close(context)}
  }
 });
+
+it("distinguishes absent and present-empty provider errors in compaction failure",async()=>{
+ const {chatSetup,openChat}=await import("@pinned/chat"),{assistant}=await import("@pinned/harness-support");
+ for(const [errorMessage,want] of [[undefined,"Summarization failed: error"],["","Summarization failed: "],[" ","Summarization failed:  "],["bad request","Summarization failed: bad request"]]){
+  const message=assistant("",{stopReason:"error"});if(errorMessage===undefined)delete message.errorMessage;else message.errorMessage=errorMessage;
+  const setup=chatSetup();setup.settings.compaction={enabled:false,keepRecentTokens:0};setup.faux.setResponses([JSON.parse(JSON.stringify(message))]);const {harness,root}=await openChat(new ControlledStorage(),setup);
+  try{await root.commit(async tx=>{for(const content of ["old","recent"])await tx.appendEntry(root.id,{kind:"note",model:[{role:"user",content,timestamp:0}]})},context);
+   const id=await root.compact(undefined,context);expect((await harness.waitForTask(id,context)).state.outcome).toMatchObject({status:"failed",error:{message:want}});
+  }finally{await harness.close(context)}
+ }
+});

@@ -354,18 +354,20 @@ type MessageReceipt struct {
 	ContentPresence       []ReceiptContentPresence          `json:"contentPresence,omitempty"`
 	ErrorCode             string                            `json:"errorCode,omitempty"`
 	ErrorMessage          string                            `json:"errorMessage,omitempty"`
+	ErrorMessagePresent   bool                              `json:"-"`
 	// Dispatch-local provider text for classifying summary failure. It is not
 	// a persisted assistant receipt field and is never rehydrated on reopen.
-	providerError      string
-	providerStopReason goai.StopReason
-	Retryable          bool                 `json:"retryable,omitempty"`
-	ContextOverflow    bool                 `json:"contextOverflow,omitempty"`
-	Deferred           *goai.DeferredHandle `json:"deferred,omitempty"`
-	ToolCallID         string               `json:"toolCallId,omitempty"`
-	ToolName           string               `json:"toolName,omitempty"`
-	IsError            bool                 `json:"isError,omitempty"`
-	Diagnostics        []ToolDiagnostic     `json:"diagnostics,omitempty"`
-	Details            JSON                 `json:"details,omitempty"`
+	providerError        string
+	providerErrorPresent bool
+	providerStopReason   goai.StopReason
+	Retryable            bool                 `json:"retryable,omitempty"`
+	ContextOverflow      bool                 `json:"contextOverflow,omitempty"`
+	Deferred             *goai.DeferredHandle `json:"deferred,omitempty"`
+	ToolCallID           string               `json:"toolCallId,omitempty"`
+	ToolName             string               `json:"toolName,omitempty"`
+	IsError              bool                 `json:"isError,omitempty"`
+	Diagnostics          []ToolDiagnostic     `json:"diagnostics,omitempty"`
+	Details              JSON                 `json:"details,omitempty"`
 	// Non-object tool details use an explicit tagged adaptation; legacy Details
 	// objects keep their existing wire shape. Neither admits executable values.
 	DetailsValue any                  `json:"detailsValue,omitempty"`
@@ -435,7 +437,7 @@ func receiptMessage(r messageReceipt) goai.Message {
 			content[index].Arguments = map[string]any{}
 		}
 	}
-	m := goai.Message{Role: r.Role, Content: content, Api: r.Api, Provider: r.Provider, Model: r.Model, Usage: r.Usage, StopReason: r.StopReason, Timestamp: r.Timestamp, DurationMs: copyTaskTime(r.DurationMs), ErrorMessage: r.ErrorMessage, ResponseID: r.ResponseID, ResponseModel: r.ResponseModel, ProviderThinkingLevel: r.ProviderThinkingLevel, ThinkingLevel: r.ThinkingLevel, Diagnostics: r.AssistantDiagnostics, RawStopReason: r.RawStopReason, EndTurn: r.EndTurn, ToolCallID: r.ToolCallID, ToolName: r.ToolName, IsError: r.IsError, Sections: r.Sections, ToolsRemoved: r.ToolsRemoved}
+	m := goai.Message{Role: r.Role, Content: content, Api: r.Api, Provider: r.Provider, Model: r.Model, Usage: r.Usage, StopReason: r.StopReason, Timestamp: r.Timestamp, DurationMs: copyTaskTime(r.DurationMs), ErrorMessage: r.ErrorMessage, ErrorMessagePresent: r.ErrorMessagePresent, ResponseID: r.ResponseID, ResponseModel: r.ResponseModel, ProviderThinkingLevel: r.ProviderThinkingLevel, ThinkingLevel: r.ThinkingLevel, Diagnostics: r.AssistantDiagnostics, RawStopReason: r.RawStopReason, EndTurn: r.EndTurn, ToolCallID: r.ToolCallID, ToolName: r.ToolName, IsError: r.IsError, Sections: r.Sections, ToolsRemoved: r.ToolsRemoved}
 	// Upstream ToolResultMessage has no errorMessage field; errorCode is a native
 	// tool witness and must not masquerade as assistant protocol state when the
 	// persisted receipt is projected back to a message.

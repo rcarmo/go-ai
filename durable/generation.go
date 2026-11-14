@@ -979,7 +979,7 @@ func (h *Harness) drainInvocation(runtime *TaskRuntime, events <-chan goai.Event
 		}
 		// Terminal provider claims are not attribution authority. Use the model
 		// committed with the request, even when identity is absent or conflicting.
-		r := messageReceipt{Role: goai.RoleAssistant, Content: []goai.ContentBlock{}, Api: pinned.Api, Provider: pinned.Provider, Model: pinned.ID, Usage: message.Usage, StopReason: message.StopReason, Timestamp: message.Timestamp, DurationMs: copyTaskTime(message.DurationMs), ErrorCode: code, Retryable: goai.IsRetryableAssistantError(message), ContextOverflow: goai.IsContextOverflow(message, pinned.ContextWindow), providerError: message.ErrorMessage, ErrorMessage: message.ErrorMessage, providerStopReason: message.StopReason, ResponseID: message.ResponseID, ResponseModel: message.ResponseModel, ProviderThinkingLevel: message.ProviderThinkingLevel, ThinkingLevel: message.ThinkingLevel, AssistantDiagnostics: message.Diagnostics, RawStopReason: message.RawStopReason, EndTurn: message.EndTurn, ContentPresence: captureContentPresence(message.Content)}
+		r := messageReceipt{Role: goai.RoleAssistant, Content: []goai.ContentBlock{}, Api: pinned.Api, Provider: pinned.Provider, Model: pinned.ID, Usage: message.Usage, StopReason: message.StopReason, Timestamp: message.Timestamp, DurationMs: copyTaskTime(message.DurationMs), ErrorCode: code, Retryable: goai.IsRetryableAssistantError(message), ContextOverflow: goai.IsContextOverflow(message, pinned.ContextWindow), providerError: message.ErrorMessage, providerErrorPresent: message.ErrorMessagePresent || message.ErrorMessage != "", ErrorMessage: message.ErrorMessage, ErrorMessagePresent: message.ErrorMessagePresent, providerStopReason: message.StopReason, ResponseID: message.ResponseID, ResponseModel: message.ResponseModel, ProviderThinkingLevel: message.ProviderThinkingLevel, ThinkingLevel: message.ThinkingLevel, AssistantDiagnostics: message.Diagnostics, RawStopReason: message.RawStopReason, EndTurn: message.EndTurn, ContentPresence: captureContentPresence(message.Content)}
 		for _, c := range message.Content {
 			switch c.Type {
 			case "text", "thinking":
@@ -1078,7 +1078,7 @@ func (h *Harness) drainInvocation(runtime *TaskRuntime, events <-chan goai.Event
 			success = false
 			continue
 		}
-		owned.providerError, owned.providerStopReason = r.providerError, r.providerStopReason
+		owned.providerError, owned.providerErrorPresent, owned.providerStopReason = r.providerError, r.providerErrorPresent, r.providerStopReason
 		result = owned
 		success = ok
 	}

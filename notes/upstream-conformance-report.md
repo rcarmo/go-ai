@@ -4,7 +4,7 @@
 
 Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Native implementation: `/work/go-ai/durable`, authorised SQLite-only, pure Go. The preceding pushed implementation checkpoint is `04726f3` (request-time model/retry authority); image-resource diagnosis is recorded at `1e0f3ad`.
 
-Latest continuation: hook summaries retain valid empty/whitespace strings verbatim as the first decision; provider summaries use original ECMAScript trim. Three hook and three provider production-path cases failed first, then exact text/effect assertions and independent original probes pass. See [evidence](canonical-compaction-kind.md#verbatim-hook-summaries-and-provider-trimming). Complete compaction/message/API/storage/release acceptance remains open.
+Latest continuation: root Message/durable receipt JSON and provider projection retain absent versus present-empty errorMessage; compaction follows original nullish fallback. Original JSON/runtime tests failed before changes. Strict decoding and exact SDK-only marshal authority are preserved after caught regressions. See [evidence](canonical-compaction-kind.md#optional-provider-error-text). Full API/message/runtime/release acceptance remains open.
 
 ## Earlier queue-production checkpoint
 
@@ -18,7 +18,11 @@ Latest continuation: hook summaries retain valid empty/whitespace strings verbat
 
 The exact input/write shape tests failed before the fixes. Idle progress and continuation already passed and required no speculative runtime changes. A failure/reopen fixture initially tried to close storage already owned/closed by Session; correcting the fixture required no runtime fix. Tests remain in the existing version-neutral transaction suite.
 
-## Latest compaction text-decision verification
+## Latest optional-error verification
+
+Full repository ./... passes26 packages, including root0.699s, durable433.921s/tools24.354s and public consumers12.641s. Ten shuffled presence/trim repetitions11.563s and replay/presence repetitions4.502s pass. Five presence/strict/projection faults plus one broad-authority fault are rejected; vet, Staticcheck, logging and register pass. Selected reference263 (200 unchanged +63 probes) and separate original compaction181 pass, zero skipped. Analysed logs/overlays are removed. The first full run failed unchanged durable replay controls420.884s; the exact library-type fix passes without relaxing caller wrappers. No failing receipt is relabelled green.
+
+## Previous compaction text-decision verification
 
 Full durable431.252s/tools19.986s; ten shuffled targeted repetitions15.268s; three semantic faults, vet, Staticcheck, logging and register pass. Selected reference262 cases (200 unchanged +62 probes) and separate original compaction180 pass, zero skipped. Analysed logs/overlays are removed. Existing hook ownership/dispatch/decline/panic controls remain; complete original hook-input packet and optional provider-error presence remain open.
 

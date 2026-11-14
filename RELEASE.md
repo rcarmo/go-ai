@@ -2,6 +2,10 @@
 
 The sole acceptance target is official upstream **v1.5.0**, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Alignment is unverified. Older entries below are historical receipts, not compatibility requirements or v1.5.0 acceptance. Retained tests and active identity/schema/catalogue/regeneration pins must be reconciled with this release; obsolete behaviour must change.
 
+## Development continuation: optional assistant error text
+
+At the pinned v1.5.0 target, assistant errorMessage is optional and an explicit empty string differs from absence. Root Message JSON and durable receipt/provider projection now preserve that distinction with a non-wire Go presence flag. Actual compaction failures follow the original nullish fallback. [Evidence and remaining scope](notes/canonical-compaction-kind.md#optional-provider-error-text) records the failing baseline, strict-decoder regression/fix, provider reference and fault controls. Full repository ./... passes26 packages (durable433.921s/tools24.354s); five presence faults plus the bounded-authority fault and static gates pass. Full alignment, pre-release profiling/security/CI and release acceptance remain open. No dependency, generated asset, tag, hosted workflow or published asset changes.
+
 ## Reproduced inference assessment fixes -- 5 November 2026
 
 [Assessment fixes](docs/upstream-v1.5.0/assessment-fixes.md) records the exact f9 upstream/native test comparison and fixes from base `d272616`: all 166 common-domain validation fixtures now pass, including the 24 previously failing leaves. Supplementary constraints preserve input ownership and exact native numbers. OAuth short server intervals follow the pinned one-second minimum; retry tests verify exact virtual-clock boundaries and timer retirement. Stale identity/catalogue assertions were reconciled against the official 1.5.0 archive without editing generated records.

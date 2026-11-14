@@ -317,7 +317,10 @@ type Message struct {
 	Deferred              *DeferredHandle              `json:"deferred,omitempty"`
 	RawStopReason         string                       `json:"rawStopReason,omitempty"`
 	ErrorMessage          string                       `json:"errorMessage,omitempty"`
-	EndTurn               *bool                        `json:"endTurn,omitempty"`
+	// ErrorMessagePresent distinguishes an explicit empty optional string.
+	// Nonempty ErrorMessage values are always present, without this flag.
+	ErrorMessagePresent bool  `json:"-"`
+	EndTurn             *bool `json:"endTurn,omitempty"`
 
 	// System-only fields for transcript updates.
 	Sections     map[string]*string `json:"sections,omitempty"`

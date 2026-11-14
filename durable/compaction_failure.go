@@ -24,7 +24,7 @@ func summaryFailure(message MessageReceipt) string {
 	switch stop {
 	case goai.StopReasonError, goai.StopReasonAborted:
 		text := message.providerError
-		if text == "" {
+		if !message.providerErrorPresent && text == "" {
 			text = string(stop)
 		}
 		return "Summarization failed: " + text
