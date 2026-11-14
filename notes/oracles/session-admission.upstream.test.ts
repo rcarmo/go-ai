@@ -571,3 +571,20 @@ it("preserves absent, empty and nonempty manual compaction instructions",async()
   }finally{await harness.close(context)}
  }
 });
+
+it("uses model-window compaction thresholds and canonical automatic input",async()=>{
+ const {chatSetup,openChat}=await import("@pinned/chat"),{assistant}=await import("@pinned/harness-support");
+ for(const contextWindow of [100,0]){
+  const setup=chatSetup({models:[{id:"faux-1",contextWindow,maxTokens:256}]});
+  setup.settings.compaction={enabled:true,reserveTokens:99,keepRecentTokens:1,backgroundTokens:0};
+  setup.faux.setResponses(contextWindow>0?[assistant("summary"),assistant("answer")]:[assistant("answer")]);
+  const {harness,root}=await openChat(new ControlledStorage(),setup);const tasks:any[]=[];
+  harness.observeCommits({advance:p=>{for(const change of p.changes)if(change.type==="task"&&change.value.kind==="pi.compaction")tasks.push(change.value)}});
+  try{
+   await root.commit(async tx=>{for(const content of ["old","recent"])await tx.appendEntry(root.id,{kind:"note",model:[{role:"user",content,timestamp:0}]})},context);
+   expect((await (await root.submit({type:"input",content:"new"},context)).wait(context)).status).toBe("done");
+   if(contextWindow<=0)expect(tasks).toEqual([]);
+   else{expect(tasks.length).toBeGreaterThan(0);for(const task of tasks){expect(task.input).toEqual({reason:"threshold"});expect(task.background).toBe(false);expect(task.owner).toBeTypeOf("number")}}
+  }finally{await harness.close(context)}
+ }
+});

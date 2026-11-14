@@ -29,9 +29,10 @@ func TestAutomaticCompactionRetryDecisionFollowsCurrentSettingsAfterResponse(t *
 			}
 			return ch
 		})
+		compactionTestModelWindow(&options, 126)
 		h := openHarness(t, b.store, options)
 		cleanupTaskGates(t, release)
-		conversation, err := h.Root(bg, AgentChange{Model: ref, Settings: RequestSettings{Compaction: CompactionPolicy{Enabled: true, TriggerTokens: 1, KeepRecentTokens: 1, MaxTokens: 100}}})
+		conversation, err := h.Root(bg, AgentChange{Model: ref, Settings: RequestSettings{Compaction: CompactionPolicy{Enabled: true, ReserveTokens: 125, KeepRecentTokens: 1}}})
 		if err != nil {
 			t.Fatal(err)
 		}

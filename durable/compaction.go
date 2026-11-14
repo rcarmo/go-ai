@@ -8,12 +8,10 @@ import (
 )
 
 type CompactionPolicy struct {
-	Enabled          bool `json:"enabled,omitempty"`
-	TriggerTokens    int  `json:"triggerTokens,omitempty"`
-	ReserveTokens    int  `json:"reserveTokens,omitempty"`
-	BackgroundTokens int  `json:"backgroundTokens,omitempty"`
-	KeepRecentTokens int  `json:"keepRecentTokens,omitempty"`
-	MaxTokens        int  `json:"maxTokens,omitempty"`
+	Enabled          bool `json:"enabled"`
+	ReserveTokens    int  `json:"reserveTokens"`
+	BackgroundTokens int  `json:"backgroundTokens"`
+	KeepRecentTokens int  `json:"keepRecentTokens"`
 }
 
 const compactionSummaryPrefix = "The conversation history before this point was compacted into the following summary:\n\n<summary>\n"
@@ -159,9 +157,6 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 				}
 			}
 			maxTokens := policy.ReserveTokens/5*4 + policy.ReserveTokens%5*4/5
-			if policy.MaxTokens > 0 {
-				maxTokens = policy.MaxTokens
-			}
 			if model.MaxTokens > 0 && maxTokens > model.MaxTokens {
 				maxTokens = model.MaxTokens
 			}

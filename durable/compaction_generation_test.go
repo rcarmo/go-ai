@@ -37,8 +37,9 @@ func TestAutomaticOwnedCompactionRetriesThenGenerationUsesSummary(t *testing.T) 
 			close(ch)
 			return ch
 		})
+		compactionTestModelWindow(&options, 64)
 		h := openHarness(t, b.store, options)
-		conversation, err := h.Root(bg, AgentChange{Model: ref, Settings: RequestSettings{Retry: RetryPolicy{Enabled: true, MaxRetries: 1, BaseDelayMs: 1}, Compaction: CompactionPolicy{Enabled: true, TriggerTokens: 1, KeepRecentTokens: goai.EstimateMessageTokens(receiptMessage(userReceipt("recent"))), MaxTokens: 50}}})
+		conversation, err := h.Root(bg, AgentChange{Model: ref, Settings: RequestSettings{Retry: RetryPolicy{Enabled: true, MaxRetries: 1, BaseDelayMs: 1}, Compaction: CompactionPolicy{Enabled: true, ReserveTokens: 63, KeepRecentTokens: goai.EstimateMessageTokens(receiptMessage(userReceipt("recent")))}}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -125,7 +126,7 @@ func TestOverflowCompactionOneRecoveryAndNoOrdinaryRetry(t *testing.T) {
 					return ch
 				})
 				h := openHarness(t, b.store, options)
-				conversation, err := h.Root(bg, AgentChange{Model: ref, Settings: RequestSettings{Compaction: CompactionPolicy{Enabled: true, TriggerTokens: 100000, KeepRecentTokens: goai.EstimateMessageTokens(receiptMessage(userReceipt("new question")))}, Retry: RetryPolicy{Enabled: true, MaxRetries: 3, BaseDelayMs: 1}}})
+				conversation, err := h.Root(bg, AgentChange{Model: ref, Settings: RequestSettings{Compaction: CompactionPolicy{Enabled: true, ReserveTokens: 28000, KeepRecentTokens: goai.EstimateMessageTokens(receiptMessage(userReceipt("new question")))}, Retry: RetryPolicy{Enabled: true, MaxRetries: 3, BaseDelayMs: 1}}})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -172,7 +173,7 @@ func TestOverflowCompactionOneRecoveryAndNoOrdinaryRetry(t *testing.T) {
 						if err != nil {
 							t.Fatal(err)
 						}
-						if record.Input.Value.(map[string]any)["reason"] != "overflow" {
+						if !equalJSONValue(record.Input.Value, JSON{"reason": "overflow"}) {
 							t.Fatal(record)
 						}
 					}

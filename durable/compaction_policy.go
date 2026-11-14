@@ -28,7 +28,7 @@ func validateCompactionModels(models map[string]CompactionSettings) error {
 			return reject("nested compaction model overrides")
 		}
 		policy := applyCompactionOverrides(CompactionPolicy{}, &override)
-		if policy.ReserveTokens < 0 || policy.KeepRecentTokens < 0 || policy.BackgroundTokens < 0 || policy.MaxTokens < 0 {
+		if policy.ReserveTokens < 0 || policy.KeepRecentTokens < 0 || policy.BackgroundTokens < 0 {
 			return reject("invalid compaction model override")
 		}
 	}

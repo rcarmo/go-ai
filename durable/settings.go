@@ -21,7 +21,6 @@ type CompactionSettings struct {
 	ReserveTokens    *int                          `json:"reserveTokens,omitempty"`
 	KeepRecentTokens *int                          `json:"keepRecentTokens,omitempty"`
 	BackgroundTokens *int                          `json:"backgroundTokens,omitempty"`
-	MaxTokens        *int                          `json:"maxTokens,omitempty"`
 }
 
 // ProgressSettings preserves explicit zero intervals. Publication throttles
@@ -250,9 +249,6 @@ func applyCompactionOverrides(policy CompactionPolicy, overrides *CompactionSett
 	if overrides.BackgroundTokens != nil {
 		policy.BackgroundTokens = *overrides.BackgroundTokens
 	}
-	if overrides.MaxTokens != nil {
-		policy.MaxTokens = *overrides.MaxTokens
-	}
 	return policy
 }
 
@@ -277,7 +273,7 @@ func (h *Harness) SetSettings(ctx context.Context, settings HarnessSettings) err
 		return err
 	}
 	retryEnabled, compactionEnabled := value.Retry.Enabled, value.Compaction.Enabled
-	copy := &HarnessSettings{DocumentRetentionMs: copyTaskTime(value.DocumentRetentionMs), ContextRetentionMs: copyTaskTime(value.ContextRetentionMs), Stream: value, Retry: &RetrySettings{Enabled: &retryEnabled, MaxRetries: &value.Retry.MaxRetries, BaseDelayMs: &value.Retry.BaseDelayMs, MaxDelayMs: &value.Retry.MaxDelayMs}, Compaction: &CompactionSettings{Enabled: &compactionEnabled, ReserveTokens: &value.Compaction.ReserveTokens, KeepRecentTokens: &value.Compaction.KeepRecentTokens, BackgroundTokens: &value.Compaction.BackgroundTokens, MaxTokens: &value.Compaction.MaxTokens}, ToolExecution: value.ToolExecution, SteeringMode: value.SteeringMode, FollowUpMode: value.FollowUpMode, Progress: mergeProgress(nil, value.Progress)}
+	copy := &HarnessSettings{DocumentRetentionMs: copyTaskTime(value.DocumentRetentionMs), ContextRetentionMs: copyTaskTime(value.ContextRetentionMs), Stream: value, Retry: &RetrySettings{Enabled: &retryEnabled, MaxRetries: &value.Retry.MaxRetries, BaseDelayMs: &value.Retry.BaseDelayMs, MaxDelayMs: &value.Retry.MaxDelayMs}, Compaction: &CompactionSettings{Enabled: &compactionEnabled, ReserveTokens: &value.Compaction.ReserveTokens, KeepRecentTokens: &value.Compaction.KeepRecentTokens, BackgroundTokens: &value.Compaction.BackgroundTokens}, ToolExecution: value.ToolExecution, SteeringMode: value.SteeringMode, FollowUpMode: value.FollowUpMode, Progress: mergeProgress(nil, value.Progress)}
 	if settings.Extensions != nil {
 		names, err := agentSelectionNames(*settings.Extensions)
 		if err != nil {

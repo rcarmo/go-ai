@@ -36,7 +36,7 @@ func TestOverflowFailedOrDeclinedCompactionEndsWithoutAnotherRequestOrReceipt(t 
 			}
 			h := openHarness(t, b.store, options)
 			conversation := root(t, h, ref)
-			if err := conversation.ConfigurePatch(bg, AgentPatch{Settings: &RequestSettings{Compaction: CompactionPolicy{Enabled: true, TriggerTokens: 100000, KeepRecentTokens: 1}}}); err != nil {
+			if err := conversation.ConfigurePatch(bg, AgentPatch{Settings: &RequestSettings{Compaction: CompactionPolicy{Enabled: true, ReserveTokens: 28000, KeepRecentTokens: 1}}}); err != nil {
 				t.Fatal(err)
 			}
 			_, err := h.session.Commit(bg, func(tx *Tx) error {

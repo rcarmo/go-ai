@@ -33,9 +33,10 @@ func TestBackgroundThresholdCompactionDoesNotBlockAnswerOrOrdinaryIdle(t *testin
 			}
 			return ch
 		})
+		compactionTestModelWindow(&options, 1100)
 		h := openHarness(t, b.store, options)
 		cleanupTaskGates(t, release)
-		conversation, err := h.Root(bg, AgentChange{Model: ref, Settings: RequestSettings{Compaction: CompactionPolicy{Enabled: true, TriggerTokens: 1000, BackgroundTokens: 950, KeepRecentTokens: goai.EstimateMessageTokens(receiptMessage(userReceipt("new question")))}}})
+		conversation, err := h.Root(bg, AgentChange{Model: ref, Settings: RequestSettings{Compaction: CompactionPolicy{Enabled: true, ReserveTokens: 100, BackgroundTokens: 950, KeepRecentTokens: goai.EstimateMessageTokens(receiptMessage(userReceipt("new question")))}}})
 		if err != nil {
 			t.Fatal(err)
 		}

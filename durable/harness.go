@@ -107,7 +107,7 @@ func Open(ctx context.Context, store Storage, options Options) (*Harness, error)
 			}
 			extensions = &names
 		}
-		options.Settings = &HarnessSettings{DocumentRetentionMs: copyTaskTime(value.DocumentRetentionMs), ContextRetentionMs: copyTaskTime(value.ContextRetentionMs), Extensions: extensions, Stream: value, Retry: &RetrySettings{Enabled: &enabledRetry, MaxRetries: &value.Retry.MaxRetries, BaseDelayMs: &value.Retry.BaseDelayMs, MaxDelayMs: &value.Retry.MaxDelayMs}, Compaction: &CompactionSettings{Enabled: &enabledCompact, ReserveTokens: &value.Compaction.ReserveTokens, KeepRecentTokens: &value.Compaction.KeepRecentTokens, BackgroundTokens: &value.Compaction.BackgroundTokens, MaxTokens: &value.Compaction.MaxTokens}, ToolExecution: value.ToolExecution, SteeringMode: value.SteeringMode, FollowUpMode: value.FollowUpMode, Progress: mergeProgress(nil, value.Progress)}
+		options.Settings = &HarnessSettings{DocumentRetentionMs: copyTaskTime(value.DocumentRetentionMs), ContextRetentionMs: copyTaskTime(value.ContextRetentionMs), Extensions: extensions, Stream: value, Retry: &RetrySettings{Enabled: &enabledRetry, MaxRetries: &value.Retry.MaxRetries, BaseDelayMs: &value.Retry.BaseDelayMs, MaxDelayMs: &value.Retry.MaxDelayMs}, Compaction: &CompactionSettings{Enabled: &enabledCompact, ReserveTokens: &value.Compaction.ReserveTokens, KeepRecentTokens: &value.Compaction.KeepRecentTokens, BackgroundTokens: &value.Compaction.BackgroundTokens}, ToolExecution: value.ToolExecution, SteeringMode: value.SteeringMode, FollowUpMode: value.FollowUpMode, Progress: mergeProgress(nil, value.Progress)}
 		options.Settings.RestartLimit = restartLimit
 		options.Settings.AfterFailedRun = afterFailedRun
 	}

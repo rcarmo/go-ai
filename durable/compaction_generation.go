@@ -46,20 +46,17 @@ func (h *Harness) startGenerationCompaction(runtime *TaskRuntime, task Task, cp 
 		}
 		tokens += goai.EstimateMessageTokens(receiptMessage(input))
 	}
-	trigger := policy.TriggerTokens
-	if trigger == 0 {
-		model, err := callModelResolver(h.options.Models, agent.Model)
-		if err != nil {
-			return false, err
-		}
-		if model == nil {
-			return false, nil
-		}
-		if model.ContextWindow <= 0 && !overflow {
-			return false, nil
-		}
-		trigger = model.ContextWindow - policy.ReserveTokens
+	model, err := callModelResolver(h.options.Models, agent.Model)
+	if err != nil {
+		return false, err
 	}
+	if model == nil {
+		return false, nil
+	}
+	if model.ContextWindow <= 0 && !overflow {
+		return false, nil
+	}
+	trigger := model.ContextWindow - policy.ReserveTokens
 	background := !overflow && policy.BackgroundTokens > 0 && tokens <= trigger && tokens > trigger-policy.BackgroundTokens
 	if !overflow && tokens <= trigger && !background || compactionCut(view, policy.KeepRecentTokens) <= 0 {
 		return false, nil
@@ -103,7 +100,7 @@ func (h *Harness) startGenerationCompaction(runtime *TaskRuntime, task Task, cp 
 		}
 		// Automatic work follows current retry settings after each response;
 		// never convert host defaults into an explicit task-local override.
-		child, err := tx.CreateTask(definition, JSON{"reason": reason, "keepRecentTokens": policy.KeepRecentTokens, "maxTokens": policy.MaxTokens}, TaskOptions{Ownership: ownership, Background: background})
+		child, err := tx.CreateTask(definition, JSON{"reason": reason}, TaskOptions{Ownership: ownership, Background: background})
 		if err != nil {
 			return err
 		}

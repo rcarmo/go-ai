@@ -308,7 +308,7 @@ func cloneSettings(s RequestSettings, l Limits) (RequestSettings, error) {
 	if e == nil {
 		e = validateRetryPolicy(n.Retry)
 	}
-	if e == nil && (n.Compaction.TriggerTokens < 0 || n.Compaction.KeepRecentTokens < 0 || n.Compaction.MaxTokens < 0 || n.Compaction.ReserveTokens < 0 || n.Compaction.BackgroundTokens < 0) {
+	if e == nil && (n.Compaction.KeepRecentTokens < 0 || n.Compaction.ReserveTokens < 0 || n.Compaction.BackgroundTokens < 0) {
 		e = reject("invalid compaction policy")
 	}
 	if e == nil {
@@ -316,7 +316,7 @@ func cloneSettings(s RequestSettings, l Limits) (RequestSettings, error) {
 	}
 	if e == nil {
 		policy := applyCompactionOverrides(CompactionPolicy{}, n.CompactionOverrides)
-		if policy.ReserveTokens < 0 || policy.KeepRecentTokens < 0 || policy.BackgroundTokens < 0 || policy.MaxTokens < 0 {
+		if policy.ReserveTokens < 0 || policy.KeepRecentTokens < 0 || policy.BackgroundTokens < 0 {
 			e = reject("invalid compaction overrides")
 		}
 	}
