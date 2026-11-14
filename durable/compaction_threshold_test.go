@@ -108,7 +108,18 @@ func TestAutomaticCompactionStrictBlockingAndBackgroundThresholds(t *testing.T) 
 				if compaction == 0 {
 					t.Fatal("above threshold did not compact", tokens, policy)
 				}
-				waitPublicTask(t, h, compaction)
+				record := waitPublicTask(t, h, compaction)
+				key := "entryId"
+				if background {
+					key = "submissionId"
+				}
+				if record.State.Outcome.Result == nil {
+					t.Fatal("missing present compaction result", record)
+				}
+				result := record.State.Outcome.Result.Value.(map[string]any)
+				if len(result) != 1 || submissionEntryID(result[key]) == 0 {
+					t.Error("source result must contain only "+key, result)
+				}
 				if summaries.Load() != 1 {
 					t.Fatal("summary count", summaries.Load())
 				}

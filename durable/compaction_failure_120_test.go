@@ -54,6 +54,9 @@ func TestCompaction120FailureReopenNoCutAndSummaryClearing(t *testing.T) {
 		}
 		if record := waitPublicTask(t, next, noCut); record.State.Outcome.Status != "completed" {
 			t.Fatal(record)
+		} else if record.State.Outcome.Result == nil || !equalJSONValue(record.State.Outcome.Result.Value, JSON{}) {
+			// Source compaction.ts complete() returns a present empty result.
+			t.Error("no-cut result must be exactly {}", record.State.Outcome.Result)
 		}
 		if f := failure(); f == nil || f.Task != failed {
 			t.Fatal("no-cut cleared failure", f)

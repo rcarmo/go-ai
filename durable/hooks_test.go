@@ -417,6 +417,17 @@ func TestBeforeCompactDecisionDetachmentAndFirstWins(t *testing.T) {
 			if result.State.Outcome.Status != "completed" || first.Load() != 1 {
 				t.Fatal(result, first.Load())
 			}
+			if result.State.Outcome.Result == nil || !result.State.Outcome.Result.Present {
+				t.Fatal("missing compaction result", result)
+			}
+			placement := result.State.Outcome.Result.Value.(map[string]any)
+			if mode == "decline" {
+				if !equalJSONValue(placement, JSON{}) {
+					t.Error("declined compaction result must be exactly {}", placement)
+				}
+			} else if len(placement) != 1 || submissionEntryID(placement["submissionId"]) == 0 {
+				t.Error("hook/provider summary result must contain only submissionId", placement)
+			}
 			wantLater, wantRequests, wantReports := int64(0), int64(0), int64(0)
 			if mode == "panic" {
 				wantLater, wantRequests, wantReports = 1, 1, 1

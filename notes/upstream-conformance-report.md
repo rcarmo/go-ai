@@ -4,7 +4,7 @@
 
 Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Native implementation: `/work/go-ai/durable`, authorised SQLite-only, pure Go. The preceding pushed implementation checkpoint is `04726f3` (request-time model/retry authority); image-resource diagnosis is recorded at `1e0f3ad`.
 
-Latest continuation: exact original SummaryRequest/retry checkpoints execute after selected-record SQLite import/reopen. Historical range reconstruction replaces private transcript/settings state; attempts increment on resend and retry diagnostics persist in LiveDoc. Missing builtin documents are explicitly initialised; complete-store interchange remains open. See [compaction evidence](canonical-compaction-kind.md#canonical-summaryrequest-and-retry-execution). Selected reference coverage is200 unchanged cases plus58 independent probes.
+Latest continuation: exact canonical CompactionResult arms replace native compacted/firstKept flags; summary placement explicitly clears failure while no-cut completion retains it. This follows the canonical request/retry execution checkpoint7ed4921. See [compaction evidence](canonical-compaction-kind.md#canonical-compaction-results). Complete compaction and overall alignment remain open.
 
 ## Earlier queue-production checkpoint
 
@@ -18,7 +18,11 @@ Latest continuation: exact original SummaryRequest/retry checkpoints execute aft
 
 The exact input/write shape tests failed before the fixes. Idle progress and continuation already passed and required no speculative runtime changes. A failure/reopen fixture initially tried to close storage already owned/closed by Session; correcting the fixture required no runtime fix. Tests remain in the existing version-neutral transaction suite.
 
-## Latest canonical compaction checkpoint verification
+## Latest compaction result verification
+
+Full durable430.208s/tools20.080s; ten shuffled targeted repetitions19.150s including the subsequently strengthened hook-result assertions; three semantic faults and a previous-production hook baseline rejected; vet, Staticcheck, logging and register pass. Selected reference258 and separate original compaction176 pass, zero skipped. Exact empty/queued/owned/background results failed before production changes; no lifecycle assertions were removed. Full result-run production passed before the additional hook assertions, which passed the subsequent focused repetitions.
+
+## Previous canonical compaction checkpoint verification
 
 Full durable456.191s/tools19.140s; ten shuffled focused repetitions7.998s; five semantic faults rejected; vet, Staticcheck, logging and register pass. Selected reference258 cases (200 unchanged +58 probes) and original compaction110 plus66 supplements (176 total) pass, zero skipped. Exact checkpoint/retry controls failed before fixes. Original request/retry selected-record fixtures retain exact raw task JSON and execute after reopen. Complete compaction result/provider/migration and store interchange remain open.
 

@@ -423,7 +423,7 @@ it("publishes the canonical builtin compaction kind and initial version/checkpoi
  const {openChat,chatSetup}=await import("@pinned/chat");
  const {harness,root}=await openChat(new ControlledStorage(),chatSetup());const tasks:any[]=[],ends:any[]=[];
  const guard=harness.observeCommits({advance:p=>{for(const change of p.changes)if(change.type==="task")tasks.push(change.value)},end:end=>ends.push(end)});
- const id=await root.compact(undefined,context);await harness.waitForTask(id,context);await harness.close(context);
+ const id=await root.compact(undefined,context);expect((await harness.waitForTask(id,context)).state.outcome.result).toEqual({});await harness.close(context);
  const first=tasks.find(task=>task.id===id);expect(first).toBeDefined();expect(first.kind).toBe("pi.compaction");expect(first.version).toBe(1);expect(first.input.reason).toBe("manual");expect(first.state).toEqual({status:"pending",checkpoint:{phase:"select"}});
  expect(ends).toHaveLength(1);expect(ends[0].kind).toBe("failed");guard.detach();
 });
@@ -566,7 +566,7 @@ it("preserves absent, empty and nonempty manual compaction instructions",async()
    await (await root.submit({type:"input",content:"one"},context)).wait(context);
    await (await root.submit({type:"input",content:"two"},context)).wait(context);
    const id=await root.compact(instructions,context),record=await harness.waitForTask(id,context);
-   expect(record.state.outcome.status).toBe("completed");expect(record.input).toEqual(instructions===undefined?{reason:"manual"}:{reason:"manual",instructions});
+   expect(record.state.outcome.status).toBe("completed");expect(record.state.outcome.result).toEqual({submissionId:expect.any(Number)});expect(record.input).toEqual(instructions===undefined?{reason:"manual"}:{reason:"manual",instructions});
    expect(request.endsWith(instructions===undefined?"Keep each section concise. Preserve exact file paths, function names, and error messages.":"\n\nAdditional focus: "+instructions)).toBe(true);
   }finally{await harness.close(context)}
  }
@@ -584,7 +584,7 @@ it("uses model-window compaction thresholds and canonical automatic input",async
    await root.commit(async tx=>{for(const content of ["old","recent"])await tx.appendEntry(root.id,{kind:"note",model:[{role:"user",content,timestamp:0}]})},context);
    expect((await (await root.submit({type:"input",content:"new"},context)).wait(context)).status).toBe("done");
    if(contextWindow<=0)expect(tasks).toEqual([]);
-   else{expect(tasks.length).toBeGreaterThan(0);for(const task of tasks){expect(task.input).toEqual({reason:"threshold"});expect(task.background).toBe(false);expect(task.owner).toBeTypeOf("number")}}
+   else{expect(tasks.length).toBeGreaterThan(0);for(const task of tasks){expect(task.input).toEqual({reason:"threshold"});expect(task.background).toBe(false);expect(task.owner).toBeTypeOf("number")}expect(tasks.at(-1).state.outcome.result).toEqual({entryId:expect.any(Number)})}
   }finally{await harness.close(context)}
  }
 });

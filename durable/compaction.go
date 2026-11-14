@@ -89,7 +89,7 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 			cut := compactionCut(view, keep)
 			if cut <= 0 {
 				return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) {
-					return &TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "completed", Result: &TaskValue{Present: true, Value: JSON{"compacted": false}}}}, nil
+					return &TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "completed", Result: &TaskValue{Present: true, Value: JSON{}}}}, nil
 				})
 			}
 			tail := ID(0)
@@ -139,7 +139,7 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 				}
 				if decision.Decline {
 					return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) {
-						return &TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "completed", Result: &TaskValue{Present: true, Value: JSON{"compacted": false}}}}, nil
+						return &TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "completed", Result: &TaskValue{Present: true, Value: JSON{}}}}, nil
 					})
 				}
 				if decision.Summary != nil {
@@ -487,7 +487,14 @@ func placeCompactionSummary(tx *Tx, r *TaskRuntime, task TaskRecord, firstKept I
 	}
 	message.Timestamp = now
 	draft := Entry{Kind: "pi.compaction", Head: firstKept, Value: JSON{"reason": reason}, Model: []MessageReceipt{message}}
-	result := JSON{"compacted": true, "firstKept": firstKept}
+	live, err := builtin(tx, r.ConversationID(), "pi.live")
+	if err != nil {
+		return nil, err
+	}
+	if err := live.Update(func(value JSON) error { delete(value, "compactionFailure"); return nil }); err != nil {
+		return nil, err
+	}
+	result := JSON{}
 	if task.Owner == 0 {
 		id, err := admitCompactionWrite(tx, r.ConversationID(), r.TaskID(), draft)
 		if err != nil {

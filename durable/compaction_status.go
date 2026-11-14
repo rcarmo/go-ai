@@ -102,10 +102,6 @@ func (t *Tx) syncCompactionStatuses() error {
 						reason = "threshold"
 					}
 					value["compactionFailure"] = map[string]any{"taskId": task.ID, "reason": reason, "error": message}
-				} else if outcome.Result != nil && outcome.Result.Present {
-					if result, ok := outcome.Result.Value.(map[string]any); ok && result["compacted"] == true {
-						delete(value, "compactionFailure")
-					}
 				}
 			}
 		}

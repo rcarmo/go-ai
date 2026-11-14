@@ -132,6 +132,10 @@ func TestManualCompactionBusyQueuesSummaryUntilBoundary(t *testing.T) {
 			t.Fatal(record)
 		}
 		raw := record.State.Outcome.Result.Value.(map[string]any)
+		// Source CompactionResult has only the placement ID, no native flags.
+		if len(raw) != 1 {
+			t.Error("queued summary result must contain only submissionId", raw)
+		}
 		number, ok := exactNumber(raw["submissionId"])
 		if !ok {
 			t.Fatal("missing placement submission", raw)
