@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	goai "github.com/rcarmo/go-ai"
+	"github.com/rcarmo/go-ai/internal/errortext"
 	"math"
 	"strings"
 	"unicode/utf8"
@@ -164,7 +165,7 @@ func newCompactionDefinition() (*TaskDefinition, error) {
 				}
 				if decision.Summary != nil {
 					summary := *decision.Summary
-					if strings.TrimSpace(summary) == "" || len(summary) > h.session.limits.MaxStringBytes {
+					if len(summary) > h.session.limits.MaxStringBytes {
 						r.reportExtensionError(reject("invalid compaction hook summary"), hook.extension)
 						continue
 					}
@@ -292,7 +293,7 @@ func newCompactionDefinition() (*TaskDefinition, error) {
 					parts = append(parts, block.Text)
 				}
 			}
-			summary := strings.TrimSpace(strings.Join(parts, "\n"))
+			summary := errortext.Trim(strings.Join(parts, "\n"))
 			return r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
 				usage, err := builtin(tx, r.ConversationID(), "pi.usage")
 				if err != nil {
@@ -301,7 +302,7 @@ func newCompactionDefinition() (*TaskDefinition, error) {
 				if err = usage.Update(func(value JSON) error { return addModelUsage(value, message, tx.limits) }); err != nil {
 					return nil, err
 				}
-				if !success || message.StopReason != goai.StopReasonStop || hasToolCalls || strings.TrimSpace(summary) == "" {
+				if !success || message.StopReason != goai.StopReasonStop || hasToolCalls || summary == "" {
 					policy := h.resolvedSettings(RequestSettings{}).Retry
 					if document, ok := agentDocument(tx.state, r.ConversationID()); ok {
 						var agent agentState

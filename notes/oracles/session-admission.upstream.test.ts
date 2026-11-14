@@ -642,3 +642,28 @@ it("stores and reads provider/modelId when replacing an agent model",async()=>{
   expect((await harness.snapshot(AgentDoc,root.id,context))!.model).toEqual(model);
  }finally{await harness.close(context)}
 });
+
+it("places empty and whitespace hook summaries verbatim as the first decision",async()=>{
+ const {chatSetup,openChat}=await import("@pinned/chat"),{addHooks}=await import("@pinned/harness-support"),{CompactionTask}=await import("@earendil-works/pi-durable");
+ for(const summary of [""," \t\n ","\u0085","\ufeff"]){const setup=chatSetup();setup.settings.compaction={enabled:false,keepRecentTokens:0};let requests=0,later=0;
+  setup.faux.setResponses([()=>{requests++;throw Error("hook summary must not request provider")}]);
+  addHooks(setup.registry,CompactionTask,{beforeCompact:()=>({summary})});addHooks(setup.registry,CompactionTask,{beforeCompact:()=>{later++;return {decline:true}}});
+  const {harness,root}=await openChat(new ControlledStorage(),setup);
+  try{await root.commit(async tx=>{for(const content of ["old","recent"])await tx.appendEntry(root.id,{kind:"note",model:[{role:"user",content,timestamp:0}]})},context);
+   const id=await root.compact(undefined,context);expect((await harness.waitForTask(id,context)).state.outcome.status).toBe("completed");
+   const message=(await root.context(context)).messages[0];expect(message.content[0].text).toBe("The conversation history before this point was compacted into the following summary:\n\n<summary>\n"+summary+"\n</summary>");expect(requests).toBe(0);expect(later).toBe(0);expect(setup.reports).toEqual([]);
+  }finally{await harness.close(context)}
+ }
+});
+
+it("trims provider summary text with ECMAScript whitespace semantics",async()=>{
+ const {chatSetup,openChat}=await import("@pinned/chat"),{assistant}=await import("@pinned/harness-support");
+ for(const [text,want] of [["\ufeff summary \ufeff","summary"],["\u0085","\u0085"],["\ufeff",null],["\u180e","\u180e"],[" \t\n",null]]){
+  const setup=chatSetup();setup.settings.compaction={enabled:false,keepRecentTokens:0};setup.faux.setResponses([assistant(text!)]);const {harness,root}=await openChat(new ControlledStorage(),setup);
+  try{await root.commit(async tx=>{for(const content of ["old","recent"])await tx.appendEntry(root.id,{kind:"note",model:[{role:"user",content,timestamp:0}]})},context);
+   const id=await root.compact(undefined,context),outcome=(await harness.waitForTask(id,context)).state.outcome;
+   if(want===null)expect(outcome).toMatchObject({status:"failed",error:{message:"Summarization produced no text"}});
+   else{expect(outcome.status).toBe("completed");const message=(await root.context(context)).messages[0];expect(message.content[0].text).toBe("The conversation history before this point was compacted into the following summary:\n\n<summary>\n"+want+"\n</summary>")}
+  }finally{await harness.close(context)}
+ }
+});

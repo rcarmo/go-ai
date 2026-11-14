@@ -497,3 +497,64 @@ func testOriginalCompactionCheckpoint(t *testing.T, name string) {
 		t.Fatalf("original checkpoint outcome=%+v error=%+v requests=%d", record.State.Outcome, record.State.Outcome.Error, requests.Load())
 	}
 }
+
+// Source compaction.ts:summaryText uses String.trim, whose whitespace set
+// includes BOM and excludes NEL. These are real provider/placement controls.
+func TestSourceCompactionProviderSummaryTrim(t *testing.T) {
+	for _, test := range []struct {
+		name, text, want string
+		completed        bool
+	}{
+		{"bom-wrapped", "\ufeff summary \ufeff", "summary", true},
+		{"nel-is-text", "\u0085", "\u0085", true},
+		{"bom-only", "\ufeff", "", false},
+		{"mongolian-vowel-is-text", "\u180e", "\u180e", true},
+		{"ordinary-whitespace", " \t\n", "", false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			store, err := newTestSQLite(t)
+			if err != nil {
+				t.Fatal(err)
+			}
+			ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
+				ch := make(chan goai.Event, 1)
+				ch <- terminal(test.text)
+				close(ch)
+				return ch
+			})
+			h := openHarness(t, store, options)
+			c := root(t, h, ref)
+			configureCompactionTestPolicy(t, c, compactionTestInt(0), nil)
+			if _, err := c.Commit(bg, func(tx *Tx) error {
+				for _, text := range []string{"old", "recent"} {
+					id, err := tx.MintID()
+					if err != nil {
+						return err
+					}
+					if err := tx.AppendEntry(Entry{ID: id, Conversation: c.ID(), Kind: "pi.user", Model: []MessageReceipt{userReceipt(text)}}); err != nil {
+						return err
+					}
+				}
+				return nil
+			}); err != nil {
+				t.Fatal(err)
+			}
+			id, err := c.Compact(bg, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			record := waitPublicTask(t, h, id)
+			view, err := c.ContextView(bg, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if test.completed {
+				if record.State.Outcome.Status != "completed" || view.Head == nil || view.Messages[0].Content[0].Text != compactionSummaryPrefix+test.want+"\n</summary>" {
+					t.Fatal("source summary changed", record.State.Outcome, view)
+				}
+			} else if record.State.Outcome.Status != "failed" || record.State.Outcome.Error == nil || record.State.Outcome.Error.Message != "Summarization produced no text" || view.Head != nil {
+				t.Fatal("source empty summary accepted", record.State.Outcome, view)
+			}
+		})
+	}
+}

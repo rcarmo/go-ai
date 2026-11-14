@@ -346,8 +346,19 @@ func TestOnYieldContinuationUsesSameRunButQueuedUserWins(t *testing.T) {
 }
 
 func TestBeforeCompactDecisionDetachmentAndFirstWins(t *testing.T) {
-	for _, mode := range []string{"summary", "decline", "panic"} {
+	for _, mode := range []string{"summary", "empty", "whitespace", "nel", "bom", "decline", "panic"} {
 		t.Run(mode, func(t *testing.T) {
+			hookSummary := "hook summary"
+			switch mode {
+			case "empty":
+				hookSummary = ""
+			case "whitespace":
+				hookSummary = " \t\n "
+			case "nel":
+				hookSummary = "\u0085"
+			case "bom":
+				hookSummary = "\ufeff"
+			}
 			registry := NewRegistry()
 			var first, later, requests, reports atomic.Int64
 			if err := registry.Install(&Extension{Name: "first", CompactionHooks: CompactionHooks{BeforeCompact: func(ctx context.Context, input BeforeCompactInput, api *HookAPI) (*CompactionDecision, error) {
@@ -366,8 +377,7 @@ func TestBeforeCompactDecisionDetachmentAndFirstWins(t *testing.T) {
 				if mode == "decline" {
 					return &CompactionDecision{Decline: true}, nil
 				}
-				summary := "hook summary"
-				return &CompactionDecision{Summary: &summary}, nil
+				return &CompactionDecision{Summary: &hookSummary}, nil
 			}}}); err != nil {
 				t.Fatal(err)
 			}
@@ -453,11 +463,11 @@ func TestBeforeCompactDecisionDetachmentAndFirstWins(t *testing.T) {
 					t.Fatal("declined compaction placed")
 				}
 			} else {
-				want := "hook summary"
+				want := hookSummary
 				if mode == "panic" {
 					want = "provider summary"
 				}
-				if view.Head == nil || !strings.Contains(view.Messages[0].Content[0].Text, want) {
+				if view.Head == nil || view.Messages[0].Content[0].Text != compactionSummaryPrefix+want+"\n</summary>" {
 					t.Fatal("summary decision lost", view)
 				}
 			}

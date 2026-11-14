@@ -14,7 +14,7 @@ bun run scripts/check-durable-session-oracles.mjs --upstream /path/to/pinned/pi 
 bun run scripts/check-durable-session-oracles.mjs --upstream /path/to/pinned/pi --file test/tools-images.test.ts --case 'gives the same result as the calling thread'
 ```
 
-The selected mode now passes **200 unchanged cases +60 independent probes**:192 tests in ten original files (including all11 input-entry cases), eight unchanged Storage conformance cases and60 probes. It reports zero skipped/todo cases. The runner reports260 total cases:192 original-file cases plus68 supplemental cases; the supplemental total includes those eight unchanged conformance cases.
+The selected mode now passes **200 unchanged cases +62 independent probes**:192 tests in ten original files (including all11 input-entry cases), eight unchanged Storage conformance cases and62 probes. It reports zero skipped/todo cases. The runner reports262 total cases:192 original-file cases plus70 supplemental cases; the supplemental total includes those eight unchanged conformance cases.
 
 `--all` discovers all 99 files under `packages/durable/test`. It starts a fresh Vitest process per file, one worker at a time, with a384 MiB V8 heap cap (768 MiB for the image file). A single process for the whole corpus previously stopped this 2 GiB workspace with an OOM; the sharded attempts completed without a workspace OOM. Subprocess failures remain failures, not skips. The full command continues to collect failures and exits nonzero if any group failed. JSON reports and transform caches are temporary and deleted on exit.
 
@@ -68,3 +68,5 @@ The retained source snapshot has no `.git`. Existing retained hashes and the com
 The summary-budget probe also executes real pinned-source compactions with reserves101,4503599627370496 and9007199254740991, checking Number multiplication/floor and uncapped modelMax0. Latest selected259 and separate compaction177 pass, zero skipped.
 
 The model-reference probe configures an original agent and compares its complete provider/modelId snapshot. Latest selected260 and separate original compaction178 pass, zero skipped.
+
+Two new source-derived probes verify verbatim empty/whitespace hook decisions and ECMAScript provider trimming (BOM/NEL/U+180E/ordinary whitespace) through actual original Harness compaction. Latest selected262 and separate compaction180 pass, zero skipped.

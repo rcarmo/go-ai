@@ -4,7 +4,7 @@
 
 Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Native implementation: `/work/go-ai/durable`, authorised SQLite-only, pure Go. The preceding pushed implementation checkpoint is `04726f3` (request-time model/retry authority); image-resource diagnosis is recorded at `1e0f3ad`.
 
-Latest continuation: global ModelRef now uses source provider/modelId JSON; Go ID maps to source modelId. Public marshal/decode and actual agent watcher-operation assertions failed before the change. Compaction uses the same type directly; task-agent source restoration retains error/cancellation/cache assertions. See [evidence](cold-builtin-hydration.md#modelref-wire-fields). Complete agent/API/schema/runtime and overall alignment remain open.
+Latest continuation: hook summaries retain valid empty/whitespace strings verbatim as the first decision; provider summaries use original ECMAScript trim. Three hook and three provider production-path cases failed first, then exact text/effect assertions and independent original probes pass. See [evidence](canonical-compaction-kind.md#verbatim-hook-summaries-and-provider-trimming). Complete compaction/message/API/storage/release acceptance remains open.
 
 ## Earlier queue-production checkpoint
 
@@ -18,7 +18,11 @@ Latest continuation: global ModelRef now uses source provider/modelId JSON; Go I
 
 The exact input/write shape tests failed before the fixes. Idle progress and continuation already passed and required no speculative runtime changes. A failure/reopen fixture initially tried to close storage already owned/closed by Session; correcting the fixture required no runtime fix. Tests remain in the existing version-neutral transaction suite.
 
-## Latest model-reference verification
+## Latest compaction text-decision verification
+
+Full durable431.252s/tools19.986s; ten shuffled targeted repetitions15.268s; three semantic faults, vet, Staticcheck, logging and register pass. Selected reference262 cases (200 unchanged +62 probes) and separate original compaction180 pass, zero skipped. Analysed logs/overlays are removed. Existing hook ownership/dispatch/decline/panic controls remain; complete original hook-input packet and optional provider-error presence remain open.
+
+## Previous model-reference verification
 
 Full durable415.335s/tools18.627s; ten shuffled targeted repetitions7.485s; restored id fault rejected independently by producer/wire and phase-reader controls; vet, Staticcheck, logging and register pass. Selected reference260 cases (200 unchanged +60 probes) and separate original compaction178 pass, zero skipped. Analysed logs/overlays are removed. Other agent-field presence/settings and complete model/API acceptance remain open. No legacy id fallback or stored-data rewrite is added.
 
