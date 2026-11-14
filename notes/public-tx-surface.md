@@ -18,4 +18,4 @@ The selected source interface is a static contract. Original JavaScript Transact
 
 ## Remaining scope
 
-Internal canonical task replacement and its atomic ownership/validation ordering remain open. This slice does not align every other public type or native-extra method outside Tx, document/family overloads, optional values/errors, read-key/order/lifecycle behaviour, builtin execution, Storage, record identity or release profiling. Full alignment and release acceptance remain incomplete.
+[Private canonical task replacement](internal-task-replacement.md) now implements selected replacement/owner/ordering controls. Production runtime caller integration and the full assertion audit remain open. This slice does not align every other public type or native-extra method outside Tx, document/family overloads, optional values/errors, read-key/order/lifecycle behaviour, builtin execution, Storage, record identity or release profiling. Full alignment and release acceptance remain incomplete.

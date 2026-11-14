@@ -4,7 +4,7 @@
 
 Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Native implementation: `/work/go-ai/durable`, authorised SQLite-only, pure Go. The preceding pushed implementation checkpoint is `04726f3` (request-time model/retry authority); image-resource diagnosis is recorded at `1e0f3ad`.
 
-Latest continuation: the literal source public Tx boundary, removing nine native raw exports and the public historical marker argument. Source internal setTask is not exposed. See [mapping and verification](public-tx-surface.md). Complete method semantics, other public types, record identity, internal mutation, builtin/Storage and release acceptance remain open.
+Latest implementation checkpoint: `6c6758bf41812bf594822fb0b102eeb3c12f9f82`, pushed. [Internal task replacement](internal-task-replacement.md) records the source contract, verification and remaining runtime-integration gaps.
 
 ## Earlier queue-production checkpoint
 
@@ -18,7 +18,11 @@ Latest continuation: the literal source public Tx boundary, removing nine native
 
 The exact input/write shape tests failed before the fixes. Idle progress and continuation already passed and required no speculative runtime changes. A failure/reopen fixture initially tried to close storage already owned/closed by Session; correcting the fixture required no runtime fix. Tests remain in the existing version-neutral transaction suite.
 
-## Latest public Tx verification
+## Internal task replacement verification
+
+Implementation [6c6758b](internal-task-replacement.md) is pushed. The internal canonical setter now supports complete replacement, staged guards/timestamps, deferred committed validation, final owner checks and fork-error precedence. It stays private; production runtime callers have not migrated. Full26 tested packages pass (durable746.181s/tools27.556s/public13.197s), five compiled semantic faults, three shuffled repetitions0.897s, vet/Staticcheck/logging/register and selected original279 pass, zero original skips. Complete builtin/runtime integration, document/family/identity/API/Storage/lifecycle/readonly/assertion audits and pre-release profiling are incomplete. The new source clock supplement initially used an invalid total-commit clock-count assumption; corrected supplemental fixtures isolate setter calls. Original assertions are unchanged. See the linked note for red controls, source lines and precise subsets.
+
+## Previous public Tx verification
 
 Full repository ./... passes26 packages: root0.853s, durable585.852s/tools28.155s and public consumers12.711s. Nine independently reintroduced public API aliases plus marker arity/current-value faults are detected after compilation. Ten surface repetitions0.016s/ten shuffled marker repetitions0.352s, vet/Staticcheck/logging/register and selected original277 (200 unchanged +77 probes) pass, zero original skips. Analysed temporary scripts/logs/overlays are removed. This establishes the tested public Tx method boundary and current-marker shape/value, not complete API/record identity/internal mutation/document/builtin/Storage/release conformance.
 

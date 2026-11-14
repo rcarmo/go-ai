@@ -2,7 +2,11 @@
 
 The sole acceptance target is official upstream **v1.5.0**, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Alignment is unverified. Older entries below are historical receipts, not compatibility requirements or v1.5.0 acceptance. Retained tests and active identity/schema/catalogue/regeneration pins must be reconciled with this release; obsolete behaviour must change.
 
-## Development continuation: public Tx method boundary
+## Development continuation: internal canonical task replacement
+
+Runtime checkpoint `6c6758bf41812bf594822fb0b102eeb3c12f9f82` is pushed. [Source semantics, exact scope and verification](notes/internal-task-replacement.md): private complete-record replacement, staged timestamps/guards and deferred final owner/replacement validation; fork errors precede replacement lookups. Full26 tested packages pass (durable746.181s/tools27.556s/public13.197s), five compiled faults, three shuffled repetitions0.897s, static/logging/register and selected original279 pass zero skipped. Production runtime callers have not migrated; full alignment and pre-release profiling are incomplete.
+
+## Previous development continuation: public Tx method boundary
 
 Nine native-only raw Tx exports are private; public LatestHeadMarker uses the current one-argument source shape. A type-aware audit preserves same-named other receivers and153 mechanically changed files. No public SetTask is invented. [Source mapping, negative gates and remaining scope](notes/public-tx-surface.md): Full repository ./... passes26 packages: root0.853s, durable585.852s/tools28.155s and public consumers12.711s. Nine independently reintroduced public API aliases plus marker arity/current-value faults are detected after compilation. Ten surface repetitions0.016s/ten shuffled marker repetitions0.352s, vet/Staticcheck/logging/register and selected original277 (200 unchanged +77 probes) pass, zero original skips. Analysed temporary scripts/logs/overlays are removed. This establishes the tested public Tx method boundary and current-marker shape/value, not complete API/record identity/internal mutation/document/builtin/Storage/release conformance.
 
