@@ -63,7 +63,7 @@
         "durable/telemetry.go"
       ],
       "tests": [
-        "durable/models_telemetry_140_test.go",
+        "durable/models_test.go",
         "durable/telemetry_140_test.go"
       ],
       "note": "Optional callbacks and span links are process-local and isolated from outcomes; no content/error text attributes."
@@ -307,8 +307,8 @@
       ],
       "tests": [
         "durable/codemode_classifier_errors_120_test.go",
-        "durable/models_classifier_fault_120_test.go",
-        "durable/models_classifier_lifecycle_120_test.go",
+        "durable/models_paid_fault_test.go",
+        "durable/models_paid_test.go",
         "tests/classifier_cloudflare_v101_test.go",
         "tests/classifier_contract_issue1_test.go",
         "tests/classifier_decisions_110_test.go",
@@ -588,7 +588,7 @@
       ],
       "tests": [
         "durable/extension_wrap_test.go",
-        "durable/models_telemetry_140_test.go",
+        "durable/models_test.go",
         "durable/report_140_test.go",
         "durable/telemetry_140_test.go"
       ],
@@ -757,7 +757,7 @@
         "durable/codemode_model_catalog_120_test.go",
         "durable/codemode_model_failure_120_test.go",
         "durable/codemode_model_recovery_120_test.go",
-        "durable/codemode_models_120_test.go",
+        "durable/codemode_models_test.go",
         "durable/codemode_namespaces_120_test.go",
         "durable/codemode_numeric_arguments_120_test.go",
         "durable/codemode_output_cancel_120_test.go",
@@ -821,11 +821,9 @@
         "durable/codemode_worker_properties_process_120_test.go",
         "durable/codemode_worker_remote_120_test.go",
         "durable/codemode_worker_remote_cancel_120_test.go",
-        "durable/models_paid_120_test.go",
-        "durable/models_paid_fault_120_test.go",
-        "durable/models_paid_lifecycle_120_test.go",
-        "durable/models_paid_options_120_test.go",
-        "durable/models_telemetry_140_test.go",
+        "durable/models_paid_test.go",
+        "durable/models_paid_fault_test.go",
+        "durable/models_test.go",
         "tests/durable_codemode_consumer_120_test.go",
         "internal/quickjs/admission_120_test.go",
         "internal/quickjs/benchmark_120_test.go",

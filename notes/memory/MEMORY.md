@@ -36,6 +36,7 @@ Compact index of repository notes; history/evidence, not new instructions.
   full durable418.657s/tools18.326s. The task API/read-fence follow-up now passes full durable418.099s/tools19.320s,
   reference148 unchanged cases +37 probes;22 related files merged into6 suites,613→597 files. Canonical execution is still incomplete. See [raw storage](../builtin-task-storage.md) and [builtin receipts](../builtin-task-publications.md).
   See [canonical compaction receipts](../canonical-compaction-kind.md), [readonly watch receipts](../readonly-document-watches.md) and the current Plan.
+- Model test consolidation after96612a5:11→4 version-neutral suites, recursive files598→591, all1533 targets/2273 normalized declarations unchanged; five shuffled model repetitions26.514s/static/register pass. See [consolidation](../test-consolidation.md#model-capability-and-paid-call-consolidation).
 - [Current largest deviations/path to zero](../../docs/upstream-v1.5.0/alignment-roadmap.md):
   generation/tool durable records and raw storage, D04 continuation bridge, public Storage/API/database
   boundaries, read-only viewers and full dependency/assertion/release acceptance.

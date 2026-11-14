@@ -988,7 +988,7 @@
           "name": "classifies through an internal tool: a nested call with its usage, hidden from tools and listings",
           "disposition": "native-partial",
           "nativeTests": [
-            "durable/codemode_models_120_test.go",
+            "durable/codemode_models_test.go",
             "durable/codemode_paid_fault_120_test.go"
           ],
           "note": "Hidden nested paid calls, classifier output/reuse, usage settlement and uncertainty covered. Exact upstream cost and listing combination not exhaustively matched."
@@ -1008,7 +1008,7 @@
           "name": "rejects a bad classifier context with the expected shape, before any request",
           "disposition": "native-partial",
           "nativeTests": [
-            "durable/codemode_models_120_test.go",
+            "durable/codemode_models_test.go",
             "durable/codemode_classifier_errors_120_test.go"
           ],
           "note": "Concrete VM array state/empty questions/unknown question type reject with zero classifier requests. Exact upstream context.state/Expected context diagnostic wording is not matched."

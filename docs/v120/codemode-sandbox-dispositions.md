@@ -27,7 +27,7 @@ These groups cover the52 inventoried sandbox declarations; resource ceilings and
 
 ## Models — 7 declarations
 
-`durable/codemode_model_catalog_120_test.go`, `codemode_models_120_test.go`, `codemode_model_failure_120_test.go`, `codemode_model_recovery_120_test.go`, `codemode_parallel_mixed_120_test.go`, paid classifier/image and auth tests cover sanitized credentials-free metadata, nested classifier/image calls, provider failures/headers, validation before effects, recovery, at most four paid calls in flight and post-completion cancellation. Images not explicitly emitted remain absent from model output. Paid globals are opt-in and can be revoked for new effects; replayed settled values do not repeat billing. Live paid-provider/auth acceptance is unrun.
+`durable/codemode_model_catalog_120_test.go`, `codemode_models_test.go`, `codemode_model_failure_120_test.go`, `codemode_model_recovery_120_test.go`, `codemode_parallel_mixed_120_test.go`, paid classifier/image and auth tests cover sanitized credentials-free metadata, nested classifier/image calls, provider failures/headers, validation before effects, recovery, at most four paid calls in flight and post-completion cancellation. Images not explicitly emitted remain absent from model output. Paid globals are opt-in and can be revoked for new effects; replayed settled values do not repeat billing. Live paid-provider/auth acceptance is unrun.
 
 ## Portable — 7 declarations plus malformed parameter cases
 

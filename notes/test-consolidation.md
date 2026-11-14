@@ -127,3 +127,18 @@ runtime verification and its remaining scope.
 After runtime0b13193, compaction_status_test.go absorbs the failure/reopen/no-cut/summary test from compaction_failure_120_test.go. Both test targets and the status helper remain unchanged. The destination equals the previous status suite followed by the byte-identical moved declaration after gofmt. Its SHA256 is 672e2e476512fcf2df2f073f6b5c8c91dea48dd5d615f5a915269853445801a1. Neither file has build constraints; production code is unchanged.
 
 The recursive durable *_test.go inventory (including nested fixture and constrained files) falls599→598. Ten shuffled repetitions of both tests pass4.320s; vet, Staticcheck, logging, register and diff hygiene pass. Runtime full-suite evidence remains430.208s/tools20.080s before this mechanical move. Active v1.5 assertion/register paths and the older crosswalk's current-file references are updated. No temporary merge/parser artifacts remain.
+
+## Model capability and paid-call consolidation
+
+After runtime96612a58921537190d9e4ada3f9a943e62201cd4, eleven related files become four version-neutral suites:
+
+- models_test.go: model capability/catalogue, typed catalogue, authentication and telemetry.
+- models_paid_test.go: paid validation/results, options and image/classifier lifecycle.
+- models_paid_fault_test.go: classifier/image paid-effect settlement faults.
+- codemode_models_test.go: renamed code-mode model globals/envelopes.
+
+All bodies, source-pin comments and targets are retained. Imports are merged with alias checks; no input has build constraints. The recursive durable inventory includes unchanged constrained and nested fixture files. Native path references in active and older crosswalks now point to the current suites; duplicate path references created by merging are removed.
+
+The complete inventory matches before/after: files598→591;1533 named test/benchmark/fuzz/example targets;2273 non-import declarations. Targets SHA256 af2da37c130a57ea78c734fef5e75dd816cad6a89ea5a6b1574b66457c38cf69; declarations SHA256 0db2db4770309f955d721163ab83c0a49cb5477977fdb8e9b387727510dad8d9. This comparison parses every file with object resolution/comments disabled, clears token positions, formats each declaration, then sorts package-qualified declarations/target names before hashing JSON arrays. It checks unchanged assertions/helpers as well as test discovery; excluded build configurations are not implied to have run.
+
+Five post-move shuffled model/paid/code-mode repetitions pass26.514s; vet, Staticcheck, logging, register/source-hash and diff checks pass. The full pre-move runtime run passes durable423.520s/tools17.580s and all26 repository packages. No production code changes in the mechanical commit. Temporary merger/parser/inventory files are removed.
