@@ -42,7 +42,9 @@ func TestHostSettingsExtensionDefaultsRefreshAndExplicitAgentOverride(t *testing
 	if err := conversation.ConfigurePatch(bg, AgentPatch{Extensions: &explicit}); err != nil {
 		t.Fatal(err)
 	}
-	invalid := []string{""}
+	// Empty names are valid string selectors; malformed UTF-8 still cannot
+	// enter the owned JSON agent/settings state.
+	invalid := []string{string([]byte{0xff})}
 	if err := h.SetSettings(bg, HarnessSettings{Extensions: &invalid}); err == nil {
 		t.Fatal("invalid default selection accepted")
 	}

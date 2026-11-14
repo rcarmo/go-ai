@@ -65,7 +65,7 @@ func TestNestedTool120InvalidControlSuppressesCallbackAndHarnessErrorsOmitStruct
 		callbacks := 0
 		reg := wrapRegistration("invalid_control_nested")
 		reg.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
-			return ToolResult{Content: "text", Control: &ToolControl{AddTools: []string{"bad/name"}}, Commit: func(*Tx) error { callbacks++; return nil }}, nil
+			return ToolResult{Content: "text", Control: &ToolControl{AddTools: make([]string, DefaultLimits().MaxPage+1)}, Commit: func(*Tx) error { callbacks++; return nil }}, nil
 		}
 		if e := registry.Register(reg); e != nil {
 			t.Fatal(e)

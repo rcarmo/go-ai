@@ -217,3 +217,92 @@ func TestExtensionWrapperExecuteAndRecoveryIdentity(t *testing.T) {
 		})
 	}
 }
+
+// Source harness/define.ts:22-26,50-52 and registry.ts:95-102 use tool names
+// as string map keys; section/document identifier grammars do not apply.
+func TestSourceToolNamesAreStringsAcrossRegistrationWrappingAndNestedCalls(t *testing.T) {
+	names := []string{"", "9tool", "_tool", " Mixed case: note/v1", "工具/Δ", strings.Repeat("x", 129), "nul\x00name"}
+	registry := NewRegistry()
+	var effects atomic.Int64
+	tools := make([]ToolRegistration, 0, len(names))
+	wraps := make([]ExtensionWrap, 0, len(names))
+	for _, name := range names {
+		reg := wrapRegistration(name)
+		reg.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+			effects.Add(1)
+			return ToolResult{Content: name}, nil
+		}
+		tools = append(tools, reg)
+		wraps = append(wraps, ExtensionWrap{Tool: name, WrapTool: func(reg ToolRegistration) (ToolRegistration, error) {
+			reg.Definition.Description = "wrapped " + name
+			return reg, nil
+		}})
+	}
+	if err := registry.Install(&Extension{Name: "names", Tools: tools, Wraps: wraps}); err != nil {
+		t.Fatal("source string tool names rejected", err)
+	}
+	offers, _, _, _, err := registry.selectedGeneration(agentState{}, DefaultLimits(), func(err error) { t.Error(err) })
+	if err != nil || len(offers) != len(names) {
+		t.Fatal(offers, err)
+	}
+	for i, name := range names {
+		if offers[i].Name != name || offers[i].Description != "wrapped "+name {
+			t.Error("source tool name or wrapper target changed", i, offers[i])
+		}
+		if err := validateToolControl(&ToolControl{AddTools: []string{name}}, DefaultLimits()); err != nil {
+			t.Error("source addTools string rejected", name, err)
+		}
+		for _, message := range []goai.Message{{Role: goai.RoleSystem, ToolsAdded: []goai.Tool{{Name: name, Parameters: json.RawMessage(`{"type":"object"}`)}}}, {Role: goai.RoleSystem, ToolsRemoved: []goai.ToolReference{{Name: name}}}} {
+			if _, err := contributionReceipt(message, DefaultLimits()); err != nil {
+				t.Error("source tool contribution string rejected", name, err)
+			}
+		}
+	}
+	if err := registry.Install(&Extension{Name: "duplicate", Tools: []ToolRegistration{tools[0], tools[0]}}); err == nil {
+		t.Fatal("duplicate empty name accepted")
+	}
+	for _, invalid := range []string{string([]byte{0xff}), strings.Repeat("x", DefaultLimits().MaxStringBytes+1)} {
+		if err := registry.Register(wrapRegistration(invalid)); err == nil {
+			t.Error("tool name bypassed JSON string budget")
+		}
+		if _, err := agentSelectionNames([]string{invalid}); err == nil {
+			t.Error("selection name bypassed JSON string budget")
+		}
+		if err := validateToolControl(&ToolControl{AddTools: []string{invalid}}, DefaultLimits()); err == nil {
+			t.Error("control name bypassed JSON string budget")
+		}
+	}
+	if validKind("") || validKind(" Mixed case: note/v1") {
+		t.Fatal("tool-name acceptance changed document/task kind validation")
+	}
+	definition := taskDefinition(t, "source.tool-names", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+		for i, name := range names {
+			for repeat := 0; repeat < 2; repeat++ {
+				result, err := r.CallTool(ctx, strings.Repeat("k", i+1), name, JSON{})
+				if err != nil {
+					return err
+				}
+				if result.Content != name || result.IsError {
+					t.Error("source nested name result changed", name, result)
+				}
+			}
+		}
+		return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone(nil), nil })
+	})
+	if _, err := registry.RegisterTask(definition); err != nil {
+		t.Fatal(err)
+	}
+	store, err := newTestSQLite(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := openHarness(t, store, Options{Registry: registry})
+	conversation := root(t, h, ModelRef{Provider: "source", ID: "model"})
+	if err := conversation.ConfigurePatch(bg, AgentPatch{Tools: &names}); err != nil {
+		t.Fatal("source tool selection strings rejected", err)
+	}
+	record := waitPublicTask(t, h, createPublicTask(t, h, definition, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}}))
+	if record.State.Outcome.Status != "completed" || effects.Load() != int64(len(names)) {
+		t.Error("source name execution/replay changed", record.State.Outcome, effects.Load())
+	}
+}

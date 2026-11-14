@@ -186,7 +186,7 @@ func agentSelectionNames(input []string) ([]string, error) {
 	result := []string{}
 	seen := map[string]bool{}
 	for _, name := range input {
-		if !validKind(name) {
+		if !validToolName(name) {
 			return nil, reject("invalid agent selection")
 		}
 		if !seen[name] {

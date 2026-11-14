@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 )
 
 // Registry cardinality follows the native record/page budget, not an arbitrary
@@ -81,20 +82,10 @@ type Registry struct {
 	extensions           []installedExtension
 }
 
-// Tool identifiers are case-sensitive. Source builtin names include
-// generateImages; the document-kind lowercase rule is not a tool-name rule.
+// Source tools use string map keys, including empty strings. Retain the JSON
+// string ownership budget without applying document/section identifier rules.
 func validToolName(s string) bool {
-	if len(s) < 1 || len(s) > 128 || !((s[0] >= 'a' && s[0] <= 'z') || (s[0] >= 'A' && s[0] <= 'Z')) {
-		return false
-	}
-	for i := 1; i < len(s); i++ {
-		c := s[i]
-		if c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '_' || c == '.' || c == '-' {
-			continue
-		}
-		return false
-	}
-	return true
+	return utf8.ValidString(s) && len(s) <= DefaultLimits().MaxStringBytes
 }
 
 func NewRegistry() *Registry { return &Registry{tools: map[string]registeredTool{}} }

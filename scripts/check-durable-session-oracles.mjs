@@ -53,6 +53,7 @@ const aliases = [
   ["@pinned/views", join(durable,"src/harness/view.ts")],
   ["@pinned/compaction", join(durable,"src/harness/compaction.ts")],
   ["@pinned/model-tools", join(durable,"src/codemode/models.ts")],
+  ["@pinned/agent", join(durable,"src/harness/agent.ts")],
   ["@reference/pi-ai", join(upstream,"node_modules/@earendil-works/pi-ai/dist/index.js")],
   ["vitest", join(vitest, "dist/index.js")],
 ].map(([name, replacement]) => ({ find: name, replacement }));

@@ -211,7 +211,7 @@ func (r *Registry) selectedTools(agent agentState, limits Limits, modelOnly bool
 	// never while holding its lock. Reports are delivered by the harness later.
 	for _, extension := range extensions {
 		for _, wrap := range extension.wraps {
-			if wrap.Tool != "" {
+			if wrap.WrapTool != nil {
 				tool, exists := tools[wrap.Tool]
 				if !exists {
 					continue

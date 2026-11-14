@@ -695,3 +695,17 @@ it("keeps optional errors and usage in actual internal model-tool projections",a
   }
  }
 });
+
+it("treats tool names as string map keys rather than section/document identifiers",async()=>{
+ const {createRegistry,defineTool,defineExtension,wrapTool}=await import("@earendil-works/pi-durable");
+ const names=["","9tool","_tool"," Mixed case: note/v1","工具/Δ","x".repeat(129),"nul\0name"];
+ const tools=names.map(name=>defineTool({name,description:name,parameters:{type:"object"} as any,execute:async()=>({output:[]})}));
+ const registry=createRegistry();registry.install(defineExtension({name:"names",tools,wraps:tools.map(tool=>wrapTool(tool,inner=>({...inner,description:"wrapped "+tool.name})))}));
+ expect(registry.snapshot().tools().map(({tool})=>tool.name)).toEqual(names);
+ expect(registry.snapshot().extension("names")!.wraps!.map(wrap=>(wrap as any).tool)).toEqual(names);
+ const {resolveAgent,resolveSettings}=await import("@pinned/agent");const reports:unknown[]=[];
+ const agent=resolveAgent({tools:names},registry.snapshot(),resolveSettings(undefined),(error)=>reports.push(error));
+ expect(agent.tools.map(tool=>[tool.name,tool.description])).toEqual(names.map(name=>[name,"wrapped "+name]));expect(reports).toEqual([]);
+ expect(()=>registry.install(defineExtension({name:"duplicate",tools:[tools[0]!,tools[0]!]}))).toThrow("two tools named ");
+ expect(registry.snapshot().installed().map(extension=>extension.name)).toEqual(["names"]);
+});

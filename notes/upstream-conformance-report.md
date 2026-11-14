@@ -4,7 +4,7 @@
 
 Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Native implementation: `/work/go-ai/durable`, authorised SQLite-only, pure Go. The preceding pushed implementation checkpoint is `04726f3` (request-time model/retry authority); image-resource diagnosis is recorded at `1e0f3ad`.
 
-Latest continuation: canonical internal model-tool metadata, model/context forwarding and exact success/error text now follow pinned source. Actual r.CallTool paths required unknown {} schemas and persisted empty output-schema presence. See [evidence](typed-model-results.md#canonical-internal-model-tool-contract). Complete ToolTask runtime/migrations, name/error/schema breadth, engine/worker/API and release acceptance remain open.
+Latest continuation: source string tool-name acceptance now reaches registration, wrappers, explicit selection, contribution/control messages and actual nested-call replay. JSON budgets and duplicate/other-kind guards remain. See [evidence](typed-model-results.md#string-tool-names). Complete ToolTask runtime/migrations, name/error/schema breadth, engine/worker/API and release acceptance remain open.
 
 ## Earlier queue-production checkpoint
 
@@ -18,7 +18,11 @@ Latest continuation: canonical internal model-tool metadata, model/context forwa
 
 The exact input/write shape tests failed before the fixes. Idle progress and continuation already passed and required no speculative runtime changes. A failure/reopen fixture initially tried to close storage already owned/closed by Session; correcting the fixture required no runtime fix. Tests remain in the existing version-neutral transaction suite.
 
-## Latest internal model-tool verification
+## Latest string tool-name verification
+
+Full repository ./... passes26 packages: root0.675s, durable436.064s/tools20.438s and public consumers12.119s. Seven semantic faults, ten exact-name shuffled repetitions4.580s, three broad repetitions29.773s and three corrected-control/default repetitions7.981s pass. Vet/Staticcheck/logging/register and selected original265 (200 unchanged +65 probes), plus original harness-registry10+73 supplements83, pass; zero original skips. Analysed logs/overlays are removed. Full ToolTask/runtime/migration, extension-name installation, UTF16-name transport, schemas/errors, worker/API/Storage and release acceptance remain open. The preceding441.771s full run failed three obsolete native name fixtures; source-valid empty/slash strings were replaced with invalid-UTF8 or bounded-list guards, retaining every assertion. A first malformed-UTF8 nested fixture reached invalid-result validation; the corrected list guard passes. No original test/assertion changed.
+
+## Previous internal model-tool verification
 
 Full repository ./... passes26 packages: root0.604s, durable418.648s/tools20.143s and public consumers12.467s. Seven semantic faults, ten shuffled focused repetitions11.816s, vet/Staticcheck/logging/register pass. Selected original264 and separate codemode79 pass, zero skipped. Analysed temporary logs/overlays/recaptures are removed. Complete ToolTask runtime/migrations, arbitrary name/error/schema, worker/API/Storage and pre-release acceptance remain open.
 

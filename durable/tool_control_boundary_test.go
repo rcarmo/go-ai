@@ -45,7 +45,7 @@ func TestToolControlsUnavailableOrThrowingCallCannotTerminateRound(t *testing.T)
 						return ToolResult{Control: &ToolControl{Terminate: true}}, errors.New("private")
 					}
 					if name == "second" && mode == "invalid-control" {
-						return ToolResult{Control: &ToolControl{Terminate: true, AddTools: []string{"invalid/name"}}}, nil
+						return ToolResult{Control: &ToolControl{Terminate: true, AddTools: make([]string, DefaultLimits().MaxPage+1)}}, nil
 					}
 					return ToolResult{Content: "ok", Control: &ToolControl{Terminate: true}}, nil
 				}}); err != nil {
