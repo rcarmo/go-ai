@@ -14,7 +14,7 @@ bun run scripts/check-durable-session-oracles.mjs --upstream /path/to/pinned/pi 
 bun run scripts/check-durable-session-oracles.mjs --upstream /path/to/pinned/pi --file test/tools-images.test.ts --case 'gives the same result as the calling thread'
 ```
 
-The selected mode now passes **200 unchanged cases +58 independent probes**:192 tests in ten original files (including all11 input-entry cases), eight unchanged Storage conformance cases and58 probes. It reports zero skipped/todo cases. The runner reports258 total cases:192 original-file cases plus66 supplemental cases; the supplemental total includes those eight unchanged conformance cases.
+The selected mode now passes **200 unchanged cases +59 independent probes**:192 tests in ten original files (including all11 input-entry cases), eight unchanged Storage conformance cases and59 probes. It reports zero skipped/todo cases. The runner reports259 total cases:192 original-file cases plus67 supplemental cases; the supplemental total includes those eight unchanged conformance cases.
 
 `--all` discovers all 99 files under `packages/durable/test`. It starts a fresh Vitest process per file, one worker at a time, with a384 MiB V8 heap cap (768 MiB for the image file). A single process for the whole corpus previously stopped this 2 GiB workspace with an OOM; the sharded attempts completed without a workspace OOM. Subprocess failures remain failures, not skips. The full command continues to collect failures and exits nonzero if any group failed. JSON reports and transform caches are temporary and deleted on exit.
 
@@ -64,3 +64,5 @@ The supplemental new probe initially used the wrong bound entries signature and 
 Next: resolve image execution within the2 GiB workspace without changing its assertions, then rerun all99 files. Credential- and platform-declared skips remain unverified. Do not raise an acceptance deadline, reduce an assertion, or mistake reference-file coverage for native assertion mapping.
 
 The retained source snapshot has no `.git`. Existing retained hashes and the complete durable test tree are checked; commit identity is not independently reverified.
+
+The summary-budget probe also executes real pinned-source compactions with reserves101,4503599627370496 and9007199254740991, checking Number multiplication/floor and uncapped modelMax0. Latest selected259 and separate compaction177 pass, zero skipped.

@@ -4,7 +4,7 @@
 
 Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Native implementation: `/work/go-ai/durable`, authorised SQLite-only, pure Go. The preceding pushed implementation checkpoint is `04726f3` (request-time model/retry authority); image-resource diagnosis is recorded at `1e0f3ad`.
 
-Latest continuation: persisted LiveDoc v3 compaction statuses/failures now use trigger; public CompactionFailure exposes Trigger. Three production-path controls failed on old reason keys before fixing writers/readers. Complete original retry status survives SQLite reopen without key normalisation. See [evidence](cold-builtin-hydration.md#version3-compaction-writers). Full alignment remains incomplete.
+Latest continuation: summary budget follows original binary64 multiplication before floor, fixing two valid large-integer reserves that were one token low under native rational arithmetic. Real provider-path assertions failed before the fix; independent pinned-source requests match exact values. See [evidence](canonical-compaction-kind.md#number-rounding-in-summary-budget). Overall alignment remains incomplete.
 
 ## Earlier queue-production checkpoint
 
@@ -18,7 +18,11 @@ Latest continuation: persisted LiveDoc v3 compaction statuses/failures now use t
 
 The exact input/write shape tests failed before the fixes. Idle progress and continuation already passed and required no speculative runtime changes. A failure/reopen fixture initially tried to close storage already owned/closed by Session; correcting the fixture required no runtime fix. Tests remain in the existing version-neutral transaction suite.
 
-## Latest LiveDoc compaction-key verification
+## Latest summary-budget verification
+
+Full durable431.008s/tools20.204s; ten shuffled budget/settings repetitions8.347s; two semantic faults, vet, Staticcheck, logging and register pass. Selected reference259 cases (200 unchanged +59 probes) and separate original compaction177 pass, zero skipped. Analysed logs/overlays are removed. Existing zero/model cap/override/settings/ownership/retry assertions remain. Fractional inputs and complete numeric/API acceptance remain open.
+
+## Previous LiveDoc compaction-key verification
 
 Full durable427.062s/tools15.285s; ten shuffled targeted repetitions10.529s; four semantic faults, vet, Staticcheck, logging and register pass. Selected reference258 and separate original compaction176 pass, zero skipped. Both original request/retry fixtures, including LiveDoc snapshots, recapture byte-for-byte. Analysed logs/overlays/recaptures are removed. Complete-record assertions cover retry, missing-model and cutoff failures; legacy v1/v2 migration remains unchanged.
 

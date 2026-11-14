@@ -622,3 +622,15 @@ it("rehydrates current model metadata when resending an orderly closed summary",
   expect((await harness.waitForTask(id,context)).state.outcome.status).toBe("completed");expect(seen).toEqual([[128000,100],[123,100]]);
  }finally{if(harness)await harness.close(context);rmSync(directory,{recursive:true,force:true})}
 });
+
+it("uses Number multiplication before flooring the summary reserve budget",async()=>{
+ const {chatSetup,openChat}=await import("@pinned/chat"),{assistant}=await import("@pinned/harness-support");
+ for(const [reserveTokens,want] of [[101,80],[4503599627370496,3602879701896397],[9007199254740991,7205759403792793]]){
+  const setup=chatSetup({models:[{id:"faux-1",contextWindow:128000,maxTokens:0}]});setup.settings.compaction={enabled:false,reserveTokens,keepRecentTokens:0};
+  let budget:any;setup.faux.setResponses([(_input:any,options:any)=>{budget=options.maxTokens;return assistant("summary")}]);
+  const {harness,root}=await openChat(new ControlledStorage(),setup);
+  try{await root.commit(async tx=>{for(const content of ["old","recent"])await tx.appendEntry(root.id,{kind:"note",model:[{role:"user",content,timestamp:0}]})},context);
+   const id=await root.compact(undefined,context);expect((await harness.waitForTask(id,context)).state.outcome.status).toBe("completed");expect(budget).toBe(want);
+  }finally{await harness.close(context)}
+ }
+});

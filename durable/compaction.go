@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	goai "github.com/rcarmo/go-ai"
+	"math"
 	"strings"
 	"unicode/utf8"
 )
@@ -153,7 +154,7 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 					})
 				}
 			}
-			maxTokens := policy.ReserveTokens/5*4 + policy.ReserveTokens%5*4/5
+			maxTokens := int(math.Floor(0.8 * float64(policy.ReserveTokens)))
 			if model.MaxTokens > 0 && maxTokens > model.MaxTokens {
 				maxTokens = model.MaxTokens
 			}

@@ -25,7 +25,12 @@ func TestCompactionResolvedReserveBudgetModelCapAndStreamSettings(t *testing.T) 
 		name                    string
 		reserve, modelMax, want int
 		modelOverride           bool
-	}{{"reserve", 1000, 4096, 800, false}, {"model-cap", 1000, 256, 256, false}, {"zero", 0, 4096, 0, false}, {"model-override", 1000, 4096, 640, true}} {
+	}{{"reserve", 1000, 4096, 800, false}, {"model-cap", 1000, 256, 256, false}, {"zero", 0, 4096, 0, false}, {"model-override", 1000, 4096, 640, true},
+		{"fractional-product-floor", 101, 4096, 80, false},
+		// Source Math.floor(0.8 * reserveTokens) rounds the product as a
+		// JavaScript Number before flooring; exact rational division differs.
+		{"source-number-rounding", 4503599627370496, 0, 3602879701896397, false},
+		{"source-maxsafe-rounding", 9007199254740991, 0, 7205759403792793, false}} {
 		t.Run(tc.name, func(t *testing.T) {
 			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				entered, release := make(chan struct{}), make(chan struct{})
@@ -44,7 +49,12 @@ func TestCompactionResolvedReserveBudgetModelCapAndStreamSettings(t *testing.T) 
 					if stream.Identity == nil || stream.Identity.Attribution == nil || stream.Identity.Attribution.Name != wantIdentity || stream.Telemetry == nil || stream.Telemetry.Value != wantTelemetry {
 						t.Error("compaction identity/telemetry lost", stream.Identity, stream.Telemetry)
 					}
-					if stream.MaxTokens == nil || *stream.MaxTokens != tc.want || stream.CacheRetention != goai.CacheRetentionNone || (stream.Reasoning == nil || *stream.Reasoning != "low") || stream.Deferred != nil {
+					if stream.MaxTokens == nil {
+						t.Error("summary budget absent")
+					} else if *stream.MaxTokens != tc.want {
+						t.Errorf("summary budget got %d; source %d", *stream.MaxTokens, tc.want)
+					}
+					if stream.CacheRetention != goai.CacheRetentionNone || (stream.Reasoning == nil || *stream.Reasoning != "low") || stream.Deferred != nil {
 						t.Errorf("summary stream settings %+v", stream)
 					}
 					ch := make(chan goai.Event, 1)
