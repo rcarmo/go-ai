@@ -14,11 +14,15 @@ bun run scripts/check-durable-session-oracles.mjs --upstream /path/to/pinned/pi 
 bun run scripts/check-durable-session-oracles.mjs --upstream /path/to/pinned/pi --file test/tools-images.test.ts --case 'gives the same result as the calling thread'
 ```
 
-The selected mode now passes **200 unchanged cases +68 independent probes**:192 tests in ten original files (including all11 input-entry cases), eight unchanged Storage conformance cases and68 probes. It reports zero skipped/todo cases. The runner reports268 total cases:192 original-file cases plus76 supplemental cases; the supplemental total includes those eight unchanged conformance cases.
+The selected mode now passes **200 unchanged cases +69 independent probes**:192 tests in ten original files (including all11 input-entry cases), eight unchanged Storage conformance cases and69 probes. It reports zero skipped/todo cases. The runner reports269 total cases:192 original-file cases plus77 supplemental cases; the supplemental total includes those eight unchanged conformance cases.
 
 `--all` discovers all 99 files under `packages/durable/test`. It starts a fresh Vitest process per file, one worker at a time, with a384 MiB V8 heap cap (768 MiB for the image file). A single process for the whole corpus previously stopped this 2 GiB workspace with an OOM; the sharded attempts completed without a workspace OOM. Subprocess failures remain failures, not skips. The full command continues to collect failures and exits nonzero if any group failed. JSON reports and transform caches are temporary and deleted on exit.
 
 Current probes also require exact empty, submissionId-only and entryId-only CompactionResult arms. The latest selected258 and separate original compaction176 cases pass, zero skipped.
+
+## Tool execution callback results
+
+An added original tool API probe returns the appended record with byTaskId, cyclic host identity and the original callback failure, then rejects after invocation end. Selected269 and complete original harness-tools42+77 supplements119 pass, zero skipped. The earlier isolated original case had41 filtered tests and establishes no acceptance for those; the subsequent complete-file run covers all42. Native Tx.appendEntry still has a different result API, so native callback controls are separately source-derived.
 
 ## Commit callback results
 

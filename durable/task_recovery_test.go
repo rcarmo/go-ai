@@ -507,8 +507,8 @@ func TestTaskRecoveryBuiltinHoldFinalFailureAndReopen(t *testing.T) {
 					if err != nil || !ok {
 						return ToolResult{}, errors.New("active tool missing")
 					}
-					if err := api.Commit(ctx, func(tx *Tx) error {
-						return tx.PutTask(Task{ID: public.ID, Owner: public.Owner, Conversation: public.Conversation, Kind: public.Kind, Status: "done", Checkpoint: taskCheckpointMap(public.State.Checkpoint)})
+					if _, err := api.Commit(ctx, func(tx *Tx) (any, error) {
+						return nil, tx.PutTask(Task{ID: public.ID, Owner: public.Owner, Conversation: public.Conversation, Kind: public.Kind, Status: "done", Checkpoint: taskCheckpointMap(public.State.Checkpoint)})
 					}); err == nil {
 						return ToolResult{}, errors.New("builtin raw authority forged")
 					}
@@ -521,14 +521,14 @@ func TestTaskRecoveryBuiltinHoldFinalFailureAndReopen(t *testing.T) {
 					if _, ok, err := api.Memo(ctx, "toString"); err != nil || !ok {
 						return ToolResult{}, errors.New("Output lost memo")
 					}
-					if err := api.Commit(ctx, func(tx *Tx) error {
+					if _, err := api.Commit(ctx, func(tx *Tx) (any, error) {
 						var err error
 						taskDocID, err = tx.MintID()
 						if err != nil {
-							return err
+							return nil, err
 						}
 						_, err = tx.CreateDocument(Document{ID: taskDocID, Scope: "task", Owner: toolID, Kind: "app.task-hold", Version: 1, Value: JSON{"retained": true}})
-						return err
+						return nil, err
 					}); err != nil {
 						return ToolResult{}, err
 					}

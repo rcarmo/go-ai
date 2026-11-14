@@ -1264,3 +1264,117 @@ func assertToolUsageReceipts(t *testing.T, state Snapshot, name string, want *go
 		t.Fatal("tool receipt/accounting counts", entries, children, ledgers)
 	}
 }
+
+// Source-derived from harness-tools.test.ts:942-948 api.commit result/attribution.
+// Native AppendEntry still returns only an error; this callback returns its
+// minted ID and inspects the adopted entry separately, leaving that API gap open.
+func TestSourceToolAPICommitReturnsValuesAndAttributedEntry(t *testing.T) {
+	type committer interface {
+		Commit(context.Context, func(*Tx) (any, error)) (any, error)
+	}
+	for _, mode := range []string{"model", "nested"} {
+		t.Run(mode, func(t *testing.T) {
+			var effects atomic.Int64
+			var escaped *ToolAPI
+			var committed ID
+			registry := NewRegistry()
+			reg := wrapRegistration("commit_value_probe")
+			reg.Execute = func(ctx context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+				effects.Add(1)
+				escaped = api
+				values, ok := any(api).(committer)
+				if !ok {
+					t.Error("source ToolExecutionApi.commit callback-value signature missing")
+					return ToolResult{IsError: true}, nil
+				}
+				value, err := values.Commit(ctx, func(tx *Tx) (any, error) {
+					id, err := tx.MintID()
+					if err != nil {
+						return nil, err
+					}
+					if err := tx.AppendEntry(Entry{ID: id, Conversation: api.runtime.ConversationID(), Kind: "test.note", HasData: true, Data: JSON{"probe": true}}); err != nil {
+						return nil, err
+					}
+					return id, nil
+				})
+				committed, ok = value.(ID)
+				if err != nil || !ok || committed == 0 {
+					t.Error("tool commit lost its callback ID value", value, err)
+				}
+				marker := &struct{ Cycle any }{}
+				marker.Cycle = marker
+				value, err = values.Commit(ctx, func(*Tx) (any, error) { return marker, nil })
+				if value != marker || err != nil {
+					t.Error("tool commit copied or replaced host identity", value, err)
+				}
+				failure := errors.New("tool callback failure")
+				value, err = values.Commit(ctx, func(*Tx) (any, error) { return marker, failure })
+				if value != nil || err != failure {
+					t.Error("tool callback failure lost identity or leaked value", value, err)
+				}
+				return ToolResult{Content: "value committed"}, nil
+			}
+			if err := registry.Register(reg); err != nil {
+				t.Fatal(err)
+			}
+			ref, options := setupFakeAPI(t, func(_ context.Context, _ *goai.Model, input *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
+				ch := make(chan goai.Event, 1)
+				last := input.Messages[len(input.Messages)-1]
+				if last.Role == goai.RoleUser {
+					answer := terminal("call")
+					answer.Message.StopReason = goai.StopReasonToolUse
+					answer.Reason = goai.StopReasonToolUse
+					answer.Message.Content = []goai.ContentBlock{{Type: "toolCall", ID: "source-value", Name: "commit_value_probe", Arguments: map[string]any{}}}
+					ch <- answer
+				} else {
+					ch <- terminal("done")
+				}
+				close(ch)
+				return ch
+			})
+			options.Registry = registry
+			definition := taskDefinition(t, "source.tool-api-values", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+				result, err := r.CallTool(ctx, "probe", "commit_value_probe", JSON{})
+				if err != nil || result.IsError || result.Content != "value committed" {
+					t.Error("source nested tool commit result", result, err)
+				}
+				return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone(nil), nil })
+			})
+			if _, err := registry.RegisterTask(definition); err != nil {
+				t.Fatal(err)
+			}
+			store, err := newTestSQLite(t)
+			if err != nil {
+				t.Fatal(err)
+			}
+			h := openHarness(t, store, options)
+			conversation := root(t, h, ref)
+			if mode == "model" {
+				submission, err := conversation.Submit(bg, Input{Content: "go"})
+				if err != nil {
+					t.Fatal(err)
+				}
+				waitSubmission(t, submission)
+			} else {
+				record := waitPublicTask(t, h, createPublicTask(t, h, definition, nil, TaskOptions{Conversation: conversation.ID(), Ownership: TaskOwnership{Kind: "conversation"}}))
+				if record.State.Outcome.Status != "completed" {
+					t.Error(record.State.Outcome)
+				}
+			}
+			if effects.Load() != 1 || escaped == nil {
+				t.Fatal("source tool callback effects", effects.Load())
+			}
+			entry, found, err := h.Entry(bg, committed)
+			if err != nil || !found || entry.ByTask != escaped.TaskID() || entry.Kind != "test.note" {
+				t.Error("tool commit lost adopted entry attribution", entry, found, err)
+			}
+			if values, ok := any(escaped).(committer); ok {
+				called := false
+				value, err := values.Commit(bg, func(*Tx) (any, error) { called = true; return "late", nil })
+				if err == nil || value != nil || called {
+					t.Error("ended tool retained callback commit authority", value, err, called)
+				}
+			}
+		})
+	}
+}

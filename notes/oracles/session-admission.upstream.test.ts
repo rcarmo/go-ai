@@ -742,3 +742,11 @@ it("returns callback values and arbitrary host identity from the original Sessio
  const failure={callback:"failure"};await expect(session.commit(()=>{throw failure},context)).rejects.toBe(failure);
  expect(await session.commit(()=>"still usable",context)).toBe("still usable");await session.close(context);
 });
+
+it("returns entry and host values from the original tool execution api commit",async()=>{
+ const {chatSetup,openChat}=await import("@pinned/chat"),{addTool}=await import("@pinned/harness-support");const {MemoryStorage,defineTool}=await import("@earendil-works/pi-durable");const {fauxAssistantMessage,fauxText,fauxToolCall}=await import("@reference/pi-ai");
+ const setup=chatSetup();let effects=0;let escaped:any;const marker:any={};marker.self=marker;
+ addTool(setup.registry,defineTool({name:"commit_value_probe",description:"values",parameters:{type:"object"} as any,execute:async(_args,api,callContext)=>{effects++;escaped=api;const entry=await api.commit(tx=>tx.appendEntry(api.conversationId,{kind:"test.note",data:{probe:true}}),callContext);expect(entry.byTaskId).toBe(api.taskId);expect(await api.commit(()=>marker,callContext)).toBe(marker);const failure=new Error("callback failure");await expect(api.commit(()=>{throw failure},callContext)).rejects.toBe(failure);return{output:[{type:"text",text:"value committed"}]}}}));
+ setup.faux.setResponses([fauxAssistantMessage([fauxToolCall("commit_value_probe",{},{id:"source-value"})],{stopReason:"toolUse"}),fauxAssistantMessage([fauxText("done")])]);const {harness,root}=await openChat(new MemoryStorage(),setup);
+ expect((await (await root.submit({type:"input",content:"go"},context)).wait(context)).status).toBe("done");expect(effects).toBe(1);let called=false;await expect(escaped.commit(()=>{called=true;return"late"},context)).rejects.toThrow();expect(called).toBe(false);await harness.close(context);
+});

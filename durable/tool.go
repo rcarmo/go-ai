@@ -840,14 +840,31 @@ func (a *ToolAPI) seal() error {
 }
 func (a *ToolAPI) TaskID() ID { a.mu.Lock(); defer a.mu.Unlock(); return a.task.ID }
 
-// Additive runtime forwarding never changes the restricted atomic ToolResult
-// Commit callback. Execution replacement stays private even inside these Txs.
-func (a *ToolAPI) Commit(ctx context.Context, callback func(*Tx) error) error {
-	return a.runtime.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) { return nil, callback(tx) })
+// Commit returns its callback's host value through this invocation's runtime.
+// ToolResult.Commit remains the separate atomic final-result callback; execution
+// replacement stays private even inside these transactions.
+func (a *ToolAPI) Commit(ctx context.Context, callback func(*Tx) (any, error)) (any, error) {
+	if callback == nil {
+		return nil, reject("nil tool commit callback")
+	}
+	var value any
+	err := a.runtime.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
+		var callbackErr error
+		value, callbackErr = callback(tx)
+		return nil, callbackErr
+	})
+	if err != nil {
+		return nil, err
+	}
+	return value, nil
 }
 func (a *ToolAPI) CreateTask(ctx context.Context, def *TaskDefinition, input any, options TaskOptions) (ID, error) {
 	var id ID
-	err := a.Commit(ctx, func(tx *Tx) error { var err error; id, err = tx.CreateTask(def, input, options); return err })
+	_, err := a.Commit(ctx, func(tx *Tx) (any, error) {
+		var err error
+		id, err = tx.CreateTask(def, input, options)
+		return nil, err
+	})
 	return id, err
 }
 func (a *ToolAPI) WaitForTask(ctx context.Context, id ID) (TaskRecord, error) {
