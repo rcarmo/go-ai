@@ -75,7 +75,7 @@ type CompactionInput struct {
 	Entries      []Entry
 	Messages     []MessageReceipt
 	FirstKept    ID
-	Instructions string
+	Instructions *string
 }
 type CompactionDecision struct {
 	Decline bool
@@ -516,5 +516,9 @@ func callBeforeCompact(ctx context.Context, hook func(context.Context, Compactio
 			err = reject("beforeCompact hook panic")
 		}
 	}()
+	if input.Instructions != nil {
+		text := *input.Instructions
+		input.Instructions = &text
+	}
 	return hook(ctx, input, &HookAPI{r})
 }

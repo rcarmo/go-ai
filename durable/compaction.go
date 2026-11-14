@@ -16,28 +16,14 @@ type CompactionPolicy struct {
 	MaxTokens        int  `json:"maxTokens,omitempty"`
 }
 
-type CompactionOptions struct {
-	KeepRecentTokens int
-	// Nil follows resolved settings when KeepRecentTokens is zero. Use this
-	// pointer for an explicit zero recent-token budget.
-	KeepRecentTokensOverride *int
-	Instructions             string
-	MaxTokens                int
-	Retry                    RetryPolicy
-}
-
 const compactionSummaryPrefix = "The conversation history before this point was compacted into the following summary:\n\n<summary>\n"
 
 // Compact creates a durable manual summarisation task. Selection and request
 // intent survive reopen; summary placement is a passive write, queued while a
 // generation runs. Generation-owned blocking compactions append directly.
-func (c *ConversationHandle) Compact(ctx context.Context, options CompactionOptions) (ID, error) {
-	if options.KeepRecentTokens < 0 || options.MaxTokens < 0 || options.KeepRecentTokensOverride != nil && *options.KeepRecentTokensOverride < 0 {
-		return 0, reject("invalid compaction options")
-	}
-	if err := validateRetryPolicy(options.Retry); err != nil {
-		return 0, err
-	}
+// Nil instructions omit the field; a non-nil empty string remains explicit.
+// Selection, token budget and retry policy come from the agent settings.
+func (c *ConversationHandle) Compact(ctx context.Context, instructions *string) (ID, error) {
 	h := c.h
 	if h.closing.Load() {
 		return 0, ErrClosed
@@ -53,12 +39,9 @@ func (c *ConversationHandle) Compact(ctx context.Context, options CompactionOpti
 	var id ID
 	_, err = h.CommitTasks(ctx, c.id, func(tx *Tx) error {
 		var err error
-		input := JSON{"reason": "manual", "instructions": options.Instructions, "maxTokens": options.MaxTokens, "retry": JSON{"enabled": options.Retry.Enabled, "maxRetries": options.Retry.MaxRetries, "baseDelayMs": options.Retry.BaseDelayMs, "maxDelayMs": options.Retry.MaxDelayMs}}
-		if options.KeepRecentTokens != 0 {
-			input["keepRecentTokens"] = options.KeepRecentTokens
-		}
-		if options.KeepRecentTokensOverride != nil {
-			input["keepRecentTokens"] = *options.KeepRecentTokensOverride
+		input := JSON{"reason": "manual"}
+		if instructions != nil {
+			input["instructions"] = *instructions
 		}
 		id, err = tx.CreateTask(definition, input, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 		return err
@@ -104,12 +87,6 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 			input := task.Input.Value.(map[string]any)
 			policy := compactionPolicy(agent.Settings, agent.Model)
 			keep := policy.KeepRecentTokens
-			if value, ok := input["keepRecentTokens"]; ok {
-				n, _ := exactNumber(value)
-				if n != nil {
-					keep = int(n.Num().Int64())
-				}
-			}
 			cut := compactionCut(view, keep)
 			if cut <= 0 {
 				return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) {
@@ -131,7 +108,10 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 			if err != nil {
 				return err
 			}
-			instructions, _ := input["instructions"].(string)
+			var instructions *string
+			if text, present := input["instructions"].(string); present {
+				instructions = &text
+			}
 			reason, _ := input["reason"].(string)
 			if reason == "" {
 				reason = "threshold"
@@ -182,12 +162,6 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 			if policy.MaxTokens > 0 {
 				maxTokens = policy.MaxTokens
 			}
-			if value, ok := input["maxTokens"]; ok {
-				n, _ := exactNumber(value)
-				if n != nil && n.Num().Int64() > 0 {
-					maxTokens = int(n.Num().Int64())
-				}
-			}
 			if model.MaxTokens > 0 && maxTokens > model.MaxTokens {
 				maxTokens = model.MaxTokens
 			}
@@ -199,21 +173,15 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 			if err != nil {
 				return err
 			}
-			checkpoint := JSON{"pinnedModel": pinned, "settings": settings, "reason": reason, "phase": "summarize", "tail": tail, "firstKept": view.Entries[cut].ID, "instructions": instructions, "model": JSON{"provider": string(agent.Model.Provider), "id": agent.Model.ID}, "maxTokens": maxTokens, "attempt": 1}
+			checkpoint := JSON{"pinnedModel": pinned, "settings": settings, "reason": reason, "phase": "summarize", "tail": tail, "firstKept": view.Entries[cut].ID, "model": JSON{"provider": string(agent.Model.Provider), "id": agent.Model.ID}, "maxTokens": maxTokens, "attempt": 1}
+			if instructions != nil {
+				checkpoint["instructions"] = *instructions
+			}
 			if err := storeCompactionSource(checkpoint, text, h.session.limits); err != nil {
 				return err
 			}
 			checkpoint["thinkingLevel"] = string(agent.ThinkingLevel)
 			retry := agent.Settings.Retry
-			if raw, ok := input["retry"].(map[string]any); ok {
-				var explicit RetryPolicy
-				if err := fromObject(JSON(raw), &explicit, h.session.limits); err != nil {
-					return err
-				}
-				if explicit != (RetryPolicy{}) {
-					retry = explicit
-				}
-			}
 			retryValue, err := dtoObject(retry, h.session.limits)
 			if err != nil {
 				return err
@@ -302,7 +270,10 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 			if err != nil {
 				return err
 			}
-			instructions, _ := cp["instructions"].(string)
+			var instructions *string
+			if text, present := cp["instructions"].(string); present {
+				instructions = &text
+			}
 			conv := &goai.Context{SystemPrompt: compactionSystemPrompt, Messages: []goai.Message{{Role: goai.RoleUser, Content: []goai.ContentBlock{compactionRequestBlock(source, instructions, nativeSource)}}}}
 			message, success, _ := h.drain(goai.Stream(ctx, model, conv, options), model)
 			if err := ctx.Err(); err != nil {

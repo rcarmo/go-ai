@@ -40,7 +40,8 @@ func TestCompactionUTF16MainFormattingAndState(t *testing.T) {
 	if err != nil || !native || restored != source {
 		t.Fatal("source replay changed units", err)
 	}
-	block := compactionRequestBlock(restored, "focus", native)
+	focus := "focus"
+	block := compactionRequestBlock(restored, &focus, native)
 	if !block.HasToolArgumentTranscript() || !strings.Contains(block.Text, source) {
 		t.Fatal("request lost source ownership")
 	}
@@ -115,7 +116,8 @@ func TestCompactionUTF16MainExecutionReopen(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		id, err := conversation.Compact(bg, CompactionOptions{KeepRecentTokens: goai.EstimateMessageTokens(receiptMessage(userReceipt("recent question"))), MaxTokens: 100})
+		configureCompactionTestPolicy(t, conversation, compactionTestInt(goai.EstimateMessageTokens(receiptMessage(userReceipt("recent question")))), compactionTestInt((100*5+3)/4))
+		id, err := conversation.Compact(bg, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

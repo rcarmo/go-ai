@@ -183,7 +183,8 @@ func TestToolSearch120LoadsPersistsAndDoesNotExecuteDiscoveredTool(t *testing.T)
 		if e = decodeDocumentValue(forkDoc, h.session.limits, &forkAgent); e != nil || forkAgent.ModelTools == nil || forkAgent.ModelTools.Add[0] != "github_get_issue" {
 			t.Fatal(forkAgent, e)
 		}
-		compact, e := conv.Compact(bg, CompactionOptions{KeepRecentTokensOverride: func() *int { n := 0; return &n }()})
+		configureCompactionTestPolicy(t, conv, func() *int { n := 0; return &n }(), nil)
+		compact, e := conv.Compact(bg, nil)
 		if e != nil {
 			t.Fatal(e)
 		}

@@ -56,7 +56,7 @@ func TestMainHarnessSummarisationCrashResumesCheckpoint(t *testing.T) {
 				t.Fatal(result)
 			}
 		}
-		id, err := c.Compact(bg, CompactionOptions{})
+		id, err := c.Compact(bg, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

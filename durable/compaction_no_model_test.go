@@ -25,7 +25,7 @@ func TestCompactionMissingModelFailsBeforeNoCutOrHooks(t *testing.T) {
 		options.Registry = registry
 		h := openHarness(t, b.store, options)
 		conversation := root(t, h, ref)
-		id, err := conversation.Compact(bg, CompactionOptions{})
+		id, err := conversation.Compact(bg, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

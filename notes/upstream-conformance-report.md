@@ -2,9 +2,9 @@
 
 **Overall migration: incomplete. Full parity and release acceptance are not established.** This report closes a verified development slice, not the complete upstream port.
 
-Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Native implementation: `/work/go-ai/durable`, authorised SQLite-only, pure Go. The preceding pushed checkpoint is `d9c1af2` (original compaction transcript/prompts).
+Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Native implementation: `/work/go-ai/durable`, authorised SQLite-only, pure Go. The preceding pushed checkpoint is `db11ce7` (UTF-16 slice/watch completion).
 
-Latest continuation: tool truncation retains the source UTF-16 slice boundary; watch completion follows registration removal; the failed-commit/deferred-successor fixture now checks the original packet. See [compaction evidence](canonical-compaction-kind.md#source-transcript-and-prompt-literals). See [submission admission](submission-admission.md#canonical-string-content-and-placement-clock). Selected reference coverage is200 unchanged cases +54 probes. Exact reference assets repair the original Cloudflare suite (36 pass); two provider suites now reach original credential skips, not live acceptance. Image execution still exceeds its768 MiB worker cap. The full99-file oracle is not green; see [oracle limits](upstream-oracle.md).
+Latest continuation: manual Compact accepts optional instructions only, without a second options contract. Raw manual task input and absent/empty/nonempty instruction propagation now match the mapped source assertions. See [compaction evidence](canonical-compaction-kind.md#source-transcript-and-prompt-literals). See [submission admission](submission-admission.md#canonical-string-content-and-placement-clock). Selected reference coverage is200 unchanged cases +55 probes. Exact reference assets repair the original Cloudflare suite (36 pass); two provider suites now reach original credential skips, not live acceptance. Image execution still exceeds its768 MiB worker cap. The full99-file oracle is not green; see [oracle limits](upstream-oracle.md).
 
 ## Earlier queue-production checkpoint
 
@@ -18,7 +18,11 @@ Latest continuation: tool truncation retains the source UTF-16 slice boundary; w
 
 The exact input/write shape tests failed before the fixes. Idle progress and continuation already passed and required no speculative runtime changes. A failure/reopen fixture initially tried to close storage already owned/closed by Session; correcting the fixture required no runtime fix. Tests remain in the existing version-neutral transaction suite.
 
-## Latest truncation/lifecycle verification
+## Latest manual-compaction API verification
+
+Full uncached durable854.735s/tools26.544s; ten focused shuffled repetitions12.790s; four semantic faults; vet, Staticcheck, logging and register pass. Selected reference255 cases pass (200 unchanged +55 probes). Public CompactionOptions is removed;18 caller fixtures now configure policy through actual agent settings. Full task input, instruction presence and pointer ownership are checked without normalization. Complete policy/checkpoint/public API acceptance stays open.
+
+## Previous truncation/lifecycle verification
 
 Full uncached durable849.377s/tools26.940s;100 shuffled targeted repetitions39.619s; two semantic slice/count faults; vet, Staticcheck and logging pass. Following dead fixture-helper cleanup, three full gate-suite repetitions6.941s and static gates pass. Selected reference254 cases pass (200 unchanged +54 probes).
 

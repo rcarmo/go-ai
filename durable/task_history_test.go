@@ -305,7 +305,7 @@ func TestV150AfterRunHookHistoryKeepsRunStartHiddenByMidRunCompaction(t *testing
 			t.Fatal("tool did not start")
 		}
 		// The summary is placed in the middle of the run, before its answer.
-		compaction, err := c.Compact(bg, CompactionOptions{})
+		compaction, err := c.Compact(bg, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

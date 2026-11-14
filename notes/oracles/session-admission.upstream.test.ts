@@ -555,3 +555,19 @@ it("truncates a tool result at the exact UTF-16 slice boundary",async()=>{
  const serialized=serializeConversation([{role:"toolResult",toolCallId:"c",toolName:"read",content:[{type:"text",text}],isError:false,timestamp:0}]);
  expect(serialized).toBe("[Tool result]: "+"x".repeat(1999)+"\ud83d\n\n[... 1 more characters truncated]");
 });
+
+it("preserves absent, empty and nonempty manual compaction instructions",async()=>{
+ const {chatSetup,openChat}=await import("@pinned/chat"),{assistant}=await import("@pinned/harness-support");
+ for(const instructions of [undefined,"","preserve paths"]){
+  const setup=chatSetup();setup.settings.compaction={enabled:false,keepRecentTokens:0};let request="";
+  setup.faux.setResponses([assistant("a"),assistant("b"),(input:any)=>{const user=input.messages.find((m:any)=>m.role==="user");request=typeof user.content==="string"?user.content:user.content[0].text;return assistant("summary")}]);
+  const {harness,root}=await openChat(new ControlledStorage(),setup);
+  try{
+   await (await root.submit({type:"input",content:"one"},context)).wait(context);
+   await (await root.submit({type:"input",content:"two"},context)).wait(context);
+   const id=await root.compact(instructions,context),record=await harness.waitForTask(id,context);
+   expect(record.state.outcome.status).toBe("completed");expect(record.input).toEqual(instructions===undefined?{reason:"manual"}:{reason:"manual",instructions});
+   expect(request.endsWith(instructions===undefined?"Keep each section concise. Preserve exact file paths, function names, and error messages.":"\n\nAdditional focus: "+instructions)).toBe(true);
+  }finally{await harness.close(context)}
+ }
+});

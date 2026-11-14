@@ -294,7 +294,7 @@ func TestMainCutoffCompactionPublishesFailure(t *testing.T) {
 			}
 			waitSubmission(t, sub)
 		}
-		id, err := c.Compact(bg, CompactionOptions{})
+		id, err := c.Compact(bg, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

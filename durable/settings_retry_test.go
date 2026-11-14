@@ -107,7 +107,8 @@ func TestCompactionResolvedReserveBudgetModelCapAndStreamSettings(t *testing.T) 
 				if err != nil {
 					t.Fatal(err)
 				}
-				id, err := conversation.Compact(bg, CompactionOptions{KeepRecentTokens: goai.EstimateMessageTokens(goai.Message{Role: goai.RoleUser, Content: []goai.ContentBlock{{Type: "text", Text: "recent"}}})})
+				configureCompactionTestPolicy(t, conversation, compactionTestInt(goai.EstimateMessageTokens(goai.Message{Role: goai.RoleUser, Content: []goai.ContentBlock{{Type: "text", Text: "recent"}}})), nil)
+				id, err := conversation.Compact(bg, nil)
 				if err != nil {
 					t.Fatal(err)
 				}

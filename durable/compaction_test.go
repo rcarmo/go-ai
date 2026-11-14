@@ -48,7 +48,8 @@ func TestManualCompactionPinsCutUsageAndReopensWithoutReplay(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		id, err := conversation.Compact(bg, CompactionOptions{KeepRecentTokens: goai.EstimateMessageTokens(receiptMessage(userReceipt("recent question"))), MaxTokens: 100})
+		configureCompactionTestPolicy(t, conversation, compactionTestInt(goai.EstimateMessageTokens(receiptMessage(userReceipt("recent question")))), compactionTestInt((100*5+3)/4))
+		id, err := conversation.Compact(bg, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -121,7 +122,8 @@ func TestManualCompactionBusyQueuesSummaryUntilBoundary(t *testing.T) {
 			t.Fatal(err)
 		}
 		awaitTaskSignal(t, entered)
-		id, err := conversation.Compact(bg, CompactionOptions{KeepRecentTokens: goai.EstimateMessageTokens(receiptMessage(userReceipt("busy question")))})
+		configureCompactionTestPolicy(t, conversation, compactionTestInt(goai.EstimateMessageTokens(receiptMessage(userReceipt("busy question")))), nil)
+		id, err := conversation.Compact(bg, nil)
 		if err != nil {
 			t.Fatal("busy compaction rejected", err)
 		}

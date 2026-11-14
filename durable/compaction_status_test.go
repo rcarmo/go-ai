@@ -49,7 +49,8 @@ func TestCompactionLiveStatusRetrySnapshotReopenAndRemoval(t *testing.T) {
 			t.Fatal(err)
 		}
 		zero := 0
-		id, err := conversation.Compact(bg, CompactionOptions{KeepRecentTokensOverride: &zero})
+		configureCompactionTestPolicy(t, conversation, &zero, nil)
+		id, err := conversation.Compact(bg, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

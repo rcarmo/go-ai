@@ -106,7 +106,7 @@ func loadCompactionSource(cp JSON, l Limits) (string, bool, error) {
 	}
 	return text, true, nil
 }
-func compactionRequestBlock(source, instructions string, native bool) goai.ContentBlock {
+func compactionRequestBlock(source string, instructions *string, native bool) goai.ContentBlock {
 	block := goai.ContentBlock{Type: "text", Text: compactionRequestText(source, instructions)}
 	if native {
 		block.SetToolArgumentTranscript(block.Text)

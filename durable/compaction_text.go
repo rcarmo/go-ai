@@ -153,10 +153,10 @@ func truncateCompactionText(text string, maximum int) string {
 	return text[:cut] + partial + fmt.Sprintf("\n\n[... %d more characters truncated]", units-kept)
 }
 
-func compactionRequestText(source, instructions string) string {
+func compactionRequestText(source string, instructions *string) string {
 	focus := ""
-	if instructions != "" {
-		focus = "\n\nAdditional focus: " + instructions
+	if instructions != nil {
+		focus = "\n\nAdditional focus: " + *instructions
 	}
 	return "<conversation>\n" + source + "\n</conversation>\n\n" + compactionPrompt + focus
 }

@@ -839,7 +839,7 @@ func TestMainPublicCommitObserverCanonicalCompactionKind(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer guard.Detach()
-		id, err := c.Compact(bg, CompactionOptions{})
+		id, err := c.Compact(bg, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -862,6 +862,9 @@ func TestMainPublicCommitObserverCanonicalCompactionKind(t *testing.T) {
 		}
 		if immutableViewMember(t, first, "version").Number() != json.Number("1") || immutableViewMember(t, immutableViewMember(t, first, "input"), "reason").String() != "manual" {
 			t.Fatal(first.Copy())
+		}
+		if input := immutableViewMember(t, first, "input"); !equalJSONValue(input.Copy(), JSON{"reason": "manual"}) {
+			t.Fatal("manual compaction input is not the exact source record", input.Copy())
 		}
 		state := immutableViewMember(t, first, "state")
 		if !equalJSONValue(state.Copy(), JSON{"status": "pending", "checkpoint": JSON{"phase": "select"}}) {

@@ -115,10 +115,11 @@ func TestCompactionPromptsMatchPinnedSourceLiterals(t *testing.T) {
 	if compactionSystemPrompt != fixture.System {
 		t.Error("summarization system prompt differs from source")
 	}
-	for _, instructions := range []string{"", "preserve paths"} {
+	empty, focus := "", "preserve paths"
+	for _, instructions := range []*string{nil, &empty, &focus} {
 		want := "<conversation>\n[User]: hello\n</conversation>\n\n" + fixture.User
-		if instructions != "" {
-			want += "\n\nAdditional focus: " + instructions
+		if instructions != nil {
+			want += "\n\nAdditional focus: " + *instructions
 		}
 		if got := compactionRequestText("[User]: hello", instructions); got != want {
 			t.Errorf("source summary request differs: %q", got)
@@ -186,7 +187,9 @@ func TestCompactionReopenPinsBehaviorButRehydratesTransport(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		id, err := conversation.Compact(bg, CompactionOptions{KeepRecentTokens: goai.EstimateTextTokens("recent"), MaxTokens: 100, Instructions: "paths"})
+		configureCompactionTestPolicy(t, conversation, compactionTestInt(goai.EstimateTextTokens("recent")), compactionTestInt((100*5+3)/4))
+		instructions := "paths"
+		id, err := conversation.Compact(bg, &instructions)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -216,4 +219,122 @@ func TestCompactionReopenPinsBehaviorButRehydratesTransport(t *testing.T) {
 			t.Fatal("summary not recovered", found, calls.Load())
 		}
 	})
+}
+
+// Source manual compact has only optional instructions. Test-specific policy
+// belongs in the agent settings, never in a second per-call options contract.
+func configureCompactionTestPolicy(t *testing.T, conversation *ConversationHandle, keep, reserve *int) {
+	t.Helper()
+	state, err := conversation.h.Snapshot(bg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, ok := agentDocument(state, conversation.ID())
+	if !ok {
+		t.Fatal("missing agent settings")
+	}
+	var agent agentState
+	if err := fromObject(doc.Value, &agent, conversation.h.session.limits); err != nil {
+		t.Fatal(err)
+	}
+	settings := agent.Settings
+	overrides := CompactionSettings{}
+	if settings.CompactionOverrides != nil {
+		overrides = *settings.CompactionOverrides
+	}
+	if keep != nil {
+		overrides.KeepRecentTokens = keep
+	}
+	if reserve != nil {
+		overrides.ReserveTokens = reserve
+	}
+	settings.CompactionOverrides = &overrides
+	if err := conversation.ConfigurePatch(bg, AgentPatch{Settings: &settings}); err != nil {
+		t.Fatal(err)
+	}
+}
+func compactionTestInt(value int) *int { return &value }
+
+func TestSourceManualCompactionInstructionPresence(t *testing.T) {
+	empty, focus := "", "preserve paths"
+	for _, test := range []struct {
+		name         string
+		instructions *string
+	}{{"absent", nil}, {"empty", &empty}, {"nonempty", &focus}} {
+		t.Run(test.name, func(t *testing.T) {
+			store, err := newTestSQLite(t)
+			if err != nil {
+				t.Fatal(err)
+			}
+			requests := make(chan string, 1)
+			ref, options := setupFakeAPI(t, func(_ context.Context, _ *goai.Model, input *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
+				if input.SystemPrompt != compactionSystemPrompt {
+					t.Error("not the exact source system prompt")
+				}
+				requests <- input.Messages[0].Content[0].Text
+				ch := make(chan goai.Event, 1)
+				ch <- terminal("summary")
+				close(ch)
+				return ch
+			})
+			options.Registry = NewRegistry()
+			if err := options.Registry.Install(&Extension{Name: "instruction-owner", CompactionHooks: CompactionHooks{BeforeCompact: func(_ context.Context, input CompactionInput, _ *HookAPI) (*CompactionDecision, error) {
+				if (input.Instructions == nil) != (test.instructions == nil) {
+					t.Error("hook lost instruction presence")
+				}
+				if input.Instructions != nil {
+					if *input.Instructions != *test.instructions {
+						t.Error("hook input changed")
+					}
+					*input.Instructions = "hook mutation"
+				}
+				return nil, nil
+			}}}); err != nil {
+				t.Fatal(err)
+			}
+			h := openHarness(t, store, options)
+			c := root(t, h, ref)
+			configureCompactionTestPolicy(t, c, compactionTestInt(0), nil)
+			if _, err := c.Commit(bg, func(tx *Tx) error {
+				for _, text := range []string{"old", "recent"} {
+					id, err := tx.MintID()
+					if err != nil {
+						return err
+					}
+					if err := tx.AppendEntry(Entry{ID: id, Conversation: c.ID(), Kind: "pi.user", Model: []MessageReceipt{userReceipt(text)}}); err != nil {
+						return err
+					}
+				}
+				return nil
+			}); err != nil {
+				t.Fatal(err)
+			}
+			var instructions *string
+			wantInput := JSON{"reason": "manual"}
+			if test.instructions != nil {
+				value := *test.instructions
+				instructions = &value
+				wantInput["instructions"] = value
+			}
+			id, err := c.Compact(bg, instructions)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if instructions != nil {
+				*instructions = "caller mutation"
+			}
+			record := waitPublicTask(t, h, id)
+			if record.State.Outcome.Status != "completed" || !equalJSONValue(record.Input.Value, wantInput) {
+				t.Fatal("noncanonical compaction input", record)
+			}
+			request := watchReceive(t, requests)
+			suffix := ""
+			if test.instructions != nil {
+				suffix = "\n\nAdditional focus: " + *test.instructions
+			}
+			if !strings.HasSuffix(request, compactionPrompt+suffix) {
+				t.Fatal("instruction presence changed across durable phases", request)
+			}
+		})
+	}
 }

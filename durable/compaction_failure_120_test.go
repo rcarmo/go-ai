@@ -18,7 +18,7 @@ func TestCompaction120FailureReopenNoCutAndSummaryClearing(t *testing.T) {
 		options.Models = func(goai.Provider, string) *goai.Model { return nil }
 		h := openHarness(t, b.store, options)
 		conv := root(t, h, ref)
-		failed, err := conv.Compact(bg, CompactionOptions{})
+		failed, err := conv.Compact(bg, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -48,7 +48,7 @@ func TestCompaction120FailureReopenNoCutAndSummaryClearing(t *testing.T) {
 		if f := failure(); f == nil || f.Task != failed {
 			t.Fatal("failure lost on reopen", f)
 		}
-		noCut, err := conv.Compact(bg, CompactionOptions{})
+		noCut, err := conv.Compact(bg, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -77,7 +77,8 @@ func TestCompaction120FailureReopenNoCutAndSummaryClearing(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		summary, err := conv.Compact(bg, CompactionOptions{KeepRecentTokens: 1})
+		configureCompactionTestPolicy(t, conv, compactionTestInt(1), nil)
+		summary, err := conv.Compact(bg, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
