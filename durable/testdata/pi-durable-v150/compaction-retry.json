@@ -2,7 +2,21 @@
   "target": "f9a26365568127461c47a07a37dcb42c140a3ac5",
   "package": "@earendil-works/pi-durable",
   "version": "1.5.0",
-  "producer": "original Harness running CompactionTask + MemoryStorage records",
+  "producer": "original Harness running CompactionTask + MemoryStorage records and LiveDoc snapshot",
+  "live": {
+    "compactions": [
+      {
+        "taskId": 9,
+        "trigger": "manual",
+        "blocking": false,
+        "attempt": 1,
+        "retry": {
+          "at": 2042,
+          "error": "503 overloaded"
+        }
+      }
+    ]
+  },
   "conversations": [
     {
       "id": 1

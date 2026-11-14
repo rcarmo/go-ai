@@ -4,7 +4,7 @@
 
 Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Native implementation: `/work/go-ai/durable`, authorised SQLite-only, pure Go. The preceding pushed implementation checkpoint is `04726f3` (request-time model/retry authority); image-resource diagnosis is recorded at `1e0f3ad`.
 
-Latest continuation: exact canonical CompactionResult arms replace native compacted/firstKept flags; summary placement explicitly clears failure while no-cut completion retains it. This follows the canonical request/retry execution checkpoint7ed4921. See [compaction evidence](canonical-compaction-kind.md#canonical-compaction-results). Complete compaction and overall alignment remain open.
+Latest continuation: persisted LiveDoc v3 compaction statuses/failures now use trigger; public CompactionFailure exposes Trigger. Three production-path controls failed on old reason keys before fixing writers/readers. Complete original retry status survives SQLite reopen without key normalisation. See [evidence](cold-builtin-hydration.md#version3-compaction-writers). Full alignment remains incomplete.
 
 ## Earlier queue-production checkpoint
 
@@ -18,7 +18,11 @@ Latest continuation: exact canonical CompactionResult arms replace native compac
 
 The exact input/write shape tests failed before the fixes. Idle progress and continuation already passed and required no speculative runtime changes. A failure/reopen fixture initially tried to close storage already owned/closed by Session; correcting the fixture required no runtime fix. Tests remain in the existing version-neutral transaction suite.
 
-## Latest compaction result verification
+## Latest LiveDoc compaction-key verification
+
+Full durable427.062s/tools15.285s; ten shuffled targeted repetitions10.529s; four semantic faults, vet, Staticcheck, logging and register pass. Selected reference258 and separate original compaction176 pass, zero skipped. Both original request/retry fixtures, including LiveDoc snapshots, recapture byte-for-byte. Analysed logs/overlays/recaptures are removed. Complete-record assertions cover retry, missing-model and cutoff failures; legacy v1/v2 migration remains unchanged.
+
+## Previous compaction result verification
 
 Full durable430.208s/tools20.080s; ten shuffled targeted repetitions19.150s including the subsequently strengthened hook-result assertions; three semantic faults and a previous-production hook baseline rejected; vet, Staticcheck, logging and register pass. Selected reference258 and separate original compaction176 pass, zero skipped. Exact empty/queued/owned/background results failed before production changes; no lifecycle assertions were removed. Full result-run production passed before the additional hook assertions, which passed the subsequent focused repetitions.
 

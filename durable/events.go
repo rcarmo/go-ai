@@ -59,9 +59,9 @@ type ConversationSnapshot struct {
 }
 
 type CompactionFailure struct {
-	Task   ID
-	Reason string
-	Error  string
+	Task    ID
+	Trigger string
+	Error   string
 }
 
 // NestedToolSnapshot is committed active nested work, ordered by task ID.
@@ -659,7 +659,7 @@ func eventCompactionStatuses(value JSON) map[ID]AgentEvent {
 			continue
 		}
 		id := ID(number.Num().Uint64())
-		reason, _ := object["reason"].(string)
+		reason, _ := object["trigger"].(string)
 		blocking, _ := object["blocking"].(bool)
 		result[id] = AgentEvent{Task: id, Reason: reason, Blocking: blocking}
 	}

@@ -306,8 +306,7 @@ func TestMainCutoffCompactionPublishesFailure(t *testing.T) {
 		mainCutoffOutcome(t, task, message)
 		live := mainAfterRunLive(t, h, c.ID())
 		failure := generationObject(live["compactionFailure"])
-		// Native compaction status uses `reason` for source `trigger`.
-		if submissionEntryID(failure["taskId"]) != id || failure["reason"] != "manual" || failure["error"] != message || live["compactions"] != nil {
+		if !equalJSONValue(failure, JSON{"taskId": int(id), "trigger": "manual", "error": message}) || live["compactions"] != nil {
 			t.Error("compaction cutoff status", live)
 		}
 		if requests.Load() != 3 {

@@ -615,6 +615,7 @@ it("rehydrates current model metadata when resending an orderly closed summary",
   const id=await opened.root.compact(undefined,context);await blocked.reached;
   const {readFileSync}=await import("node:fs");const fixture=JSON.parse(readFileSync(new URL("../../durable/testdata/pi-durable-v150/compaction-request.json",import.meta.url),"utf8"));
   expect((await harness.getTask(id,context)).state.checkpoint).toEqual(fixture.tasks[0].state.checkpoint);
+  const {LiveDoc}=await import("@earendil-works/pi-durable");expect(await harness.snapshot(LiveDoc,opened.root.id,context)).toEqual(fixture.live);
   await harness.close(context);harness=undefined;
   const next=chatSetup({models:[{id:"faux-1",contextWindow:123,maxTokens:256}]});next.faux.setResponses([assistant("summary")]);setup.models.setProvider(next.faux.provider);
   opened=await openChat(await openNodeSqliteStorage(path),setup);harness=opened.harness;

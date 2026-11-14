@@ -69,7 +69,7 @@ func (t *Tx) syncCompactionStatuses() error {
 					attempt = int(number.Num().Int64())
 				}
 			}
-			status := JSON{"taskId": id, "reason": reason, "blocking": task.Owner != 0, "attempt": attempt}
+			status := JSON{"taskId": id, "trigger": reason, "blocking": task.Owner != 0, "attempt": attempt}
 			if checkpoint["phase"] == "retry" {
 				if previous != nil {
 					if retry, present := previous["retry"]; present {
@@ -101,7 +101,7 @@ func (t *Tx) syncCompactionStatuses() error {
 					if reason == "" {
 						reason = "threshold"
 					}
-					value["compactionFailure"] = map[string]any{"taskId": task.ID, "reason": reason, "error": message}
+					value["compactionFailure"] = map[string]any{"taskId": task.ID, "trigger": reason, "error": message}
 				}
 			}
 		}
@@ -131,9 +131,9 @@ func compactionFailureFromLive(live JSON) *CompactionFailure {
 	if !ok || !number.IsInt() || !number.Num().IsUint64() || number.Num().Uint64() == 0 || number.Num().Uint64() > MaxID {
 		return nil
 	}
-	reason, _ := raw["reason"].(string)
+	trigger, _ := raw["trigger"].(string)
 	message, _ := raw["error"].(string)
-	return &CompactionFailure{Task: ID(number.Num().Uint64()), Reason: reason, Error: message}
+	return &CompactionFailure{Task: ID(number.Num().Uint64()), Trigger: trigger, Error: message}
 }
 
 // Retry diagnostics belong to the LiveDoc status, not SummaryRequest.

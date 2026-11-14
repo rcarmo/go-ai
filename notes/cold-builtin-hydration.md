@@ -32,3 +32,11 @@ Final focused migration/builtin/lifecycle/SIGKILL controls pass20 shuffled repea
 ## Remaining acceptance
 
 D08/D14/D17 remain open for their complete source assertion/lifecycle scope; this slice does not credit public builtin-token API coverage, arbitrary malformed legacy-value/error behaviour, key-order collision semantics, or cache-pressure/eviction/weak lifetime coverage. D04 continuation-turn bridge and D16 canonical public stored observation remain separate unfinished work. No complete upstream parity or release acceptance claim.
+
+## Version3 compaction writers
+
+The definition/version migration controls above did not check every field subsequently written by compaction. New production-path assertions exposed version3 records still carrying version1 reason keys. Status and failure writers now persist trigger, and current readers use trigger without a reason fallback. Public CompactionFailure exposes Trigger. Task input and compaction-entry data still use reason, as upstream requires; v1/v2 document migration is unchanged.
+
+The retry status compares the complete original published1.5.0 LiveDoc snapshot before and after SQLite reopen. Missing-model and cutoff failures compare complete stored records. All three controls failed before changes. The older native reason assertion in the cutoff fixture is replaced by the original field, preserving its error/task/removal/report assertions. The derived native event reader also consumes trigger; this is a regression control for that existing API, not original1.5 event-API acceptance.
+
+Four semantic faults and ten shuffled targeted repetitions10.529s pass, alongside vet/Staticcheck/logging. Original compaction110 plus66 supplements pass, zero skipped. Full durable427.062s/tools15.285s; ten shuffled targeted repetitions10.529s; four semantic faults, vet, Staticcheck, logging and register pass. Selected reference258 and separate original compaction176 pass, zero skipped. Both original request/retry fixtures, including LiveDoc snapshots, recapture byte-for-byte. Analysed logs/overlays/recaptures are removed. The source fixture capture now includes LiveDoc snapshots, not complete document-store records; full-store interchange remains open.

@@ -2,7 +2,9 @@ package durable
 
 import (
 	"context"
+	"encoding/json"
 	goai "github.com/rcarmo/go-ai"
+	"os"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -11,7 +13,7 @@ import (
 func TestCompactionLiveStatusRetrySnapshotReopenAndRemoval(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var now atomic.Int64
-		now.Store(1000)
+		now.Store(42)
 		var calls atomic.Int64
 		ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
 			ch := make(chan goai.Event, 1)
@@ -49,13 +51,38 @@ func TestCompactionLiveStatusRetrySnapshotReopenAndRemoval(t *testing.T) {
 		}
 		zero := 0
 		configureCompactionTestPolicy(t, conversation, &zero, nil)
+		events, err := h.WatchEvents(bg, conversation.ID())
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer events.Stop()
+		started := make(chan AgentEvent, 1)
+		if err := events.Start(func(_ context.Context, batch []AgentEvent) error {
+			for _, event := range batch {
+				if event.Type == "compaction_start" {
+					started <- event
+				}
+			}
+			return nil
+		}); err != nil {
+			t.Fatal(err)
+		}
 		id, err := conversation.Compact(bg, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
 		state := waitCompactionCheckpoint(t, h, id, "retry")
+		select {
+		case event := <-started:
+			if event.Task != id || event.Reason != "manual" || event.Blocking {
+				t.Error("derived event lost canonical trigger", event)
+			}
+		case <-time.After(3 * time.Second):
+			t.Fatal("missing committed compaction event")
+		}
+		events.Stop()
 		record, err := CanonicalTask(state.Tasks[id], h.session.limits)
-		if err != nil || record.State.Status != "sleeping" || record.State.Until == nil || *record.State.Until != 3000 {
+		if err != nil || record.State.Status != "sleeping" || record.State.Until == nil || *record.State.Until != 2042 {
 			t.Fatal("compaction retry did not durably sleep", record.State, err)
 		}
 		checkpoint := taskCheckpointMap(record.State.Checkpoint)
@@ -65,7 +92,7 @@ func TestCompactionLiveStatusRetrySnapshotReopenAndRemoval(t *testing.T) {
 		if _, private := checkpoint["retryError"]; private {
 			t.Error("retry error belongs to LiveDoc status, not checkpoint", checkpoint)
 		}
-		until := int64(3000)
+		until := int64(2042)
 		awaitWake140(t, wakes, false, &until)
 		var status map[string]any
 		for _, document := range state.Documents {
@@ -75,10 +102,26 @@ func TestCompactionLiveStatusRetrySnapshotReopenAndRemoval(t *testing.T) {
 					t.Fatal(items)
 				}
 				status = items[0].(map[string]any)
+				if document.Version != 3 {
+					t.Error("source LiveDoc must be version3", document.Version)
+				}
 			}
 		}
-		if status["reason"] != "manual" || status["blocking"] != false || !equalJSONValue(status["attempt"], 1) || status["retry"].(map[string]any)["error"] != "503 overloaded" {
-			t.Fatal(status)
+		// Source live.ts:70-81: compare the complete stored v3 status, not a
+		// migrated copy that could hide a writer still emitting version1 keys.
+		data, err := os.ReadFile("testdata/pi-durable-v150/compaction-retry.json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var original struct {
+			Live JSON `json:"live"`
+		}
+		if err := json.Unmarshal(data, &original); err != nil {
+			t.Fatal(err)
+		}
+		want := original.Live["compactions"].([]any)[0]
+		if !equalJSONValue(status, want) {
+			t.Error("noncanonical stored compaction status", status)
 		}
 		if err := h.Close(bg); err != nil {
 			t.Fatal(err)
@@ -92,7 +135,10 @@ func TestCompactionLiveStatusRetrySnapshotReopenAndRemoval(t *testing.T) {
 		if err != nil || len(snapshot.Documents["pi.live"]["compactions"].([]any)) != 1 {
 			t.Fatal(snapshot, err)
 		}
-		now.Store(3000)
+		if !equalJSONValue(snapshot.Documents["pi.live"]["compactions"].([]any)[0], want) {
+			t.Error("noncanonical status after SQLite reopen", snapshot.Documents["pi.live"])
+		}
+		now.Store(2042)
 		waitPublicTask(t, h, id)
 		state, err = h.Snapshot(bg)
 		if err != nil {
