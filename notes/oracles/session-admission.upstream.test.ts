@@ -606,13 +606,16 @@ it("rehydrates current model metadata when resending an orderly closed summary",
  const {chatSetup,openChat,unanswered}=await import("@pinned/chat"),{assistant}=await import("@pinned/harness-support"),{openNodeSqliteStorage}=await import("@pinned/sqlite-node");
  const {mkdtempSync,rmSync}=await import("node:fs"),{tmpdir}=await import("node:os"),{join}=await import("node:path");
  const directory=mkdtempSync(join(tmpdir(),"summary-model-authority-")),path=join(directory,"state.db"),setup=chatSetup({models:[{id:"faux-1",contextWindow:128000,maxTokens:256}]}),blocked=unanswered();
- setup.settings.compaction={enabled:false,keepRecentTokens:0,reserveTokens:125};setup.faux.setResponses([blocked.step]);
+ setup.settings.compaction={enabled:false,keepRecentTokens:0,reserveTokens:125};setup.settings.stream={timeoutMs:1234,deferred:true};setup.faux.setResponses([blocked.step]);
  const seen:any[]=[],complete=setup.models.completeSimple.bind(setup.models);setup.models.completeSimple=(model:any,input:any,options:any)=>{seen.push([model.contextWindow,options.maxTokens]);return complete(model,input,options)};
  let harness:any;
  try{
   let opened=await openChat(await openNodeSqliteStorage(path),setup);harness=opened.harness;
   await opened.root.commit(async tx=>{for(const content of ["old","recent"])await tx.appendEntry(opened.root.id,{kind:"note",model:[{role:"user",content,timestamp:0}]})},context);
-  const id=await opened.root.compact(undefined,context);await blocked.reached;await harness.close(context);harness=undefined;
+  const id=await opened.root.compact(undefined,context);await blocked.reached;
+  const {readFileSync}=await import("node:fs");const fixture=JSON.parse(readFileSync(new URL("../../durable/testdata/pi-durable-v150/compaction-request.json",import.meta.url),"utf8"));
+  expect((await harness.getTask(id,context)).state.checkpoint).toEqual(fixture.tasks[0].state.checkpoint);
+  await harness.close(context);harness=undefined;
   const next=chatSetup({models:[{id:"faux-1",contextWindow:123,maxTokens:256}]});next.faux.setResponses([assistant("summary")]);setup.models.setProvider(next.faux.provider);
   opened=await openChat(await openNodeSqliteStorage(path),setup);harness=opened.harness;
   expect((await harness.waitForTask(id,context)).state.outcome.status).toBe("completed");expect(seen).toEqual([[128000,100],[123,100]]);

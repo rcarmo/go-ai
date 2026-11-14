@@ -3,7 +3,6 @@ package durable
 import (
 	"context"
 	goai "github.com/rcarmo/go-ai"
-	"runtime"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -59,6 +58,13 @@ func TestCompactionLiveStatusRetrySnapshotReopenAndRemoval(t *testing.T) {
 		if err != nil || record.State.Status != "sleeping" || record.State.Until == nil || *record.State.Until != 3000 {
 			t.Fatal("compaction retry did not durably sleep", record.State, err)
 		}
+		checkpoint := taskCheckpointMap(record.State.Checkpoint)
+		if !equalJSONValue(checkpoint["attempt"], 1) {
+			t.Error("retry must retain the failed attempt until the next request", checkpoint)
+		}
+		if _, private := checkpoint["retryError"]; private {
+			t.Error("retry error belongs to LiveDoc status, not checkpoint", checkpoint)
+		}
 		until := int64(3000)
 		awaitWake140(t, wakes, false, &until)
 		var status map[string]any
@@ -107,23 +113,45 @@ func waitCompactionCheckpoint(t *testing.T, h *Harness, id ID, phase string) Sna
 	t.Helper()
 	ctx, cancel := context.WithTimeout(bg, 3*time.Second)
 	defer cancel()
-	for {
-		state, err := h.Snapshot(ctx)
-		if err != nil {
-			t.Fatal(err)
-		}
-		record, err := CanonicalTask(state.Tasks[id], h.session.limits)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if taskCheckpointMap(record.State.Checkpoint)["phase"] == phase {
-			return state
-		}
+	state, subscription, err := h.SubscribeCommits(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer subscription.Stop()
+	matches := func(task Task) bool {
+		record, err := CanonicalTask(task, h.session.limits)
+		return err == nil && taskCheckpointMap(record.State.Checkpoint)["phase"] == phase
+	}
+	if matches(state.Tasks[id]) {
+		return state
+	}
+	reached := make(chan struct{}, 1)
+	signal := func() {
 		select {
-		case <-ctx.Done():
-			t.Fatal("compaction phase missing", phase)
+		case reached <- struct{}{}:
 		default:
-			runtime.Gosched()
 		}
 	}
+	if err := subscription.Start(func(_ context.Context, frame PublicationFrame) error {
+		if frame.Snapshot != nil && matches(frame.Snapshot.Tasks[id]) {
+			signal()
+		}
+		for _, write := range frame.Publication.Tables {
+			if write.Task != nil && write.Task.ID == id && matches(*write.Task) {
+				signal()
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	awaitTaskSignal(t, reached)
+	state, err = h.Snapshot(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !matches(state.Tasks[id]) {
+		t.Fatal("compaction phase changed before capture", phase)
+	}
+	return state
 }

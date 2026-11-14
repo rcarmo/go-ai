@@ -10,7 +10,7 @@ import (
 	goai "github.com/rcarmo/go-ai"
 )
 
-func TestCompactionUTF16MainFormattingAndState(t *testing.T) {
+func TestCompactionUTF16FormattingAndRequestOwnership(t *testing.T) {
 	high := toolUTF16Scalar(t, `"\ud800"`)
 	low := toolUTF16Scalar(t, `"\udfff"`)
 	call := goai.ContentBlock{Type: "toolCall", ID: "c", Name: "leaf"}
@@ -25,23 +25,8 @@ func TestCompactionUTF16MainFormattingAndState(t *testing.T) {
 	if !strings.Contains(source, high.WTF8()+`="\udfff"`) || !strings.Contains(source, "error "+high.WTF8()) {
 		t.Fatal("formatted units lost")
 	}
-	cp := JSON{}
-	if err = storeCompactionSource(cp, source, DefaultLimits()); err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := cp["source"]; ok {
-		t.Fatal("raw UTF-16 source in generic checkpoint")
-	}
-	physical, err := copyObject(cp, DefaultLimits())
-	if err != nil {
-		t.Fatal("source state is not generic JSON", err)
-	}
-	restored, native, err := loadCompactionSource(physical, DefaultLimits())
-	if err != nil || !native || restored != source {
-		t.Fatal("source replay changed units", err)
-	}
 	focus := "focus"
-	block := compactionRequestBlock(restored, &focus, native)
+	block := compactionRequestBlock(source, &focus, true)
 	if !block.HasToolArgumentTranscript() || !strings.Contains(block.Text, source) {
 		t.Fatal("request lost source ownership")
 	}
@@ -49,10 +34,6 @@ func TestCompactionUTF16MainFormattingAndState(t *testing.T) {
 	bad = append(bad, MessageReceipt{Role: goai.RoleUser, Content: []goai.ContentBlock{{Type: "text", Text: high.WTF8()}}})
 	if _, err = SerializeConversation(bad, DefaultLimits()); err == nil {
 		t.Fatal("native arguments widened unrelated text")
-	}
-	physical["source"] = "shadow"
-	if _, _, err = loadCompactionSource(physical, DefaultLimits()); err == nil {
-		t.Fatal("mixed source state accepted")
 	}
 	l := DefaultLimits()
 	l.MaxStringBytes = 8

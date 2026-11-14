@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	goai "github.com/rcarmo/go-ai"
 	"os"
+	"path/filepath"
+	"reflect"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -82,22 +84,17 @@ func TestSourceCompactionTruncationKeepsUTF16SliceBoundary(t *testing.T) {
 	if err != nil || got != want {
 		t.Fatalf("source UTF-16 slice = %q; expected %q; err=%v", got, want, err)
 	}
-	state := JSON{}
-	if err := storeCompactionSource(state, got, DefaultLimits()); err != nil {
-		t.Fatal(err)
+	limits := DefaultLimits()
+	block := compactionRequestBlock(got, nil, true)
+	encoded, err := encodeBounded(block, limits, limits.MaxRecordBytes)
+	if err != nil || !strings.Contains(string(encoded), `\ud83d`) {
+		t.Fatal("provider encoding lost the isolated source unit", string(encoded), err)
 	}
-	encoded, err := encodeBounded(state, DefaultLimits(), DefaultLimits().MaxRecordBytes)
-	if err != nil {
-		t.Fatal(err)
+	ordinary := goai.ContentBlock{Type: "text", Text: got}
+	if _, err := encodeBounded(ordinary, limits, limits.MaxRecordBytes); err == nil {
+		t.Fatal("source truncation widened ordinary text authority")
 	}
-	var restored JSON
-	if err := decodeStrict(encoded, DefaultLimits(), DefaultLimits().MaxRecordBytes, &restored); err != nil {
-		t.Fatal(err)
-	}
-	text, native, err := loadCompactionSource(restored, DefaultLimits())
-	if err != nil || !native || text != want {
-		t.Fatal("truncated source changed across checkpoint", text, native, err)
-	}
+
 }
 
 func TestCompactionPromptsMatchPinnedSourceLiterals(t *testing.T) {
@@ -138,7 +135,7 @@ func TestCompactionReopenPinsRequestButRehydratesModel(t *testing.T) {
 			if n == 2 {
 				wantWindow = 123
 			}
-			if model.ContextWindow != wantWindow || opts.MaxTokens == nil || *opts.MaxTokens != 100 || opts.Temperature == nil || *opts.Temperature != 0.3 {
+			if model.ContextWindow != wantWindow || opts.MaxTokens == nil || *opts.MaxTokens != 100 || opts.TimeoutMs == nil || *opts.TimeoutMs != 1234 || opts.Deferred != nil {
 				t.Error("summary behavior changed", model.ContextWindow, opts)
 			}
 			if !strings.Contains(input.Messages[0].Content[0].Text, "<conversation>\n[User]: old") || !strings.Contains(input.Messages[0].Content[0].Text, "Additional focus: paths") {
@@ -167,16 +164,20 @@ func TestCompactionReopenPinsRequestButRehydratesModel(t *testing.T) {
 			return &model
 		}
 		first := openHarness(t, b.store, options)
-		temperature := 0.3
-		conversation, err := first.Root(bg, AgentChange{Model: ref, Settings: RequestSettings{Temperature: &temperature}})
+		timeout := 1234
+		conversation, err := first.Root(bg, AgentChange{Model: ref, Settings: RequestSettings{TimeoutMs: &timeout, Deferred: &goai.DeferredOptions{}}})
 		if err != nil {
 			t.Fatal(err)
 		}
+		var recent ID
 		_, err = conversation.Commit(bg, func(tx *Tx) error {
 			for _, text := range []string{"old", "recent"} {
 				id, err := tx.MintID()
 				if err != nil {
 					return err
+				}
+				if text == "recent" {
+					recent = id
 				}
 				wire, err := dtoObject(userReceipt(text), tx.limits)
 				if err != nil {
@@ -211,6 +212,10 @@ func TestCompactionReopenPinsRequestButRehydratesModel(t *testing.T) {
 				t.Fatal(err)
 			}
 			checkpoint := taskCheckpointMap(record.State.Checkpoint)
+			want := JSON{"phase": "summarize", "attempt": 1, "model": JSON{"provider": string(ref.Provider), "modelId": ref.ID}, "thinkingLevel": "off", "streamOptions": JSON{"timeoutMs": 1234, "deferred": true}, "maxTokens": 100, "tail": int(recent), "firstKept": int(recent)}
+			if !equalJSONValue(checkpoint, want) {
+				t.Errorf("noncanonical summary request checkpoint: %#v", checkpoint)
+			}
 			for _, private := range []string{"pinnedModel", "retry"} {
 				if _, exists := checkpoint[private]; exists {
 					t.Errorf("source request must not persist %s snapshot", private)
@@ -359,5 +364,112 @@ func TestSourceManualCompactionInstructionPresence(t *testing.T) {
 				t.Fatal("instruction presence changed across durable phases", request)
 			}
 		})
+	}
+}
+
+func TestOriginalCompactionSummaryRequestExecutesAfterSQLiteReopen(t *testing.T) {
+	for _, name := range []string{"compaction-request.json", "compaction-retry.json"} {
+		t.Run(name, func(t *testing.T) { testOriginalCompactionCheckpoint(t, name) })
+	}
+}
+
+func testOriginalCompactionCheckpoint(t *testing.T, name string) {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join("testdata/pi-durable-v150", name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixture struct {
+		Target        string
+		Conversations []Conversation
+		Entries       []Entry
+		Tasks         []TaskRecord
+	}
+	if err := json.Unmarshal(data, &fixture); err != nil {
+		t.Fatal(err)
+	}
+	if fixture.Target != "f9a26365568127461c47a07a37dcb42c140a3ac5" || len(fixture.Tasks) != 1 {
+		t.Fatal("invalid original fixture")
+	}
+	path := filepath.Join(t.TempDir(), "summary.db")
+	store, err := OpenSQLite(path, SQLiteOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	batches := make([][]StorageWrite, 3)
+	for _, record := range fixture.Conversations {
+		batches[0] = append(batches[0], StorageWrite{Type: "conversation", Value: record})
+	}
+	for _, record := range fixture.Entries {
+		batches[1] = append(batches[1], StorageWrite{Type: "entry", Value: record})
+	}
+	for _, record := range fixture.Tasks {
+		batches[2] = append(batches[2], StorageWrite{Type: "task", Value: record})
+	}
+	result, err := store.Commit(bg, batches, nil)
+	if err != nil || result.Stored != 3 || result.Refused != nil {
+		t.Fatal(result, err)
+	}
+	var original struct{ Tasks []json.RawMessage }
+	if err := json.Unmarshal(data, &original); err != nil {
+		t.Fatal(err)
+	}
+	stored, found, err := store.Task(bg, fixture.Tasks[0].ID)
+	if err != nil || !found {
+		t.Fatal(stored, found, err)
+	}
+	encoded, err := json.Marshal(stored)
+	if err != nil || !reflect.DeepEqual(dropinJSON(t, encoded), dropinJSON(t, original.Tasks[0])) {
+		t.Fatal("original task record changed before execution", string(encoded), err)
+	}
+	if err := store.Close(bg); err != nil {
+		t.Fatal(err)
+	}
+	store, err = OpenSQLite(path, SQLiteOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var requests atomic.Int64
+	fakeRef, options := setupFakeAPI(t, func(_ context.Context, model *goai.Model, input *goai.Context, opts *goai.StreamOptions) <-chan goai.Event {
+		requests.Add(1)
+		if model.Provider != "faux" || model.ID != "faux-1" || opts.MaxTokens == nil || *opts.MaxTokens != 100 || opts.TimeoutMs == nil || *opts.TimeoutMs != 1234 || opts.Deferred != nil {
+			t.Error("original request changed", model, opts)
+		}
+		text := input.Messages[0].Content[0].Text
+		if !strings.HasPrefix(text, "<conversation>\n[User]: old\n</conversation>") || !strings.HasSuffix(text, "\n\nAdditional focus: paths") {
+			t.Error("original historical range changed", text)
+		}
+		ch := make(chan goai.Event, 1)
+		ch <- terminal("source request resumed")
+		close(ch)
+		return ch
+	})
+	resolve := options.Models
+	options.Models = func(provider goai.Provider, id string) *goai.Model {
+		if provider != "faux" || id != "faux-1" {
+			return nil
+		}
+		model := *resolve(fakeRef.Provider, fakeRef.ID)
+		model.Provider = provider
+		model.ID = id
+		return &model
+	}
+	clock := int64(42)
+	if fixture.Tasks[0].State.Until != nil {
+		clock = *fixture.Tasks[0].State.Until
+	}
+	options.Now = func() int64 { return clock }
+	h := openHarness(t, store, options)
+	// This selected-record fixture is not a complete source document-store
+	// snapshot. Initialise missing harness builtins through the public root API.
+	if _, err := h.Root(bg, AgentChange{Model: ModelRef{Provider: "faux", ID: "faux-1"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.Resume(bg); err != nil {
+		t.Fatal(err)
+	}
+	record := waitPublicTask(t, h, fixture.Tasks[0].ID)
+	if record.State.Outcome.Status != "completed" || requests.Load() != 1 {
+		t.Fatalf("original checkpoint outcome=%+v error=%+v requests=%d", record.State.Outcome, record.State.Outcome.Error, requests.Load())
 	}
 }

@@ -160,3 +160,27 @@ func compactionRequestText(source string, instructions *string) string {
 	}
 	return "<conversation>\n" + source + "\n</conversation>\n\n" + compactionPrompt + focus
 }
+
+// Reconstruct the selected immutable historical range, as summarize does in
+// the source. Checkpoints pin entry IDs, never a second transcript snapshot.
+func compactionTranscript(state Snapshot, conversation, tail, firstKept ID, limits Limits) (string, error) {
+	view, err := deriveContextView(state, conversation, tail, limits)
+	if err != nil {
+		return "", err
+	}
+	cut := -1
+	for i, entry := range view.Entries {
+		if entry.ID == firstKept {
+			cut = i
+			break
+		}
+	}
+	if cut < 0 {
+		return "", reject("compaction first kept entry is not visible")
+	}
+	messages := []MessageReceipt{}
+	for _, contribution := range view.Contributions[:cut] {
+		messages = append(messages, contribution...)
+	}
+	return SerializeConversation(orderContextToolResults(messages), limits)
+}

@@ -1,0 +1,71 @@
+{
+  "target": "f9a26365568127461c47a07a37dcb42c140a3ac5",
+  "package": "@earendil-works/pi-durable",
+  "version": "1.5.0",
+  "producer": "original Harness running CompactionTask + MemoryStorage records",
+  "conversations": [
+    {
+      "id": 1
+    }
+  ],
+  "entries": [
+    {
+      "kind": "note",
+      "model": [
+        {
+          "role": "user",
+          "content": "old",
+          "timestamp": 0
+        }
+      ],
+      "id": 7,
+      "conversationId": 1
+    },
+    {
+      "kind": "note",
+      "model": [
+        {
+          "role": "user",
+          "content": "recent",
+          "timestamp": 0
+        }
+      ],
+      "id": 8,
+      "conversationId": 1
+    }
+  ],
+  "tasks": [
+    {
+      "id": 9,
+      "conversationId": 1,
+      "kind": "pi.compaction",
+      "version": 1,
+      "input": {
+        "reason": "manual",
+        "instructions": "paths"
+      },
+      "background": false,
+      "abortRequested": false,
+      "state": {
+        "status": "running",
+        "checkpoint": {
+          "phase": "summarize",
+          "attempt": 1,
+          "model": {
+            "provider": "faux",
+            "modelId": "faux-1"
+          },
+          "thinkingLevel": "off",
+          "streamOptions": {
+            "timeoutMs": 1234,
+            "deferred": true
+          },
+          "maxTokens": 100,
+          "tail": 8,
+          "firstKept": 8
+        }
+      },
+      "startedAt": 42
+    }
+  ]
+}

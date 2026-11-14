@@ -2,9 +2,9 @@
 
 **Overall migration: incomplete. Full parity and release acceptance are not established.** This report closes a verified development slice, not the complete upstream port.
 
-Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Native implementation: `/work/go-ai/durable`, authorised SQLite-only, pure Go. The preceding pushed implementation checkpoint is `8b0955a` (source compaction policy/input); image-resource diagnosis is recorded at `1e0f3ad`.
+Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Native implementation: `/work/go-ai/durable`, authorised SQLite-only, pure Go. The preceding pushed implementation checkpoint is `04726f3` (request-time model/retry authority); image-resource diagnosis is recorded at `1e0f3ad`.
 
-Latest continuation: summary requests rehydrate current model metadata across reopen and retry decisions use current settings, not legacy task-input overrides. Model/retry policy snapshots are removed, without claiming complete canonical checkpoint execution. See [compaction evidence](canonical-compaction-kind.md#source-transcript-and-prompt-literals). See [submission admission](submission-admission.md#canonical-string-content-and-placement-clock). Selected reference coverage is200 unchanged cases +58 probes. Exact reference assets repair the original Cloudflare suite (36 pass); two provider suites now reach original credential skips, not live acceptance. Image execution still exceeds its768 MiB worker cap. The full99-file oracle is not green; see [oracle limits](upstream-oracle.md).
+Latest continuation: exact original SummaryRequest/retry checkpoints execute after selected-record SQLite import/reopen. Historical range reconstruction replaces private transcript/settings state; attempts increment on resend and retry diagnostics persist in LiveDoc. Missing builtin documents are explicitly initialised; complete-store interchange remains open. See [compaction evidence](canonical-compaction-kind.md#canonical-summaryrequest-and-retry-execution). Selected reference coverage is200 unchanged cases plus58 independent probes.
 
 ## Earlier queue-production checkpoint
 
@@ -18,7 +18,11 @@ Latest continuation: summary requests rehydrate current model metadata across re
 
 The exact input/write shape tests failed before the fixes. Idle progress and continuation already passed and required no speculative runtime changes. A failure/reopen fixture initially tried to close storage already owned/closed by Session; correcting the fixture required no runtime fix. Tests remain in the existing version-neutral transaction suite.
 
-## Latest compaction request-authority verification
+## Latest canonical compaction checkpoint verification
+
+Full durable456.191s/tools19.140s; ten shuffled focused repetitions7.998s; five semantic faults rejected; vet, Staticcheck, logging and register pass. Selected reference258 cases (200 unchanged +58 probes) and original compaction110 plus66 supplements (176 total) pass, zero skipped. Exact checkpoint/retry controls failed before fixes. Original request/retry selected-record fixtures retain exact raw task JSON and execute after reopen. Complete compaction result/provider/migration and store interchange remain open.
+
+## Previous compaction request-authority verification
 
 Full durable420.167s/tools19.837s; ten focused shuffled repetitions6.877s; four semantic faults; vet, Staticcheck, logging and register pass. Selected reference258 cases (200 unchanged +58 probes), plus the separately executed original compaction110-case file and66 supplements (176 total), pass with zero skipped. Real SQLite reopen and legacy-input retry controls failed before fixes. Canonical checkpoint DTO/execution and remaining state/ordering/interoperability remain open.
 

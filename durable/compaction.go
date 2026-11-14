@@ -5,6 +5,7 @@ import (
 	"fmt"
 	goai "github.com/rcarmo/go-ai"
 	"strings"
+	"unicode/utf8"
 )
 
 type CompactionPolicy struct {
@@ -102,10 +103,6 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 				source = append(source, view.Contributions[i]...)
 			}
 			source = orderContextToolResults(source)
-			text, err := SerializeConversation(source, h.session.limits)
-			if err != nil {
-				return err
-			}
 			var instructions *string
 			if text, present := input["instructions"].(string); present {
 				instructions = &text
@@ -160,18 +157,11 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 			if model.MaxTokens > 0 && maxTokens > model.MaxTokens {
 				maxTokens = model.MaxTokens
 			}
-			settings, err := dtoObject(agent.Settings, h.session.limits)
-			if err != nil {
-				return err
+			thinking := string(agent.ThinkingLevel)
+			if thinking == "" {
+				thinking = string(goai.ThinkingOff)
 			}
-			checkpoint := JSON{"settings": settings, "reason": reason, "phase": "summarize", "tail": tail, "firstKept": view.Entries[cut].ID, "model": JSON{"provider": string(agent.Model.Provider), "id": agent.Model.ID}, "maxTokens": maxTokens, "attempt": 1}
-			if instructions != nil {
-				checkpoint["instructions"] = *instructions
-			}
-			if err := storeCompactionSource(checkpoint, text, h.session.limits); err != nil {
-				return err
-			}
-			checkpoint["thinkingLevel"] = string(agent.ThinkingLevel)
+			checkpoint := JSON{"phase": "summarize", "attempt": 1, "model": JSON{"provider": string(agent.Model.Provider), "modelId": agent.Model.ID}, "thinkingLevel": thinking, "streamOptions": generationStreamOptions(agent.Settings), "maxTokens": maxTokens, "tail": tail, "firstKept": view.Entries[cut].ID}
 			return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) {
 				return &TaskState{Status: "running", Checkpoint: checkpoint}, nil
 			})
@@ -180,10 +170,14 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 			h := r.harness
 			cp := taskCheckpointMap(task.State.Checkpoint)
 			modelObject := JSON(cp["model"].(map[string]any))
-			var ref ModelRef
-			if err := fromObject(modelObject, &ref, h.session.limits); err != nil {
+			var sourceRef struct {
+				Provider goai.Provider `json:"provider"`
+				ModelID  string        `json:"modelId"`
+			}
+			if err := fromObject(modelObject, &sourceRef, h.session.limits); err != nil {
 				return err
 			}
+			ref := ModelRef{Provider: sourceRef.Provider, ID: sourceRef.ModelID}
 			local, err := callModelResolver(h.options.Models, ref)
 			if err != nil {
 				return err
@@ -216,14 +210,22 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 			}
 			maximum, _ := exactNumber(cp["maxTokens"])
 			maxTokens := int(maximum.Num().Int64())
-			if raw, ok := cp["settings"].(map[string]any); ok {
-				var settings RequestSettings
-				if err := fromObject(JSON(raw), &settings, h.session.limits); err != nil {
-					return err
+			stream, ok := cp["streamOptions"].(map[string]any)
+			if !ok {
+				return reject("missing compaction stream options")
+			}
+			forwarded := JSON{}
+			for key, value := range stream {
+				if key != "deferred" {
+					forwarded[key] = value
 				}
-				if err := applyRequestSettings(options, settings, h.session.limits); err != nil {
-					return err
-				}
+			}
+			var settings RequestSettings
+			if err := fromObject(forwarded, &settings, h.session.limits); err != nil {
+				return err
+			}
+			if err := applyRequestSettings(options, settings, h.session.limits); err != nil {
+				return err
 			}
 			options.Identity = goai.MergeClientIdentity(h.options.Identity, options.Identity)
 			if options.Telemetry == nil {
@@ -241,12 +243,22 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 				level := goai.ThinkingLevel(thinking)
 				options.Reasoning = &level
 			}
-			source, nativeSource, err := loadCompactionSource(cp, h.session.limits)
+			snapshot, err := h.session.Snapshot(ctx)
 			if err != nil {
 				return err
 			}
+			tail, tailOK := exactNumber(cp["tail"])
+			firstKept, firstOK := exactNumber(cp["firstKept"])
+			if !tailOK || !firstOK || !tail.IsInt() || !firstKept.IsInt() {
+				return reject("invalid compaction range")
+			}
+			source, err := compactionTranscript(snapshot, r.ConversationID(), ID(tail.Num().Uint64()), ID(firstKept.Num().Uint64()), h.session.limits)
+			if err != nil {
+				return err
+			}
+			nativeSource := !utf8.ValidString(source)
 			var instructions *string
-			if text, present := cp["instructions"].(string); present {
+			if text, present := task.Input.Value.(map[string]any)["instructions"].(string); present {
 				instructions = &text
 			}
 			conv := &goai.Context{SystemPrompt: compactionSystemPrompt, Messages: []goai.Message{{Role: goai.RoleUser, Content: []goai.ContentBlock{compactionRequestBlock(source, instructions, nativeSource)}}}}
@@ -299,8 +311,10 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 							return nil, err
 						}
 						deadline := retryDeadline(now, retryDelay(policy, attempt))
-						next["phase"], next["until"], next["attempt"] = "retry", deadline, attempt+1
-						next["retryError"] = message.ErrorMessage
+						next["phase"], next["until"] = "retry", deadline
+						if err := setCompactionRetryStatus(tx, r.ConversationID(), r.TaskID(), deadline, message.ErrorMessage); err != nil {
+							return nil, err
+						}
 						return pacedTaskState(next, deadline), nil
 					}
 					return &TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "failed", Error: &TaskOutcomeError{Message: summaryFailure(message), Detail: &TaskValue{Present: true, Value: JSON{"reason": "model_error"}}}}}, nil
@@ -336,7 +350,11 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 			}
 			checkpoint["phase"] = "summarize"
 			delete(checkpoint, "until")
-			delete(checkpoint, "retryError")
+			attempt, ok := exactNumber(checkpoint["attempt"])
+			if !ok || !attempt.IsInt() || !attempt.Num().IsUint64() {
+				return reject("invalid compaction attempt")
+			}
+			checkpoint["attempt"] = attempt.Num().Uint64() + 1
 			return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) {
 				return &TaskState{Status: "running", Checkpoint: checkpoint}, nil
 			})

@@ -59,6 +59,7 @@ func TestCompactionResolvedReserveBudgetModelCapAndStreamSettings(t *testing.T) 
 				}
 				options.Telemetry = makeSpan("phase")
 				if tc.modelOverride {
+					options.Identity = &goai.ClientIdentity{Attribution: &goai.ClientAttribution{Name: "custom", URL: "https://example.test"}}
 					options.RequestOptions = func(context.Context, ModelRef) (*goai.StreamOptions, error) {
 						return &goai.StreamOptions{Telemetry: makeSpan("explicit")}, nil
 					}
@@ -81,9 +82,6 @@ func TestCompactionResolvedReserveBudgetModelCapAndStreamSettings(t *testing.T) 
 				h := openHarness(t, b.store, options)
 				overrideReserve = 2000 // Open must have detached the host's model map.
 				change := AgentChange{Model: ref, ThinkingLevel: "low"}
-				if tc.modelOverride {
-					change.Settings.Identity = JSON{"attribution": JSON{"name": "custom", "url": "https://example.test"}}
-				}
 				conversation, err := h.CreateConversation(bg, change)
 				if err != nil {
 					t.Fatal(err)

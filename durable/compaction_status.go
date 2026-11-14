@@ -33,6 +33,7 @@ func (t *Tx) syncCompactionStatuses() error {
 		}
 		statuses, _ := value["compactions"].([]any)
 		next := make([]any, 0, len(statuses)+1)
+		var previous map[string]any
 		for _, raw := range statuses {
 			object, ok := raw.(map[string]any)
 			if !ok {
@@ -44,6 +45,8 @@ func (t *Tx) syncCompactionStatuses() error {
 			}
 			if ID(number.Num().Uint64()) != id {
 				next = append(next, raw)
+			} else {
+				previous = object
 			}
 		}
 		if !terminalStatus(task.Status) && !taskHasDecidedOutcome(task) {
@@ -68,10 +71,11 @@ func (t *Tx) syncCompactionStatuses() error {
 			}
 			status := JSON{"taskId": id, "reason": reason, "blocking": task.Owner != 0, "attempt": attempt}
 			if checkpoint["phase"] == "retry" {
-				if attempt > 1 {
-					status["attempt"] = attempt - 1
+				if previous != nil {
+					if retry, present := previous["retry"]; present {
+						status["retry"] = retry
+					}
 				}
-				status["retry"] = JSON{"at": checkpoint["until"], "error": checkpoint["retryError"]}
 			}
 			next = append(next, status)
 		}
@@ -134,4 +138,26 @@ func compactionFailureFromLive(live JSON) *CompactionFailure {
 	reason, _ := raw["reason"].(string)
 	message, _ := raw["error"].(string)
 	return &CompactionFailure{Task: ID(number.Num().Uint64()), Reason: reason, Error: message}
+}
+
+// Retry diagnostics belong to the LiveDoc status, not SummaryRequest.
+func setCompactionRetryStatus(tx *Tx, conversation, task ID, until int64, message string) error {
+	live, err := builtin(tx, conversation, "pi.live")
+	if err != nil {
+		return err
+	}
+	return live.Update(func(value JSON) error {
+		statuses, _ := value["compactions"].([]any)
+		for _, raw := range statuses {
+			status, ok := raw.(map[string]any)
+			if !ok {
+				return reject("compaction status shape")
+			}
+			if submissionEntryID(status["taskId"]) == task {
+				status["retry"] = JSON{"at": until, "error": message}
+				break
+			}
+		}
+		return nil
+	})
 }
