@@ -12,7 +12,7 @@ The sole alignment target is official upstream `v1.5.0` at `f9a26365568127461c47
 
 ## Conversation ownership constructors
 
-[Public ownership options](../../notes/conversation-constructors.md) now allocate conversation IDs, derive staged/committed task-owner metadata and return records. Blind ownerless construction retains source admission. Full publication identity, ForkConversation/SetTask and atomic owner/API/Storage acceptance remain open.
+[Public ownership options](../../notes/conversation-constructors.md) now allocate conversation IDs, derive staged/committed task-owner metadata and return records. Blind ownerless construction retains source admission. [Canonical fork options and assembly timing](../../notes/conversation-constructors.md#fork-ownership-options-and-source-write-validation) now cover selected original packets. Full publication identity, internal task mutation/atomic owner and API/Storage acceptance remain open.
 
 ## Entry draft constructors
 

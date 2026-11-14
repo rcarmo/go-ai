@@ -131,19 +131,33 @@ func TestMainBuiltinCanonicalPublicationsV150(t *testing.T) {
 }
 
 // The expected sequences were captured from pinned v1.5.0 Harness
-// observeCommits for the same two-call scenario (parallel and sequential), with
-// IDs bound to the corresponding records. Consecutive identical states are one
+// observeCommits for a two-call scenario (parallel and sequential). Result
+// completion is gated by an observed stored result in both reference/native
+// fixtures, so publication order binds IDs without a goroutine race. The
+// reverse parallel case preserves the same per-task state assertions.
+// Consecutive identical states are one
 // state: native commit granularity is a separate open contract.
 func TestBuiltinTaskPublicProgressionMatchesSourceV150(t *testing.T) {
-	for _, mode := range []string{"parallel", "sequential"} {
-		t.Run(mode, func(t *testing.T) {
+	for _, scenario := range []struct{ name, execution, firstCall string }{{"parallel", "parallel", "c1"}, {"sequential", "sequential", "c1"}, {"parallel-reverse", "parallel", "c2"}} {
+		t.Run(scenario.name, func(t *testing.T) {
 			store, err := newTestSQLite(t)
 			if err != nil {
 				t.Fatal(err)
 			}
 			registry := NewRegistry()
+			firstStored := make(chan struct{})
+			var firstOnce sync.Once
 			for _, name := range []string{"tool-c1", "tool-c2"} {
-				if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: name, Description: name + " tool", Parameters: []byte(`{"type":"object","properties":{}}`)}, Implementation: "oracle." + name, Version: 1, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) { return ToolResult{}, nil }}); err != nil {
+				if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: name, Description: name + " tool", Parameters: []byte(`{"type":"object","properties":{}}`)}, Implementation: "oracle." + name, Version: 1, Execute: func(ctx context.Context, _ JSON, _ *ToolAPI) (ToolResult, error) {
+					if name != "tool-"+scenario.firstCall {
+						select {
+						case <-firstStored:
+						case <-ctx.Done():
+							return ToolResult{}, ctx.Err()
+						}
+					}
+					return ToolResult{}, nil
+				}}); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -162,7 +176,7 @@ func TestBuiltinTaskPublicProgressionMatchesSourceV150(t *testing.T) {
 			})
 			options.Registry = registry
 			h := openHarness(t, store, options)
-			c, err := h.Root(bg, AgentChange{Model: ref, Settings: RequestSettings{ToolExecution: mode}})
+			c, err := h.Root(bg, AgentChange{Model: ref, Settings: RequestSettings{ToolExecution: scenario.execution}})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -183,6 +197,13 @@ func TestBuiltinTaskPublicProgressionMatchesSourceV150(t *testing.T) {
 						id, _ := json.Number(immutableViewMember(t, value, "id").Number()).Int64()
 						kind := immutableViewMember(t, value, "kind").String()
 						entries[kind] = append(entries[kind], uint64(id))
+						if kind == "pi.tool-result" {
+							model := immutableViewMember(t, value, "model")
+							message, _ := model.Index(0)
+							if immutableViewMember(t, message, "toolCallId").String() == scenario.firstCall {
+								firstOnce.Do(func() { close(firstStored) })
+							}
+						}
 					case "task":
 						record := value.Copy().(map[string]any)
 						id, _ := record["id"].(json.Number).Int64()
@@ -260,19 +281,23 @@ func TestBuiltinTaskPublicProgressionMatchesSourceV150(t *testing.T) {
 				return `{"input":{},"state":{` + state + `},"version":2}`
 			}
 			var first []string
-			if mode == "parallel" {
+			if scenario.execution == "parallel" {
 				first = []string{prepare("pending"), prepare("running"), request(system), round("waiting", tools, []string{}, tools), round("running", tools, []string{}, nil), done(assistant)}
 			} else {
 				first = []string{prepare("pending"), prepare("running"), request(system), round("waiting", tools[:1], []string{"c2"}, tools[:1]), round("running", tools[:1], []string{"c2"}, nil), round("waiting", tools, []string{}, tools[1:]), round("running", tools, []string{}, nil), done(assistant)}
 			}
 			want := map[uint64][]string{generations[0]: first, generations[1]: {prepare("pending"), prepare("running"), request(results[1]), done(final)}}
 			for i, id := range tools {
+				resultIndex := i
+				if scenario.firstCall == "c2" {
+					resultIndex = 1 - i
+				}
 				input := fmt.Sprintf(`{"assistant":%d,"callId":"c%d","kind":"model"}`, assistant, i+1)
 				want[id] = []string{
 					`{"input":` + input + `,"state":{"checkpoint":{"phase":"call"},"status":"pending"},"version":3}`,
 					`{"input":` + input + `,"state":{"checkpoint":{"phase":"call"},"status":"running"},"version":3}`,
 					`{"input":` + input + `,"state":{"checkpoint":{"arguments":{},"phase":"execute","replay":"unsafe"},"status":"running"},"version":3}`,
-					fmt.Sprintf(`{"input":%s,"state":{"outcome":{"result":{"entryId":%d,"kind":"model"},"status":"completed"},"status":"terminal"},"version":3}`, input, results[i]),
+					fmt.Sprintf(`{"input":%s,"state":{"outcome":{"result":{"entryId":%d,"kind":"model"},"status":"completed"},"status":"terminal"},"version":3}`, input, results[resultIndex]),
 				}
 			}
 			for id, expected := range want {

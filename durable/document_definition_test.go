@@ -313,7 +313,7 @@ func TestDocumentDefinitionHistoricalAncestorAndCopyMigration(t *testing.T) {
 		var calls int
 		current := mustDefinition(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: old.options.Kind, Version: 2, Scope: "conversation", History: "rewindable", Fork: "asOf", Initial: old.options.Initial, Migrate: func(v JSON, _ uint64) (JSON, error) { calls++; v["migrated"] = true; return v, nil }})
 		var child Conversation
-		_, e = session.Commit(bg, func(tx *Tx) (any, error) { var e error; child, e = tx.ForkConversation(1, cut, 0); return nil, e })
+		_, e = session.Commit(bg, func(tx *Tx) (any, error) { var e error; child, e = tx.forkConversationRecord(1, cut, 0); return nil, e })
 		if e != nil {
 			t.Fatal(e)
 		}

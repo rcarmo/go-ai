@@ -4,7 +4,7 @@
 
 Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Native implementation: `/work/go-ai/durable`, authorised SQLite-only, pure Go. The preceding pushed implementation checkpoint is `04726f3` (request-time model/retry authority); image-resource diagnosis is recorded at `1e0f3ad`.
 
-Latest continuation: public Tx.CreateConversation ownership options, internal ID allocation, staged owner metadata and record results. Source option evaluation and no-drain constructor controls pass. See [evidence and remaining identity/atomic packet gaps](conversation-constructors.md). Full API/Storage, builtin execution and release acceptance remain open.
+Latest continuation: canonical fork ownership/allocation and assembly-only source-write rejection before checkpoint predicates. An inherited parallel progression fixture now controls result completion identically in reference/native and retains its state assertions, with reverse coverage. See [evidence and remaining gaps](conversation-constructors.md#fork-ownership-options-and-source-write-validation). Full API/Storage/record identity/builtin and release acceptance remain open.
 
 ## Earlier queue-production checkpoint
 
@@ -18,7 +18,11 @@ Latest continuation: public Tx.CreateConversation ownership options, internal ID
 
 The exact input/write shape tests failed before the fixes. Idle progress and continuation already passed and required no speculative runtime changes. A failure/reopen fixture initially tried to close storage already owned/closed by Session; correcting the fixture required no runtime fix. Tests remain in the existing version-neutral transaction suite.
 
-## Latest conversation-constructor verification
+## Latest fork/assembly verification
+
+Full repository ./... passes26 packages: root0.707s, durable531.225s/tools26.826s and public consumers12.551s. Ten compiled semantic faults, ten fork repetitions1.827s, history13.704s, controlled builtin progression40x3 cases90.839s and vet/Staticcheck/logging/register pass. Selected original276 (200 unchanged +76 probes), complete original forks14+84 supplements98 and tools42+84 supplements126 pass, zero skipped. Analysed temporary logs/overlays are removed. Publication-record identity, internal canonical setTask/atomic owners, public native-extra Tx methods, full fork/builtin/API/Storage and pre-release acceptance remain open.
+
+## Previous conversation-constructor verification
 
 Full repository ./... passes26 packages: root0.871s, durable525.645s/tools28.155s and public consumers12.505s. Nine compiled semantic faults, ten constructor repetitions1.951s, final ten blind-admission repetitions0.413s, vet/Staticcheck/logging/register pass. Selected original273 (200 unchanged +73 probes), including complete original table12+81 supplements93, pass with zero skipped. Analysed temporary logs/overlays are removed. Publication-record identity, ForkConversation/SetTask and atomic owner packets, untyped/schema timing, complete builtin/API/Storage and pre-release acceptance remain open.
 

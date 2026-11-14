@@ -10,6 +10,18 @@ func (t *Tx) CreateConversation(options JSON) (Conversation, error) {
 	}
 	defer t.leave()
 	t.hasTableWrite = true
+	record, err := t.allocateConversationRecord(options)
+	if err != nil {
+		return Conversation{}, err
+	}
+	if err = t.stageConversationRecord(record); err != nil {
+		return Conversation{}, err
+	}
+	return record, nil
+}
+
+// Entered by the create/fork source overloads before any parent-copy read.
+func (t *Tx) allocateConversationRecord(options JSON) (Conversation, error) {
 	if options == nil {
 		return Conversation{}, reject("Cannot read properties of null (reading 'ownership')")
 	}
@@ -71,8 +83,33 @@ func (t *Tx) CreateConversation(options JSON) (Conversation, error) {
 		}
 		record.Owner, record.OwnerConversation = owner, task.Conversation
 	}
-	if err = t.stageConversationRecord(record); err != nil {
+	return record, nil
+}
+
+// ForkConversation is the source ownership-options fork overload. Allocation
+// and owner lookup precede the persisted cutoff read, even when it is missing.
+func (t *Tx) ForkConversation(parent, at ID, options JSON) (Conversation, error) {
+	if err := t.enterKeys(); err != nil {
 		return Conversation{}, err
 	}
-	return record, nil
+	defer t.leave()
+	t.hasTableWrite = true
+	child, err := t.allocateConversationRecord(options)
+	if err != nil {
+		return Conversation{}, err
+	}
+	if err = t.touchKeys(conversationKey(parent), entryKey(at)); err != nil {
+		return Conversation{}, err
+	}
+	if !entryVisible(t.state, parent, at) {
+		return Conversation{}, reject(fmt.Sprintf("Entry %d is not visible from conversation %d", at, parent))
+	}
+	entry := t.state.Entries[at]
+	// The source scans the entry-owning ancestor as of the cutoff and the
+	// immediate parent currently; each scope has its own publication gate.
+	if err = t.touchKeys(scopeKey("conversation", entry.Conversation), scopeKey("conversation", parent)); err != nil {
+		return Conversation{}, err
+	}
+	child.Parent, child.ParentAt = parent, at
+	return t.stageForkConversation(child, entry)
 }

@@ -297,7 +297,7 @@ func TestDocumentCheckpointOperationErrorHandledAndForkFence(t *testing.T) {
 		}
 		before := checkpointSnapshot(t, s)
 		if _, err = s.Commit(bg, func(tx *Tx) (any, error) {
-			if _, err := tx.ForkConversation(1, entry, 0); err != nil {
+			if _, err := tx.forkConversationRecord(1, entry, 0); err != nil {
 				return nil, err
 			}
 			h, err := tx.AcquireDocument(def, 1, nil, nil)
@@ -365,7 +365,7 @@ func TestDocumentCheckpointMigrationResetCopyAndRetirement(t *testing.T) {
 			t.Fatal("requiredbase reset/retirement predicate", calls)
 		}
 		var child Conversation
-		checkpointCommit(t, s, func(tx *Tx) error { var e error; child, e = tx.ForkConversation(1, cutoff, 0); return e })
+		checkpointCommit(t, s, func(tx *Tx) error { var e error; child, e = tx.forkConversationRecord(1, cutoff, 0); return e })
 		// Definition-free copy preserved source version1 at cutoff and count0.
 		state := checkpointSnapshot(t, s)
 		for _, d := range state.Documents {

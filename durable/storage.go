@@ -407,7 +407,7 @@ func prepareRecord(s Snapshot, r commitRecord, l Limits, final, explicit bool) (
 	if r.Writes == nil || len(r.Writes) > l.MaxWrites {
 		return Snapshot{}, reject("invalid write count")
 	}
-	resolved, err := resolveDocumentCopies(s, r.Writes, l)
+	resolved, err := resolveDocumentCopies(s, r.Writes, l, final)
 	if err != nil {
 		return Snapshot{}, err
 	}

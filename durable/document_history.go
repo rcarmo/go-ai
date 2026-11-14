@@ -240,7 +240,7 @@ func decodeDocumentCursor(cursor Cursor) (int64, bool, error) {
 	return cursorAfter(cursor)
 }
 
-func resolveDocumentCopies(s Snapshot, writes []Write, l Limits) ([]Write, error) {
+func resolveDocumentCopies(s Snapshot, writes []Write, l Limits, validateSources bool) ([]Write, error) {
 	changed := map[ID]bool{}
 	for _, w := range writes {
 		if w.Document != nil {
@@ -262,7 +262,7 @@ func resolveDocumentCopies(s Snapshot, writes []Write, l Limits) ([]Write, error
 		if w.Document == nil || w.Source == nil || w.Conversation != nil || w.Entry != nil || w.Task != nil || w.Submission != nil || w.Delta != nil {
 			return nil, reject("invalid document copy union")
 		}
-		if changed[w.Source.ID] {
+		if validateSources && changed[w.Source.ID] {
 			return nil, reject("fork source document is changed in copy batch")
 		}
 		source, ok, err := materializeDocument(s, w.Source.ID, w.Source.At, l)
@@ -316,20 +316,17 @@ func (t *Tx) CopyDocument(target Document, source DocumentCopySource) (*Document
 	return &DocumentHandle{t, value.ID, value.Scope, value.Owner, value.Kind, value.Key, value.Version}, nil
 }
 
-// ForkConversation stages the child and every persisted conversation-document
+// forkConversationRecord stages the already selected child and every persisted conversation-document
 // copy together. Sources are selected from adopted pre-batch state. A caller may
 // retire/recreate child documents afterwards but cannot mutate a selected source.
 // Initial-policy documents are acquired lazily by their host definitions.
-func (t *Tx) ForkConversation(parent, at ID, owner ID) (Conversation, error) {
+func (t *Tx) forkConversationRecord(parent, at ID, owner ID) (Conversation, error) {
 	if err := t.enter(); err != nil {
 		return Conversation{}, err
 	}
 	defer t.leave()
 	if !entryVisible(t.state, parent, at) {
 		return Conversation{}, reject("fork entry is not visible from parent")
-	}
-	if err := t.rejectCurrentForkWrites(t.writes, parent); err != nil {
-		return Conversation{}, err
 	}
 	entry := t.state.Entries[at]
 	id, err := t.store.mintID(t.ctx, true)
@@ -338,6 +335,12 @@ func (t *Tx) ForkConversation(parent, at ID, owner ID) (Conversation, error) {
 	}
 	t.state.HighWater = uint64(id)
 	child := Conversation{ID: id, Owner: owner, Parent: parent, ParentAt: at}
+	return t.stageForkConversation(child, entry)
+}
+
+func (t *Tx) stageForkConversation(child Conversation, entry Entry) (Conversation, error) {
+	parent := child.Parent
+	var err error
 	// Retain staging rollback if source selection/assembly fails. Reservations
 	// remain spent just like all other aborted transaction ID allocations.
 	before := t.writes
@@ -431,7 +434,7 @@ func (c *ConversationHandle) fork(ctx context.Context, at ID, change *AgentChang
 			}
 		}
 		var err error
-		child, err = tx.ForkConversation(c.id, at, 0)
+		child, err = tx.forkConversationRecord(c.id, at, 0)
 		if err != nil {
 			return nil, err
 		}

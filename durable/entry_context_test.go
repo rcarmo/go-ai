@@ -76,7 +76,7 @@ func TestEntryContextHeadEditsToolPairsAndAncestor(t *testing.T) {
 			return nil
 		})
 		var child Conversation
-		checkpointCommit(t, s, func(tx *Tx) error { var e error; child, e = tx.ForkConversation(1, cutoff, 0); return e })
+		checkpointCommit(t, s, func(tx *Tx) error { var e error; child, e = tx.forkConversationRecord(1, cutoff, 0); return e })
 		replacement := []MessageReceipt{{Role: goai.RoleUser, Content: []goai.ContentBlock{{Type: "text", Text: "edited ancestor"}}}}
 		checkpointCommit(t, s, func(tx *Tx) error {
 			_, e := tx.appendTypedEntryFixture(d, child.ID, entryContentFixture{Head: first, Edits: []ContextEdit{{Target: first, Action: "replace", Messages: replacement}}, Model: []goai.Message{{Role: goai.RoleToolResult, ToolCallID: "b", ToolName: "two", Content: []goai.ContentBlock{{Type: "text", Text: "result b"}}}, {Role: goai.RoleToolResult, ToolCallID: "extra", Content: []goai.ContentBlock{{Type: "text", Text: "discard"}}}}})

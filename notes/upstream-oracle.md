@@ -14,13 +14,17 @@ bun run scripts/check-durable-session-oracles.mjs --upstream /path/to/pinned/pi 
 bun run scripts/check-durable-session-oracles.mjs --upstream /path/to/pinned/pi --file test/tools-images.test.ts --case 'gives the same result as the calling thread'
 ```
 
-The selected mode now passes **200 unchanged cases +73 independent probes**:192 tests in ten original files (including all11 input-entry cases), eight unchanged Storage conformance cases and73 probes. It reports zero skipped/todo cases. The runner reports273 total cases:192 original-file cases plus81 supplemental cases; the supplemental total includes those eight unchanged conformance cases.
+The selected mode now passes **200 unchanged cases +76 independent probes**:192 tests in ten original files (including all11 input-entry cases), eight unchanged Storage conformance cases and76 probes. It reports zero skipped/todo cases. The runner reports276 total cases:192 original-file cases plus84 supplemental cases; the supplemental total includes those eight unchanged conformance cases.
 
 `--all` discovers all 99 files under `packages/durable/test`. It starts a fresh Vitest process per file, one worker at a time, with a384 MiB V8 heap cap (768 MiB for the image file). A single process for the whole corpus previously stopped this 2 GiB workspace with an OOM; the sharded attempts completed without a workspace OOM. Subprocess failures remain failures, not skips. The full command continues to collect failures and exits nonzero if any group failed. JSON reports and transform caches are temporary and deleted on exit.
 
 Current probes also require exact empty, submissionId-only and entryId-only CompactionResult arms. The latest selected258 and separate original compaction176 cases pass, zero skipped.
 
-## Conversation ownership constructors
+## Fork assembly and parallel progression controls
+
+Original probes confirm final cutoff-commit values, hidden later entries, ownership, pre-cutoff-read ID allocation, assembly-only source rejection and no checkpoint side effects. A separate probe proves valid reversed parallel completion. The order-sensitive progression supplement now uses the same stored-result barriers in source/native without changing its expected states. Selected276 (200 unchanged+76 probes), complete forks14+84 supplements98 and complete tools42+84 supplements126 pass zero skipped. Uncontrolled immediate ordering, native full runtime and publication identity acceptance are not inferred.
+
+## Previous conversation ownership constructors
 
 Two original probes exercise staged/missing task owners, nil/missing option errors, unknown/ignored fields, omitted versus explicit-null taskId and ownerless constructor progress behind an unrelated writer flight. A later no-op callback is the admission barrier before releasing storage. Selected273 (200 unchanged +73 probes), including all12 original table cases plus81 supplements93, pass with zero skipped. Publication-record identity/native full atomic API acceptance is not inferred from these original executions.
 

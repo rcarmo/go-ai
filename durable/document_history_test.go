@@ -269,7 +269,11 @@ func TestDocumentHistoryTxForkAncestorPoliciesSourceFenceAndReincarnation(t *tes
 		}
 		defer session.Close(bg)
 		var parent Conversation
-		_, err = session.Commit(bg, func(tx *Tx) (any, error) { var e error; parent, e = tx.ForkConversation(1, cut, 0); return nil, e })
+		_, err = session.Commit(bg, func(tx *Tx) (any, error) {
+			var e error
+			parent, e = tx.forkConversationRecord(1, cut, 0)
+			return nil, e
+		})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -293,7 +297,7 @@ func TestDocumentHistoryTxForkAncestorPoliciesSourceFenceAndReincarnation(t *tes
 		var child Conversation
 		_, err = session.Commit(bg, func(tx *Tx) (any, error) {
 			var e error
-			child, e = tx.ForkConversation(parent.ID, cut, 0)
+			child, e = tx.forkConversationRecord(parent.ID, cut, 0)
 			return nil, e
 		})
 		if err != nil {
@@ -322,7 +326,7 @@ func TestDocumentHistoryTxForkAncestorPoliciesSourceFenceAndReincarnation(t *tes
 						return nil, e
 					}
 				}
-				if _, e = tx.ForkConversation(parent.ID, cut, 0); e != nil {
+				if _, e = tx.forkConversationRecord(parent.ID, cut, 0); e != nil {
 					return nil, e
 				}
 				if !beforeFork {
@@ -339,7 +343,7 @@ func TestDocumentHistoryTxForkAncestorPoliciesSourceFenceAndReincarnation(t *tes
 		}
 		var replacementID ID
 		_, err = session.Commit(bg, func(tx *Tx) (any, error) {
-			fork, e := tx.ForkConversation(1, cut, 0)
+			fork, e := tx.forkConversationRecord(1, cut, 0)
 			if e != nil {
 				return nil, e
 			}
@@ -552,7 +556,7 @@ func TestDocumentHistoryForkFamilyPagesAndDuplicatePolicyRollback(t *testing.T) 
 			t.Fatal(err)
 		}
 		before, _ := session.Snapshot(bg)
-		_, err = session.Commit(bg, func(tx *Tx) (any, error) { _, e := tx.ForkConversation(1, cut, 0); return nil, e })
+		_, err = session.Commit(bg, func(tx *Tx) (any, error) { _, e := tx.forkConversationRecord(1, cut, 0); return nil, e })
 		rejected(t, err)
 		after, _ := session.Snapshot(bg)
 		before.HighWater = after.HighWater
@@ -607,7 +611,7 @@ func TestDocumentHistoryForkFamilyPagesAndDuplicatePolicyRollback(t *testing.T) 
 			t.Fatal(err)
 		}
 		var child Conversation
-		_, err = session.Commit(bg, func(tx *Tx) (any, error) { var e error; child, e = tx.ForkConversation(1, cut, 0); return nil, e })
+		_, err = session.Commit(bg, func(tx *Tx) (any, error) { var e error; child, e = tx.forkConversationRecord(1, cut, 0); return nil, e })
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -646,7 +650,7 @@ func TestDocumentHistoryForkFamilyPagesAndDuplicatePolicyRollback(t *testing.T) 
 		}
 		defer session.Close(bg)
 		before, _ := session.Snapshot(bg)
-		_, err = session.Commit(bg, func(tx *Tx) (any, error) { _, e := tx.ForkConversation(1, cut, 0); return nil, e })
+		_, err = session.Commit(bg, func(tx *Tx) (any, error) { _, e := tx.forkConversationRecord(1, cut, 0); return nil, e })
 		rejected(t, err)
 		after, _ := session.Snapshot(bg)
 		before.HighWater = after.HighWater
@@ -768,7 +772,7 @@ func TestDocumentHistoryForkCurrentParentNewDocumentFence(t *testing.T) {
 					// selected sources when the fork started.
 					d := Document{ID: id, Scope: "conversation", Owner: 1, Kind: "new.current", Version: 1, Value: JSON{"value": "literal-new"}, History: "latest", Fork: "current"}
 					if strings.HasSuffix(mode, "after") {
-						fork, e := tx.ForkConversation(1, cut, 0)
+						fork, e := tx.forkConversationRecord(1, cut, 0)
 						if e != nil {
 							return nil, e
 						}
@@ -801,7 +805,7 @@ func TestDocumentHistoryForkCurrentParentNewDocumentFence(t *testing.T) {
 						}
 					}
 					if strings.HasSuffix(mode, "before") {
-						fork, e := tx.ForkConversation(1, cut, 0)
+						fork, e := tx.forkConversationRecord(1, cut, 0)
 						if e != nil {
 							return nil, e
 						}
@@ -811,7 +815,7 @@ func TestDocumentHistoryForkCurrentParentNewDocumentFence(t *testing.T) {
 				})
 				rejected(t, e)
 				var rejection *StorageRejected
-				if !errors.As(e, &rejection) || !strings.Contains(rejection.Reason, "current-policy parent") {
+				if !errors.As(e, &rejection) || !strings.Contains(rejection.Reason, "Cannot fork conversation 1 while changing its current-policy documents") {
 					t.Fatal("wrong rejection masked fence", e)
 				}
 				after, e := session.Snapshot(bg)
@@ -846,7 +850,11 @@ func TestDocumentHistoryForkCurrentFenceKeepsLowLevelCopyAndAncestorWrites(t *te
 		}
 		defer session.Close(bg)
 		var parent, child Conversation
-		_, e = session.Commit(bg, func(tx *Tx) (any, error) { var e error; parent, e = tx.ForkConversation(1, cut, 0); return nil, e })
+		_, e = session.Commit(bg, func(tx *Tx) (any, error) {
+			var e error
+			parent, e = tx.forkConversationRecord(1, cut, 0)
+			return nil, e
+		})
 		if e != nil {
 			t.Fatal(e)
 		}
@@ -854,7 +862,7 @@ func TestDocumentHistoryForkCurrentFenceKeepsLowLevelCopyAndAncestorWrites(t *te
 		// unrelated current-policy document in an older ancestor stays legal.
 		_, e = session.Commit(bg, func(tx *Tx) (any, error) {
 			var e error
-			child, e = tx.ForkConversation(parent.ID, cut, 0)
+			child, e = tx.forkConversationRecord(parent.ID, cut, 0)
 			if e != nil {
 				return nil, e
 			}
@@ -897,4 +905,263 @@ func TestDocumentHistoryForkCurrentFenceKeepsLowLevelCopyAndAncestorWrites(t *te
 			t.Fatal(e)
 		}
 	})
+}
+
+// Original session-forks.test.ts164-199 at f9a26365, through the canonical
+// ownership-options fork API. No native owner-ID substitute is used.
+func TestSourceTxForkOptionsUsesFinalEntryCommitAndExcludesLaterEntry(t *testing.T) {
+	store := taskConformanceStoreV150(t)
+	session, err := OpenSession(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close(bg)
+	def, err := DefineDocument(DefinitionOptions{Kind: "fork.same-commit", Version: 1, Scope: "conversation", History: "rewindable", Fork: "asOf", Initial: func(JSON) (JSON, error) { return JSON{"value": "initial"}, nil }, CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	value, err := session.Commit(bg, func(tx *Tx) (any, error) { return tx.CreateConversation(JSON{"ownership": JSON{"kind": "ownerless"}}) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	parent := value.(Conversation)
+	var included, excluded Entry
+	_, err = session.Commit(bg, func(tx *Tx) (any, error) {
+		var err error
+		included, err = tx.AppendEntry(parent.ID, JSON{"kind": "included"})
+		if err != nil {
+			return nil, err
+		}
+		doc, err := tx.AcquireDocument(def, parent.ID, nil, nil)
+		if err != nil {
+			return nil, err
+		}
+		if err = doc.Set(JSON{"value": "final-state-of-commit"}); err != nil {
+			return nil, err
+		}
+		excluded, err = tx.AppendEntry(parent.ID, JSON{"kind": "excluded"})
+		return nil, err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	value, err = session.Commit(bg, func(tx *Tx) (any, error) {
+		fork, ok := any(tx.ForkConversation).(func(ID, ID, JSON) (Conversation, error))
+		if !ok {
+			t.Fatal("source ForkConversation ownership-options signature missing")
+		}
+		return fork(parent.ID, included.ID, JSON{"ownership": JSON{"kind": "ownerless"}})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	child := value.(Conversation)
+	if child.ID == 0 || child.Parent != parent.ID || child.ParentAt != included.ID || child.Owner != 0 {
+		t.Fatal("source fork record changed", child)
+	}
+	snapshot, found, err := session.SnapshotDefinition(bg, def, child.ID, nil)
+	if err != nil || !found || !reflect.DeepEqual(snapshot.Copy(), map[string]any{"value": "final-state-of-commit"}) {
+		t.Fatal("source final entry-commit state changed", snapshot, found, err)
+	}
+	_, err = session.Commit(bg, func(tx *Tx) (any, error) {
+		visible, err := tx.ScanEntries(EntryQuery{Conversation: child.ID}, 10, nil)
+		if err != nil {
+			return nil, err
+		}
+		haveIncluded, haveExcluded := false, false
+		for _, entry := range visible.Items {
+			haveIncluded = haveIncluded || entry.ID == included.ID
+			haveExcluded = haveExcluded || entry.ID == excluded.ID
+		}
+		if !haveIncluded || haveExcluded {
+			t.Error("source cutoff visibility changed", visible)
+		}
+		return nil, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Source transaction.ts/forks.ts mints the conversation identity before loading
+// the persisted visible cutoff; a failed lookup still fences table reads.
+func TestSourceTxForkOptionsMissingCutoffAfterMint(t *testing.T) {
+	store := taskConformanceStoreV150(t)
+	session, err := OpenSession(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close(bg)
+	_, err = session.Commit(bg, func(tx *Tx) (any, error) {
+		fork, ok := any(tx.ForkConversation).(func(ID, ID, JSON) (Conversation, error))
+		if !ok {
+			t.Fatal("source fork constructor missing")
+		}
+		high := tx.state.HighWater
+		_, err := fork(1, ID(999), JSON{"ownership": JSON{"kind": "ownerless"}})
+		if err == nil || !strings.Contains(err.Error(), "Entry 999 is not visible from conversation 1") {
+			t.Error("source missing-cutoff error changed", err)
+		}
+		if tx.state.HighWater <= high {
+			t.Error("source fork lookup did not follow ID allocation")
+		}
+		_, _, readErr := tx.Entry(1)
+		var fenced *ReadAfterWrite
+		if !errors.As(readErr, &fenced) {
+			t.Error("failed fork did not fence reads", readErr)
+		}
+		return nil, err
+	})
+	if err == nil {
+		t.Fatal("missing cutoff stored")
+	}
+}
+
+// Source-derived common #stageConversation task ownership on the fork overload.
+func TestSourceTxForkOptionsDerivesStagedTaskOwner(t *testing.T) {
+	store := taskConformanceStoreV150(t)
+	session, err := OpenSession(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close(bg)
+	value, err := session.Commit(bg, func(tx *Tx) (any, error) { return tx.AppendEntry(1, JSON{"kind": "point"}) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	cut := value.(Entry).ID
+	idle := func(context.Context, TaskRecord, *TaskRuntime) error { return nil }
+	work, err := DefineTask(TaskDefinitionOptions{Kind: "fork.owner", Version: 1, Initial: func(any) (JSON, error) { return JSON{"phase": "start"}, nil }, Phases: map[string]TaskPhase{"start": idle}, Abort: idle})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var task ID
+	value, err = session.Commit(bg, func(tx *Tx) (any, error) {
+		fork, ok := any(tx.ForkConversation).(func(ID, ID, JSON) (Conversation, error))
+		if !ok {
+			t.Fatal("source fork ownership options missing")
+		}
+		var err error
+		task, err = tx.CreateTask(work, nil, TaskOptions{Conversation: 1, Background: true, Ownership: TaskOwnership{Kind: "conversation"}})
+		if err != nil {
+			return nil, err
+		}
+		return fork(1, cut, JSON{"ownership": JSON{"kind": "task", "taskId": task}})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	child := value.(Conversation)
+	wire, err := child.MarshalJSON()
+	want := fmt.Sprintf(`{"id":%d,"parent":{"conversationId":1,"at":%d},"owner":{"conversationId":1,"taskId":%d}}`, child.ID, cut, task)
+	if err != nil || !reflect.DeepEqual(dropinJSON(t, wire), dropinJSON(t, []byte(want))) {
+		t.Fatal("source fork owner/parent record changed", string(wire), err)
+	}
+}
+
+// Original session-forks.test.ts463-517's three rejection packets. Source
+// #rejectForkSourceWrites runs during assembly, so callback completion is an
+// additional source-derived assertion, not an original-test replacement.
+func TestSourceTxForkOptionsRejectsSourceWritesDuringAssembly(t *testing.T) {
+	store := taskConformanceStoreV150(t)
+	session, err := OpenSession(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close(bg)
+	predicateCalls := 0
+	makeDoc := func(kind, history, policy string) *DocumentDefinition {
+		def, err := DefineDocument(DefinitionOptions{Kind: kind, Version: 1, Scope: "conversation", History: history, Fork: policy, Initial: func(JSON) (JSON, error) { return JSON{"value": "committed"}, nil }, CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { predicateCalls++; return false, nil }})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return def
+	}
+	current := makeDoc("fork.same-transaction-current", "latest", "current")
+	asOf := makeDoc("fork.same-transaction-as-of", "rewindable", "asOf")
+	var cut ID
+	_, err = session.Commit(bg, func(tx *Tx) (any, error) {
+		entry, err := tx.AppendEntry(1, JSON{"kind": "point"})
+		if err != nil {
+			return nil, err
+		}
+		cut = entry.ID
+		for _, def := range []*DocumentDefinition{current, asOf} {
+			if _, err = tx.AcquireDocument(def, 1, nil, nil); err != nil {
+				return nil, err
+			}
+		}
+		return nil, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := store.Snapshot(bg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, mode := range []string{"before-current", "after-current", "before-asof"} {
+		t.Run(mode, func(t *testing.T) {
+			finished := false
+			_, err := session.Commit(bg, func(tx *Tx) (any, error) {
+				change := func(def *DocumentDefinition) error {
+					doc, err := tx.AcquireDocument(def, 1, nil, nil)
+					if err != nil {
+						return err
+					}
+					return doc.Set(JSON{"value": mode})
+				}
+				if mode == "before-current" {
+					if err := change(current); err != nil {
+						return nil, err
+					}
+				}
+				if mode == "before-asof" {
+					if err := change(asOf); err != nil {
+						return nil, err
+					}
+				}
+				if _, err := tx.ForkConversation(1, cut, JSON{"ownership": JSON{"kind": "ownerless"}}); err != nil {
+					return nil, err
+				}
+				if mode == "after-current" {
+					if err := change(current); err != nil {
+						return nil, err
+					}
+				}
+				finished = true
+				return nil, nil
+			})
+			if err == nil || !strings.Contains(err.Error(), "Cannot change fork source document") {
+				t.Error("source fork rejection changed", err)
+			}
+			if !finished {
+				t.Error("source fork validation escaped assembly into callback")
+			}
+			if predicateCalls != 0 {
+				t.Error("fork rejection invoked a source-last checkpoint predicate", predicateCalls)
+			}
+		})
+	}
+	after, err := store.Snapshot(bg)
+	if err != nil || after.Seq != before.Seq {
+		t.Fatal("source rejected fork wrote storage", before.Seq, after.Seq, err)
+	}
+	for _, def := range []*DocumentDefinition{current, asOf} {
+		value, found, err := session.SnapshotDefinition(bg, def, 1, nil)
+		if err != nil || !found || !reflect.DeepEqual(value.Copy(), map[string]any{"value": "committed"}) {
+			t.Fatal("source rejected fork changed parent", value, found, err)
+		}
+	}
+	value, err := session.Commit(bg, func(tx *Tx) (any, error) {
+		return tx.ForkConversation(1, cut, JSON{"ownership": JSON{"kind": "ownerless"}})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	child := value.(Conversation)
+	snapshot, found, err := session.SnapshotDefinition(bg, current, child.ID, nil)
+	if err != nil || !found || !reflect.DeepEqual(snapshot.Copy(), map[string]any{"value": "committed"}) {
+		t.Fatal("healthy fork after rejection changed", snapshot, found, err)
+	}
 }

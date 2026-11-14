@@ -2,6 +2,7 @@ package durable
 
 import (
 	"context"
+	"fmt"
 	"sync/atomic"
 )
 
@@ -154,11 +155,6 @@ func (t *Tx) stage(w Write) error {
 		return e
 	}
 	candidate := append(append([]Write(nil), t.writes...), owned)
-	for parent := range t.forkParents {
-		if e = t.rejectCurrentForkWrites(candidate, parent); e != nil {
-			return e
-		}
-	}
 	if _, e = encodeBounded(commitRecord{Seq: t.state.Seq + 1, Writes: candidate}, t.limits, t.limits.MaxFramePayloadBytes); e != nil {
 		return e
 	}
@@ -188,10 +184,16 @@ func (t *Tx) stage(w Write) error {
 	return nil
 }
 
-// rejectCurrentForkWrites uses the persisted/staged document identity for
-// retirement commands, whose token need not repeat the policy. All current
-// parent content and retirements reject, even new or same-commit empty lifetimes.
-func (t *Tx) rejectCurrentForkWrites(writes []Write, parent ID) error {
+// rejectForkSourceWrites is the source assembly check, after callback and
+// document-plan selection. A selected source ID wins over the broader current
+// parent-scope rule; both preserve source error text and callback completion.
+func (t *Tx) rejectForkSourceWrites(writes []Write) error {
+	sources := map[ID]bool{}
+	for _, write := range writes {
+		if write.Op == "copy-document" && write.Source != nil {
+			sources[write.Source.ID] = true
+		}
+	}
 	for _, w := range writes {
 		if w.Document == nil && w.Delta == nil {
 			continue
@@ -214,8 +216,11 @@ func (t *Tx) rejectCurrentForkWrites(writes []Write, parent ID) error {
 				}
 			}
 		}
-		if d.Scope == "conversation" && d.Owner == parent && documentFork(d) == "current" {
-			return reject("cannot fork while changing current-policy parent documents")
+		if sources[d.ID] {
+			return reject(fmt.Sprintf("Cannot change fork source document %d in the fork transaction", d.ID))
+		}
+		if d.Scope == "conversation" && t.forkParents[d.Owner] && documentFork(d) == "current" {
+			return reject(fmt.Sprintf("Cannot fork conversation %d while changing its current-policy documents", d.Owner))
 		}
 	}
 	return nil
@@ -799,6 +804,10 @@ func (t *Tx) finalizeDocuments() error {
 			predicates = append(predicates, selection{len(selected) - 1, final, plan})
 		}
 	}
+	// Source validates fork plans before invoking any checkpoint predicate.
+	if err = t.rejectForkSourceWrites(selected); err != nil {
+		return err
+	}
 	// Reference/value/operation validation is complete. Retained-tail budgets
 	// apply to the actual predicate selection, so a checkpoint can reset a tail
 	// that could not admit one further retained delta.
@@ -822,11 +831,6 @@ func (t *Tx) finalizeDocuments() error {
 		}
 	}
 	if len(selected) > 0 {
-		for parent := range t.forkParents {
-			if err = t.rejectCurrentForkWrites(selected, parent); err != nil {
-				return err
-			}
-		}
 		if _, err = encodeBounded(commitRecord{Seq: t.state.Seq + 1, Writes: selected}, t.limits, t.limits.MaxFramePayloadBytes); err != nil {
 			return err
 		}

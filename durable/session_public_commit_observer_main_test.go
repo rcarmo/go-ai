@@ -340,7 +340,7 @@ func TestMainPublicCommitObserverCopyAndRetirement(t *testing.T) {
 	var child Conversation
 	_, err = s.Commit(bg, func(tx *Tx) (any, error) {
 		var err error
-		child, err = tx.ForkConversation(1, entry, 0)
+		child, err = tx.forkConversationRecord(1, entry, 0)
 		return nil, err
 	})
 	if err != nil {
