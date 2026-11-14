@@ -211,7 +211,7 @@ func (h *Harness) abortSubmission(ctx context.Context, id ID, scope *ID, binding
 		}
 		sub.Status = "aborted"
 		sub.Value = JSON{"errorCode": "aborted"}
-		if err := tx.PutSubmission(sub); err != nil {
+		if err := tx.putSubmissionRecord(sub); err != nil {
 			return nil, err
 		}
 		value["items"] = keep
@@ -334,7 +334,7 @@ func markSubmissionEntry(tx *Tx, id, entry ID) error {
 	}
 	value["placedEntry"] = entry
 	sub.Value = value
-	return tx.PutSubmission(sub)
+	return tx.putSubmissionRecord(sub)
 }
 func retainSubmissionPlacement(before, after JSON, answer ID) {
 	if entry := submissionEntryID(before["placedEntry"]); entry != 0 {

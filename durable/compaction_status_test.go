@@ -32,7 +32,7 @@ func TestCompactionLiveStatusRetrySnapshotReopenAndRemoval(t *testing.T) {
 		conversation := root(t, h, ref)
 		_, err := h.session.Commit(bg, func(tx *Tx) (any, error) {
 			for _, text := range []string{"old", "recent"} {
-				id, err := tx.MintID()
+				id, err := tx.mintID()
 				if err != nil {
 					return nil, err
 				}
@@ -259,7 +259,7 @@ func TestCompaction120FailureReopenNoCutAndSummaryClearing(t *testing.T) {
 		}
 		_, err = conv.Commit(bg, func(tx *Tx) (any, error) {
 			for _, text := range []string{"old question", "old answer", "recent"} {
-				id, err := tx.MintID()
+				id, err := tx.mintID()
 				if err != nil {
 					return nil, err
 				}
@@ -356,7 +356,7 @@ func TestSourceCompactionFailureErrorMessagePresence(t *testing.T) {
 			configureCompactionTestPolicy(t, c, compactionTestInt(0), nil)
 			if _, err := c.Commit(bg, func(tx *Tx) (any, error) {
 				for _, text := range []string{"old", "recent"} {
-					id, err := tx.MintID()
+					id, err := tx.mintID()
 					if err != nil {
 						return nil, err
 					}

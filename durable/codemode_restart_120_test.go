@@ -106,7 +106,7 @@ func TestCodemode120JournalMutationsRejected(t *testing.T) {
 							continue
 						}
 						if (mode == "source" || mode == "seed") && doc.Kind == codemodeRunKind {
-							handle, e := tx.Document(doc.ID)
+							handle, e := tx.documentRecord(doc.ID)
 							if e != nil {
 								return nil, e
 							}
@@ -122,7 +122,7 @@ func TestCodemode120JournalMutationsRejected(t *testing.T) {
 							return nil, handle.Set(value)
 						}
 						if doc.Kind == codemodeJournalKind && mode != "source" && mode != "seed" {
-							handle, e := tx.Document(doc.ID)
+							handle, e := tx.documentRecord(doc.ID)
 							if e != nil {
 								return nil, e
 							}

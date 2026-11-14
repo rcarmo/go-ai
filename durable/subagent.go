@@ -59,7 +59,7 @@ func (c *ConversationHandle) CreateBackgroundConversation(ctx context.Context, k
 				return err
 			}
 		}
-		child, err = tx.MintID()
+		child, err = tx.mintID()
 		if err != nil {
 			return err
 		}
@@ -79,7 +79,7 @@ func (c *ConversationHandle) CreateBackgroundConversation(ctx context.Context, k
 			if !ok {
 				return reject("created agent unavailable")
 			}
-			handle, err := tx.Document(existing.ID)
+			handle, err := tx.documentRecord(existing.ID)
 			if err != nil {
 				return err
 			}
@@ -92,11 +92,11 @@ func (c *ConversationHandle) CreateBackgroundConversation(ctx context.Context, k
 		if err = initializeBuiltins(tx, child); err != nil {
 			return err
 		}
-		id, err := tx.MintID()
+		id, err := tx.mintID()
 		if err != nil {
 			return err
 		}
-		_, err = tx.CreateDocument(Document{ID: id, Scope: "conversation", Owner: c.id, Kind: "app.subagents", Version: 1, Family: true, Key: key, History: "latest", Fork: "initial", Value: JSON{"conversation": child, "anchor": owner}})
+		_, err = tx.createDocumentRecord(Document{ID: id, Scope: "conversation", Owner: c.id, Kind: "app.subagents", Version: 1, Family: true, Key: key, History: "latest", Fork: "initial", Value: JSON{"conversation": child, "anchor": owner}})
 		return err
 	})
 	if err != nil {

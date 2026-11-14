@@ -13,11 +13,11 @@ func TestSubmissionWaitRegistersAndSettlesFromArbitraryCommitWithoutPolling(t *t
 		var id ID
 		_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 			var err error
-			id, err = tx.MintID()
+			id, err = tx.mintID()
 			if err != nil {
 				return err
 			}
-			return tx.PutSubmission(Submission{ID: id, Conversation: 1, Type: "write", Status: "pending", Value: JSON{}})
+			return tx.putSubmissionRecord(Submission{ID: id, Conversation: 1, Type: "write", Status: "pending", Value: JSON{}})
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -61,7 +61,7 @@ func TestSubmissionWaitRegistersAndSettlesFromArbitraryCommitWithoutPolling(t *t
 			sub := tx.state.Submissions[id]
 			sub.Status = "done"
 			sub.Value = JSON{"application": "settled"}
-			return tx.PutSubmission(sub)
+			return tx.putSubmissionRecord(sub)
 		})
 		if err != nil {
 			t.Fatal(err)

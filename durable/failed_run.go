@@ -145,7 +145,7 @@ func (h *Harness) withdrawFailedInput(tx *Tx, failed Task, cp generationCheckpoi
 		}
 		sub.Status = "failed"
 		sub.Value = JSON{"errorCode": "run_failed"}
-		if err = tx.PutSubmission(sub); err != nil {
+		if err = tx.putSubmissionRecord(sub); err != nil {
 			return false, err
 		}
 		inbox, err := builtin(tx, failed.Conversation, "pi.inbox")

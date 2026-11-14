@@ -27,22 +27,22 @@ func TestMainBoundaryPassiveWriteRollback(t *testing.T) {
 				// through the production boundary without enabling the scheduler.
 				if _, err := h.session.Commit(bg, func(tx *Tx) (any, error) {
 					var err error
-					input, err = tx.MintID()
+					input, err = tx.mintID()
 					if err != nil {
 						return nil, err
 					}
-					owner, err = tx.MintID()
+					owner, err = tx.mintID()
 					if err != nil {
 						return nil, err
 					}
-					if err := tx.PutSubmission(Submission{ID: input, Conversation: c.ID(), Type: "follow-up", Status: "pending", Value: JSON{"content": "A"}}); err != nil {
+					if err := tx.putSubmissionRecord(Submission{ID: input, Conversation: c.ID(), Type: "follow-up", Status: "pending", Value: JSON{"content": "A"}}); err != nil {
 						return nil, err
 					}
 					cp, err := dtoObject(generationCheckpoint{Phase: "queued", Submission: input, Input: "A"}, tx.limits)
 					if err != nil {
 						return nil, err
 					}
-					if err := tx.PutTask(Task{ID: owner, Conversation: c.ID(), Kind: "pi.generation", Status: "pending", Checkpoint: cp}); err != nil {
+					if err := tx.putTaskRecord(Task{ID: owner, Conversation: c.ID(), Kind: "pi.generation", Status: "pending", Checkpoint: cp}); err != nil {
 						return nil, err
 					}
 					inbox, err := builtin(tx, c.ID(), "pi.inbox")

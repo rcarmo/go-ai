@@ -36,7 +36,7 @@ func (r *TaskRuntime) CreateOwnedConversation(ctx context.Context, key string, c
 			state = next
 		}
 		var err error
-		id, err = tx.MintID()
+		id, err = tx.mintID()
 		if err != nil {
 			return nil, err
 		}
@@ -56,7 +56,7 @@ func (r *TaskRuntime) CreateOwnedConversation(ctx context.Context, key string, c
 			if !ok {
 				return nil, reject("created agent unavailable")
 			}
-			handle, err := tx.Document(existing.ID)
+			handle, err := tx.documentRecord(existing.ID)
 			if err != nil {
 				return nil, err
 			}

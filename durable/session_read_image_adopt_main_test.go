@@ -23,7 +23,7 @@ func TestMainSessionReadImageGapFailsClosed(t *testing.T) {
 		// new legacy job. The global baseline gate now rejects before storage;
 		// the existing adoption fence remains a second boundary.
 		_, err = s.Commit(bg, func(tx *Tx) (any, error) {
-			id, err := tx.MintID()
+			id, err := tx.mintID()
 			if err != nil {
 				return nil, err
 			}

@@ -14,11 +14,11 @@ func TestSubmissionPendingPublicationWaitCloseAndPoisonRemoveRegistrations(t *te
 				var id ID
 				_, err := h.Commit(bg, func(tx *Tx) (any, error) {
 					var err error
-					id, err = tx.MintID()
+					id, err = tx.mintID()
 					if err != nil {
 						return nil, err
 					}
-					return nil, tx.PutSubmission(Submission{ID: id, Conversation: 1, Type: "write", Status: "pending", Value: JSON{}})
+					return nil, tx.putSubmissionRecord(Submission{ID: id, Conversation: 1, Type: "write", Status: "pending", Value: JSON{}})
 				})
 				if err != nil {
 					t.Fatal(err)
@@ -56,7 +56,7 @@ func TestSubmissionPendingPublicationWaitCloseAndPoisonRemoveRegistrations(t *te
 					_, err := h.Commit(bg, func(tx *Tx) (any, error) {
 						current := tx.state.Submissions[id]
 						current.Status = "done"
-						return nil, tx.PutSubmission(current)
+						return nil, tx.putSubmissionRecord(current)
 					})
 					h.session.core.appendFrame = prior
 					if !errors.Is(err, ErrPoisoned) {

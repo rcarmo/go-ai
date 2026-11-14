@@ -27,12 +27,12 @@ func mainFailureOwnershipSeed(t *testing.T, b sqliteFixture, handoff, placed boo
 	var checkpoints [2]generationCheckpoint
 	for i := range tasks {
 		_, err := h.session.Commit(bg, func(tx *Tx) (any, error) {
-			id, err := tx.MintID()
+			id, err := tx.mintID()
 			if err != nil {
 				return nil, err
 			}
 			tasks[i] = id
-			sub, err := tx.MintID()
+			sub, err := tx.mintID()
 			if err != nil {
 				return nil, err
 			}
@@ -43,7 +43,7 @@ func mainFailureOwnershipSeed(t *testing.T, b sqliteFixture, handoff, placed boo
 			}
 			value := JSON{"content": cp.Input}
 			if placed || i == 1 || handoff {
-				entry, err := tx.MintID()
+				entry, err := tx.mintID()
 				if err != nil {
 					return nil, err
 				}
@@ -62,7 +62,7 @@ func mainFailureOwnershipSeed(t *testing.T, b sqliteFixture, handoff, placed boo
 			}
 			if handoff && i == 0 {
 				cp.Phase = "tools"
-				cp.AssistantEntry, err = tx.MintID()
+				cp.AssistantEntry, err = tx.mintID()
 				if err != nil {
 					return nil, err
 				}
@@ -77,7 +77,7 @@ func mainFailureOwnershipSeed(t *testing.T, b sqliteFixture, handoff, placed boo
 					return nil, err
 				}
 			}
-			if err := tx.PutSubmission(Submission{ID: sub, Conversation: c.ID(), Type: "follow-up", Status: "pending", Value: value}); err != nil {
+			if err := tx.putSubmissionRecord(Submission{ID: sub, Conversation: c.ID(), Type: "follow-up", Status: "pending", Value: value}); err != nil {
 				return nil, err
 			}
 			if cp.InputEntry == 0 {
@@ -97,7 +97,7 @@ func mainFailureOwnershipSeed(t *testing.T, b sqliteFixture, handoff, placed boo
 				return nil, err
 			}
 			checkpoints[i] = cp
-			return nil, tx.PutTask(Task{ID: id, Conversation: c.ID(), Kind: "pi.generation", Status: "pending", Checkpoint: wire})
+			return nil, tx.putTaskRecord(Task{ID: id, Conversation: c.ID(), Kind: "pi.generation", Status: "pending", Checkpoint: wire})
 		})
 		if err != nil {
 			t.Fatal("admit ownership fixture task", err)

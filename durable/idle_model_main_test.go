@@ -126,7 +126,7 @@ func TestMainIdleNestedWorkModel(t *testing.T) {
 			t.Fatal(err)
 		}
 		note := func(tx *Tx, cid ID) error {
-			id, err := tx.MintID()
+			id, err := tx.mintID()
 			if err != nil {
 				return err
 			}
@@ -173,7 +173,7 @@ func TestMainIdleNestedWorkModel(t *testing.T) {
 				var cid ID
 				commit(func(tx *Tx) error {
 					var err error
-					cid, err = tx.MintID()
+					cid, err = tx.mintID()
 					if err != nil {
 						return err
 					}
@@ -218,7 +218,7 @@ func TestMainIdleNestedWorkModel(t *testing.T) {
 						return err
 					}
 					var err error
-					into, err = tx.MintID()
+					into, err = tx.mintID()
 					if err != nil {
 						return err
 					}

@@ -31,7 +31,7 @@ func TestManualCompactionPinsCutUsageAndReopensWithoutReplay(t *testing.T) {
 		conversation := root(t, h, ref)
 		_, err := conversation.Commit(bg, func(tx *Tx) (any, error) {
 			for _, message := range []MessageReceipt{userReceipt("old question"), {Role: goai.RoleAssistant, Content: []goai.ContentBlock{{Type: "text", Text: "old answer"}}, StopReason: goai.StopReasonStop}, userReceipt("recent question")} {
-				id, err := tx.MintID()
+				id, err := tx.mintID()
 				if err != nil {
 					return nil, err
 				}
@@ -100,7 +100,7 @@ func TestManualCompactionBusyQueuesSummaryUntilBoundary(t *testing.T) {
 		conversation := root(t, h, ref)
 		_, err := conversation.Commit(bg, func(tx *Tx) (any, error) {
 			for _, text := range []string{"old question", "old answer", "recent"} {
-				id, err := tx.MintID()
+				id, err := tx.mintID()
 				if err != nil {
 					return nil, err
 				}
@@ -178,7 +178,7 @@ func TestQueuedCompactionHeadOlderThanResetSettlesStale(t *testing.T) {
 	// model timing: a queued summary must not bring pre-reset history back.
 	var submission ID
 	_, err := h.session.Commit(bg, func(tx *Tx) (any, error) {
-		old, err := tx.MintID()
+		old, err := tx.mintID()
 		if err != nil {
 			return nil, err
 		}

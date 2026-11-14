@@ -43,7 +43,7 @@ func TestTaskOwnershipAncestorCascadeIncludesAlreadyMarkedBackgroundSubtree(t *t
 				return err
 			}
 			var conversation ID
-			conversation, err = tx.MintID()
+			conversation, err = tx.mintID()
 			if err != nil {
 				return err
 			}

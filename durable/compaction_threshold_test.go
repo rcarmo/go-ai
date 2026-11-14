@@ -38,7 +38,7 @@ func TestAutomaticCompactionStrictBlockingAndBackgroundThresholds(t *testing.T) 
 				conversation := root(t, h, ref)
 				_, err := h.session.Commit(bg, func(tx *Tx) (any, error) {
 					for _, text := range []string{"old", "recent"} {
-						id, err := tx.MintID()
+						id, err := tx.mintID()
 						if err != nil {
 							return nil, err
 						}

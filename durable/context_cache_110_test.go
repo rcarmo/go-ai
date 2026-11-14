@@ -144,7 +144,7 @@ func TestContext110RetentionZeroExpiryAndSettingsIsolation(t *testing.T) {
 		var entryID ID
 		_, e = c.Commit(bg, func(tx *Tx) (any, error) {
 			var e error
-			entryID, e = tx.MintID()
+			entryID, e = tx.mintID()
 			if e != nil {
 				return nil, e
 			}
@@ -156,7 +156,7 @@ func TestContext110RetentionZeroExpiryAndSettingsIsolation(t *testing.T) {
 		var secondID ID
 		_, e = c.Commit(bg, func(tx *Tx) (any, error) {
 			var e error
-			secondID, e = tx.MintID()
+			secondID, e = tx.mintID()
 			if e != nil {
 				return nil, e
 			}

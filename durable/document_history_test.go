@@ -285,7 +285,7 @@ func TestDocumentHistoryTxForkAncestorPoliciesSourceFenceAndReincarnation(t *tes
 			}
 		}
 		_, err = session.Commit(bg, func(tx *Tx) (any, error) {
-			h, e := tx.Document(currentParent.ID)
+			h, e := tx.documentRecord(currentParent.ID)
 			if e != nil {
 				return nil, e
 			}
@@ -317,7 +317,7 @@ func TestDocumentHistoryTxForkAncestorPoliciesSourceFenceAndReincarnation(t *tes
 		for _, beforeFork := range []bool{true, false} {
 			before, _ := session.Snapshot(bg)
 			_, err = session.Commit(bg, func(tx *Tx) (any, error) {
-				h, e := tx.Document(currentParent.ID)
+				h, e := tx.documentRecord(currentParent.ID)
 				if e != nil {
 					return nil, e
 				}
@@ -353,18 +353,18 @@ func TestDocumentHistoryTxForkAncestorPoliciesSourceFenceAndReincarnation(t *tes
 			}
 			for _, d := range state.Documents {
 				if d.Owner == fork.ID && d.Kind == asOf.Kind {
-					old, e := tx.Document(d.ID)
+					old, e := tx.documentRecord(d.ID)
 					if e != nil {
 						return nil, e
 					}
 					if e = old.Retire(); e != nil {
 						return nil, e
 					}
-					replacementID, e = tx.MintID()
+					replacementID, e = tx.mintID()
 					if e != nil {
 						return nil, e
 					}
-					_, e = tx.CreateDocument(historyDocument(replacementID, fork.ID, asOf.Kind, "replacement", "rewindable", "asOf"))
+					_, e = tx.createDocumentRecord(historyDocument(replacementID, fork.ID, asOf.Kind, "replacement", "rewindable", "asOf"))
 					return nil, e
 				}
 			}
@@ -462,7 +462,7 @@ func TestDocumentHistoryPublicForkProductionHTTPAgentAndReopen(t *testing.T) {
 	var cut, app ID
 	_, err = parent.Commit(bg, func(tx *Tx) (any, error) {
 		var e error
-		cut, e = tx.MintID()
+		cut, e = tx.mintID()
 		if e != nil {
 			return nil, e
 		}
@@ -473,11 +473,11 @@ func TestDocumentHistoryPublicForkProductionHTTPAgentAndReopen(t *testing.T) {
 		if e = tx.appendMessage(cut, 1, 0, value); e != nil {
 			return nil, e
 		}
-		app, e = tx.MintID()
+		app, e = tx.mintID()
 		if e != nil {
 			return nil, e
 		}
-		_, e = tx.CreateDocument(historyDocument(app, 1, "app", "at-cut", "rewindable", "asOf"))
+		_, e = tx.createDocumentRecord(historyDocument(app, 1, "app", "at-cut", "rewindable", "asOf"))
 		return nil, e
 	})
 	if err != nil {
@@ -584,7 +584,7 @@ func TestDocumentHistoryForkFamilyPagesAndDuplicatePolicyRollback(t *testing.T) 
 		var cut ID
 		_, err = session.Commit(bg, func(tx *Tx) (any, error) {
 			var e error
-			cut, e = tx.MintID()
+			cut, e = tx.mintID()
 			if e != nil {
 				return nil, e
 			}
@@ -595,13 +595,13 @@ func TestDocumentHistoryForkFamilyPagesAndDuplicatePolicyRollback(t *testing.T) 
 		}
 		_, err = session.Commit(bg, func(tx *Tx) (any, error) {
 			for i := 0; i < 260; i++ {
-				id, e := tx.MintID()
+				id, e := tx.mintID()
 				if e != nil {
 					return nil, e
 				}
 				d := historyDocument(id, 1, "pages", fmt.Sprint(i), "latest", "current")
 				d.Family, d.Key = true, fmt.Sprint(i)
-				if _, e = tx.CreateDocument(d); e != nil {
+				if _, e = tx.createDocumentRecord(d); e != nil {
 					return nil, e
 				}
 			}
@@ -763,7 +763,7 @@ func TestDocumentHistoryForkCurrentParentNewDocumentFence(t *testing.T) {
 				}
 				var forkID, documentID ID
 				_, e = session.Commit(bg, func(tx *Tx) (any, error) {
-					id, e := tx.MintID()
+					id, e := tx.mintID()
 					if e != nil {
 						return nil, e
 					}
@@ -784,12 +784,12 @@ func TestDocumentHistoryForkCurrentParentNewDocumentFence(t *testing.T) {
 						d.Kind = "copy.unselected"
 						d.Version = 0
 						d.Value = nil
-						_, e = tx.CopyDocument(d, DocumentCopySource{ID: unselectedSource.ID, At: CurrentDocumentPoint()})
+						_, e = tx.copyDocumentRecord(d, DocumentCopySource{ID: unselectedSource.ID, At: CurrentDocumentPoint()})
 						if e != nil {
 							return nil, e
 						}
 					} else {
-						h, e := tx.CreateDocument(d)
+						h, e := tx.createDocumentRecord(d)
 						if e != nil {
 							return nil, e
 						}
@@ -866,7 +866,7 @@ func TestDocumentHistoryForkCurrentFenceKeepsLowLevelCopyAndAncestorWrites(t *te
 			if e != nil {
 				return nil, e
 			}
-			h, e := tx.Document(d.ID)
+			h, e := tx.documentRecord(d.ID)
 			if e != nil {
 				return nil, e
 			}
@@ -886,19 +886,19 @@ func TestDocumentHistoryForkCurrentFenceKeepsLowLevelCopyAndAncestorWrites(t *te
 		// parent fence: an unrelated current document in its source conversation
 		// may change as long as the exact copied source ID remains unchanged.
 		_, e = session.Commit(bg, func(tx *Tx) (any, error) {
-			id, e := tx.MintID()
+			id, e := tx.mintID()
 			if e != nil {
 				return nil, e
 			}
 			target := Document{ID: id, Scope: "conversation", Owner: other, Kind: d.Kind, History: "latest", Fork: "current"}
-			if _, e = tx.CopyDocument(target, DocumentCopySource{ID: d.ID, At: CurrentDocumentPoint()}); e != nil {
+			if _, e = tx.copyDocumentRecord(target, DocumentCopySource{ID: d.ID, At: CurrentDocumentPoint()}); e != nil {
 				return nil, e
 			}
-			id, e = tx.MintID()
+			id, e = tx.mintID()
 			if e != nil {
 				return nil, e
 			}
-			_, e = tx.CreateDocument(Document{ID: id, Scope: "conversation", Owner: 1, Kind: "unrelated.current", Version: 1, Value: JSON{"value": "allowed"}, History: "latest", Fork: "current"})
+			_, e = tx.createDocumentRecord(Document{ID: id, Scope: "conversation", Owner: 1, Kind: "unrelated.current", Version: 1, Value: JSON{"value": "allowed"}, History: "latest", Fork: "current"})
 			return nil, e
 		})
 		if e != nil {

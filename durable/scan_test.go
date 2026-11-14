@@ -221,14 +221,14 @@ func TestScan110RecordsFiltersTransactionAndDetachment(t *testing.T) {
 			if tp.Items[0].ID != task2 {
 				t.Fatal(tp)
 			}
-			sp, e := tx.ScanSubmissions(SubmissionQuery{Order: Descending}, 10, nil)
+			sp, e := tx.scanSubmissions(SubmissionQuery{Order: Descending}, 10, nil)
 			if e != nil {
 				return nil, e
 			}
 			if sp.Items[0].ID != sub2 {
 				t.Fatal(sp)
 			}
-			staged, e = tx.MintID()
+			staged, e = tx.mintID()
 			if e != nil {
 				return nil, e
 			}
@@ -238,7 +238,7 @@ func TestScan110RecordsFiltersTransactionAndDetachment(t *testing.T) {
 			if _, e = tx.ScanConversations(ConversationQuery{Order: Descending}, 1, nil); !errors.As(e, new(*ReadAfterWrite)) {
 				t.Fatal("source table read-after-write fence missing", e)
 			}
-			ent, e := tx.MintID()
+			ent, e := tx.mintID()
 			if e != nil {
 				return nil, e
 			}

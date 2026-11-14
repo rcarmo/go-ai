@@ -143,7 +143,7 @@ func TestMainSessionDeferredMultipleReloadPrefixes(t *testing.T) {
 		var peer, peerDoc ID
 		if _, err := f.session.Commit(bg, func(tx *Tx) (any, error) {
 			var err error
-			peer, err = tx.MintID()
+			peer, err = tx.mintID()
 			if err != nil {
 				return nil, err
 			}
@@ -166,7 +166,7 @@ func TestMainSessionDeferredMultipleReloadPrefixes(t *testing.T) {
 		var entry ID
 		value, err := f.session.Commit(bg, func(tx *Tx) (any, error) {
 			var err error
-			entry, err = tx.MintID()
+			entry, err = tx.mintID()
 			if err != nil {
 				return nil, err
 			}

@@ -40,7 +40,7 @@ func TestTaskTimes110SessionLifecycleLegacyAndReopen(t *testing.T) {
 					return nil, err
 				}
 				v.Status = status
-				return nil, tx.PutTask(v)
+				return nil, tx.putTaskRecord(v)
 			})
 			return err
 		}
@@ -112,7 +112,7 @@ func TestTaskTimes110StagedFirstAndRollback(t *testing.T) {
 		defer s.Close(bg)
 		sentinel := errors.New("rollback")
 		_, e = s.Commit(bg, func(tx *Tx) (any, error) {
-			if e := tx.PutTask(Task{ID: taskID, Conversation: root, Kind: "legacy", Status: "running", Checkpoint: JSON{}}); e != nil {
+			if e := tx.putTaskRecord(Task{ID: taskID, Conversation: root, Kind: "legacy", Status: "running", Checkpoint: JSON{}}); e != nil {
 				return nil, e
 			}
 			return nil, sentinel
@@ -125,13 +125,13 @@ func TestTaskTimes110StagedFirstAndRollback(t *testing.T) {
 		}
 		_, e = s.Commit(bg, func(tx *Tx) (any, error) {
 			v := Task{ID: taskID, Conversation: root, Kind: "legacy", Status: "running", Checkpoint: JSON{}}
-			if e := tx.PutTask(v); e != nil {
+			if e := tx.putTaskRecord(v); e != nil {
 				return nil, e
 			}
 			replacement := int64(999)
 			v.StartedAt = &replacement
 			v.Status = "done"
-			if e := tx.PutTask(v); e != nil {
+			if e := tx.putTaskRecord(v); e != nil {
 				return nil, e
 			}
 			state, e := tx.current()

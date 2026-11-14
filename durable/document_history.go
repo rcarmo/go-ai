@@ -301,7 +301,7 @@ func resolveDocumentCopies(s Snapshot, writes []Write, l Limits, validateSources
 
 // CopyDocument stages a definition-free base copy from committed state. It does
 // not run a migration, validator or initializer; the stored version is preserved.
-func (t *Tx) CopyDocument(target Document, source DocumentCopySource) (*DocumentHandle, error) {
+func (t *Tx) copyDocumentRecord(target Document, source DocumentCopySource) (*DocumentHandle, error) {
 	if err := t.enter(); err != nil {
 		return nil, err
 	}
@@ -458,7 +458,7 @@ func (c *ConversationHandle) fork(ctx context.Context, at ID, change *AgentChang
 			if !ok {
 				return nil, reject("fork agent unavailable")
 			}
-			handle, err := tx.Document(doc.ID)
+			handle, err := tx.documentRecord(doc.ID)
 			if err != nil {
 				return nil, err
 			}

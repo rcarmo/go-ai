@@ -27,7 +27,7 @@ func TestTaskOwnershipPinnedTerminalOrdinaryOwnerDoesNotRecascadeNewConversation
 		var owned ID
 		_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 			var err error
-			owned, err = tx.MintID()
+			owned, err = tx.mintID()
 			if err != nil {
 				return err
 			}

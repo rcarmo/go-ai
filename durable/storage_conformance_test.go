@@ -600,7 +600,7 @@ func TestPrivateCandidateCOWPreservesPublicDetachAndRollback(t *testing.T) {
 		sentinel := errors.New("rollback candidate")
 		_, e := h.Commit(bg, func(tx *Tx) (any, error) {
 			var err error
-			escaped, err = tx.Document(doc)
+			escaped, err = tx.documentRecord(doc)
 			if err != nil {
 				return nil, err
 			}
@@ -648,7 +648,7 @@ func TestPrivateCandidateCOWPreservesPublicDetachAndRollback(t *testing.T) {
 			t.Fatal("escaped handle writable", e)
 		}
 		_, e = h.Commit(bg, func(tx *Tx) (any, error) {
-			d, e := tx.Document(doc)
+			d, e := tx.documentRecord(doc)
 			if e != nil {
 				return nil, e
 			}

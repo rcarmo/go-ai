@@ -41,7 +41,7 @@ func mainAfterRunTask(t *testing.T, probe *mainAfterRunProbe) *TaskDefinition {
 				}
 			}
 			return r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
-				id, err := tx.MintID()
+				id, err := tx.mintID()
 				if err != nil {
 					return nil, err
 				}

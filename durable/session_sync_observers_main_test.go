@@ -289,7 +289,7 @@ func TestMainSyncCommitObserverSeesAdoptionBeforeCommitReturns(t *testing.T) {
 	}
 	value, err := s.Commit(ctx, func(tx *Tx) (any, error) {
 		var e error
-		entry, e = tx.MintID()
+		entry, e = tx.mintID()
 		if e != nil {
 			return nil, e
 		}

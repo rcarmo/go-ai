@@ -100,7 +100,7 @@ func TestV150GroupCommitCloseSignalsInvocationDuringCallInFlight(t *testing.T) {
 	writing := make(chan error, 1)
 	go func() {
 		_, err := h.session.Commit(ctx, func(tx *Tx) (any, error) {
-			eid, err := tx.MintID()
+			eid, err := tx.mintID()
 			if err != nil {
 				return nil, err
 			}

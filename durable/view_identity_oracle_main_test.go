@@ -66,7 +66,7 @@ func source525Notes(t *testing.T, session *Session, conversation ID, count int) 
 	ids := make([]ID, 0, count)
 	for range count {
 		checkpointCommit(t, session, func(tx *Tx) error {
-			id, err := tx.MintID()
+			id, err := tx.mintID()
 			if err != nil {
 				return err
 			}
@@ -636,7 +636,7 @@ func TestMainSharedViewSynchronousMountAndCloseOrder(t *testing.T) {
 		first.Detach()
 		checkpointCommit(t, h.session, func(tx *Tx) error {
 			for _, conversation := range []ID{c.ID(), other.ID()} {
-				id, err := tx.MintID()
+				id, err := tx.mintID()
 				if err != nil {
 					return err
 				}
@@ -813,11 +813,11 @@ func TestMainViewHydratesLegacyLiveVersionThreeWithoutStorage(t *testing.T) {
 				}
 				legacy := JSON{"run": JSON{"taskId": 7, "inputs": []any{}, "turns": turns}, "compactions": []any{JSON{"taskId": 9, "reason": "manual", "attempt": 1}}, "compactionFailure": JSON{"taskId": 9, "reason": "threshold", "error": "old"}}
 				if _, err := h.session.Commit(bg, func(tx *Tx) (any, error) {
-					id, err := tx.MintID()
+					id, err := tx.mintID()
 					if err != nil {
 						return nil, err
 					}
-					_, err = tx.CreateDocument(Document{ID: id, Kind: "pi.live", Scope: "conversation", Owner: 1, Version: version, History: "latest", Fork: "initial", Value: legacy})
+					_, err = tx.createDocumentRecord(Document{ID: id, Kind: "pi.live", Scope: "conversation", Owner: 1, Version: version, History: "latest", Fork: "initial", Value: legacy})
 					return nil, err
 				}); err != nil {
 					t.Fatal(err)

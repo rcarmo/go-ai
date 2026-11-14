@@ -225,7 +225,7 @@ func TestTaskOwnershipBackgroundBoundaryAndTerminalOwnerNoCascade(t *testing.T) 
 				var childConversation ID
 				_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 					var err error
-					childConversation, err = tx.MintID()
+					childConversation, err = tx.mintID()
 					if err != nil {
 						return err
 					}
@@ -325,7 +325,7 @@ func TestTaskOwnershipRejectFinishingChildButOwnedConversationWorkHolds(t *testi
 			close(rejected)
 			return r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
 				var err error
-				conversation, err = tx.MintID()
+				conversation, err = tx.mintID()
 				if err != nil {
 					return nil, err
 				}
@@ -736,7 +736,7 @@ func TestTaskOwnershipDirectBackgroundAbortStopsAtNestedBackground(t *testing.T)
 		var ownedConversation ID
 		_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 			var err error
-			ownedConversation, err = tx.MintID()
+			ownedConversation, err = tx.mintID()
 			if err != nil {
 				return err
 			}
@@ -919,14 +919,14 @@ func TestTaskOwnershipTaskDocumentsRetainedHeldAndSameBatchTerminalRetired(t *te
 					}
 					if err := r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
 						var err error
-						taskDoc, err = tx.MintID()
+						taskDoc, err = tx.mintID()
 						if err != nil {
 							return nil, err
 						}
-						if _, err := tx.CreateDocument(Document{ID: taskDoc, Scope: "task", Owner: r.TaskID(), Kind: "app.samebatch-lifetime", Version: 1, Value: JSON{"kept": "value"}}); err != nil {
+						if _, err := tx.createDocumentRecord(Document{ID: taskDoc, Scope: "task", Owner: r.TaskID(), Kind: "app.samebatch-lifetime", Version: 1, Value: JSON{"kept": "value"}}); err != nil {
 							return nil, err
 						}
-						entryID, err = tx.MintID()
+						entryID, err = tx.mintID()
 						if err != nil {
 							return nil, err
 						}
@@ -1092,7 +1092,7 @@ func TestTaskOwnershipPublicRawTypedDocumentOwnerAdmission(t *testing.T) {
 							_, err := tx.AcquireDocument(definition, ownerID, nil, nil)
 							return err
 						}
-						_, err := tx.CreateDocument(Document{ID: docID, Scope: scope, Owner: ownerID, Kind: "app.owner-admission", Version: 1, Value: JSON{"value": "raw"}})
+						_, err := tx.createDocumentRecord(Document{ID: docID, Scope: scope, Owner: ownerID, Kind: "app.owner-admission", Version: 1, Value: JSON{"value": "raw"}})
 						return err
 					})
 					var rejected *StorageRejected
@@ -1128,7 +1128,7 @@ func TestTaskOwnershipTerminalCandidateDocumentOverlayAndPublication(t *testing.
 		}
 		oldKey, newKey, lateKey := "committed", "new", "late"
 		_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
-			_, err := tx.CreateDocument(Document{ID: committedID, Scope: "task", Owner: ownerID, Kind: "app.overlay-family", Family: true, Key: oldKey, Version: 1, Value: JSON{"value": "committed"}})
+			_, err := tx.createDocumentRecord(Document{ID: committedID, Scope: "task", Owner: ownerID, Kind: "app.overlay-family", Family: true, Key: oldKey, Version: 1, Value: JSON{"value": "committed"}})
 			return err
 		})
 		if err != nil {
@@ -1157,7 +1157,7 @@ func TestTaskOwnershipTerminalCandidateDocumentOverlayAndPublication(t *testing.
 			if err := created.Set(JSON{"value": "created then retired"}); err != nil {
 				return err
 			}
-			if _, err := tx.CreateDocument(Document{ID: newRawID, Scope: "task", Owner: ownerID, Kind: "app.overlay-raw", Version: 1, Value: JSON{"value": "raw before terminal"}}); err != nil {
+			if _, err := tx.createDocumentRecord(Document{ID: newRawID, Scope: "task", Owner: ownerID, Kind: "app.overlay-raw", Version: 1, Value: JSON{"value": "raw before terminal"}}); err != nil {
 				return err
 			}
 			terminal, err := copyTask(tx.state.Tasks[ownerID], tx.limits)
@@ -1178,7 +1178,7 @@ func TestTaskOwnershipTerminalCandidateDocumentOverlayAndPublication(t *testing.
 					return errors.New("typed acquisition after terminal candidate succeeded")
 				}
 			}
-			if _, err := tx.CreateDocument(Document{ID: lateID, Scope: "task", Owner: ownerID, Kind: "app.overlay-late", Version: 1, Value: JSON{}}); err == nil {
+			if _, err := tx.createDocumentRecord(Document{ID: lateID, Scope: "task", Owner: ownerID, Kind: "app.overlay-late", Version: 1, Value: JSON{}}); err == nil {
 				return errors.New("raw acquisition after terminal candidate succeeded")
 			}
 			// Existing acquired handle still edits; finalisation retires its
@@ -1244,7 +1244,7 @@ func TestTaskOwnershipTerminalCandidateDocumentOverlayAndPublication(t *testing.
 			t.Fatal("typed later terminal acquisition")
 		}
 		_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
-			_, err := tx.CreateDocument(Document{ID: lateID, Scope: "task", Owner: ownerID, Kind: "app.overlay-late", Version: 1, Value: JSON{}})
+			_, err := tx.createDocumentRecord(Document{ID: lateID, Scope: "task", Owner: ownerID, Kind: "app.overlay-late", Version: 1, Value: JSON{}})
 			return err
 		})
 		if err == nil {
@@ -1267,7 +1267,7 @@ func TestTaskOwnershipTerminalCandidateDocumentOverlayAndPublication(t *testing.
 		// A later real entry publication is an ordered witness that rejected
 		// acquisitions/replacements emitted no intervening adoption frames.
 		sentinel, err := h.commitTasks(bg, 1, func(tx *Tx) error {
-			id, err := tx.MintID()
+			id, err := tx.mintID()
 			if err != nil {
 				return err
 			}
@@ -1294,7 +1294,7 @@ func TestTaskOwnershipRawAbsentExecutionTerminalDocumentPolicyPreserved(t *testi
 		apply(t, b.store, Write{Op: "put-task", Task: &owner})
 		h := taskTestHarness(t, b.store)
 		_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
-			_, err := tx.CreateDocument(Document{ID: doc, Scope: "task", Owner: id, Kind: "app.legacy-taskdoc", Version: 1, Value: JSON{"kept": true}})
+			_, err := tx.createDocumentRecord(Document{ID: doc, Scope: "task", Owner: id, Kind: "app.legacy-taskdoc", Version: 1, Value: JSON{"kept": true}})
 			return err
 		})
 		if err != nil {

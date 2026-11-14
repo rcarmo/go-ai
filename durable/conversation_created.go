@@ -39,11 +39,11 @@ func (h *Harness) initializeCreatedConversation(tx *Tx, conversation Conversatio
 				}
 			}
 		}
-		id, err := tx.MintID()
+		id, err := tx.mintID()
 		if err != nil {
 			return err
 		}
-		if _, err := tx.CreateDocument(Document{ID: id, Scope: "conversation", Owner: conversation.ID, Kind: "pi.agent", Version: 1, History: "rewindable", Fork: "asOf", Value: value}); err != nil {
+		if _, err := tx.createDocumentRecord(Document{ID: id, Scope: "conversation", Owner: conversation.ID, Kind: "pi.agent", Version: 1, History: "rewindable", Fork: "asOf", Value: value}); err != nil {
 			return err
 		}
 	}

@@ -221,7 +221,7 @@ func TestMainTranscriptProjectionFailureIsLocalAndOffLine(t *testing.T) {
 		var last ID
 		if _, err = h.session.Commit(bg, func(tx *Tx) (any, error) {
 			for i := 0; i < 9; i++ {
-				id, err := tx.MintID()
+				id, err := tx.mintID()
 				if err != nil {
 					return nil, err
 				}
@@ -296,7 +296,7 @@ func TestMainTranscriptProjectionRetainsByteQuota(t *testing.T) {
 		// fit this fixed share; replace the backlog without rejecting any commit.
 		for i := 0; i < 3; i++ {
 			if _, err = h.session.Commit(bg, func(tx *Tx) (any, error) {
-				id, err := tx.MintID()
+				id, err := tx.mintID()
 				if err != nil {
 					return nil, err
 				}
@@ -368,7 +368,7 @@ func TestMainTranscriptProjectionDoesNotCombineDTOValidationBudgets(t *testing.T
 		ids := []ID{}
 		if _, err = h.session.Commit(bg, func(tx *Tx) (any, error) {
 			for i := 0; i < 100; i++ {
-				id, err := tx.MintID()
+				id, err := tx.mintID()
 				if err != nil {
 					return nil, err
 				}

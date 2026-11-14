@@ -226,7 +226,7 @@ func (t *Tx) rejectForkSourceWrites(writes []Write) error {
 	return nil
 }
 
-func (t *Tx) MintID() (ID, error) {
+func (t *Tx) mintID() (ID, error) {
 	if e := t.enterKeys(); e != nil {
 		return 0, e
 	}
@@ -302,7 +302,7 @@ func (t *Tx) appendEntryRecord(v Entry) error {
 	}
 	return t.stage(Write{Op: "append-entry", Entry: &owned})
 }
-func (t *Tx) PutTask(v Task) error {
+func (t *Tx) putTaskRecord(v Task) error {
 	if e := t.enter(); e != nil {
 		return e
 	}
@@ -324,7 +324,7 @@ func (t *Tx) PutTask(v Task) error {
 	}
 	return t.stage(Write{Op: "put-task", Task: &owned})
 }
-func (t *Tx) PutSubmission(v Submission) error {
+func (t *Tx) putSubmissionRecord(v Submission) error {
 	if e := t.enter(); e != nil {
 		return e
 	}
@@ -409,7 +409,7 @@ type DocumentHandle struct {
 	version   uint64
 }
 
-func (t *Tx) CreateDocument(v Document) (*DocumentHandle, error) {
+func (t *Tx) createDocumentRecord(v Document) (*DocumentHandle, error) {
 	if e := t.enter(); e != nil {
 		return nil, e
 	}
@@ -442,7 +442,7 @@ func (t *Tx) CreateDocument(v Document) (*DocumentHandle, error) {
 	}
 	return &DocumentHandle{t, v.ID, v.Scope, v.Owner, v.Kind, v.Key, v.Version}, nil
 }
-func (t *Tx) Document(id ID) (*DocumentHandle, error) {
+func (t *Tx) documentRecord(id ID) (*DocumentHandle, error) {
 	if e := t.enterKeys(incarnationKey(id)); e != nil {
 		return nil, e
 	}
@@ -596,7 +596,7 @@ func (h *DocumentHandle) Retire() error {
 }
 
 // Unsupported historical/delta/copy calls reject explicitly; no success stubs.
-func (t *Tx) Unsupported(command string) error {
+func (t *Tx) unsupported(command string) error {
 	if e := t.enter(); e != nil {
 		return e
 	}

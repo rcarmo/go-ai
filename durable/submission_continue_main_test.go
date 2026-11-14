@@ -21,7 +21,7 @@ func TestMainSubmissionContinueRawLifecycle(t *testing.T) {
 			if err != nil {
 				return nil, err
 			}
-			_, _, err = tx.Submission(id)
+			_, _, err = tx.submissionRecord(id)
 			var fenced *ReadAfterWrite
 			if !errors.As(err, &fenced) {
 				t.Fatal("staged submission read", err)
@@ -52,7 +52,7 @@ func TestMainSubmissionContinueRawLifecycle(t *testing.T) {
 		}
 		_, err = h.Commit(bg, func(tx *Tx) (any, error) {
 			var err error
-			answer, err = tx.MintID()
+			answer, err = tx.mintID()
 			if err != nil {
 				return nil, err
 			}
@@ -66,7 +66,7 @@ func TestMainSubmissionContinueRawLifecycle(t *testing.T) {
 			if err := tx.SettleSubmission(id, SubmissionSettlement{Status: "unanswered", Reason: "late"}); err != nil {
 				return nil, err
 			}
-			if _, _, err := tx.Submission(id); err == nil {
+			if _, _, err := tx.submissionRecord(id); err == nil {
 				t.Fatal("staged settlement read")
 			}
 			return nil, nil
@@ -99,21 +99,21 @@ func TestMainSubmissionContinueCreateValidation(t *testing.T) {
 		var entryID, foreign ID
 		_, err := h.Commit(bg, func(tx *Tx) (any, error) {
 			var err error
-			entryID, err = tx.MintID()
+			entryID, err = tx.mintID()
 			if err != nil {
 				return nil, err
 			}
 			if err := tx.appendEntryRecord(Entry{ID: entryID, Conversation: 1, Kind: "note", Value: JSON{}}); err != nil {
 				return nil, err
 			}
-			conversation, err := tx.MintID()
+			conversation, err := tx.mintID()
 			if err != nil {
 				return nil, err
 			}
 			if err := tx.createConversationRecord(Conversation{ID: conversation}); err != nil {
 				return nil, err
 			}
-			foreign, err = tx.MintID()
+			foreign, err = tx.mintID()
 			if err != nil {
 				return nil, err
 			}
@@ -289,21 +289,21 @@ func TestMainSubmissionContinuePlacementSettlementAndAbort(t *testing.T) {
 			if err != nil {
 				return nil, err
 			}
-			answer, err = tx.MintID()
+			answer, err = tx.mintID()
 			if err != nil {
 				return nil, err
 			}
 			if err := tx.appendEntryRecord(Entry{ID: answer, Conversation: 1, Kind: "note", Value: JSON{}}); err != nil {
 				return nil, err
 			}
-			conversation, err := tx.MintID()
+			conversation, err := tx.mintID()
 			if err != nil {
 				return nil, err
 			}
 			if err := tx.createConversationRecord(Conversation{ID: conversation}); err != nil {
 				return nil, err
 			}
-			foreign, err = tx.MintID()
+			foreign, err = tx.mintID()
 			if err != nil {
 				return nil, err
 			}
@@ -387,7 +387,7 @@ func TestMainSubmissionContinueOwnershipAndCopies(t *testing.T) {
 			if _, err := tx.CreateSubmission(SubmissionCreate{}); !errors.Is(err, ErrConcurrent) {
 				t.Fatal(err)
 			}
-			if _, _, err := tx.Submission(1); !errors.Is(err, ErrConcurrent) {
+			if _, _, err := tx.submissionRecord(1); !errors.Is(err, ErrConcurrent) {
 				t.Fatal(err)
 			}
 			if err := tx.PlaceSubmission(1, 0); !errors.Is(err, ErrConcurrent) {
@@ -407,7 +407,7 @@ func TestMainSubmissionContinueOwnershipAndCopies(t *testing.T) {
 				return nil, err
 			}
 			detail["nested"].([]any)[0] = "caller mutation"
-			if _, _, err := tx.Submission(id); err == nil {
+			if _, _, err := tx.submissionRecord(id); err == nil {
 				t.Fatal("staged submission read")
 			}
 			return nil, nil
@@ -428,7 +428,7 @@ func TestMainSubmissionContinueOwnershipAndCopies(t *testing.T) {
 		if _, err := escaped.CreateSubmission(SubmissionCreate{}); !errors.Is(err, ErrSealed) {
 			t.Fatal(err)
 		}
-		if _, _, err := escaped.Submission(id); !errors.Is(err, ErrSealed) {
+		if _, _, err := escaped.submissionRecord(id); !errors.Is(err, ErrSealed) {
 			t.Fatal(err)
 		}
 		if err := escaped.PlaceSubmission(id, 0); !errors.Is(err, ErrSealed) {
@@ -491,7 +491,7 @@ func TestMainSubmissionContinueOrdinaryInputWriteControls(t *testing.T) {
 			if err != nil {
 				return nil, err
 			}
-			answer, err = tx.MintID()
+			answer, err = tx.mintID()
 			if err != nil {
 				return nil, err
 			}
@@ -524,7 +524,7 @@ func TestMainSubmissionContinueOrdinaryInputWriteControls(t *testing.T) {
 		}
 		_, err = h.Commit(bg, func(tx *Tx) (any, error) {
 			for _, id := range []ID{input, write} {
-				got, found, err := tx.Submission(id)
+				got, found, err := tx.submissionRecord(id)
 				if err != nil || !found || got.Status != "done" || got.Entry != answer {
 					t.Fatalf("ordinary receipt: %+v %v %v", got, found, err)
 				}

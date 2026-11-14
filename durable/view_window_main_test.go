@@ -260,7 +260,7 @@ func TestMainTranscriptWindowForkHistory(t *testing.T) {
 		var summary ID
 		if _, err = h.session.Commit(bg, func(tx *Tx) (any, error) {
 			var err error
-			summary, err = tx.MintID()
+			summary, err = tx.mintID()
 			if err != nil {
 				return nil, err
 			}

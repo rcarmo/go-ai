@@ -30,7 +30,7 @@ func checkCancelledOwnerLateWorkReopen(t *testing.T, store Storage, reopen func(
 		"create": func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
 			err := r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
 				var err error
-				childConversation, err = tx.MintID()
+				childConversation, err = tx.mintID()
 				if err != nil {
 					return nil, err
 				}

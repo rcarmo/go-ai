@@ -19,7 +19,7 @@ func TestConversationWatchTranscriptDeltasDetachedAndOffLine(t *testing.T) {
 				return nil, err
 			}
 			for _, text := range []string{"first", "second"} {
-				id, err := tx.MintID()
+				id, err := tx.mintID()
 				if err != nil {
 					return nil, err
 				}

@@ -47,7 +47,7 @@ func TestTxV150TaskAndTableReadsBeforeFirstTableWrite(t *testing.T) {
 			if err != nil || len(entries.Items) != 0 || entries.Next != nil {
 				t.Fatal(entries, err)
 			}
-			id, err := tx.MintID()
+			id, err := tx.mintID()
 			if err != nil {
 				return nil, err
 			}
@@ -113,7 +113,7 @@ func TestTxV150TaskAndTableReadsBeforeFirstTableWrite(t *testing.T) {
 		if _, err := tx.ScanEntries(EntryQuery{Conversation: 1}, 10, nil); err != nil {
 			return nil, err
 		}
-		id, err := tx.MintID()
+		id, err := tx.mintID()
 		if err != nil {
 			return nil, err
 		}
@@ -130,9 +130,9 @@ func TestTxV150TaskAndTableReadsBeforeFirstTableWrite(t *testing.T) {
 			{"scanTasks", func() error { _, err := tx.ScanTasks(TaskQuery{}, 10, nil); return err }},
 			{"scanConversations", func() error { _, err := tx.ScanConversations(ConversationQuery{}, 10, nil); return err }},
 			{"scanEntries", func() error { _, err := tx.ScanEntries(EntryQuery{Conversation: 1}, 10, nil); return err }},
-			{"scanSubmissions", func() error { _, err := tx.ScanSubmissions(SubmissionQuery{Conversation: 1}, 10, nil); return err }},
+			{"scanSubmissions", func() error { _, err := tx.scanSubmissions(SubmissionQuery{Conversation: 1}, 10, nil); return err }},
 			{"latestEntryId", func() error { _, _, err := tx.LatestEntryID(1); return err }},
-			{"latestHeadMarker", func() error { _, _, err := tx.LatestHeadMarker(1, 0); return err }},
+			{"latestHeadMarker", func() error { _, _, err := tx.latestHeadMarkerAt(1, 0); return err }},
 		}
 		for _, check := range checks {
 			err := check.read()
@@ -142,11 +142,11 @@ func TestTxV150TaskAndTableReadsBeforeFirstTableWrite(t *testing.T) {
 			}
 		}
 		// Document writes remain legal after table writes.
-		docID, err := tx.MintID()
+		docID, err := tx.mintID()
 		if err != nil {
 			return nil, err
 		}
-		doc, err := tx.CreateDocument(Document{ID: docID, Kind: "v150.reads", Scope: "session", Version: 1, Value: JSON{"text": "before"}})
+		doc, err := tx.createDocumentRecord(Document{ID: docID, Kind: "v150.reads", Scope: "session", Version: 1, Value: JSON{"text": "before"}})
 		if err != nil {
 			return nil, err
 		}
@@ -167,11 +167,11 @@ func TestTxV150DocumentWritesAllowReadsButFailedTableWriteFencesThem(t *testing.
 	}
 	defer session.Close(bg)
 	_, err = session.Commit(bg, func(tx *Tx) (any, error) {
-		id, err := tx.MintID()
+		id, err := tx.mintID()
 		if err != nil {
 			return nil, err
 		}
-		doc, err := tx.CreateDocument(Document{ID: id, Kind: "v150.table.read.fence", Scope: "session", Version: 1, Value: JSON{"text": "before"}})
+		doc, err := tx.createDocumentRecord(Document{ID: id, Kind: "v150.table.read.fence", Scope: "session", Version: 1, Value: JSON{"text": "before"}})
 		if err != nil {
 			return nil, err
 		}
@@ -184,7 +184,7 @@ func TestTxV150DocumentWritesAllowReadsButFailedTableWriteFencesThem(t *testing.
 		if page, err := tx.ScanTasks(TaskQuery{}, 10, nil); err != nil || len(page.Items) != 0 {
 			t.Fatalf("document write fenced task scan: %v %v", page, err)
 		}
-		bad, err := tx.MintID()
+		bad, err := tx.mintID()
 		if err != nil {
 			return nil, err
 		}
@@ -222,18 +222,18 @@ func TestTaskTablesPinnedStagedOwnerSameBatchDocumentsAndLegacyReplacement(t *te
 			if err != nil {
 				return err
 			}
-			conversation, err = tx.MintID()
+			conversation, err = tx.mintID()
 			if err != nil {
 				return err
 			}
 			if err := tx.createConversationRecord(Conversation{ID: conversation, Owner: owner}); err != nil {
 				return err
 			}
-			document, err = tx.MintID()
+			document, err = tx.mintID()
 			if err != nil {
 				return err
 			}
-			_, err = tx.CreateDocument(Document{ID: document, Scope: "task", Owner: owner, Kind: "app.same-commit", Version: 1, Value: JSON{"created": true}})
+			_, err = tx.createDocumentRecord(Document{ID: document, Scope: "task", Owner: owner, Kind: "app.same-commit", Version: 1, Value: JSON{"created": true}})
 			return err
 		})
 		if err != nil {
@@ -373,7 +373,7 @@ func TestTaskTablesPinnedTypedSameBatchOwnerAndLaterPublication(t *testing.T) {
 		var other ID
 		later, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 			var err error
-			other, err = tx.MintID()
+			other, err = tx.mintID()
 			if err != nil {
 				return err
 			}
@@ -438,7 +438,7 @@ func TestTxTypedEntryReadsGlobalCommittedRecordAndNarrowsKind(t *testing.T) {
 		if err != nil || !found || record.Data.(map[string]any)["value"] != "owned" {
 			t.Fatal(record, found, err)
 		}
-		fresh, err := tx.MintID()
+		fresh, err := tx.mintID()
 		if err != nil {
 			return nil, err
 		}
@@ -467,14 +467,14 @@ func TestTxSubmissionLookupFencesAfterTableWrite(t *testing.T) {
 	}
 	defer session.Close(bg)
 	_, err = session.Commit(bg, func(tx *Tx) (any, error) {
-		actual, found, err := tx.Submission(id)
+		actual, found, err := tx.submissionRecord(id)
 		if err != nil || !found || actual.Status != "queued" {
 			t.Fatal(actual, found, err)
 		}
-		if err := tx.PutSubmission(Submission{ID: id, Conversation: 1, Type: "follow-up", Status: "pending", Value: JSON{}}); err != nil {
+		if err := tx.putSubmissionRecord(Submission{ID: id, Conversation: 1, Type: "follow-up", Status: "pending", Value: JSON{}}); err != nil {
 			return nil, err
 		}
-		_, _, err = tx.Submission(id)
+		_, _, err = tx.submissionRecord(id)
 		var fenced *ReadAfterWrite
 		if !errors.As(err, &fenced) || fenced.Method != "submission" {
 			t.Fatalf("submission read bypassed source table fence: %v", err)
@@ -503,7 +503,7 @@ func TestTxSubmissionByRequestCommittedLookupAndFence(t *testing.T) {
 		if _, found, err := reader.SubmissionByRequest(99, ""); err != nil || found {
 			t.Fatal(found, err)
 		}
-		fresh, err := tx.MintID()
+		fresh, err := tx.mintID()
 		if err != nil {
 			return nil, err
 		}
@@ -536,7 +536,7 @@ func TestSubmissionTransactionCurrentRecordPlacementFirstSettlementAndDetached(t
 		var entry ID
 		_, err = root.Commit(bg, func(tx *Tx) (any, error) {
 			var err error
-			entry, err = tx.MintID()
+			entry, err = tx.mintID()
 			if err != nil {
 				return nil, err
 			}
@@ -603,7 +603,7 @@ func TestSubmissionTransactionCurrentRecordPlacementFirstSettlementAndDetached(t
 		var entry, input, write, placed ID
 		_, err := h.Commit(bg, func(tx *Tx) (any, error) {
 			var err error
-			entry, err = tx.MintID()
+			entry, err = tx.mintID()
 			if err != nil {
 				return nil, err
 			}
@@ -654,7 +654,7 @@ func TestSubmissionTransactionCurrentRecordPlacementFirstSettlementAndDetached(t
 			if err := tx.SettleSubmission(placed, SubmissionSettlement{Status: "unanswered", Reason: "late"}); err != nil {
 				return nil, err
 			}
-			if _, _, err := tx.Submission(placed); err == nil {
+			if _, _, err := tx.submissionRecord(placed); err == nil {
 				t.Fatal("staged submission read")
 			}
 			if err := tx.PlaceSubmission(input, entry); err != nil {
@@ -685,7 +685,7 @@ func TestSubmissionTransactionCurrentRecordPlacementFirstSettlementAndDetached(t
 			if err := tx.SettleSubmission(unanswered, SubmissionSettlement{Status: "unanswered", Reason: "host", Detail: &TaskValue{Present: true, Value: nil}}); err != nil {
 				return nil, err
 			}
-			if _, _, err := tx.Submission(unanswered); err == nil {
+			if _, _, err := tx.submissionRecord(unanswered); err == nil {
 				t.Fatal("staged submission read")
 			}
 			return nil, nil
@@ -797,7 +797,7 @@ func TestTxSubmissionFailedCreateRequiresConversationBeforeMint(t *testing.T) {
 		if tx.state.HighWater != high {
 			t.Fatal("failed conversation lookup minted an ID")
 		}
-		_, _, err := tx.Submission(1)
+		_, _, err := tx.submissionRecord(1)
 		var fenced *ReadAfterWrite
 		if !errors.As(err, &fenced) {
 			t.Fatal("failed creation did not fence table reads", err)
@@ -1000,7 +1000,7 @@ func TestTxSubmissionReadersUseInstalledWrapperAuthority(t *testing.T) {
 		if err != nil || !found || record.ID != 44 {
 			t.Fatal("transaction request read bypassed wrapper", record, found, err)
 		}
-		record, found, err = tx.Submission(2)
+		record, found, err = tx.submissionRecord(2)
 		if err != nil || !found || record.ID != 44 {
 			t.Fatal("transaction record read bypassed wrapper", record, found, err)
 		}
@@ -1111,7 +1111,7 @@ func TestSubmitInReadAfterWriteFenceAndOneCommit(t *testing.T) {
 		if err = doc.Set(JSON{"id": int(id)}); err != nil {
 			return nil, err
 		}
-		entry, err := tx.MintID()
+		entry, err := tx.mintID()
 		if err != nil {
 			return nil, err
 		}
@@ -1135,7 +1135,7 @@ func TestSubmitInReadAfterWriteFenceAndOneCommit(t *testing.T) {
 					return nil, err
 				}
 			} else {
-				entry, err := tx.MintID()
+				entry, err := tx.mintID()
 				if err != nil {
 					return nil, err
 				}
@@ -1377,7 +1377,7 @@ func TestSubmitInBusyHostCheckAndWritesAreOneCommit(t *testing.T) {
 		if err = doc.Update(func(value JSON) error { value["ids"] = append(value["ids"].([]any), id); return nil }); err != nil {
 			return nil, err
 		}
-		entry, err := tx.MintID()
+		entry, err := tx.mintID()
 		if err != nil {
 			return nil, err
 		}
@@ -1516,7 +1516,7 @@ func TestSubmitInStorageFailureHasNoAdmissionAfterReopen(t *testing.T) {
 		if _, err := c.SubmitIn(tx, Input{Type: "input", Content: "hi", RequestID: "r1"}); err != nil {
 			return nil, err
 		}
-		id, err := tx.MintID()
+		id, err := tx.mintID()
 		if err != nil {
 			return nil, err
 		}
@@ -1641,7 +1641,7 @@ func TestSubmitInContinuesFailedRunBeforeHostTableWrite(t *testing.T) {
 		t.Fatal(failed)
 	}
 	_, err = h.Commit(bg, func(tx *Tx) (any, error) {
-		id, err := tx.MintID()
+		id, err := tx.mintID()
 		if err != nil {
 			return nil, err
 		}
@@ -1678,7 +1678,7 @@ func TestSubmitInContinuesFailedRunBeforeHostTableWrite(t *testing.T) {
 		if err != nil {
 			return nil, err
 		}
-		id, err := tx.MintID()
+		id, err := tx.mintID()
 		if err != nil {
 			return nil, err
 		}
@@ -2308,5 +2308,62 @@ func TestSourceTxCreateConversationOmittedVersusNullTaskOwner(t *testing.T) {
 	})
 	if err == nil || !strings.Contains(err.Error(), "Conversation owner task null does not exist") {
 		t.Error("source explicit-null lookup changed", err)
+	}
+}
+
+// Public types.ts987-1085, not the larger internal Transaction class. Go names
+// split the typed entry overloads and spell doc/retireDoc as the existing
+// AcquireDocument/RetireDefinition methods. This is a structural API control;
+// it does not accept every method's semantics or internal setTask behaviour.
+func TestSourcePublicTxSurfaceExcludesNativeRawMethods(t *testing.T) {
+	expected := map[string]bool{}
+	for _, name := range []string{"AcquireDocument", "AppendEntry", "AppendTypedEntry", "Conversation", "CreateConversation", "CreateSubmission", "CreateTask", "Entry", "ForkConversation", "LatestEntryID", "LatestHeadMarker", "PlaceSubmission", "RetireDefinition", "ScanConversations", "ScanEntries", "ScanTasks", "SettleSubmission", "SubmissionByRequest", "Task", "TypedEntry"} {
+		expected[name] = true
+	}
+	typ := reflect.TypeFor[*Tx]()
+	for i := range typ.NumMethod() {
+		name := typ.Method(i).Name
+		if !expected[name] {
+			t.Error("native-only method exported on source Tx", name)
+		}
+		delete(expected, name)
+	}
+	for name := range expected {
+		t.Error("source Tx method missing", name)
+	}
+}
+func TestSourceTxLatestHeadMarkerUsesCurrentOneArgumentShape(t *testing.T) {
+	store := taskConformanceStoreV150(t)
+	session, err := OpenSession(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close(bg)
+	var first, last Entry
+	_, err = session.Commit(bg, func(tx *Tx) (any, error) {
+		var err error
+		first, err = tx.AppendEntry(1, JSON{"kind": "first", "head": "self"})
+		if err != nil {
+			return nil, err
+		}
+		last, err = tx.AppendEntry(1, JSON{"kind": "last", "head": "self"})
+		return nil, err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = session.Commit(bg, func(tx *Tx) (any, error) {
+		latest, ok := any(tx.LatestHeadMarker).(func(ID) (Entry, bool, error))
+		if !ok {
+			t.Fatal("source latestHeadMarker(conversation) shape missing")
+		}
+		record, found, err := latest(1)
+		if err != nil || !found || record.ID != last.ID || record.ID == first.ID {
+			t.Error("source newest committed marker changed", record, found, err)
+		}
+		return nil, err
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 }

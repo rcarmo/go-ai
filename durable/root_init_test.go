@@ -21,7 +21,7 @@ func TestRootWithInitAtomicOnceAfterAgentAndCreationRollback(t *testing.T) {
 			if !ok || agent.Value["cwd"] != "/root" {
 				t.Fatal("init before agent", agent)
 			}
-			entry, err := tx.MintID()
+			entry, err := tx.mintID()
 			if err != nil {
 				return err
 			}

@@ -57,11 +57,11 @@ func TestTaskOwnershipPinnedMissingDefinitionWaitingOnLiveForeignOrphansAtAbort(
 		var document ID
 		_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 			var err error
-			document, err = tx.MintID()
+			document, err = tx.mintID()
 			if err != nil {
 				return err
 			}
-			_, err = tx.CreateDocument(Document{ID: document, Scope: "task", Owner: parentID, Kind: "app.missing-wait", Version: 1, Value: JSON{"kept": true}})
+			_, err = tx.createDocumentRecord(Document{ID: document, Scope: "task", Owner: parentID, Kind: "app.missing-wait", Version: 1, Value: JSON{"kept": true}})
 			return err
 		})
 		if err != nil {

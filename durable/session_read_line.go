@@ -50,7 +50,7 @@ func (r *ReadLine) FindLatestHeadMarker(conversation, at ID) (Entry, bool, error
 	if err := r.check(); err != nil {
 		return Entry{}, false, err
 	}
-	return r.tx.LatestHeadMarker(conversation, at)
+	return r.tx.latestHeadMarkerAt(conversation, at)
 }
 
 // LatestEntryID reads the newest committed visible entry, including fork history.
@@ -67,9 +67,13 @@ func (t *Tx) LatestEntryID(conversation ID) (ID, bool, error) {
 	return entries[0].ID, true, nil
 }
 
-// LatestHeadMarker reads the newest visible marker within an optional inclusive
-// entry-ID ceiling. Zero selects the complete visible history.
-func (t *Tx) LatestHeadMarker(conversation, at ID) (Entry, bool, error) {
+// LatestHeadMarker reads the newest committed visible marker, as the public
+// source Tx method does. Historical ceilings remain an internal read helper.
+func (t *Tx) LatestHeadMarker(conversation ID) (Entry, bool, error) {
+	return t.latestHeadMarkerAt(conversation, 0)
+}
+
+func (t *Tx) latestHeadMarkerAt(conversation, at ID) (Entry, bool, error) {
 	if err := t.enterTableRead("latestHeadMarker", ALL_KEYS); err != nil {
 		return Entry{}, false, err
 	}

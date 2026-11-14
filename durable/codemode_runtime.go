@@ -263,7 +263,7 @@ func (r *TaskRuntime) runCodemode(ctx context.Context, key, source string, sandb
 			value any
 			id    *ID
 		}{{codemodeRunKind, run, &runID}, {codemodeJournalKind, journal, &journalID}} {
-			id, err := tx.MintID()
+			id, err := tx.mintID()
 			if err != nil {
 				return nil, err
 			}
@@ -271,7 +271,7 @@ func (r *TaskRuntime) runCodemode(ctx context.Context, key, source string, sandb
 			if err != nil {
 				return nil, err
 			}
-			if _, err = tx.CreateDocument(Document{ID: id, Scope: "task", Owner: r.taskID, Kind: item.kind, Version: 1, Family: true, Key: key, Value: value}); err != nil {
+			if _, err = tx.createDocumentRecord(Document{ID: id, Scope: "task", Owner: r.taskID, Kind: item.kind, Version: 1, Family: true, Key: key, Value: value}); err != nil {
 				return nil, err
 			}
 			*item.id = id
@@ -460,7 +460,7 @@ func (r *TaskRuntime) runCodemode(ctx context.Context, key, source string, sandb
 				if now >= run.Start.Deadline {
 					return nil, context.DeadlineExceeded
 				}
-				doc, err := tx.Document(runID)
+				doc, err := tx.documentRecord(runID)
 				if err != nil {
 					return nil, err
 				}
@@ -595,7 +595,7 @@ func (r *TaskRuntime) runCodemode(ctx context.Context, key, source string, sandb
 }
 func commitCodemodeJournal(ctx context.Context, r *TaskRuntime, id ID, journal codemodeJournalState) error {
 	return r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
-		doc, err := tx.Document(id)
+		doc, err := tx.documentRecord(id)
 		if err != nil {
 			return nil, err
 		}

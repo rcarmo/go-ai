@@ -125,7 +125,7 @@ func TestEventSnapshotUsesActiveHeadAndBuiltinDocsOnly(t *testing.T) {
 		if err := initializeBuiltins(tx, 1); err != nil {
 			return nil, err
 		}
-		id, err := tx.MintID()
+		id, err := tx.mintID()
 		if err != nil {
 			return nil, err
 		}
@@ -135,11 +135,11 @@ func TestEventSnapshotUsesActiveHeadAndBuiltinDocsOnly(t *testing.T) {
 		if err = appendReset(tx, 1, "fresh"); err != nil {
 			return nil, err
 		}
-		id, err = tx.MintID()
+		id, err = tx.mintID()
 		if err != nil {
 			return nil, err
 		}
-		_, err = tx.CreateDocument(Document{ID: id, Scope: "conversation", Owner: 1, Kind: "app.private", Family: true, Key: "named", Version: 1, Value: JSON{"not": "mounted"}, History: "latest", Fork: "initial"})
+		_, err = tx.createDocumentRecord(Document{ID: id, Scope: "conversation", Owner: 1, Kind: "app.private", Family: true, Key: "named", Version: 1, Value: JSON{"not": "mounted"}, History: "latest", Fork: "initial"})
 		return nil, err
 	})
 	if err != nil {

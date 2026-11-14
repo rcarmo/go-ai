@@ -137,11 +137,11 @@ func TestDocument120IdleRetentionZeroExpiryAndWatchPin(t *testing.T) {
 					t.Fatal(e)
 				}
 				_, e = s.Commit(bg, func(tx *Tx) (any, error) {
-					id, e := tx.MintID()
+					id, e := tx.mintID()
 					if e != nil {
 						return nil, e
 					}
-					_, e = tx.CreateDocument(Document{ID: id, Scope: "session", Kind: "retained", Version: 1, Value: JSON{"x": 1}})
+					_, e = tx.createDocumentRecord(Document{ID: id, Scope: "session", Kind: "retained", Version: 1, Value: JSON{"x": 1}})
 					return nil, e
 				})
 				if e != nil {
@@ -331,7 +331,7 @@ func TestSessionV150StoringHoldPreservesSnapshotIdentity(t *testing.T) {
 			if _, err := tx.AcquireDocument(def, 1, nil, nil); err != nil {
 				return nil, err
 			}
-			id, err := tx.MintID()
+			id, err := tx.mintID()
 			if err != nil {
 				return nil, err
 			}

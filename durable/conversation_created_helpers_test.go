@@ -60,7 +60,7 @@ func TestConversationCreatedHelpersSeeInheritedAgentBeforeOverrideAndNilRawCompa
 	var raw ID
 	_, err = plain.commitTasks(bg, 1, func(tx *Tx) error {
 		var err error
-		raw, err = tx.MintID()
+		raw, err = tx.mintID()
 		if err != nil {
 			return err
 		}
@@ -88,7 +88,7 @@ func TestHarnessRawCreationWithoutCallbackInitializesButPlainSessionAgentReadDoe
 		var plain ID
 		_, err = session.Commit(bg, func(tx *Tx) (any, error) {
 			var err error
-			plain, err = tx.MintID()
+			plain, err = tx.mintID()
 			if err != nil {
 				return nil, err
 			}
@@ -132,7 +132,7 @@ func TestHarnessRawCreationWithoutCallbackInitializesButPlainSessionAgentReadDoe
 		var created ID
 		_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 			var err error
-			created, err = tx.MintID()
+			created, err = tx.mintID()
 			if err != nil {
 				return err
 			}

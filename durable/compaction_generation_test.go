@@ -45,7 +45,7 @@ func TestAutomaticOwnedCompactionRetriesThenGenerationUsesSummary(t *testing.T) 
 		}
 		_, err = conversation.Commit(bg, func(tx *Tx) (any, error) {
 			for _, text := range []string{"very old question", "very old answer", "recent"} {
-				id, err := tx.MintID()
+				id, err := tx.mintID()
 				if err != nil {
 					return nil, err
 				}
@@ -132,7 +132,7 @@ func TestOverflowCompactionOneRecoveryAndNoOrdinaryRetry(t *testing.T) {
 				}
 				_, err = conversation.Commit(bg, func(tx *Tx) (any, error) {
 					for _, text := range []string{"old question", "old answer", "recent"} {
-						id, err := tx.MintID()
+						id, err := tx.mintID()
 						if err != nil {
 							return nil, err
 						}

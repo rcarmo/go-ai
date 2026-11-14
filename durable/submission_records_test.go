@@ -568,7 +568,7 @@ func TestV150SubmissionRequestPresenceSessionAndHarness(t *testing.T) {
 	var id ID
 	_, err = h.Commit(bg, func(tx *Tx) (any, error) {
 		var err error
-		conv, err := tx.MintID()
+		conv, err := tx.mintID()
 		if err != nil {
 			return nil, err
 		}
@@ -583,7 +583,7 @@ func TestV150SubmissionRequestPresenceSessionAndHarness(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = h.Commit(bg, func(tx *Tx) (any, error) {
-		record, ok, err := tx.Submission(id)
+		record, ok, err := tx.submissionRecord(id)
 		if err != nil {
 			return nil, err
 		}

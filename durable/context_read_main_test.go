@@ -419,7 +419,7 @@ func TestMainContextReadPublicOffLine(t *testing.T) {
 						}
 						ctx, cancel := context.WithTimeout(bg, time.Second)
 						_, err = h.session.Commit(ctx, func(tx *Tx) (any, error) {
-							id, err := tx.MintID()
+							id, err := tx.mintID()
 							if err != nil {
 								return nil, err
 							}

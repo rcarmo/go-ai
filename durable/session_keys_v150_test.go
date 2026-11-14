@@ -182,7 +182,7 @@ func TestSessionV150WriteKeys(t *testing.T) {
 	var created []string
 	if _, err := session.Commit(bg, func(tx *Tx) (any, error) {
 		var e error
-		if entryID, e = tx.MintID(); e != nil {
+		if entryID, e = tx.mintID(); e != nil {
 			return nil, e
 		}
 		if err := tx.appendEntryRecord(Entry{ID: entryID, Conversation: 1, Kind: userEntryKind}); err != nil {

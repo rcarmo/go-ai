@@ -44,7 +44,7 @@ func TestMainSessionUnpublishedScanBarriers(t *testing.T) {
 				defer workers.Done()
 				_, err := s.Commit(ctx, func(tx *Tx) (any, error) {
 					var err error
-					leaked, err = tx.MintID()
+					leaked, err = tx.mintID()
 					if err != nil {
 						return nil, err
 					}

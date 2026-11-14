@@ -83,7 +83,7 @@ func recordInterruptedGenerationPartial(tx *Tx, current Task, cp *generationChec
 	}
 	receipt := *partial
 	receipt.StopReason = goai.StopReasonAborted
-	id, err := tx.MintID()
+	id, err := tx.mintID()
 	if err != nil {
 		return false, err
 	}

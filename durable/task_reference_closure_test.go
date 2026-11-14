@@ -101,7 +101,7 @@ func TestTaskOwnershipLiveFailedOwnerAbortsNewWorkWhileOldChildDrains(t *testing
 		owner := taskDefinition(t, "task.reference.live.failed.owner", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
 			if err := r.Commit(ctx, func(tx *Tx, task TaskRecord) (*TaskState, error) {
 				var err error
-				ownedConversation, err = tx.MintID()
+				ownedConversation, err = tx.mintID()
 				if err != nil {
 					return nil, err
 				}
@@ -192,7 +192,7 @@ func TestTaskOwnershipActiveBackgroundOwnerStopsRootIdleButOwnedScopeRemainsBusy
 		owner := taskDefinition(t, "task.reference.background.scope.owner", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
 			if err := r.Commit(ctx, func(tx *Tx, task TaskRecord) (*TaskState, error) {
 				var err error
-				conversation, err = tx.MintID()
+				conversation, err = tx.mintID()
 				if err != nil {
 					return nil, err
 				}

@@ -35,7 +35,7 @@ func (h *Harness) startNextSequentialTool(runtime *TaskRuntime, parent Task) err
 		if len(h.scheduler.ownedLive(tx.state, parent.ID)) != 0 {
 			return reject("sequential owned work still live")
 		}
-		id, err := tx.MintID()
+		id, err := tx.mintID()
 		if err != nil {
 			return err
 		}
@@ -47,7 +47,7 @@ func (h *Harness) startNextSequentialTool(runtime *TaskRuntime, parent Task) err
 		if err := tx.bindTaskTrace(&child, TaskOptions{}); err != nil {
 			return err
 		}
-		if err := tx.PutTask(child); err != nil {
+		if err := tx.putTaskRecord(child); err != nil {
 			return err
 		}
 		cp.PendingTools = cp.PendingTools[1:]
@@ -74,7 +74,7 @@ func (h *Harness) abortPendingSequentialTools(parent Task, cp *generationCheckpo
 		for _, pending := range latest.PendingTools {
 			diagnostic := ToolDiagnostic{Severity: "error", Code: "aborted", Message: toolErrorMessage(pending.Offer.Name, "aborted")}
 			receipt := MessageReceipt{Role: "toolResult", ToolCallID: pending.CallID, ToolName: pending.Offer.Name, Content: []goai.ContentBlock{{Type: "text", Text: renderToolDiagnostics([]ToolDiagnostic{diagnostic})}}, IsError: true, ErrorCode: "aborted", Diagnostics: []ToolDiagnostic{diagnostic}, Details: JSON{}}
-			id, err := tx.MintID()
+			id, err := tx.mintID()
 			if err != nil {
 				return err
 			}

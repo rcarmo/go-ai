@@ -35,11 +35,11 @@ func TestConversationCreatedPinnedRawOwnedForkOrderAndRollback(t *testing.T) {
 				label = "fork"
 			}
 			seen = append(seen, label+":"+cwd)
-			id, err := tx.MintID()
+			id, err := tx.mintID()
 			if err != nil {
 				return err
 			}
-			if _, err := tx.CreateDocument(Document{ID: id, Scope: "conversation", Owner: conversation.ID, Kind: "app.created", Version: 1, Value: JSON{"created": true}}); err != nil {
+			if _, err := tx.createDocumentRecord(Document{ID: id, Scope: "conversation", Owner: conversation.ID, Kind: "app.created", Version: 1, Value: JSON{"created": true}}); err != nil {
 				return err
 			}
 			if panicNext {
@@ -70,14 +70,14 @@ func TestConversationCreatedPinnedRawOwnedForkOrderAndRollback(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			plain, err = tx.MintID()
+			plain, err = tx.mintID()
 			if err != nil {
 				return err
 			}
 			if err := tx.createConversationRecord(Conversation{ID: plain}); err != nil {
 				return err
 			}
-			owned, err = tx.MintID()
+			owned, err = tx.mintID()
 			if err != nil {
 				return err
 			}
@@ -92,7 +92,7 @@ func TestConversationCreatedPinnedRawOwnedForkOrderAndRollback(t *testing.T) {
 			if !ok || doc.Value["cwd"] != "/root" {
 				t.Error("owned agent not copied", doc)
 			}
-			at, err = tx.MintID()
+			at, err = tx.mintID()
 			if err != nil {
 				return err
 			}
@@ -126,12 +126,12 @@ func TestConversationCreatedPinnedRawOwnedForkOrderAndRollback(t *testing.T) {
 			}
 			// Catching the callback failure cannot admit other transaction writes.
 			_, err = h.commitTasks(bg, root.ID(), func(tx *Tx) error {
-				id, err := tx.MintID()
+				id, err := tx.mintID()
 				if err != nil {
 					return err
 				}
 				_ = tx.createConversationRecord(Conversation{ID: id})
-				entry, err := tx.MintID()
+				entry, err := tx.mintID()
 				if err != nil {
 					return err
 				}

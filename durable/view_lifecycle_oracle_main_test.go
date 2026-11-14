@@ -81,7 +81,7 @@ func TestMainViewUpstreamAtomicPublication(t *testing.T) {
 		var ids []ID
 		checkpointCommit(t, h.session, func(tx *Tx) error {
 			for _, n := range []int{1, 2} {
-				id, e := tx.MintID()
+				id, e := tx.mintID()
 				if e != nil {
 					return e
 				}

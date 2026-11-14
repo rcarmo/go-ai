@@ -51,7 +51,7 @@ func checkReopenedOwnedInspectIdle(t *testing.T, store Storage, reopen func() St
 	var owned, childID ID
 	_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 		var err error
-		owned, err = tx.MintID()
+		owned, err = tx.mintID()
 		if err != nil {
 			return err
 		}

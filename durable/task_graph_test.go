@@ -27,7 +27,7 @@ func TestTaskGraphCommittedWatchFamilyAndDetachedRebuild(t *testing.T) {
 			"spawn": func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
 				if err := r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
 					for i := 0; i < 2; i++ {
-						id, err := tx.MintID()
+						id, err := tx.mintID()
 						if err != nil {
 							return nil, err
 						}

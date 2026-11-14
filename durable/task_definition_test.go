@@ -269,7 +269,7 @@ func TestTaskDefinitionFoundationRawStoreSnapshotImageAndTxDetach(t *testing.T) 
 			v := tx.state.Tasks[id]
 			taskCheckpointMap(v.Execution.Native.State.Checkpoint)["count"] = 1
 			// Raw public Tx.PutTask cannot replace native execution authority.
-			if err := tx.PutTask(v); err == nil {
+			if err := tx.putTaskRecord(v); err == nil {
 				return nil, errors.New("raw execution replacement accepted")
 			}
 			// Private adapter staging still performs the full copy boundary.
@@ -442,14 +442,14 @@ func TestTaskDefinitionOptionalFailedAbortedResultAndRawForgery(t *testing.T) {
 		}
 		defer session.Close(bg)
 		_, err = session.Commit(bg, func(tx *Tx) (any, error) {
-			id, err := tx.MintID()
+			id, err := tx.mintID()
 			if err != nil {
 				return nil, err
 			}
 			forged := foundationTask(id, nil)
 			forged.Status = "failed"
 			forged.Execution.Native.State = TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "orphaned", Reason: "forged"}}
-			return nil, tx.PutTask(forged)
+			return nil, tx.putTaskRecord(forged)
 		})
 		if err == nil {
 			t.Fatal("public Tx forged private scheduler outcome")

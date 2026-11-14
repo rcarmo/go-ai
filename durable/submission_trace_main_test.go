@@ -81,7 +81,7 @@ func TestMainSubmissionTraceDTOOwnershipAndReopen(t *testing.T) {
 		}
 		mainTraceMutate(record)
 		_, err = h.Commit(bg, func(tx *Tx) (any, error) {
-			got, found, err := tx.Submission(id)
+			got, found, err := tx.submissionRecord(id)
 			if err != nil || !found {
 				t.Fatal(got, found, err)
 			}
@@ -89,7 +89,7 @@ func TestMainSubmissionTraceDTOOwnershipAndReopen(t *testing.T) {
 				t.Error("transaction trace lost", got)
 			}
 			mainTraceMutate(got)
-			again, found, err := tx.Submission(id)
+			again, found, err := tx.submissionRecord(id)
 			if err != nil || !found || !reflect.DeepEqual(mainTraceRecordCarrier(t, again), want) {
 				t.Fatal("transaction carrier alias", again, found, err)
 			}

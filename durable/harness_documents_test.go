@@ -22,7 +22,7 @@ func TestHarnessTypedDocumentForwardingHistoryStateWatchAndNoSchedule(t *testing
 			if err = doc.Set(JSON{"text": "first"}); err != nil {
 				return nil, err
 			}
-			at, err = tx.MintID()
+			at, err = tx.mintID()
 			if err != nil {
 				return nil, err
 			}

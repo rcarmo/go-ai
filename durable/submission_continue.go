@@ -19,10 +19,10 @@ func (h *Harness) startExplicitContinue(tx *Tx, conversation, submission ID, req
 	if err != nil {
 		return err
 	}
-	if err := tx.PutSubmission(Submission{ID: submission, Conversation: conversation, RequestID: requestID, RequestIDPresent: requestIDPresent, Type: "continue", Status: "pending", Value: JSON{}, Trace: carrier}); err != nil {
+	if err := tx.putSubmissionRecord(Submission{ID: submission, Conversation: conversation, RequestID: requestID, RequestIDPresent: requestIDPresent, Type: "continue", Status: "pending", Value: JSON{}, Trace: carrier}); err != nil {
 		return err
 	}
-	taskID, err := tx.MintID()
+	taskID, err := tx.mintID()
 	if err != nil {
 		return err
 	}

@@ -284,7 +284,7 @@ func (t *Tx) ScanTasks(q TaskQuery, limit int, cursor Cursor) (Page[TaskRecord],
 	}
 	return scanTasks(t.state, q, limit, cursor, t.limits)
 }
-func (t *Tx) ScanSubmissions(q SubmissionQuery, limit int, cursor Cursor) (Page[SubmissionRecord], error) {
+func (t *Tx) scanSubmissions(q SubmissionQuery, limit int, cursor Cursor) (Page[SubmissionRecord], error) {
 	if e := t.enterTableRead("scanSubmissions", ALL_KEYS); e != nil {
 		return Page[SubmissionRecord]{}, e
 	}

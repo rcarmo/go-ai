@@ -38,7 +38,7 @@ func TestAutomaticCompactionRetryDecisionFollowsCurrentSettingsAfterResponse(t *
 		}
 		_, err = h.commitTasks(bg, conversation.ID(), func(tx *Tx) error {
 			for _, text := range []string{"old", "recent"} {
-				id, err := tx.MintID()
+				id, err := tx.mintID()
 				if err != nil {
 					return err
 				}
@@ -114,7 +114,7 @@ func TestSourceCompactionIgnoresLegacyTaskRetryOverride(t *testing.T) {
 		var task ID
 		if _, err := c.Commit(bg, func(tx *Tx) (any, error) {
 			for _, text := range []string{"old", "recent"} {
-				id, err := tx.MintID()
+				id, err := tx.mintID()
 				if err != nil {
 					return nil, err
 				}

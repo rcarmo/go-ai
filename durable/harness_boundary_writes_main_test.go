@@ -53,7 +53,7 @@ func TestMainBoundaryWritesFirstAndSequentialHeads(t *testing.T) {
 				entries, submissions := map[string]ID{}, map[string]ID{}
 				if _, err := h.session.Commit(bg, func(tx *Tx) (any, error) {
 					for _, text := range []string{"a", "b", "c"} {
-						id, err := tx.MintID()
+						id, err := tx.mintID()
 						if err != nil {
 							return nil, err
 						}

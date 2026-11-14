@@ -75,7 +75,7 @@ func (r *TaskRuntime) codemodeFilesystemWriter(ctx context.Context, key string, 
 			if err != nil {
 				return nil, err
 			}
-			handle, err := tx.Document(doc.ID)
+			handle, err := tx.documentRecord(doc.ID)
 			if err != nil {
 				return nil, err
 			}

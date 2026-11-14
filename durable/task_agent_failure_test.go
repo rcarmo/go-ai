@@ -35,7 +35,7 @@ func TestTaskAgentCancelledOnlyCallerFailureCachedUntilNextPhase(t *testing.T) {
 				// Restore the agent while this phase remains active. Its cached error must
 				// survive; phase b must read the restored document independently.
 				if err := r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
-					handle, err := tx.Document(documentID)
+					handle, err := tx.documentRecord(documentID)
 					if err != nil {
 						return nil, err
 					}
@@ -73,11 +73,11 @@ func TestTaskAgentCancelledOnlyCallerFailureCachedUntilNextPhase(t *testing.T) {
 		var id ID
 		_, err = harness.commitTasks(bg, 1, func(tx *Tx) error {
 			var err error
-			documentID, err = tx.MintID()
+			documentID, err = tx.mintID()
 			if err != nil {
 				return err
 			}
-			if _, err := tx.CreateDocument(Document{ID: documentID, Scope: "conversation", Owner: 1, Kind: "pi.agent", Version: 1, History: "rewindable", Fork: "asOf", Value: JSON{"settings": "invalid settings shape"}}); err != nil {
+			if _, err := tx.createDocumentRecord(Document{ID: documentID, Scope: "conversation", Owner: 1, Kind: "pi.agent", Version: 1, History: "rewindable", Fork: "asOf", Value: JSON{"settings": "invalid settings shape"}}); err != nil {
 				return err
 			}
 			id, err = tx.CreateTask(definition, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})

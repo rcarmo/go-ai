@@ -27,7 +27,7 @@ func TestConversationCreatedNeverReplaysForRetiredAgentOrNilHistoryReopen(t *tes
 				if !ok {
 					return reject("agent missing")
 				}
-				handle, err := tx.Document(doc.ID)
+				handle, err := tx.documentRecord(doc.ID)
 				if err != nil {
 					return err
 				}
@@ -54,7 +54,7 @@ func TestConversationCreatedNeverReplaysForRetiredAgentOrNilHistoryReopen(t *tes
 		var raw ID
 		_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 			var err error
-			raw, err = tx.MintID()
+			raw, err = tx.mintID()
 			if err != nil {
 				return err
 			}

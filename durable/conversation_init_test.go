@@ -32,7 +32,7 @@ func TestConversationInitPinnedCreationHookThenAgentThenInitAtomicRollback(t *te
 			doc, _ := agentDocument(state, id)
 			cwd, _ := doc.Value["cwd"].(string)
 			order = append(order, "init:"+cwd)
-			entry, err := tx.MintID()
+			entry, err := tx.mintID()
 			if err != nil {
 				return err
 			}
@@ -48,7 +48,7 @@ func TestConversationInitPinnedCreationHookThenAgentThenInitAtomicRollback(t *te
 		var at ID
 		_, err = root.Commit(bg, func(tx *Tx) (any, error) {
 			var err error
-			at, err = tx.MintID()
+			at, err = tx.mintID()
 			if err != nil {
 				return nil, err
 			}
@@ -68,7 +68,7 @@ func TestConversationInitPinnedCreationHookThenAgentThenInitAtomicRollback(t *te
 		for _, panicCase := range []bool{false, true} {
 			before, _ := h.Snapshot(bg)
 			_, err = h.CreateConversationWithInit(bg, AgentChange{Model: ModelRef{Provider: "openai", ID: "model"}}, func(tx *Tx, id ID) error {
-				entry, err := tx.MintID()
+				entry, err := tx.mintID()
 				if err != nil {
 					return err
 				}
@@ -88,7 +88,7 @@ func TestConversationInitPinnedCreationHookThenAgentThenInitAtomicRollback(t *te
 				t.Fatal("init not atomic")
 			}
 			_, err = root.ForkWithInit(bg, at, nil, func(tx *Tx, id ID) error {
-				entry, err := tx.MintID()
+				entry, err := tx.mintID()
 				if err != nil {
 					return err
 				}

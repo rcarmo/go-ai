@@ -40,7 +40,7 @@ func mainMemoryLive(t *testing.T, f *mainDeadlineSession, live ID, ops []Operati
 		withinMs = []float64{1e6}
 	}
 	if _, err := f.session.commitPersistence(bg, func(tx *Tx) error {
-		h, err := tx.Document(live)
+		h, err := tx.documentRecord(live)
 		if err != nil {
 			return err
 		}
@@ -129,7 +129,7 @@ func TestMainSessionConversationMemoryDelivery(t *testing.T) {
 					// Tighten the deadline with a second memory revision, then
 					// fire the real captured persistence timer.
 					if _, err = f.session.commitPersistence(bg, func(tx *Tx) error {
-						h, err := tx.Document(live)
+						h, err := tx.documentRecord(live)
 						if err != nil {
 							return err
 						}
@@ -141,7 +141,7 @@ func TestMainSessionConversationMemoryDelivery(t *testing.T) {
 					f.fire(t)
 				} else {
 					if _, err = f.session.Commit(bg, func(tx *Tx) (any, error) {
-						h, err := tx.Document(live) // Depends on the held presentation.
+						h, err := tx.documentRecord(live) // Depends on the held presentation.
 						if err != nil {
 							return nil, err
 						}
@@ -153,7 +153,7 @@ func TestMainSessionConversationMemoryDelivery(t *testing.T) {
 								return nil, err
 							}
 						}
-						id, err := tx.MintID()
+						id, err := tx.mintID()
 						if err != nil {
 							return nil, err
 						}
@@ -207,7 +207,7 @@ func TestMainSessionConversationMemoryBacklog(t *testing.T) {
 		f, c, live := mainMemoryConversation(t, b)
 		// A string append detects accidental reapplication of already seen holds.
 		if _, err := f.session.Commit(bg, func(tx *Tx) (any, error) {
-			h, err := tx.Document(live)
+			h, err := tx.documentRecord(live)
 			if err != nil {
 				return nil, err
 			}

@@ -17,7 +17,7 @@ func TestContext130BaselineLeadsImportedAssistantHistory(t *testing.T) {
 		append130 := func(entry Entry) {
 			t.Helper()
 			if _, err := h.session.Commit(bg, func(tx *Tx) (any, error) {
-				id, err := tx.MintID()
+				id, err := tx.mintID()
 				if err != nil {
 					return nil, err
 				}

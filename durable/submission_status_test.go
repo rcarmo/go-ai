@@ -48,11 +48,11 @@ func TestSubmissionReferenceStatusAndAbortDispositionScopeQueuedWrites(t *testin
 		var raw ID
 		_, err = h.commitTasks(bg, root.ID(), func(tx *Tx) error {
 			var err error
-			raw, err = tx.MintID()
+			raw, err = tx.mintID()
 			if err != nil {
 				return err
 			}
-			return tx.PutSubmission(Submission{ID: raw, Conversation: root.ID(), Type: "write", Status: "pending", Value: JSON{}})
+			return tx.putSubmissionRecord(Submission{ID: raw, Conversation: root.ID(), Type: "write", Status: "pending", Value: JSON{}})
 		})
 		if err != nil {
 			t.Fatal(err)

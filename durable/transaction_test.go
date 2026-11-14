@@ -34,7 +34,7 @@ func TestTransactionImmediateCopyAndSealed(t *testing.T) {
 		_, e = s.Commit(bg, func(tx *Tx) (any, error) {
 			escaped = tx
 			var err error
-			handle, err = tx.CreateDocument(Document{ID: doc, Scope: "session", Kind: "app.state", Version: 1, Value: JSON{}})
+			handle, err = tx.createDocumentRecord(Document{ID: doc, Scope: "session", Kind: "app.state", Version: 1, Value: JSON{}})
 			if err != nil {
 				return nil, err
 			}
@@ -76,14 +76,14 @@ func TestTransactionImmediateCopyAndSealed(t *testing.T) {
 		if v.Documents[doc].Value["updated"] != "committed" || v.Documents[doc].Value["nested"].(map[string]any)["x"] != "original" {
 			t.Fatal(v.Documents[doc])
 		}
-		for _, f := range []func() error{func() error { return handle.Set(JSON{}) }, func() error { _, e := handle.Get(); return e }, func() error { return handle.Update(func(JSON) error { return nil }) }, handle.Retire, func() error { _, e := escaped.MintID(); return e }, func() error { return escaped.Unsupported("copy") }} {
+		for _, f := range []func() error{func() error { return handle.Set(JSON{}) }, func() error { _, e := handle.Get(); return e }, func() error { return handle.Update(func(JSON) error { return nil }) }, handle.Retire, func() error { _, e := escaped.mintID(); return e }, func() error { return escaped.unsupported("copy") }} {
 			if e := f(); !errors.Is(e, ErrSealed) {
 				t.Fatal(e)
 			}
 		}
 		old := v.Documents[doc].Value
 		_, e = s.Commit(bg, func(tx *Tx) (any, error) {
-			h, e := tx.Document(doc)
+			h, e := tx.documentRecord(doc)
 			if e != nil {
 				return nil, e
 			}
@@ -106,7 +106,7 @@ func TestTransactionCallbackInvalidAndRollback(t *testing.T) {
 			t.Fatal(e)
 		}
 		_, e = s.Commit(bg, func(tx *Tx) (any, error) {
-			_, e := tx.CreateDocument(Document{ID: id, Scope: "session", Kind: "state", Version: 1, Value: JSON{"x": 1}})
+			_, e := tx.createDocumentRecord(Document{ID: id, Scope: "session", Kind: "state", Version: 1, Value: JSON{"x": 1}})
 			return nil, e
 		})
 		if e != nil {
@@ -118,7 +118,7 @@ func TestTransactionCallbackInvalidAndRollback(t *testing.T) {
 		}
 		sentinel := errors.New("callback")
 		_, e = s.Commit(bg, func(tx *Tx) (any, error) {
-			h, e := tx.Document(id)
+			h, e := tx.documentRecord(id)
 			if e != nil {
 				return nil, e
 			}
@@ -153,7 +153,7 @@ func TestTransactionCallbackInvalidAndRollback(t *testing.T) {
 			}()
 			_, _ = s.Commit(bg, func(tx *Tx) (any, error) { escaped = tx; panic("test") })
 		}()
-		if _, e = escaped.MintID(); !errors.Is(e, ErrSealed) {
+		if _, e = escaped.mintID(); !errors.Is(e, ErrSealed) {
 			t.Fatal(e)
 		}
 		_, e = s.Commit(bg, func(tx *Tx) (any, error) {
@@ -190,7 +190,7 @@ func TestNoCallerMarshalAuthority(t *testing.T) {
 	h := sessionFor(t, s)
 	id, _ := h.MintID(bg)
 	_, e := h.Commit(bg, func(tx *Tx) (any, error) {
-		doc, e := tx.CreateDocument(Document{ID: id, Scope: "session", Kind: "state", Version: 1, Value: JSON{}})
+		doc, e := tx.createDocumentRecord(Document{ID: id, Scope: "session", Kind: "state", Version: 1, Value: JSON{}})
 		if e != nil {
 			return nil, e
 		}
@@ -230,7 +230,7 @@ func TestRetainedStoreCannotBypassSession(t *testing.T) {
 			_, e := s.Commit(bg, func(tx *Tx) (any, error) {
 				close(entered)
 				<-release
-				id, e := tx.MintID()
+				id, e := tx.mintID()
 				if e != nil {
 					return nil, e
 				}
@@ -330,13 +330,13 @@ func TestPublicTransactionStagedReferencesAtomic(t *testing.T) {
 		_, e := s.Commit(bg, func(tx *Tx) (any, error) {
 			// Source resolves a scope when it is acquired. Stage the task in
 			// the existing root before creating its conversation/documents.
-			if e := tx.PutTask(Task{ID: task, Conversation: 1, Kind: "generation", Status: "pending", Checkpoint: JSON{"step": 1}}); e != nil {
+			if e := tx.putTaskRecord(Task{ID: task, Conversation: 1, Kind: "generation", Status: "pending", Checkpoint: JSON{"step": 1}}); e != nil {
 				return nil, e
 			}
 			if e := tx.createConversationRecord(Conversation{ID: conversation, Owner: task}); e != nil {
 				return nil, e
 			}
-			h, e := tx.CreateDocument(Document{ID: doc, Scope: "task", Owner: task, Kind: "state", Version: 1, Value: JSON{"ready": true}})
+			h, e := tx.createDocumentRecord(Document{ID: doc, Scope: "task", Owner: task, Kind: "state", Version: 1, Value: JSON{"ready": true}})
 			if e != nil {
 				return nil, e
 			}

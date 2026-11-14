@@ -102,7 +102,7 @@ func TestMainPublicCommitObserverLifecycleAndGuards(t *testing.T) {
 			defer healthy.Detach()
 			bump := func() {
 				_, err := s.Commit(bg, func(tx *Tx) (any, error) {
-					id, err := tx.MintID()
+					id, err := tx.mintID()
 					if err != nil {
 						return nil, err
 					}
@@ -160,7 +160,7 @@ func TestMainPublicCommitObserverStorageScopeDispatchMembership(t *testing.T) {
 				late = sourcePublicCommitObservation(t, s, CommitObserver{Advance: func(context.Context, CommitPublication) error { order = append(order, "late"); return nil }, End: func(WatchEnd) error { return nil }})
 			}}
 			_, err := s.Commit(bg, func(tx *Tx) (any, error) {
-				id, err := tx.MintID()
+				id, err := tx.mintID()
 				if err != nil {
 					return nil, err
 				}
@@ -222,7 +222,7 @@ func TestMainPublicCommitObserverDeferredStorageTurn(t *testing.T) {
 	result := make(chan error, 1)
 	go func() {
 		_, err := s.Commit(bg, func(tx *Tx) (any, error) {
-			id, err := tx.MintID()
+			id, err := tx.mintID()
 			if err != nil {
 				return nil, err
 			}
@@ -265,14 +265,14 @@ func TestMainPublicCommitObserverCanonicalTableRecords(t *testing.T) {
 	var conversation, entry, task, submission ID
 	_, err = s.Commit(bg, func(tx *Tx) (any, error) {
 		var err error
-		conversation, err = tx.MintID()
+		conversation, err = tx.mintID()
 		if err != nil {
 			return nil, err
 		}
 		if err = tx.createConversationRecord(Conversation{ID: conversation}); err != nil {
 			return nil, err
 		}
-		entry, err = tx.MintID()
+		entry, err = tx.mintID()
 		if err != nil {
 			return nil, err
 		}
@@ -325,7 +325,7 @@ func TestMainPublicCommitObserverCopyAndRetirement(t *testing.T) {
 		if err != nil {
 			return nil, err
 		}
-		entry, err = tx.MintID()
+		entry, err = tx.mintID()
 		if err != nil {
 			return nil, err
 		}
@@ -415,7 +415,7 @@ func TestMainPublicCommitObserverHeldStoresAndClose(t *testing.T) {
 					if err != nil {
 						return nil, err
 					}
-					id, err := tx.MintID()
+					id, err := tx.mintID()
 					if err != nil {
 						return nil, err
 					}
@@ -470,7 +470,7 @@ func TestMainPublicCommitObserverFirstFailureCause(t *testing.T) {
 		return commitGroupResult{}, marker
 	}
 	_, err := s.Commit(bg, func(tx *Tx) (any, error) {
-		id, err := tx.MintID()
+		id, err := tx.mintID()
 		if err != nil {
 			return nil, err
 		}
@@ -600,7 +600,7 @@ func TestMainPublicCommitObserverArbitraryPanicValue(t *testing.T) {
 			defer guard.Detach()
 			for range 2 {
 				if _, err := s.Commit(bg, func(tx *Tx) (any, error) {
-					id, err := tx.MintID()
+					id, err := tx.mintID()
 					if err != nil {
 						return nil, err
 					}
@@ -689,7 +689,7 @@ func TestMainPublicCommitObserverReentrantDetachAndDispatchSnapshot(t *testing.T
 			peer = sourcePublicCommitObservation(t, s, CommitObserver{Advance: func(context.Context, CommitPublication) error { calls = append(calls, "peer"); return nil }, End: func(WatchEnd) error { ends = append(ends, "peer"); return nil }})
 			for range 2 {
 				if _, err := s.Commit(bg, func(tx *Tx) (any, error) {
-					id, err := tx.MintID()
+					id, err := tx.mintID()
 					if err != nil {
 						return nil, err
 					}
@@ -765,7 +765,7 @@ func TestMainPublicCommitObserverObjectAndNumberPanicValue(t *testing.T) {
 			guard := sourcePublicCommitObservation(t, s, CommitObserver{Advance: func(context.Context, CommitPublication) error { panic(tc.value) }, End: func(end WatchEnd) error { ends = append(ends, end); return nil }})
 			defer guard.Detach()
 			if _, err := s.Commit(bg, func(tx *Tx) (any, error) {
-				id, err := tx.MintID()
+				id, err := tx.mintID()
 				if err != nil {
 					return nil, err
 				}

@@ -5,7 +5,7 @@ import (
 )
 
 func appendPassiveWrite(tx *Tx, conversation ID, value JSON) error {
-	id, err := tx.MintID()
+	id, err := tx.mintID()
 	if err != nil {
 		return err
 	}
@@ -50,7 +50,7 @@ func admitCompactionWrite(tx *Tx, conversation, task ID, draft Entry) (ID, error
 	if err != nil {
 		return 0, err
 	}
-	id, err := tx.MintID()
+	id, err := tx.mintID()
 	if err != nil {
 		return 0, err
 	}
@@ -67,7 +67,7 @@ func admitCompactionWrite(tx *Tx, conversation, task ID, draft Entry) (ID, error
 		status = "pending"
 	}
 	sub := Submission{ID: id, Conversation: conversation, RequestID: request, Type: "write", Status: status, Value: value}
-	if err = tx.PutSubmission(sub); err != nil {
+	if err = tx.putSubmissionRecord(sub); err != nil {
 		return 0, err
 	}
 	if busy {
@@ -99,12 +99,12 @@ func admitCompactionWrite(tx *Tx, conversation, task ID, draft Entry) (ID, error
 		if stale {
 			sub.Status = "failed"
 			value["errorCode"] = "stale"
-			err = tx.PutSubmission(sub)
+			err = tx.putSubmissionRecord(sub)
 		} else {
 			err = appendPassiveWrite(tx, conversation, value)
 			if err == nil {
 				sub.Value = value
-				err = tx.PutSubmission(sub)
+				err = tx.putSubmissionRecord(sub)
 			}
 		}
 	}

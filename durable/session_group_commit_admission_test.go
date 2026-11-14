@@ -44,7 +44,7 @@ func TestSessionV150DisjointDocumentAdmissionBatchesWaitingParts(t *testing.T) {
 			owners := []ID{1}
 			if _, err = commitChange(bg, func(tx *Tx) (any, error) {
 				for i := 0; i < 2; i++ {
-					id, e := tx.MintID()
+					id, e := tx.mintID()
 					if e != nil {
 						return nil, e
 					}
@@ -307,7 +307,7 @@ func TestSessionV150DocumentReadsTouchOnlyTheirDependencies(t *testing.T) {
 					return nil, err
 				}
 				var err error
-				at, err = tx.MintID()
+				at, err = tx.mintID()
 				if err != nil {
 					return nil, err
 				}
@@ -433,7 +433,7 @@ func TestV150SessionReadLinePendingConversation(t *testing.T) {
 			created := make(chan ID, 1)
 			settled := make(chan error, 1)
 			runGatesJob(t, session, ctx, func(tx *Tx) error {
-				id, err := tx.MintID()
+				id, err := tx.mintID()
 				if err != nil {
 					return err
 				}
@@ -470,7 +470,7 @@ func TestV150SessionReadLinePendingConversation(t *testing.T) {
 					})
 				case "latestHeadMarker":
 					_, err = session.Commit(ctx, func(tx *Tx) (any, error) {
-						_, found, e := tx.LatestHeadMarker(id, 0)
+						_, found, e := tx.latestHeadMarkerAt(id, 0)
 						if e == nil && found {
 							return nil, errors.New("unexpected head marker")
 						}
@@ -700,7 +700,7 @@ func TestSessionV150StorageScopeRechecksFailureAtDeferredEntry(t *testing.T) {
 	defer observer.detach()
 	appendKind := func(kind string) error {
 		_, err := s.Commit(bg, func(tx *Tx) (any, error) {
-			id, err := tx.MintID()
+			id, err := tx.mintID()
 			if err != nil {
 				return nil, err
 			}

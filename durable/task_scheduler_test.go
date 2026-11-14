@@ -139,7 +139,7 @@ func TestTaskSchedulerPhasesMemoWinnerAndEndedCapabilities(t *testing.T) {
 				})
 			}
 			return r.Commit(ctx, func(tx *Tx, current TaskRecord) (*TaskState, error) {
-				id, err := tx.MintID()
+				id, err := tx.mintID()
 				if err != nil {
 					return nil, err
 				}
@@ -466,7 +466,7 @@ func TestTaskSchedulerCapacityToolChildHoldOne(t *testing.T) {
 							docID = doc.ID
 						}
 					}
-					doc, err := tx.Document(docID)
+					doc, err := tx.documentRecord(docID)
 					if err != nil {
 						return err
 					}
@@ -846,7 +846,7 @@ func TestTaskSchedulerIdleFrontierAdmissionAtomic(t *testing.T) {
 		cleanupTaskGates(t, letWait, releaseHost, releaseChildren)
 		_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 			var err error
-			foreign, err = tx.MintID()
+			foreign, err = tx.mintID()
 			if err != nil {
 				return err
 			}
@@ -1090,7 +1090,7 @@ func TestTaskSchedulerEscapedIdleCannotWakeFailedIntent(t *testing.T) {
 		cleanupTaskGates(t, releaseHost)
 		_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 			var err error
-			foreign, err = tx.MintID()
+			foreign, err = tx.mintID()
 			if err != nil {
 				return err
 			}
@@ -1170,7 +1170,7 @@ func TestTaskSchedulerBoundPendingDedupSealedAdmissionIsInert(t *testing.T) {
 		cleanupTaskGates(t, releaseHost)
 		_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 			var err error
-			foreign, err = tx.MintID()
+			foreign, err = tx.mintID()
 			if err != nil {
 				return err
 			}
@@ -1188,11 +1188,11 @@ func TestTaskSchedulerBoundPendingDedupSealedAdmissionIsInert(t *testing.T) {
 		var subID ID
 		_, err = h.commitTasks(bg, foreign, func(tx *Tx) error {
 			var err error
-			subID, err = tx.MintID()
+			subID, err = tx.mintID()
 			if err != nil {
 				return err
 			}
-			return tx.PutSubmission(Submission{ID: subID, Conversation: foreign, RequestID: "pending-dedup", Type: "follow-up", Status: "pending", Value: JSON{"content": "original"}})
+			return tx.putSubmissionRecord(Submission{ID: subID, Conversation: foreign, RequestID: "pending-dedup", Type: "follow-up", Status: "pending", Value: JSON{"content": "original"}})
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -1505,7 +1505,7 @@ func TestTaskSchedulerBoundAbortSealedOrSelfScopeAdmissionIsInert(t *testing.T) 
 		cleanupTaskGates(t, releaseHost)
 		_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 			var err error
-			foreign, err = tx.MintID()
+			foreign, err = tx.mintID()
 			if err != nil {
 				return err
 			}
@@ -1623,12 +1623,12 @@ func TestTaskSchedulerPersistedWriteBudgetReservationsAndRetirement(t *testing.T
 					for _, owner := range []ID{first, second} {
 						for k := 0; k < 3; k++ {
 							_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
-								id, err := tx.MintID()
+								id, err := tx.mintID()
 								if err != nil {
 									return err
 								}
 								docIDs = append(docIDs, id)
-								_, err = tx.CreateDocument(Document{ID: id, Scope: "task", Owner: owner, Kind: fmt.Sprintf("app.budget%d", k), Version: 1, Value: JSON{}})
+								_, err = tx.createDocumentRecord(Document{ID: id, Scope: "task", Owner: owner, Kind: fmt.Sprintf("app.budget%d", k), Version: 1, Value: JSON{}})
 								return err
 							})
 							if err != nil {
@@ -1775,7 +1775,7 @@ func TestTaskSchedulerCascadeQueuedWithdrawalBudgetAtomicity(t *testing.T) {
 				var foreign, subID, generationID, inboxID, ownSubID, writeSubID ID
 				_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 					var err error
-					foreign, err = tx.MintID()
+					foreign, err = tx.mintID()
 					if err != nil {
 						return err
 					}
@@ -1787,18 +1787,18 @@ func TestTaskSchedulerCascadeQueuedWithdrawalBudgetAtomicity(t *testing.T) {
 				}
 				_, err = h.commitTasks(bg, foreign, func(tx *Tx) error {
 					var err error
-					subID, err = tx.MintID()
+					subID, err = tx.mintID()
 					if err != nil {
 						return err
 					}
-					return tx.PutSubmission(Submission{ID: subID, Conversation: foreign, Type: "follow-up", Status: "pending", Value: JSON{"content": "queued"}})
+					return tx.putSubmissionRecord(Submission{ID: subID, Conversation: foreign, Type: "follow-up", Status: "pending", Value: JSON{"content": "queued"}})
 				})
 				if err != nil {
 					t.Fatal(err)
 				}
 				_, err = h.commitTasks(bg, foreign, func(tx *Tx) error {
 					var err error
-					generationID, err = tx.MintID()
+					generationID, err = tx.mintID()
 					if err != nil {
 						return err
 					}
@@ -1806,18 +1806,18 @@ func TestTaskSchedulerCascadeQueuedWithdrawalBudgetAtomicity(t *testing.T) {
 					if err != nil {
 						return err
 					}
-					return tx.PutTask(Task{ID: generationID, Conversation: foreign, Kind: "pi.generation", Status: "pending", Checkpoint: cp})
+					return tx.putTaskRecord(Task{ID: generationID, Conversation: foreign, Kind: "pi.generation", Status: "pending", Checkpoint: cp})
 				})
 				if err != nil {
 					t.Fatal(err)
 				}
 				_, err = h.commitTasks(bg, foreign, func(tx *Tx) error {
 					var err error
-					inboxID, err = tx.MintID()
+					inboxID, err = tx.mintID()
 					if err != nil {
 						return err
 					}
-					_, err = tx.CreateDocument(Document{ID: inboxID, Scope: "conversation", Owner: foreign, Kind: "pi.inbox", Version: 1, Value: JSON{"items": []any{JSON{"id": subID, "mode": "followUp", "content": "queued"}}}})
+					_, err = tx.createDocumentRecord(Document{ID: inboxID, Scope: "conversation", Owner: foreign, Kind: "pi.inbox", Version: 1, Value: JSON{"items": []any{JSON{"id": subID, "mode": "followUp", "content": "queued"}}}})
 					return err
 				})
 				if err != nil {
@@ -1829,7 +1829,7 @@ func TestTaskSchedulerCascadeQueuedWithdrawalBudgetAtomicity(t *testing.T) {
 					dest         *ID
 				}{{1, "follow-up", &ownSubID}, {foreign, "write", &writeSubID}} {
 					_, err = h.commitTasks(bg, scope.conversation, func(tx *Tx) error {
-						id, err := tx.MintID()
+						id, err := tx.mintID()
 						if err != nil {
 							return err
 						}
@@ -1838,7 +1838,7 @@ func TestTaskSchedulerCascadeQueuedWithdrawalBudgetAtomicity(t *testing.T) {
 						if scope.mode == "write" {
 							status = "done"
 						}
-						return tx.PutSubmission(Submission{ID: id, Conversation: scope.conversation, Type: scope.mode, Status: status, Value: JSON{"content": "preserved"}})
+						return tx.putSubmissionRecord(Submission{ID: id, Conversation: scope.conversation, Type: scope.mode, Status: status, Value: JSON{"content": "preserved"}})
 					})
 					if err != nil {
 						t.Fatal(err)
@@ -1900,7 +1900,7 @@ func TestTaskSchedulerPendingDedupCloseSealDoesNotWake(t *testing.T) {
 		cleanupTaskGates(t, releaseHost, releaseBlocker)
 		_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 			var err error
-			foreign, err = tx.MintID()
+			foreign, err = tx.mintID()
 			if err != nil {
 				return err
 			}
@@ -1918,11 +1918,11 @@ func TestTaskSchedulerPendingDedupCloseSealDoesNotWake(t *testing.T) {
 		var subID ID
 		_, err = h.commitTasks(bg, foreign, func(tx *Tx) error {
 			var err error
-			subID, err = tx.MintID()
+			subID, err = tx.mintID()
 			if err != nil {
 				return err
 			}
-			return tx.PutSubmission(Submission{ID: subID, Conversation: foreign, RequestID: "close-dedup", Type: "follow-up", Status: "pending", Value: JSON{}})
+			return tx.putSubmissionRecord(Submission{ID: subID, Conversation: foreign, RequestID: "close-dedup", Type: "follow-up", Status: "pending", Value: JSON{}})
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -2197,7 +2197,7 @@ func TestTaskSchedulerQueuedWithdrawalTaskDocumentsAtomicRetirement(t *testing.T
 					var owner, conversation, subID, generation, docID ID
 					_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 						var err error
-						owner, err = tx.MintID()
+						owner, err = tx.mintID()
 						if err != nil {
 							return err
 						}
@@ -2209,7 +2209,7 @@ func TestTaskSchedulerQueuedWithdrawalTaskDocumentsAtomicRetirement(t *testing.T
 					}
 					_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 						var err error
-						conversation, err = tx.MintID()
+						conversation, err = tx.mintID()
 						if err != nil {
 							return err
 						}
@@ -2239,22 +2239,22 @@ func TestTaskSchedulerQueuedWithdrawalTaskDocumentsAtomicRetirement(t *testing.T
 					}
 					_, err = h.commitTasks(bg, conversation, func(tx *Tx) error {
 						var err error
-						subID, err = tx.MintID()
+						subID, err = tx.mintID()
 						if err != nil {
 							return err
 						}
-						generation, err = tx.MintID()
+						generation, err = tx.mintID()
 						if err != nil {
 							return err
 						}
-						if err := tx.PutSubmission(Submission{ID: subID, Conversation: conversation, Type: "follow-up", Status: "pending", Value: JSON{}}); err != nil {
+						if err := tx.putSubmissionRecord(Submission{ID: subID, Conversation: conversation, Type: "follow-up", Status: "pending", Value: JSON{}}); err != nil {
 							return err
 						}
 						cp, err := dtoObject(generationCheckpoint{Phase: "queued", Submission: subID}, tx.limits)
 						if err != nil {
 							return err
 						}
-						if err := tx.PutTask(Task{ID: generation, Conversation: conversation, Kind: "pi.generation", Status: "pending", Checkpoint: cp}); err != nil {
+						if err := tx.putTaskRecord(Task{ID: generation, Conversation: conversation, Kind: "pi.generation", Status: "pending", Checkpoint: cp}); err != nil {
 							return err
 						}
 						inbox, err := builtin(tx, conversation, "pi.inbox")
@@ -2268,11 +2268,11 @@ func TestTaskSchedulerQueuedWithdrawalTaskDocumentsAtomicRetirement(t *testing.T
 					}
 					_, err = h.commitTasks(bg, conversation, func(tx *Tx) error {
 						var err error
-						docID, err = tx.MintID()
+						docID, err = tx.mintID()
 						if err != nil {
 							return err
 						}
-						_, err = tx.CreateDocument(Document{ID: docID, Scope: "task", Owner: generation, Kind: "app.withdraw-doc", Version: 1, Value: JSON{"retained": true}})
+						_, err = tx.createDocumentRecord(Document{ID: docID, Scope: "task", Owner: generation, Kind: "app.withdraw-doc", Version: 1, Value: JSON{"retained": true}})
 						return err
 					})
 					if err != nil {
@@ -2382,7 +2382,7 @@ func TestTaskSchedulerRuntimeCommittedReadsClockReportsAndWatchLifetime(t *testi
 				if err := doc.Set(JSON{"text": text}); err != nil {
 					return err
 				}
-				id, err := tx.MintID()
+				id, err := tx.mintID()
 				if err != nil {
 					return err
 				}
@@ -2935,7 +2935,7 @@ func TestTaskSchedulerMultiFrontierFailureReleasesOnlyFailedRegistration(t *test
 		}
 		_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 			var err error
-			foreign, err = tx.MintID()
+			foreign, err = tx.mintID()
 			if err != nil {
 				return err
 			}
@@ -3265,7 +3265,7 @@ func TestTaskSchedulerOutcomesSingleAdmissionOrderEmptyAndDetached(t *testing.T)
 		var first, second, nullID, liveID ID
 		_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 			for index, dest := range []*ID{&first, &second, &nullID, &liveID} {
-				id, err := tx.MintID()
+				id, err := tx.mintID()
 				if err != nil {
 					return err
 				}
@@ -3393,7 +3393,7 @@ func TestTaskSchedulerOutcomesMemoTypedEntryQueuedSealPrecedence(t *testing.T) {
 				var terminalID, entryID ID
 				_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 					var err error
-					terminalID, err = tx.MintID()
+					terminalID, err = tx.mintID()
 					if err != nil {
 						return err
 					}
@@ -3403,7 +3403,7 @@ func TestTaskSchedulerOutcomesMemoTypedEntryQueuedSealPrecedence(t *testing.T) {
 					if err := tx.stage(Write{Op: "put-task", Task: &task}); err != nil {
 						return err
 					}
-					entryID, err = tx.MintID()
+					entryID, err = tx.mintID()
 					if err != nil {
 						return err
 					}
@@ -3492,7 +3492,7 @@ func TestTaskSchedulerOutcomesCollectionBudgetAndQueuedCancellation(t *testing.T
 			var terminal ID
 			_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 				var err error
-				terminal, err = tx.MintID()
+				terminal, err = tx.mintID()
 				if err != nil {
 					return err
 				}
@@ -4515,7 +4515,7 @@ func TestTaskSchedulerFailFastSelectedAncestorPrefixCannotReserveOrdinaryDescend
 						var descendant, conversation, background, backgroundChild, terminal, terminalConversation, afterTerminal, outside ID
 						_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 							var err error
-							conversation, err = tx.MintID()
+							conversation, err = tx.mintID()
 							if err != nil {
 								return err
 							}
@@ -4534,7 +4534,7 @@ func TestTaskSchedulerFailFastSelectedAncestorPrefixCannotReserveOrdinaryDescend
 								descendant, err = tx.CreateTask(definition, JSON{"kept": "input"}, TaskOptions{Ownership: ownership})
 								return err
 							}
-							descendant, err = tx.MintID()
+							descendant, err = tx.mintID()
 							if err != nil {
 								return err
 							}
@@ -4551,7 +4551,7 @@ func TestTaskSchedulerFailFastSelectedAncestorPrefixCannotReserveOrdinaryDescend
 							if edge == "conversation" {
 								owner = 0
 							}
-							return tx.PutTask(Task{ID: descendant, Conversation: conversation, Owner: owner, Kind: kind, Status: "pending", Checkpoint: checkpoint})
+							return tx.putTaskRecord(Task{ID: descendant, Conversation: conversation, Owner: owner, Kind: kind, Status: "pending", Checkpoint: checkpoint})
 						})
 						if err != nil {
 							t.Fatal(err)
@@ -4570,7 +4570,7 @@ func TestTaskSchedulerFailFastSelectedAncestorPrefixCannotReserveOrdinaryDescend
 						terminal = createPublicTask(t, h, definition, nil, TaskOptions{Ownership: TaskOwnership{Kind: "task", Task: selected}})
 						_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 							var err error
-							terminalConversation, err = tx.MintID()
+							terminalConversation, err = tx.mintID()
 							if err != nil {
 								return err
 							}

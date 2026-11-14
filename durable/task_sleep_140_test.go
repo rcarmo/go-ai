@@ -210,7 +210,7 @@ func TestSleep140AutomaticTimerAndInvalidStates(t *testing.T) {
 				}
 				until := now + 25
 				return r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
-					id, err := tx.MintID()
+					id, err := tx.mintID()
 					if err != nil {
 						return nil, err
 					}

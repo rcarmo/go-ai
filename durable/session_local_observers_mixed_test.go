@@ -55,7 +55,7 @@ func TestMainSessionLocalMixedOwnChanges(t *testing.T) {
 							return nil, err
 						}
 					}
-					id, err := tx.MintID()
+					id, err := tx.mintID()
 					if err != nil {
 						return nil, err
 					}

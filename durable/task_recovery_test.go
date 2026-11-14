@@ -128,7 +128,7 @@ func TestTaskRecoveryInvalidMigrationCachesDefinitionIdentityAndNoReadEffects(t 
 			t.Fatal(err)
 		}
 		_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
-			id, err := tx.MintID()
+			id, err := tx.mintID()
 			if err != nil {
 				return err
 			}
@@ -263,7 +263,7 @@ func TestTaskRecoveryPoisonUnrelatedCommitRetainsActualJoin(t *testing.T) {
 		return nil
 	})
 	_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
-		id, err := tx.MintID()
+		id, err := tx.mintID()
 		if err != nil {
 			return err
 		}
@@ -508,7 +508,7 @@ func TestTaskRecoveryBuiltinHoldFinalFailureAndReopen(t *testing.T) {
 						return ToolResult{}, errors.New("active tool missing")
 					}
 					if _, err := api.Commit(ctx, func(tx *Tx) (any, error) {
-						return nil, tx.PutTask(Task{ID: public.ID, Owner: public.Owner, Conversation: public.Conversation, Kind: public.Kind, Status: "done", Checkpoint: taskCheckpointMap(public.State.Checkpoint)})
+						return nil, tx.putTaskRecord(Task{ID: public.ID, Owner: public.Owner, Conversation: public.Conversation, Kind: public.Kind, Status: "done", Checkpoint: taskCheckpointMap(public.State.Checkpoint)})
 					}); err == nil {
 						return ToolResult{}, errors.New("builtin raw authority forged")
 					}
@@ -523,11 +523,11 @@ func TestTaskRecoveryBuiltinHoldFinalFailureAndReopen(t *testing.T) {
 					}
 					if _, err := api.Commit(ctx, func(tx *Tx) (any, error) {
 						var err error
-						taskDocID, err = tx.MintID()
+						taskDocID, err = tx.mintID()
 						if err != nil {
 							return nil, err
 						}
-						_, err = tx.CreateDocument(Document{ID: taskDocID, Scope: "task", Owner: toolID, Kind: "app.task-hold", Version: 1, Value: JSON{"retained": true}})
+						_, err = tx.createDocumentRecord(Document{ID: taskDocID, Scope: "task", Owner: toolID, Kind: "app.task-hold", Version: 1, Value: JSON{"retained": true}})
 						return nil, err
 					}); err != nil {
 						return ToolResult{}, err
@@ -539,7 +539,7 @@ func TestTaskRecoveryBuiltinHoldFinalFailureAndReopen(t *testing.T) {
 						callbacks.Add(1)
 						for _, doc := range tx.state.Documents {
 							if doc.Kind == "app.result" {
-								handle, err := tx.Document(doc.ID)
+								handle, err := tx.documentRecord(doc.ID)
 								if err != nil {
 									return err
 								}
@@ -721,11 +721,11 @@ func TestTaskRecoveryGenerationHeldReceiptFinalCleanup(t *testing.T) {
 				return err
 			}
 			var err error
-			taskDocID, err = tx.MintID()
+			taskDocID, err = tx.mintID()
 			if err != nil {
 				return err
 			}
-			_, err = tx.CreateDocument(Document{ID: taskDocID, Scope: "task", Owner: generationID, Kind: "app.generation-hold", Version: 1, Value: JSON{}})
+			_, err = tx.createDocumentRecord(Document{ID: taskDocID, Scope: "task", Owner: generationID, Kind: "app.generation-hold", Version: 1, Value: JSON{}})
 			return err
 		})
 		if err != nil {
@@ -803,22 +803,22 @@ func TestTaskRecoverySchedulerGenerationOrphanNoFabricatedMessage(t *testing.T) 
 				return err
 			}
 			var err error
-			subID, err = tx.MintID()
+			subID, err = tx.mintID()
 			if err != nil {
 				return err
 			}
-			taskID, err = tx.MintID()
+			taskID, err = tx.mintID()
 			if err != nil {
 				return err
 			}
-			if err := tx.PutSubmission(Submission{ID: subID, Conversation: 1, Type: "follow-up", Status: "pending", Value: JSON{"content": "intent"}}); err != nil {
+			if err := tx.putSubmissionRecord(Submission{ID: subID, Conversation: 1, Type: "follow-up", Status: "pending", Value: JSON{"content": "intent"}}); err != nil {
 				return err
 			}
 			cp, err := dtoObject(generationCheckpoint{Phase: "missing-host-phase", Submission: subID}, tx.limits)
 			if err != nil {
 				return err
 			}
-			return tx.PutTask(Task{ID: taskID, Conversation: 1, Kind: "pi.generation", Status: "pending", Checkpoint: cp})
+			return tx.putTaskRecord(Task{ID: taskID, Conversation: 1, Kind: "pi.generation", Status: "pending", Checkpoint: cp})
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -859,7 +859,7 @@ func TestTaskRecoveryToolOutcomePanicRollbackFallbackAndReopen(t *testing.T) {
 			effects.Add(1)
 			return ToolResult{Content: "success must rollback", Usage: &goai.Usage{Output: 2, TotalTokens: 2}, Commit: func(tx *Tx) error {
 				callbacks.Add(1)
-				doc, err := tx.Document(docID)
+				doc, err := tx.documentRecord(docID)
 				if err != nil {
 					return err
 				}
@@ -973,11 +973,11 @@ func TestTaskRecoveryCrashHelper(t *testing.T) {
 			}
 		}
 		if err := r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
-			id, err := tx.MintID()
+			id, err := tx.mintID()
 			if err != nil {
 				return nil, err
 			}
-			if _, err := tx.CreateDocument(Document{ID: id, Scope: "task", Owner: r.TaskID(), Kind: "app.crash-task", Version: 1, Value: JSON{"held": true}}); err != nil {
+			if _, err := tx.createDocumentRecord(Document{ID: id, Scope: "task", Owner: r.TaskID(), Kind: "app.crash-task", Version: 1, Value: JSON{"held": true}}); err != nil {
 				return nil, err
 			}
 			if stage == "held" {
@@ -1001,11 +1001,11 @@ func TestTaskRecoveryCrashHelper(t *testing.T) {
 		options := parent.options
 		options.Abort = func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
 			if err := r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
-				id, err := tx.MintID()
+				id, err := tx.mintID()
 				if err != nil {
 					return nil, err
 				}
-				_, err = tx.CreateDocument(Document{ID: id, Scope: "task", Owner: r.TaskID(), Kind: "app.crash-task", Version: 1, Value: JSON{"abort": true}})
+				_, err = tx.createDocumentRecord(Document{ID: id, Scope: "task", Owner: r.TaskID(), Kind: "app.crash-task", Version: 1, Value: JSON{"abort": true}})
 				return nil, err
 			}); err != nil {
 				return err
@@ -1918,11 +1918,11 @@ func TestTaskRecoveryProvisionalReservationRollbackBeforeFrontierAdmission(t *te
 		var parentID, childID ID
 		_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 			var err error
-			parentID, err = tx.MintID()
+			parentID, err = tx.mintID()
 			if err != nil {
 				return err
 			}
-			childID, err = tx.MintID()
+			childID, err = tx.mintID()
 			if err != nil {
 				return err
 			}
@@ -2249,7 +2249,7 @@ func TestTaskRecoveryToolDecidingHoldRejectedUncertainAndReopen(t *testing.T) {
 					<-releaseTool
 					return ToolResult{Content: "returned success", Details: JSON{"candidate": true}, Usage: &goai.Usage{Input: 1, Output: 2, TotalTokens: 3}, Commit: func(tx *Tx) error {
 						callbacks.Add(1)
-						doc, err := tx.Document(docID)
+						doc, err := tx.documentRecord(docID)
 						if err != nil {
 							return err
 						}
@@ -2608,11 +2608,11 @@ func TestTaskRecoveryRejectedSchedulerFaultRunAbortLaterWake(t *testing.T) {
 					var docID ID
 					_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 						var err error
-						docID, err = tx.MintID()
+						docID, err = tx.mintID()
 						if err != nil {
 							return err
 						}
-						_, err = tx.CreateDocument(Document{ID: docID, Scope: "task", Owner: id, Kind: "app.fault", Version: 1, Value: JSON{"alive": true}})
+						_, err = tx.createDocumentRecord(Document{ID: docID, Scope: "task", Owner: id, Kind: "app.fault", Version: 1, Value: JSON{"alive": true}})
 						if err != nil {
 							return err
 						}
@@ -3004,11 +3004,11 @@ func TestTaskRecoveryCloseSealRejectsPublicNonterminalOrigins(t *testing.T) {
 				var subID ID
 				_, err = h.commitTasks(bg, foreign.ID(), func(tx *Tx) error {
 					var err error
-					subID, err = tx.MintID()
+					subID, err = tx.mintID()
 					if err != nil {
 						return err
 					}
-					return tx.PutSubmission(Submission{ID: subID, Conversation: foreign.ID(), Type: "follow-up", Status: "pending", Value: JSON{}})
+					return tx.putSubmissionRecord(Submission{ID: subID, Conversation: foreign.ID(), Type: "follow-up", Status: "pending", Value: JSON{}})
 				})
 				if err != nil {
 					t.Fatal(err)
@@ -3038,7 +3038,7 @@ func TestTaskRecoveryCloseSealRejectsPublicNonterminalOrigins(t *testing.T) {
 						err = foreign.Configure(bg, AgentChange{Model: ModelRef{model.Provider, model.ID}, SystemPrompt: "late"})
 					case "passive-commit":
 						_, err = foreign.Commit(bg, func(tx *Tx) (any, error) {
-							id, err := tx.MintID()
+							id, err := tx.mintID()
 							if err != nil {
 								return nil, err
 							}
@@ -3156,7 +3156,7 @@ func TestTaskRecoveryQueuedWithdrawalOwnedChildDefersSettlement(t *testing.T) {
 		var foreign ID
 		_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 			var err error
-			foreign, err = tx.MintID()
+			foreign, err = tx.mintID()
 			if err != nil {
 				return err
 			}
@@ -3175,22 +3175,22 @@ func TestTaskRecoveryQueuedWithdrawalOwnedChildDefersSettlement(t *testing.T) {
 		var subID, queuedGeneration ID
 		_, err = h.commitTasks(bg, foreign, func(tx *Tx) error {
 			var err error
-			subID, err = tx.MintID()
+			subID, err = tx.mintID()
 			if err != nil {
 				return err
 			}
-			queuedGeneration, err = tx.MintID()
+			queuedGeneration, err = tx.mintID()
 			if err != nil {
 				return err
 			}
-			if err := tx.PutSubmission(Submission{ID: subID, Conversation: foreign, Type: "follow-up", Status: "pending", Value: JSON{"content": "queued child scope"}}); err != nil {
+			if err := tx.putSubmissionRecord(Submission{ID: subID, Conversation: foreign, Type: "follow-up", Status: "pending", Value: JSON{"content": "queued child scope"}}); err != nil {
 				return err
 			}
 			cp, err := dtoObject(generationCheckpoint{Phase: "queued", Submission: subID, Input: "queued child scope"}, tx.limits)
 			if err != nil {
 				return err
 			}
-			if err := tx.PutTask(Task{ID: queuedGeneration, Conversation: foreign, Kind: "pi.generation", Status: "pending", Checkpoint: cp}); err != nil {
+			if err := tx.putTaskRecord(Task{ID: queuedGeneration, Conversation: foreign, Kind: "pi.generation", Status: "pending", Checkpoint: cp}); err != nil {
 				return err
 			}
 			inbox, err := builtin(tx, foreign, "pi.inbox")
@@ -3251,11 +3251,11 @@ func TestTaskRecoveryQueuedWithdrawalOwnedChildDefersSettlement(t *testing.T) {
 		var ownID ID
 		_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 			var err error
-			ownID, err = tx.MintID()
+			ownID, err = tx.mintID()
 			if err != nil {
 				return err
 			}
-			return tx.PutSubmission(Submission{ID: ownID, Conversation: 1, Type: "follow-up", Status: "pending", Value: JSON{"content": "preserve own queue"}})
+			return tx.putSubmissionRecord(Submission{ID: ownID, Conversation: 1, Type: "follow-up", Status: "pending", Value: JSON{"content": "preserve own queue"}})
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -3449,7 +3449,7 @@ func TestTaskRecoveryBuiltinPredispatchAncestorCancellation(t *testing.T) {
 				var ownerID, generationID, toolID, subID ID
 				_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 					var err error
-					ownerID, err = tx.MintID()
+					ownerID, err = tx.mintID()
 					if err != nil {
 						return err
 					}
@@ -3457,20 +3457,20 @@ func TestTaskRecoveryBuiltinPredispatchAncestorCancellation(t *testing.T) {
 					if err := tx.stage(Write{Op: "put-task", Task: &owner}); err != nil {
 						return err
 					}
-					subID, err = tx.MintID()
+					subID, err = tx.mintID()
 					if err != nil {
 						return err
 					}
-					generationID, err = tx.MintID()
+					generationID, err = tx.mintID()
 					if err != nil {
 						return err
 					}
-					if err := tx.PutSubmission(Submission{ID: subID, Conversation: conv.ID(), Type: "follow-up", Status: "pending", Value: JSON{"content": "predispatch"}}); err != nil {
+					if err := tx.putSubmissionRecord(Submission{ID: subID, Conversation: conv.ID(), Type: "follow-up", Status: "pending", Value: JSON{"content": "predispatch"}}); err != nil {
 						return err
 					}
 					cp := generationCheckpoint{Phase: "intent", Submission: subID, Input: "predispatch", Model: model, Agent: agentState{Model: ModelRef{model.Provider, model.ID}}, Messages: []MessageReceipt{userReceipt("predispatch")}}
 					if kind == "tool" {
-						toolID, err = tx.MintID()
+						toolID, err = tx.mintID()
 						if err != nil {
 							return err
 						}
@@ -3479,14 +3479,14 @@ func TestTaskRecoveryBuiltinPredispatchAncestorCancellation(t *testing.T) {
 						if err != nil {
 							return err
 						}
-						if err := tx.PutTask(Task{ID: toolID, Owner: generationID, Conversation: conv.ID(), Kind: "pi.tool", Status: "pending", Checkpoint: toolCP}); err != nil {
+						if err := tx.putTaskRecord(Task{ID: toolID, Owner: generationID, Conversation: conv.ID(), Kind: "pi.tool", Status: "pending", Checkpoint: toolCP}); err != nil {
 							return err
 						}
 						cp.Phase = "tools"
 						cp.Children = []ID{toolID}
 						// Persist the actual assistant call, so ordered abort receipts
 						// compose valid context without a fake missing tool pair.
-						entryID, err := tx.MintID()
+						entryID, err := tx.mintID()
 						if err != nil {
 							return err
 						}
@@ -3507,7 +3507,7 @@ func TestTaskRecoveryBuiltinPredispatchAncestorCancellation(t *testing.T) {
 					if kind == "tool" {
 						status = "completing"
 					}
-					return tx.PutTask(Task{ID: generationID, Owner: ownerID, Conversation: conv.ID(), Kind: "pi.generation", Status: status, Checkpoint: value})
+					return tx.putTaskRecord(Task{ID: generationID, Owner: ownerID, Conversation: conv.ID(), Kind: "pi.generation", Status: status, Checkpoint: value})
 				})
 				if err != nil {
 					t.Fatal(err)
@@ -3832,12 +3832,12 @@ func TestTaskRecoveryGenerationDecidingFinalFailureMatrix(t *testing.T) {
 						if _, err := tx.CreateTask(child, nil, TaskOptions{Ownership: TaskOwnership{Kind: "task", Task: generation}}); err != nil {
 							return err
 						}
-						id, err := tx.MintID()
+						id, err := tx.mintID()
 						if err != nil {
 							return err
 						}
 						taskDocID = id
-						_, err = tx.CreateDocument(Document{ID: id, Scope: "task", Owner: generation, Kind: "app.generation-failure", Version: 1, Value: JSON{"live": true}})
+						_, err = tx.createDocumentRecord(Document{ID: id, Scope: "task", Owner: generation, Kind: "app.generation-failure", Version: 1, Value: JSON{"live": true}})
 						return err
 					})
 					if err != nil {
@@ -4283,7 +4283,7 @@ func TestTaskRecoveryLateOwnedConversationEdgesHeldFailureOrMark(t *testing.T) {
 				var conversation, oldChild, lateChild ID
 				_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 					var err error
-					conversation, err = tx.MintID()
+					conversation, err = tx.mintID()
 					if err != nil {
 						return err
 					}
@@ -4408,7 +4408,7 @@ func TestTaskRecoveryRejectedLateEdgeCascadeNeedsGenuineWake(t *testing.T) {
 		var conversation, childID ID
 		_, err = first.commitTasks(bg, 1, func(tx *Tx) error {
 			var err error
-			conversation, err = tx.MintID()
+			conversation, err = tx.mintID()
 			if err != nil {
 				return err
 			}
@@ -4870,7 +4870,7 @@ func TestTaskRecoveryRejectedCascadeExactOwnerVariants(t *testing.T) {
 				var conversation, childID, drained ID
 				_, err = first.commitTasks(bg, 1, func(tx *Tx) error {
 					var err error
-					conversation, err = tx.MintID()
+					conversation, err = tx.mintID()
 					if err != nil {
 						return err
 					}
@@ -5807,20 +5807,20 @@ func TestTaskRecoverySelectedAncestorBuiltinDispatchGuards(t *testing.T) {
 				var generation, tool, sub ID
 				_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 					var err error
-					sub, err = tx.MintID()
+					sub, err = tx.mintID()
 					if err != nil {
 						return err
 					}
-					if err := tx.PutSubmission(Submission{ID: sub, Conversation: conv.ID(), Type: "follow-up", Status: "pending", Value: JSON{"content": "inherited"}}); err != nil {
+					if err := tx.putSubmissionRecord(Submission{ID: sub, Conversation: conv.ID(), Type: "follow-up", Status: "pending", Value: JSON{"content": "inherited"}}); err != nil {
 						return err
 					}
-					generation, err = tx.MintID()
+					generation, err = tx.mintID()
 					if err != nil {
 						return err
 					}
 					cp := generationCheckpoint{Phase: "intent", Submission: sub, Input: "inherited", Model: model, Agent: agentState{Model: ModelRef{model.Provider, model.ID}}, Messages: []MessageReceipt{userReceipt("inherited")}}
 					if stage != "offline-generation" {
-						tool, err = tx.MintID()
+						tool, err = tx.mintID()
 						if err != nil {
 							return err
 						}
@@ -5829,12 +5829,12 @@ func TestTaskRecoverySelectedAncestorBuiltinDispatchGuards(t *testing.T) {
 						if err != nil {
 							return err
 						}
-						if err := tx.PutTask(Task{ID: tool, Conversation: conv.ID(), Owner: generation, Kind: "pi.tool", Status: "pending", Checkpoint: checkpoint}); err != nil {
+						if err := tx.putTaskRecord(Task{ID: tool, Conversation: conv.ID(), Owner: generation, Kind: "pi.tool", Status: "pending", Checkpoint: checkpoint}); err != nil {
 							return err
 						}
 						cp.Phase = "tools"
 						cp.Children = []ID{tool}
-						entry, err := tx.MintID()
+						entry, err := tx.mintID()
 						if err != nil {
 							return err
 						}
@@ -5854,7 +5854,7 @@ func TestTaskRecoverySelectedAncestorBuiltinDispatchGuards(t *testing.T) {
 					if stage != "offline-generation" {
 						status = "completing"
 					}
-					if err := tx.PutTask(Task{ID: generation, Conversation: 1, Owner: s, Kind: "pi.generation", Status: status, Checkpoint: checkpoint}); err != nil {
+					if err := tx.putTaskRecord(Task{ID: generation, Conversation: 1, Owner: s, Kind: "pi.generation", Status: status, Checkpoint: checkpoint}); err != nil {
 						return err
 					}
 					parent, err := copyTask(tx.state.Tasks[p], tx.limits)
@@ -6142,7 +6142,7 @@ func TestTaskRecoverySuccessfulValidatorIntentStoragePrefixAndReopen(t *testing.
 						<-releaseExecutor
 						return ToolResult{Content: " repaired-result", Details: JSON{"repaired": true}, Usage: &goai.Usage{Output: 2, TotalTokens: 2}, Commit: func(tx *Tx) error {
 							appCommits.Add(1)
-							doc, err := tx.Document(document)
+							doc, err := tx.documentRecord(document)
 							if err != nil {
 								return err
 							}
@@ -6501,7 +6501,7 @@ func TestTaskRecoveryOrderedToolContinuationAdmissionCloseAndLateOwnedWork(t *te
 				}
 				_, err = first.commitTasks(bg, conversation.ID(), func(tx *Tx) error {
 					var err error
-					ownedConversation, err = tx.MintID()
+					ownedConversation, err = tx.mintID()
 					if err != nil {
 						return err
 					}
@@ -6728,11 +6728,11 @@ func TestTaskRecoveryPublicBlockedAbortDirectReturnRetiresDocuments(t *testing.T
 				var document ID
 				_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 					var err error
-					document, err = tx.MintID()
+					document, err = tx.mintID()
 					if err != nil {
 						return err
 					}
-					if _, err := tx.CreateDocument(Document{ID: document, Scope: "task", Owner: id, Kind: "app.direct-orphan", Version: 1, Value: JSON{"kept": true}}); err != nil {
+					if _, err := tx.createDocumentRecord(Document{ID: document, Scope: "task", Owner: id, Kind: "app.direct-orphan", Version: 1, Value: JSON{"kept": true}}); err != nil {
 						return err
 					}
 					task, err := copyTask(tx.state.Tasks[id], tx.limits)
@@ -7053,11 +7053,11 @@ func TestTaskRecoveryPublicBlockedAbortUnregisteredOwnerWaitsForFreshOwnedAbortH
 		var ownerDoc ID
 		_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 			var err error
-			ownerDoc, err = tx.MintID()
+			ownerDoc, err = tx.mintID()
 			if err != nil {
 				return err
 			}
-			_, err = tx.CreateDocument(Document{ID: ownerDoc, Scope: "task", Owner: ownerID, Kind: "app.actual-owned-orphan", Version: 1, Value: JSON{"kept": true}})
+			_, err = tx.createDocumentRecord(Document{ID: ownerDoc, Scope: "task", Owner: ownerID, Kind: "app.actual-owned-orphan", Version: 1, Value: JSON{"kept": true}})
 			return err
 		})
 		if err != nil {

@@ -16,11 +16,11 @@ func documentTimerFixture140(t *testing.T, s *Session, calls *atomic.Int64) *Doc
 		t.Fatal(err)
 	}
 	_, err = s.Commit(bg, func(tx *Tx) (any, error) {
-		id, err := tx.MintID()
+		id, err := tx.mintID()
 		if err != nil {
 			return nil, err
 		}
-		_, err = tx.CreateDocument(Document{ID: id, Kind: "timer-cache", Version: 1, Scope: "session", Value: JSON{"x": 1}})
+		_, err = tx.createDocumentRecord(Document{ID: id, Kind: "timer-cache", Version: 1, Scope: "session", Value: JSON{"x": 1}})
 		return nil, err
 	})
 	if err != nil {
@@ -71,11 +71,11 @@ func TestSessionTimer140BackgroundDeclineAndFailureSweepOnCommit(t *testing.T) {
 			// There is deliberately no host timer. A genuine unrelated commit must
 			// perform opportunistic eviction without touching the retained definition.
 			if _, err = s.Commit(bg, func(tx *Tx) (any, error) {
-				id, err := tx.MintID()
+				id, err := tx.mintID()
 				if err != nil {
 					return nil, err
 				}
-				_, err = tx.CreateDocument(Document{ID: id, Kind: "unrelated", Version: 1, Scope: "session", Value: JSON{}})
+				_, err = tx.createDocumentRecord(Document{ID: id, Kind: "unrelated", Version: 1, Scope: "session", Value: JSON{}})
 				return nil, err
 			}); err != nil {
 				t.Fatal(err)

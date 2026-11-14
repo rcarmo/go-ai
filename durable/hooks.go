@@ -435,7 +435,7 @@ func (h *Harness) continueYield(runtime *TaskRuntime, task Task, cp generationCh
 		if err != nil {
 			return err
 		}
-		id, err := tx.MintID()
+		id, err := tx.mintID()
 		if err != nil {
 			return err
 		}
@@ -453,7 +453,7 @@ func (h *Harness) continueYield(runtime *TaskRuntime, task Task, cp generationCh
 		if err = h.placeQueuedWrites(tx, task.Conversation); err != nil {
 			return err
 		}
-		id, err = tx.MintID()
+		id, err = tx.mintID()
 		if err != nil {
 			return err
 		}

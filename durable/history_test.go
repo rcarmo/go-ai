@@ -213,11 +213,11 @@ func TestHistoryAncestryFailureAtomicAndTxForwardReferences(t *testing.T) {
 		var child, forward ID
 		_, err = session.Commit(bg, func(tx *Tx) (any, error) {
 			var err error
-			child, err = tx.MintID()
+			child, err = tx.mintID()
 			if err != nil {
 				return nil, err
 			}
-			forward, err = tx.MintID()
+			forward, err = tx.mintID()
 			if err != nil {
 				return nil, err
 			}
@@ -276,7 +276,7 @@ func TestHistoryProductionHTTPInheritedContextAndHead(t *testing.T) {
 	var childID ID
 	_, err = parent.Commit(bg, func(tx *Tx) (any, error) {
 		for _, text := range []string{"before-head", "inherited", "excluded-same-commit"} {
-			id, err := tx.MintID()
+			id, err := tx.mintID()
 			if err != nil {
 				return nil, err
 			}
@@ -287,7 +287,7 @@ func TestHistoryProductionHTTPInheritedContextAndHead(t *testing.T) {
 			e := Entry{ID: id, Conversation: 1, Kind: "message", Value: value}
 			if text == "inherited" {
 				e.Head = id
-				childID, err = tx.MintID()
+				childID, err = tx.mintID()
 				if err != nil {
 					return nil, err
 				}
@@ -299,7 +299,7 @@ func TestHistoryProductionHTTPInheritedContextAndHead(t *testing.T) {
 				return nil, err
 			}
 		}
-		id, err := tx.MintID()
+		id, err := tx.mintID()
 		if err != nil {
 			return nil, err
 		}

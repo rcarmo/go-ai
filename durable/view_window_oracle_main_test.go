@@ -10,7 +10,7 @@ func upstreamViewNotes(t *testing.T, h *Harness, count int) []ID {
 		var id ID
 		_, err := h.session.Commit(bg, func(tx *Tx) (any, error) {
 			var err error
-			id, err = tx.MintID()
+			id, err = tx.mintID()
 			if err != nil {
 				return nil, err
 			}

@@ -28,7 +28,7 @@ func TestV150AfterRunCloseInDrainResumesInterruptedAttempt(t *testing.T) {
 				}
 				return r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
 					commits.Add(1)
-					id, err := tx.MintID()
+					id, err := tx.mintID()
 					if err != nil {
 						return nil, err
 					}

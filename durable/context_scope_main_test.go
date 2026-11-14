@@ -75,7 +75,7 @@ func TestMainContextExpiryAtPublication(t *testing.T) {
 				clock.Store(1000)
 				h := mainContextScopeHarness(t, b.store, &clock)
 				appendContext := func(tx *Tx) error {
-					id, err := tx.MintID()
+					id, err := tx.mintID()
 					if err != nil {
 						return err
 					}
@@ -98,11 +98,11 @@ func TestMainContextExpiryAtPublication(t *testing.T) {
 					if change == "entry-only" {
 						return nil, appendContext(tx)
 					}
-					id, err := tx.MintID()
+					id, err := tx.mintID()
 					if err != nil {
 						return nil, err
 					}
-					return nil, tx.PutTask(Task{ID: id, Conversation: 1, Kind: "context.fixture", Status: "pending", Checkpoint: JSON{}})
+					return nil, tx.putTaskRecord(Task{ID: id, Conversation: 1, Kind: "context.fixture", Status: "pending", Checkpoint: JSON{}})
 				})
 				if err != nil {
 					t.Fatal(err)

@@ -11,29 +11,29 @@ func seedOwnedQueue(t *testing.T, h *Harness, conversation ID, label string) (ID
 	var input, write ID
 	_, err := h.commitTasks(bg, conversation, func(tx *Tx) error {
 		var err error
-		input, err = tx.MintID()
+		input, err = tx.mintID()
 		if err != nil {
 			return err
 		}
-		generation, err := tx.MintID()
+		generation, err := tx.mintID()
 		if err != nil {
 			return err
 		}
-		write, err = tx.MintID()
+		write, err = tx.mintID()
 		if err != nil {
 			return err
 		}
-		if err = tx.PutSubmission(Submission{ID: input, Conversation: conversation, Type: "follow-up", Status: "pending", Value: JSON{"content": label}}); err != nil {
+		if err = tx.putSubmissionRecord(Submission{ID: input, Conversation: conversation, Type: "follow-up", Status: "pending", Value: JSON{"content": label}}); err != nil {
 			return err
 		}
 		checkpoint, err := dtoObject(generationCheckpoint{Phase: "queued", Submission: input, Input: label}, tx.limits)
 		if err != nil {
 			return err
 		}
-		if err = tx.PutTask(Task{ID: generation, Conversation: conversation, Kind: "pi.generation", Status: "pending", Checkpoint: checkpoint}); err != nil {
+		if err = tx.putTaskRecord(Task{ID: generation, Conversation: conversation, Kind: "pi.generation", Status: "pending", Checkpoint: checkpoint}); err != nil {
 			return err
 		}
-		if err = tx.PutSubmission(Submission{ID: write, Conversation: conversation, Type: "write", Status: "pending", Value: JSON{"content": "kept write"}}); err != nil {
+		if err = tx.putSubmissionRecord(Submission{ID: write, Conversation: conversation, Type: "write", Status: "pending", Value: JSON{"content": "kept write"}}); err != nil {
 			return err
 		}
 		inbox, err := builtin(tx, conversation, "pi.inbox")
@@ -79,7 +79,7 @@ func TestTaskOwnershipPinnedQueuedInputScopePreservesWritesAndBackground(t *test
 				var owned ID
 				_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
 					var err error
-					owned, err = tx.MintID()
+					owned, err = tx.mintID()
 					if err != nil {
 						return err
 					}

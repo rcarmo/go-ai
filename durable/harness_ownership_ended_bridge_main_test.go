@@ -107,7 +107,7 @@ func TestMainOwnershipEndedBridgeAbortsWorkBelowEndedTasks(t *testing.T) {
 						owner = id
 					}
 					// Conversation owned by the deepest link, created while that owner is live.
-					convID, err = tx.MintID()
+					convID, err = tx.mintID()
 					if err != nil {
 						return err
 					}

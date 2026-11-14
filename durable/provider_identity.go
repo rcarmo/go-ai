@@ -23,11 +23,11 @@ func ensureProviderDocument(tx *Tx, conversation ID) (string, error) {
 		}
 	}
 	id := goai.UUIDv7()
-	documentID, err := tx.MintID()
+	documentID, err := tx.mintID()
 	if err != nil {
 		return "", err
 	}
-	_, err = tx.CreateDocument(Document{ID: documentID, Scope: "conversation", Owner: conversation, Kind: "pi.provider", Version: 1, History: "latest", Fork: "initial", Value: JSON{"sessionId": id}})
+	_, err = tx.createDocumentRecord(Document{ID: documentID, Scope: "conversation", Owner: conversation, Kind: "pi.provider", Version: 1, History: "latest", Fork: "initial", Value: JSON{"sessionId": id}})
 	return id, err
 }
 

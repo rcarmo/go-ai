@@ -550,7 +550,7 @@ func TestMainGenerationAgentEventsBeforeStorage(t *testing.T) {
 			if _, err := live.Get(); err != nil {
 				return nil, err
 			}
-			marker, err = tx.MintID()
+			marker, err = tx.mintID()
 			if err != nil {
 				return nil, err
 			}

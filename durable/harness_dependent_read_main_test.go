@@ -24,7 +24,7 @@ func TestMainHarnessThirdPartyCommitStoresDerivedPartialAtomically(t *testing.T)
 			}
 			return r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
 				// Third-party callers can address a known builtin document by public ID.
-				live, err := tx.Document(ID(number.Num().Uint64()))
+				live, err := tx.documentRecord(ID(number.Num().Uint64()))
 				if err != nil {
 					return nil, err
 				}
@@ -33,7 +33,7 @@ func TestMainHarnessThirdPartyCommitStoresDerivedPartialAtomically(t *testing.T)
 					return nil, err
 				}
 				text, _ := mainRecoveryText(value)
-				id, err := tx.MintID()
+				id, err := tx.mintID()
 				if err != nil {
 					return nil, err
 				}

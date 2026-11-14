@@ -753,7 +753,7 @@ func TestV150SubmissionEmptyReasonSettlement(t *testing.T) {
 				t.Fatal("empty reason settlement", err)
 			}
 			_, err = session.Commit(bg, func(tx *Tx) (any, error) {
-				record, ok, err := tx.Submission(id)
+				record, ok, err := tx.submissionRecord(id)
 				if err != nil {
 					return nil, err
 				}

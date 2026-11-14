@@ -13,7 +13,7 @@ func TestTaskOwnershipPinnedCreateRejectMatrixAndFinalOwnerOverlay(t *testing.T)
 		var other ID
 		_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 			var err error
-			other, err = tx.MintID()
+			other, err = tx.mintID()
 			if err != nil {
 				return err
 			}

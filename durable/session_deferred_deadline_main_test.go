@@ -19,18 +19,18 @@ func TestMainSessionDeferredDeadlineStoresEveryHold(t *testing.T) {
 		var other, otherDoc ID
 		if _, err := f.session.Commit(bg, func(tx *Tx) (any, error) {
 			var err error
-			other, err = tx.MintID()
+			other, err = tx.mintID()
 			if err != nil {
 				return nil, err
 			}
 			if err = tx.createConversationRecord(Conversation{ID: other}); err != nil {
 				return nil, err
 			}
-			otherDoc, err = tx.MintID()
+			otherDoc, err = tx.mintID()
 			if err != nil {
 				return nil, err
 			}
-			_, err = tx.CreateDocument(mainDeadlineDocument(otherDoc, other))
+			_, err = tx.createDocumentRecord(mainDeadlineDocument(otherDoc, other))
 			return nil, err
 		}); err != nil {
 			t.Fatal(err)
@@ -288,11 +288,11 @@ func openMainDeadlineSession(t *testing.T, b sqliteFixture, defaultWindow *float
 	})
 	if _, err = s.Commit(bg, func(tx *Tx) (any, error) {
 		var err error
-		f.doc, err = tx.MintID()
+		f.doc, err = tx.mintID()
 		if err != nil {
 			return nil, err
 		}
-		_, err = tx.CreateDocument(mainDeadlineDocument(f.doc, 1))
+		_, err = tx.createDocumentRecord(mainDeadlineDocument(f.doc, 1))
 		return nil, err
 	}); err != nil {
 		t.Fatal(err)
@@ -386,13 +386,13 @@ func TestMainDeferredMaintenanceDrainsBeforeSelectingHolds(t *testing.T) {
 				go func() {
 					_, err := f.session.Commit(bg, func(tx *Tx) (any, error) {
 						if consumed {
-							doc, err := tx.Document(f.doc)
+							doc, err := tx.documentRecord(f.doc)
 							if err != nil {
 								return nil, err
 							}
 							return nil, doc.ApplyOperations([]Operation{{"s", []any{"text"}, "stored"}})
 						}
-						id, err := tx.MintID()
+						id, err := tx.mintID()
 						if err != nil {
 							return nil, err
 						}

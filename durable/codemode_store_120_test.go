@@ -97,7 +97,7 @@ func TestCodemode120StoreSnapshotSuccessfulOnlyAndIdempotent(t *testing.T) {
 		var entry ID
 		_, e = h.commitTasks(bg, 1, func(tx *Tx) error {
 			var e error
-			entry, e = tx.MintID()
+			entry, e = tx.mintID()
 			if e != nil {
 				return e
 			}

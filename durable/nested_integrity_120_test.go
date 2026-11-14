@@ -23,7 +23,7 @@ func TestNestedTool120RejectsRetargetForgedResultAndInputMutation(t *testing.T) 
 			r.harness.session.taskBookkeeping(func() { r.harness.scheduler.enabled.Store(false) })
 			for _, mode := range []string{"retarget", "result", "input", "retire"} {
 				e = r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
-					doc, err := tx.Document(handle.document)
+					doc, err := tx.documentRecord(handle.document)
 					if err != nil {
 						return nil, err
 					}

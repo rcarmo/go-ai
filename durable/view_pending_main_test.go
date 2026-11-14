@@ -69,7 +69,7 @@ func TestMainConversationPendingDelivery(t *testing.T) {
 					ctx, cancel := context.WithCancel(context.WithValue(bg, key{}, n))
 					defer cancel()
 					if _, err := h.session.Commit(ctx, func(tx *Tx) (any, error) {
-						live, err := tx.Document(liveID)
+						live, err := tx.documentRecord(liveID)
 						if err != nil {
 							return nil, err
 						}

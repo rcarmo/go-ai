@@ -10,7 +10,7 @@ func appendUpstreamHistory(t *testing.T, h *Harness, c *ConversationHandle, kind
 	var id ID
 	checkpointCommit(t, h.session, func(tx *Tx) error {
 		var err error
-		id, err = tx.MintID()
+		id, err = tx.mintID()
 		if err != nil {
 			return err
 		}

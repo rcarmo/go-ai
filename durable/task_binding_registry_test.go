@@ -49,7 +49,7 @@ func TestTaskLifecyclePinnedRegistryReplacementBeforeResumeAndConversationBindin
 		}
 		// A passive commit may land while another task is already pending.
 		_, err = conversation.Commit(bg, func(tx *Tx) (any, error) {
-			entry, err := tx.MintID()
+			entry, err := tx.mintID()
 			if err != nil {
 				return nil, err
 			}

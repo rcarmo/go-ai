@@ -62,7 +62,7 @@ func appendQueuedInput(tx *Tx, conversation, submission ID, now int64, by ID) (I
 			metadata = &storedEntry{Kind: kind}
 			metadata.Data, metadata.HasData = entry["data"]
 		}
-		id, err := tx.MintID()
+		id, err := tx.mintID()
 		if err != nil {
 			return 0, err
 		}

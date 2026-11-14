@@ -30,7 +30,7 @@ func mainSQLiteSnapshotSession(tb testing.TB) *Session {
 	})
 	_, err = s.Commit(context.Background(), func(tx *Tx) (any, error) {
 		for i := 0; i < 64; i++ {
-			id, err := tx.MintID()
+			id, err := tx.mintID()
 			if err != nil {
 				return nil, err
 			}
@@ -82,7 +82,7 @@ func TestMainSQLiteAdoptedTaskSnapshot(t *testing.T) {
 	var published ID
 	_, err = s.Commit(context.Background(), func(tx *Tx) (any, error) {
 		var err error
-		published, err = tx.MintID()
+		published, err = tx.mintID()
 		if err != nil {
 			return nil, err
 		}

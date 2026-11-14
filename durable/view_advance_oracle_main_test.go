@@ -135,7 +135,7 @@ func TestMainViewUpstreamAdvanceOracles(t *testing.T) {
 					var burst []ID
 					checkpointCommit(t, h.session, func(tx *Tx) error {
 						for i := 0; i < 5; i++ {
-							id, err := tx.MintID()
+							id, err := tx.mintID()
 							if err != nil {
 								return err
 							}

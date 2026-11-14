@@ -1016,7 +1016,7 @@ func (h *Harness) acceptTools(parent Task, cp generationCheckpoint, message mess
 		if latest.Abort {
 			return reject("generation abort admitted")
 		}
-		entryID, e := tx.MintID()
+		entryID, e := tx.mintID()
 		if e != nil {
 			return e
 		}
@@ -1029,7 +1029,7 @@ func (h *Harness) acceptTools(parent Task, cp generationCheckpoint, message mess
 		for _, tool := range prepared {
 			if tool.ErrorCode == "tool_not_offered" {
 				receipt := MessageReceipt{Role: goai.RoleToolResult, ToolCallID: tool.CallID, ToolName: tool.Offer.Name, Content: []goai.ContentBlock{{Type: "text", Text: "Tool " + tool.Offer.Name + " was not offered"}}, IsError: true, ErrorCode: "tool_unavailable", Diagnostics: []ToolDiagnostic{{Severity: "error", Code: "tool_unavailable", Message: "Tool " + tool.Offer.Name + " was not offered"}}, Details: JSON{}}
-				id, err := tx.MintID()
+				id, err := tx.mintID()
 				if err != nil {
 					return err
 				}
@@ -1048,7 +1048,7 @@ func (h *Harness) acceptTools(parent Task, cp generationCheckpoint, message mess
 				cp.PendingTools = append(cp.PendingTools, tool)
 				continue
 			}
-			id, e := tx.MintID()
+			id, e := tx.mintID()
 			if e != nil {
 				return e
 			}
@@ -1060,7 +1060,7 @@ func (h *Harness) acceptTools(parent Task, cp generationCheckpoint, message mess
 			if e = tx.bindTaskTrace(&child, TaskOptions{}); e != nil {
 				return e
 			}
-			if e = tx.PutTask(child); e != nil {
+			if e = tx.putTaskRecord(child); e != nil {
 				return e
 			}
 			cp.Children = append(cp.Children, id)
@@ -1883,7 +1883,7 @@ func (h *Harness) finishTool(task Task, cp toolCheckpoint, result ToolResult, co
 				}
 			}
 		}
-		id, e := tx.MintID()
+		id, e := tx.mintID()
 		if e != nil {
 			return e
 		}

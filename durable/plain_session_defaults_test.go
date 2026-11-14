@@ -16,7 +16,7 @@ func TestPlainSessionAbsentAgentEnvironmentAndNoModelSubmit(t *testing.T) {
 		var conversation ID
 		_, err = session.Commit(bg, func(tx *Tx) (any, error) {
 			var err error
-			conversation, err = tx.MintID()
+			conversation, err = tx.mintID()
 			if err != nil {
 				return nil, err
 			}

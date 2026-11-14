@@ -527,7 +527,7 @@ func (h *Harness) runGenerationInvocation(runtime *TaskRuntime, task Task, cp ge
 			if err != nil {
 				return err
 			}
-			entry, err := tx.MintID()
+			entry, err := tx.mintID()
 			if err != nil {
 				return err
 			}
@@ -780,7 +780,7 @@ func (h *Harness) prepareRequest(runtime *TaskRuntime, task *Task, cp *generatio
 			return reject("generation run ownership changed")
 		}
 		for _, draft := range promptEntries {
-			id, err := tx.MintID()
+			id, err := tx.mintID()
 			if err != nil {
 				return err
 			}
@@ -1135,7 +1135,7 @@ func (h *Harness) finishWithAfterRun(task Task, cp generationCheckpoint, r messa
 		if latest.Abort && !cp.Abort {
 			return reject("abort precedes generation outcome")
 		}
-		id, e := tx.MintID()
+		id, e := tx.mintID()
 		if e != nil {
 			return e
 		}
@@ -1208,13 +1208,13 @@ func (h *Harness) finishWithAfterRun(task Task, cp generationCheckpoint, r messa
 			}
 		}
 		if found {
-			doc, e := tx.Document(existing.ID)
+			doc, e := tx.documentRecord(existing.ID)
 			if e != nil {
 				return e
 			}
 			return doc.Update(func(v JSON) error { return addModelUsage(v, r, h.session.limits) })
 		}
-		docID, e := tx.MintID()
+		docID, e := tx.mintID()
 		if e != nil {
 			return e
 		}
@@ -1222,7 +1222,7 @@ func (h *Harness) finishWithAfterRun(task Task, cp generationCheckpoint, r messa
 		if e = addModelUsage(state, r, h.session.limits); e != nil {
 			return e
 		}
-		_, e = tx.CreateDocument(Document{ID: docID, Scope: "conversation", Owner: task.Conversation, Kind: "pi.usage", Version: 1, Value: state})
+		_, e = tx.createDocumentRecord(Document{ID: docID, Scope: "conversation", Owner: task.Conversation, Kind: "pi.usage", Version: 1, Value: state})
 		return e
 	})
 	return e

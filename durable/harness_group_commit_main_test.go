@@ -139,7 +139,7 @@ func TestMainGroupCommitHoldsLiveOwnerRaceCreation(t *testing.T) {
 			return err
 		}
 		ids["a"] = id
-		conv, err = tx.MintID()
+		conv, err = tx.mintID()
 		if err != nil {
 			return err
 		}
@@ -329,7 +329,7 @@ func TestMainGroupCommitOwnerEndFollowsCreationBelowPendingEnd(t *testing.T) {
 			return err
 		}
 		ids["b"] = id
-		conv, err = tx.MintID()
+		conv, err = tx.mintID()
 		if err != nil {
 			return err
 		}
@@ -364,7 +364,7 @@ func TestMainGroupCommitOwnerEndFollowsCreationBelowPendingEnd(t *testing.T) {
 	blocker := make(chan error, 1)
 	go func() {
 		_, err := h.commitTasks(ctx, c.ID(), func(tx *Tx) error {
-			id, err := tx.MintID()
+			id, err := tx.mintID()
 			if err != nil {
 				return err
 			}
@@ -738,7 +738,7 @@ func TestMainGroupCommitLineReadsWaitForPendingMembership(t *testing.T) {
 					return err
 				}
 				if tc.shape == "chain" {
-					targetConversation, err = tx.MintID()
+					targetConversation, err = tx.mintID()
 					if err != nil {
 						return err
 					}

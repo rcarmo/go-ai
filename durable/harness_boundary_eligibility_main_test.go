@@ -40,7 +40,7 @@ func mainEligibilityHarness(t *testing.T, b sqliteFixture, owned bool, settings 
 	var conversation, parent ID
 	if _, err := plainSession.Commit(bg, func(tx *Tx) (any, error) {
 		if owned {
-			ownerConversation, err := tx.MintID()
+			ownerConversation, err := tx.mintID()
 			if err != nil {
 				return nil, err
 			}
@@ -53,7 +53,7 @@ func mainEligibilityHarness(t *testing.T, b sqliteFixture, owned bool, settings 
 			}
 		}
 		var err error
-		conversation, err = tx.MintID()
+		conversation, err = tx.mintID()
 		if err != nil {
 			return nil, err
 		}

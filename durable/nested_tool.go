@@ -216,7 +216,7 @@ func (r *TaskRuntime) startToolScoped(ctx context.Context, key, name string, arg
 		if err != nil {
 			return nil, err
 		}
-		docID, err := tx.MintID()
+		docID, err := tx.mintID()
 		if err != nil {
 			return nil, err
 		}
@@ -224,7 +224,7 @@ func (r *TaskRuntime) startToolScoped(ctx context.Context, key, name string, arg
 		if err != nil {
 			return nil, err
 		}
-		_, err = tx.CreateDocument(Document{ID: docID, Scope: "task", Owner: r.taskID, Kind: nestedCallDocument, Family: true, Key: key, Version: 1, Value: call})
+		_, err = tx.createDocumentRecord(Document{ID: docID, Scope: "task", Owner: r.taskID, Kind: nestedCallDocument, Family: true, Key: key, Version: 1, Value: call})
 		handle.task = id
 		handle.document = docID
 		return nil, err
@@ -561,7 +561,7 @@ func settleNestedTool(ctx context.Context, record TaskRecord, r *TaskRuntime, re
 				if err != nil {
 					return nil, err
 				}
-				handle, err := tx.Document(doc.ID)
+				handle, err := tx.documentRecord(doc.ID)
 				if err != nil {
 					return nil, err
 				}

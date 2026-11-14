@@ -84,7 +84,7 @@ func TestSession120BackendMutationFailureIsFatalEvenRejected(t *testing.T) {
 				if operation == "mint" {
 					_, e = s.MintID(bg)
 				} else if operation == "caught-mint" {
-					_, e = s.Commit(bg, func(tx *Tx) (any, error) { _, _ = tx.MintID(); return nil, nil })
+					_, e = s.Commit(bg, func(tx *Tx) (any, error) { _, _ = tx.mintID(); return nil, nil })
 				} else {
 					_, e = s.Commit(bg, func(tx *Tx) (any, error) {
 						return nil, tx.appendEntryRecord(Entry{ID: 2, Conversation: 1, Kind: "test", Value: JSON{"x": 1}})

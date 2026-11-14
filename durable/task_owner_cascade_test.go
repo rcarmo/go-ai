@@ -32,7 +32,7 @@ func TestTaskOwnershipFailedOwnerCascadesButCompletedOwnerDrainsNormally(t *test
 				owner, err := DefineTask(TaskDefinitionOptions{Kind: "task.cascade.owner", Version: 1, Initial: func(any) (JSON, error) { return JSON{"phase": "create"}, nil }, Phases: map[string]TaskPhase{
 					"create": func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
 						return r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
-							conversation, err := tx.MintID()
+							conversation, err := tx.mintID()
 							if err != nil {
 								return nil, err
 							}

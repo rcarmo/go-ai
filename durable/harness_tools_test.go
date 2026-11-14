@@ -29,7 +29,7 @@ func registerSum(t *testing.T, registry *Registry, effects *atomic.Int64, docume
 			return ToolResult{}, e
 		}
 		return ToolResult{Content: fmt.Sprint(a + b), Details: JSON{"sum": a + b}, Usage: &goai.Usage{Output: 1, TotalTokens: 1}, Commit: func(tx *Tx) error {
-			h, e := tx.Document(document)
+			h, e := tx.documentRecord(document)
 			if e != nil {
 				return e
 			}
@@ -45,11 +45,11 @@ func createAppDocument(t *testing.T, r *ConversationHandle) ID {
 	var id ID
 	_, e := r.Commit(bg, func(tx *Tx) (any, error) {
 		var e error
-		id, e = tx.MintID()
+		id, e = tx.mintID()
 		if e != nil {
 			return nil, e
 		}
-		_, e = tx.CreateDocument(Document{ID: id, Scope: "conversation", Owner: r.ID(), Kind: "app.result", Version: 1, Value: JSON{"sum": 0}})
+		_, e = tx.createDocumentRecord(Document{ID: id, Scope: "conversation", Owner: r.ID(), Kind: "app.result", Version: 1, Value: JSON{"sum": 0}})
 		return nil, e
 	})
 	if e != nil {
@@ -982,7 +982,7 @@ func TestM1cProviderPartialPointersObservedDetachedAtBoundary(t *testing.T) {
 		}); err != nil {
 			return nil, err
 		}
-		return nil, tx.PutTask(Task{ID: id, Conversation: conversation, Kind: "pi.generation", Status: "running", Checkpoint: cp})
+		return nil, tx.putTaskRecord(Task{ID: id, Conversation: conversation, Kind: "pi.generation", Status: "running", Checkpoint: cp})
 	})
 	if e != nil {
 		t.Fatal(e)

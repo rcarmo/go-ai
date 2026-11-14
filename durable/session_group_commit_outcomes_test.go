@@ -412,7 +412,7 @@ func TestV150SessionFailureCarriesOriginalRejectionValue(t *testing.T) {
 				defer s.Close(bg)
 				core := b.store.(nativeStorage).nativeCore()
 				if _, err := s.Commit(bg, func(tx *Tx) (any, error) {
-					id, e := tx.MintID()
+					id, e := tx.mintID()
 					if e != nil {
 						return nil, e
 					}
@@ -426,7 +426,7 @@ func TestV150SessionFailureCarriesOriginalRejectionValue(t *testing.T) {
 
 				// The rejecting call keeps the original value.
 				_, err = s.Commit(bg, func(tx *Tx) (any, error) {
-					id, e := tx.MintID()
+					id, e := tx.mintID()
 					if e != nil {
 						return nil, e
 					}
@@ -477,7 +477,7 @@ func TestV150SessionFailureKeepsErrorIdentity(t *testing.T) {
 			return cause
 		}
 		_, err = s.Commit(bg, func(tx *Tx) (any, error) {
-			id, e := tx.MintID()
+			id, e := tx.mintID()
 			if e != nil {
 				return nil, e
 			}
@@ -535,7 +535,7 @@ func TestMainSessionConfirmedAppendRefusalLatches(t *testing.T) {
 
 	appendNote := func(body string) error {
 		_, err := s.Commit(ctx, func(tx *Tx) (any, error) {
-			id, err := tx.MintID()
+			id, err := tx.mintID()
 			if err != nil {
 				return nil, err
 			}
@@ -612,7 +612,7 @@ func TestMainSessionSQLiteConfirmedRollbackLatches(t *testing.T) {
 
 	appendNote := func(body string) error {
 		_, err := s.Commit(ctx, func(tx *Tx) (any, error) {
-			id, err := tx.MintID()
+			id, err := tx.mintID()
 			if err != nil {
 				return nil, err
 			}

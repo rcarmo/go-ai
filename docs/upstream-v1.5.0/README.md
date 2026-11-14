@@ -10,6 +10,10 @@ The sole alignment target is official upstream `v1.5.0` at `f9a26365568127461c47
 
 [Public callback results](../../notes/commit-callback-values.md) replace sequence returns on Session/Harness/conversation commits, preserving host identity, errors and stored-publication fencing. The native alternate task-transaction entry is private. [Public persistence options](../../notes/commit-callback-values.md#public-commit-persistence-options) now cover all five public commit paths. Complete persistence lifecycle/ordering, constructor record results and API/Storage acceptance remain open.
 
+## Public Tx boundary
+
+[The source public interface](../../notes/public-tx-surface.md) now excludes nine native raw exports and uses the current one-argument marker method. Go overload/doc spellings remain explicit; internal setTask is not public. This structural control does not close complete API/record identity/document/Storage acceptance.
+
 ## Conversation ownership constructors
 
 [Public ownership options](../../notes/conversation-constructors.md) now allocate conversation IDs, derive staged/committed task-owner metadata and return records. Blind ownerless construction retains source admission. [Canonical fork options and assembly timing](../../notes/conversation-constructors.md#fork-ownership-options-and-source-write-validation) now cover selected original packets. Full publication identity, internal task mutation/atomic owner and API/Storage acceptance remain open.

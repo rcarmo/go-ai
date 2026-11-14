@@ -69,7 +69,7 @@ func TestMainSessionUnpublishedReadBarriers(t *testing.T) {
 			go func() {
 				_, err := s.Commit(ctx, func(tx *Tx) (any, error) {
 					var err error
-					leaked, err = tx.MintID()
+					leaked, err = tx.mintID()
 					if err != nil {
 						return nil, err
 					}
@@ -98,7 +98,7 @@ func TestMainSessionUnpublishedReadBarriers(t *testing.T) {
 			} else {
 				go func() {
 					_, err := s.Commit(admission, func(tx *Tx) (any, error) {
-						id, err := tx.MintID()
+						id, err := tx.mintID()
 						if err != nil {
 							return nil, err
 						}
@@ -189,14 +189,14 @@ func TestMainSessionFailureFenceKeepsEarlierPartsAfterSettlementError(t *testing
 	var a, b ID
 	if _, err := s.Commit(ctx, func(tx *Tx) (any, error) {
 		var err error
-		a, err = tx.MintID()
+		a, err = tx.mintID()
 		if err != nil {
 			return nil, err
 		}
 		if err := tx.createConversationRecord(Conversation{ID: a}); err != nil {
 			return nil, err
 		}
-		b, err = tx.MintID()
+		b, err = tx.mintID()
 		if err != nil {
 			return nil, err
 		}
@@ -207,7 +207,7 @@ func TestMainSessionFailureFenceKeepsEarlierPartsAfterSettlementError(t *testing
 
 	// The earlier part that must be kept.
 	if _, err := s.Commit(ctx, func(tx *Tx) (any, error) {
-		id, err := tx.MintID()
+		id, err := tx.mintID()
 		if err != nil {
 			return nil, err
 		}
@@ -218,7 +218,7 @@ func TestMainSessionFailureFenceKeepsEarlierPartsAfterSettlementError(t *testing
 
 	// The part that fails at settlement.
 	if _, err := s.Commit(ctx, func(tx *Tx) (any, error) {
-		id, err := tx.MintID()
+		id, err := tx.mintID()
 		if err != nil {
 			return nil, err
 		}
@@ -382,7 +382,7 @@ func TestMainSessionGatesJobsWaitForPublication(t *testing.T) {
 		var createdID ID
 
 		runGatesJob(t, s, ctx, func(tx *Tx) error {
-			id, err := tx.MintID()
+			id, err := tx.mintID()
 			if err != nil {
 				return err
 			}
@@ -404,7 +404,7 @@ func TestMainSessionGatesJobsWaitForPublication(t *testing.T) {
 		}
 
 		runGatesJob(t, s, ctx, func(tx *Tx) error {
-			entryID, err := tx.MintID()
+			entryID, err := tx.mintID()
 			if err != nil {
 				return err
 			}
@@ -465,7 +465,7 @@ func TestMainSessionGatesJobsWaitForPublication(t *testing.T) {
 		var createdID ID
 
 		runGatesJob(t, s, ctx, func(tx *Tx) error {
-			id, err := tx.MintID()
+			id, err := tx.mintID()
 			if err != nil {
 				return err
 			}
@@ -544,14 +544,14 @@ func TestMainSessionGatesJobsWaitForPublication(t *testing.T) {
 		var convID ID
 
 		runGatesJob(t, s, ctx, func(tx *Tx) error {
-			created, err := tx.MintID()
+			created, err := tx.mintID()
 			if err != nil {
 				return err
 			}
 			if err := tx.createConversationRecord(Conversation{ID: created}); err != nil {
 				return err
 			}
-			entryID, err := tx.MintID()
+			entryID, err := tx.mintID()
 			if err != nil {
 				return err
 			}
@@ -617,7 +617,7 @@ func TestMainSessionGatesJobsWaitForPublication(t *testing.T) {
 		var owner ID
 		if _, err := s.Commit(ctx, func(tx *Tx) (any, error) {
 			var err error
-			owner, err = tx.MintID()
+			owner, err = tx.mintID()
 			if err != nil {
 				return nil, err
 			}
@@ -644,7 +644,7 @@ func TestMainSessionGatesJobsWaitForPublication(t *testing.T) {
 		held.holdCommits()
 		firstSettled := make(chan error, 1)
 		runGatesJob(t, s, ctx, func(tx *Tx) error {
-			id, err := tx.MintID()
+			id, err := tx.mintID()
 			if err != nil {
 				return err
 			}
@@ -692,7 +692,7 @@ func TestMainSessionGatesJobsWaitForPublication(t *testing.T) {
 		var owner ID
 		if _, err := s.Commit(ctx, func(tx *Tx) (any, error) {
 			var err error
-			owner, err = tx.MintID()
+			owner, err = tx.mintID()
 			if err != nil {
 				return nil, err
 			}
@@ -734,7 +734,7 @@ func TestMainSessionGatesJobsWaitForPublication(t *testing.T) {
 		}
 		first, later := make(chan error, 1), make(chan error, 1)
 		runGatesJob(t, s, ctx, func(tx *Tx) error {
-			id, err := tx.MintID()
+			id, err := tx.mintID()
 			if err != nil {
 				return err
 			}
@@ -834,7 +834,7 @@ func TestMainSessionCase256ReadSurfacesWaitForPendingCreation(t *testing.T) {
 			var conv ID
 
 			runGatesJob(t, s, ctx, func(tx *Tx) error {
-				id, err := tx.MintID()
+				id, err := tx.mintID()
 				if err != nil {
 					return err
 				}
@@ -1020,7 +1020,7 @@ func TestMainGatesSessionCleanupReleasesHeldAppend(t *testing.T) {
 		held.holdCommits()
 		go func() {
 			_, err := s.Commit(ctx, func(tx *Tx) (any, error) {
-				id, err := tx.MintID()
+				id, err := tx.mintID()
 				if err != nil {
 					return nil, err
 				}

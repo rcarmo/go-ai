@@ -42,7 +42,7 @@ func TestBackgroundThresholdCompactionDoesNotBlockAnswerOrOrdinaryIdle(t *testin
 		}
 		_, err = conversation.Commit(bg, func(tx *Tx) (any, error) {
 			for _, text := range []string{strings.Repeat("earlier context ", 20), "recent"} {
-				id, err := tx.MintID()
+				id, err := tx.mintID()
 				if err != nil {
 					return nil, err
 				}

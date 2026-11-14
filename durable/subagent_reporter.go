@@ -57,7 +57,7 @@ func (c *ConversationHandle) SendBackground(ctx context.Context, key string, inp
 			return err
 		}
 		if input.RequestID != "" || input.RequestIDPresent {
-			handle, err := tx.Document(doc.ID)
+			handle, err := tx.documentRecord(doc.ID)
 			if err != nil {
 				return err
 			}
@@ -140,7 +140,7 @@ func subagentReporterDefinition() (*TaskDefinition, error) {
 					if !ok {
 						return nil, reject("reporter registry missing")
 					}
-					handle, err := tx.Document(doc.ID)
+					handle, err := tx.documentRecord(doc.ID)
 					if err != nil {
 						return nil, err
 					}

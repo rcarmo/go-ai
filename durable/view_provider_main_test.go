@@ -81,7 +81,7 @@ func TestMainConversationViewProviderProjection(t *testing.T) {
 					for n := 0; n < 105; n++ {
 						value := strconv.Itoa(n)
 						checkpointCommit(t, h.session, func(tx *Tx) error {
-							doc, e := tx.Document(provider)
+							doc, e := tx.documentRecord(provider)
 							if e != nil {
 								return e
 							}
@@ -134,7 +134,7 @@ func TestMainConversationViewProviderProjection(t *testing.T) {
 					}
 				}
 				checkpointCommit(t, h.session, func(tx *Tx) error {
-					doc, e := tx.Document(provider)
+					doc, e := tx.documentRecord(provider)
 					if e != nil {
 						return e
 					}
@@ -145,7 +145,7 @@ func TestMainConversationViewProviderProjection(t *testing.T) {
 					t.Fatal("provider update missing", f.Docs)
 				}
 				checkpointCommit(t, h.session, func(tx *Tx) error {
-					doc, e := tx.Document(provider)
+					doc, e := tx.documentRecord(provider)
 					if e != nil {
 						return e
 					}

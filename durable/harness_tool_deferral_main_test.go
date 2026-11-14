@@ -62,7 +62,7 @@ func TestMainToolProgressDeferredMemoryAndPersistence(t *testing.T) {
 						if !ok || got != text {
 							t.Error("dependent read missed memory", got)
 						}
-						id, err := tx.MintID()
+						id, err := tx.mintID()
 						if err != nil {
 							return nil, err
 						}
@@ -175,7 +175,7 @@ func TestMainToolProgressMemoryEventsNotStorageReplay(t *testing.T) {
 			if _, err := live.Get(); err != nil {
 				return nil, err
 			}
-			id, err := tx.MintID()
+			id, err := tx.mintID()
 			if err != nil {
 				return nil, err
 			}

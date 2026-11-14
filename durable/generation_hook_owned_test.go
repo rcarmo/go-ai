@@ -128,7 +128,7 @@ func TestGenerationAfterToolsHookOwnsWorkAndLateEventsDoNotRepeatTurnEnd(t *test
 				waitPublicTask(t, h, ownerID)
 				// A committed marker witnesses both serial observers after final cleanup.
 				if _, err := h.Commit(bg, func(tx *Tx) (any, error) {
-					id, err := tx.MintID()
+					id, err := tx.mintID()
 					if err != nil {
 						return nil, err
 					}

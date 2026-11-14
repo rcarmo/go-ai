@@ -42,7 +42,7 @@ func TestMainAfterRunRunWithoutRecordedFirstEntryAnswersAsFirst(t *testing.T) {
 						t.Error("no live document inside the hook commit")
 						return nil, nil
 					}
-					handle, err := tx.Document(liveID)
+					handle, err := tx.documentRecord(liveID)
 					if err != nil {
 						t.Errorf("hook cannot open live document %d: %v", liveID, err)
 						return nil, nil

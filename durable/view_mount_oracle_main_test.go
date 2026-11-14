@@ -38,11 +38,11 @@ func TestMainViewUpstreamMountOracles(t *testing.T) {
 					checkpointCommit(t, h.session, func(tx *Tx) error {
 						// Source tx.doc lazily creates the absent document. Native
 						// builtin only looks up existing documents; create explicitly.
-						id, err := tx.MintID()
+						id, err := tx.mintID()
 						if err != nil {
 							return err
 						}
-						live, err := tx.CreateDocument(Document{ID: id, Scope: "conversation", Owner: c.ID(), Kind: "pi.live", Version: 3, Value: JSON{}})
+						live, err := tx.createDocumentRecord(Document{ID: id, Scope: "conversation", Owner: c.ID(), Kind: "pi.live", Version: 3, Value: JSON{}})
 						if err != nil {
 							return err
 						}

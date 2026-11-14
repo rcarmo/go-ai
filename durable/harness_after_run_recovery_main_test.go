@@ -50,7 +50,7 @@ func mainAfterRecoverySetup(t *testing.T, hooks, gates map[int64]chan struct{}, 
 				}
 			}
 			return r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
-				id, err := tx.MintID()
+				id, err := tx.mintID()
 				if err != nil {
 					return nil, err
 				}

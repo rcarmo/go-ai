@@ -4,7 +4,7 @@
 
 Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Native implementation: `/work/go-ai/durable`, authorised SQLite-only, pure Go. The preceding pushed implementation checkpoint is `04726f3` (request-time model/retry authority); image-resource diagnosis is recorded at `1e0f3ad`.
 
-Latest continuation: canonical fork ownership/allocation and assembly-only source-write rejection before checkpoint predicates. An inherited parallel progression fixture now controls result completion identically in reference/native and retains its state assertions, with reverse coverage. See [evidence and remaining gaps](conversation-constructors.md#fork-ownership-options-and-source-write-validation). Full API/Storage/record identity/builtin and release acceptance remain open.
+Latest continuation: the literal source public Tx boundary, removing nine native raw exports and the public historical marker argument. Source internal setTask is not exposed. See [mapping and verification](public-tx-surface.md). Complete method semantics, other public types, record identity, internal mutation, builtin/Storage and release acceptance remain open.
 
 ## Earlier queue-production checkpoint
 
@@ -18,7 +18,11 @@ Latest continuation: canonical fork ownership/allocation and assembly-only sourc
 
 The exact input/write shape tests failed before the fixes. Idle progress and continuation already passed and required no speculative runtime changes. A failure/reopen fixture initially tried to close storage already owned/closed by Session; correcting the fixture required no runtime fix. Tests remain in the existing version-neutral transaction suite.
 
-## Latest fork/assembly verification
+## Latest public Tx verification
+
+Full repository ./... passes26 packages: root0.853s, durable585.852s/tools28.155s and public consumers12.711s. Nine independently reintroduced public API aliases plus marker arity/current-value faults are detected after compilation. Ten surface repetitions0.016s/ten shuffled marker repetitions0.352s, vet/Staticcheck/logging/register and selected original277 (200 unchanged +77 probes) pass, zero original skips. Analysed temporary scripts/logs/overlays are removed. This establishes the tested public Tx method boundary and current-marker shape/value, not complete API/record identity/internal mutation/document/builtin/Storage/release conformance.
+
+## Previous fork/assembly verification
 
 Full repository ./... passes26 packages: root0.707s, durable531.225s/tools26.826s and public consumers12.551s. Ten compiled semantic faults, ten fork repetitions1.827s, history13.704s, controlled builtin progression40x3 cases90.839s and vet/Staticcheck/logging/register pass. Selected original276 (200 unchanged +76 probes), complete original forks14+84 supplements98 and tools42+84 supplements126 pass, zero skipped. Analysed temporary logs/overlays are removed. Publication-record identity, internal canonical setTask/atomic owners, public native-extra Tx methods, full fork/builtin/API/Storage and pre-release acceptance remain open.
 

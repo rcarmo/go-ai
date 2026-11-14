@@ -59,7 +59,7 @@ func TestMainIdleIndexHeldQueue(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		commit(func(tx *Tx) error { c.Status = "done"; return tx.PutTask(c) })
+		commit(func(tx *Tx) error { c.Status = "done"; return tx.putTaskRecord(c) })
 		checkMainIdleIndex(t, h, false)
 		h.session.taskBookkeeping(func() {
 			if h.scheduler.idleIndex.rebuilds != 1 || len(h.scheduler.idleIndex.generations[1]) != 1 {
@@ -67,7 +67,7 @@ func TestMainIdleIndexHeldQueue(t *testing.T) {
 			}
 		})
 		commit(func(tx *Tx) error {
-			d, err := tx.Document(docID)
+			d, err := tx.documentRecord(docID)
 			if err != nil {
 				return err
 			}
@@ -75,7 +75,7 @@ func TestMainIdleIndexHeldQueue(t *testing.T) {
 		})
 		checkMainIdleIndex(t, h, true)
 		commit(func(tx *Tx) error {
-			d, err := tx.Document(docID)
+			d, err := tx.documentRecord(docID)
 			if err != nil {
 				return err
 			}
@@ -126,7 +126,7 @@ func TestMainIdleIndexPublicationWitness(t *testing.T) {
 		var before uint64
 		h.session.taskBookkeeping(func() { before = h.scheduler.idleIndex.work })
 		if _, err := h.Commit(bg, func(tx *Tx) (any, error) {
-			id, err := tx.MintID()
+			id, err := tx.mintID()
 			if err != nil {
 				return nil, err
 			}
@@ -172,7 +172,7 @@ func BenchmarkMainContextBusyHistory(b *testing.B) {
 			cid := ID(1)
 			if !busy {
 				if _, err := h.Commit(bg, func(tx *Tx) (any, error) {
-					id, err := tx.MintID()
+					id, err := tx.mintID()
 					if err != nil {
 						return nil, err
 					}
@@ -215,10 +215,10 @@ func TestMainIdleIndexLegacyReparent(t *testing.T) {
 		if _, err := h.Commit(bg, func(tx *Tx) (any, error) {
 			p.Owner = 0
 			q.Owner = a
-			if err := tx.PutTask(p); err != nil {
+			if err := tx.putTaskRecord(p); err != nil {
 				return nil, err
 			}
-			return nil, tx.PutTask(q)
+			return nil, tx.putTaskRecord(q)
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -295,7 +295,7 @@ func TestMainIdleIndexAmbiguousDocumentFallback(t *testing.T) {
 			}
 		})
 		if _, err := h.Commit(bg, func(tx *Tx) (any, error) {
-			doc, err := tx.Document(second)
+			doc, err := tx.documentRecord(second)
 			if err != nil {
 				return nil, err
 			}

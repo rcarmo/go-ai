@@ -326,7 +326,7 @@ func (h *Harness) createConversation(ctx context.Context, change AgentChange, in
 				return nil, err
 			}
 			if existing, ok := agentDocument(candidate, id); ok {
-				handle, err := tx.Document(existing.ID)
+				handle, err := tx.documentRecord(existing.ID)
 				if err != nil {
 					return nil, err
 				}
@@ -478,7 +478,7 @@ func (h *Harness) configureLockedWithInit(ctx context.Context, id ID, c AgentCha
 			if !ok {
 				return nil, reject("created agent unavailable")
 			}
-			handle, err := tx.Document(created.ID)
+			handle, err := tx.documentRecord(created.ID)
 			if err != nil {
 				return nil, err
 			}
@@ -512,7 +512,7 @@ func (h *Harness) configureLockedWithInit(ctx context.Context, id ID, c AgentCha
 			if !ok {
 				return nil, reject("created agent unavailable")
 			}
-			handle, err := tx.Document(created.ID)
+			handle, err := tx.documentRecord(created.ID)
 			if err != nil {
 				return nil, err
 			}
@@ -525,17 +525,17 @@ func (h *Harness) configureLockedWithInit(ctx context.Context, id ID, c AgentCha
 			return nil, nil
 		}
 		if found {
-			handle, e := tx.Document(doc.ID)
+			handle, e := tx.documentRecord(doc.ID)
 			if e != nil {
 				return nil, e
 			}
 			return nil, handle.Set(value)
 		}
-		docID, e := tx.MintID()
+		docID, e := tx.mintID()
 		if e != nil {
 			return nil, e
 		}
-		_, e = tx.CreateDocument(Document{ID: docID, Scope: "conversation", Owner: id, Kind: "pi.agent", Version: 1, Value: value, History: "rewindable", Fork: "asOf"})
+		_, e = tx.createDocumentRecord(Document{ID: docID, Scope: "conversation", Owner: id, Kind: "pi.agent", Version: 1, Value: value, History: "rewindable", Fork: "asOf"})
 		if e != nil {
 			return nil, e
 		}
@@ -733,7 +733,7 @@ func builtin(tx *Tx, conversation ID, kind string) (*DocumentHandle, error) {
 	}
 	for _, d := range tx.state.Documents {
 		if !d.Retired && d.Scope == "conversation" && d.Owner == conversation && d.Kind == kind && d.Key == "" {
-			return tx.Document(d.ID)
+			return tx.documentRecord(d.ID)
 		}
 	}
 	// Newly initialized plain-Session conversations have no committed baseline.
@@ -745,7 +745,7 @@ func builtin(tx *Tx, conversation ID, kind string) (*DocumentHandle, error) {
 		}
 		for _, d := range candidate.Documents {
 			if !d.Retired && d.Scope == "conversation" && d.Owner == conversation && d.Kind == kind && d.Key == "" {
-				return tx.Document(d.ID)
+				return tx.documentRecord(d.ID)
 			}
 		}
 	}
@@ -1105,7 +1105,7 @@ func (h *Harness) cleanupAnsweredGeneration(tx *Tx, task *Task, hold *BuiltinTas
 			answer = 0
 		}
 		retainSubmissionPlacement(oldValue, sub.Value, answer)
-		if err := tx.PutSubmission(sub); err != nil {
+		if err := tx.putSubmissionRecord(sub); err != nil {
 			return false, err
 		}
 	}
@@ -1128,7 +1128,7 @@ func (h *Harness) cleanupAnsweredGeneration(tx *Tx, task *Task, hold *BuiltinTas
 		delete(steer.Value, "placedEntry")
 		delete(steer.Value, "answerEntry")
 		retainSubmissionPlacement(oldValue, steer.Value, hold.Entry)
-		if err := tx.PutSubmission(steer); err != nil {
+		if err := tx.putSubmissionRecord(steer); err != nil {
 			return false, err
 		}
 	}
@@ -1250,7 +1250,7 @@ func (h *Harness) finalizeBuiltinHold(tx *Tx, task Task) error {
 			if err != nil {
 				return err
 			}
-			id, err := tx.MintID()
+			id, err := tx.mintID()
 			if err != nil {
 				return err
 			}
@@ -1302,7 +1302,7 @@ func (h *Harness) finalizeBuiltinHold(tx *Tx, task Task) error {
 		if err != nil {
 			return err
 		}
-		id, err := tx.MintID()
+		id, err := tx.mintID()
 		if err != nil {
 			return err
 		}
@@ -1520,7 +1520,7 @@ func (h *Harness) withdrawScopedInputBatch(tx *Tx, conversation ID, cross bool, 
 		}
 		sub.Status = "aborted"
 		sub.Value = JSON{"errorCode": "aborted"}
-		if err := tx.PutSubmission(sub); err != nil {
+		if err := tx.putSubmissionRecord(sub); err != nil {
 			return err
 		}
 		affected[sub.Conversation] = true

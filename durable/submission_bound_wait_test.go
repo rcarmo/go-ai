@@ -100,11 +100,11 @@ func TestInvocationSubmissionQueuedStatusAbortAndWaitRejectAfterSeal(t *testing.
 				var subID ID
 				_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 					var err error
-					subID, err = tx.MintID()
+					subID, err = tx.mintID()
 					if err != nil {
 						return err
 					}
-					return tx.PutSubmission(Submission{ID: subID, Conversation: 1, Type: "write", Status: "pending", Value: JSON{}})
+					return tx.putSubmissionRecord(Submission{ID: subID, Conversation: 1, Type: "write", Status: "pending", Value: JSON{}})
 				})
 				if err != nil {
 					t.Fatal(err)

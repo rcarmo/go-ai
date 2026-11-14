@@ -335,11 +335,11 @@ func TestTaskLegacySchedulerToolFinalPrefixBoundAndNoReplay(t *testing.T) {
 					}
 					_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
 						var err error
-						parentID, err = tx.MintID()
+						parentID, err = tx.mintID()
 						if err != nil {
 							return err
 						}
-						toolID, err = tx.MintID()
+						toolID, err = tx.mintID()
 						if err != nil {
 							return err
 						}
@@ -352,7 +352,7 @@ func TestTaskLegacySchedulerToolFinalPrefixBoundAndNoReplay(t *testing.T) {
 							return err
 						}
 						tool := Task{ID: toolID, Owner: parentID, Conversation: 1, Kind: "pi.tool", Status: "pending", Checkpoint: cp}
-						return tx.PutTask(tool)
+						return tx.putTaskRecord(tool)
 					})
 					if err != nil {
 						t.Fatal(err)

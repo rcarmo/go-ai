@@ -33,7 +33,7 @@ func (h *Harness) finishAbortedGeneration(parent Task, cp generationCheckpoint) 
 			if err != nil {
 				return err
 			}
-			entry, err = tx.MintID()
+			entry, err = tx.mintID()
 			if err != nil {
 				return err
 			}

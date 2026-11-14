@@ -135,11 +135,11 @@ func (c *ConversationHandle) ConfigurePatch(ctx context.Context, patch AgentPatc
 			return nil, err
 		}
 		if !found {
-			id, err := tx.MintID()
+			id, err := tx.mintID()
 			if err != nil {
 				return nil, err
 			}
-			_, err = tx.CreateDocument(Document{ID: id, Scope: "conversation", Owner: c.id, Kind: "pi.agent", Version: 1, History: "rewindable", Fork: "asOf", Value: value})
+			_, err = tx.createDocumentRecord(Document{ID: id, Scope: "conversation", Owner: c.id, Kind: "pi.agent", Version: 1, History: "rewindable", Fork: "asOf", Value: value})
 			if err != nil {
 				return nil, err
 			}

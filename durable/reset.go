@@ -51,7 +51,7 @@ func appendReset(tx *Tx, conversation ID, text string) error {
 	return err
 }
 func appendResetEntry(tx *Tx, conversation ID, text string) (ID, error) {
-	id, err := tx.MintID()
+	id, err := tx.mintID()
 	if err != nil {
 		return 0, err
 	}

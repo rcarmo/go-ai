@@ -41,11 +41,11 @@ func (r *TaskRuntime) persistCodemodeStringValue(ctx context.Context, key string
 				}
 			}
 			var err error
-			id, err = tx.MintID()
+			id, err = tx.mintID()
 			if err != nil {
 				return nil, err
 			}
-			_, err = tx.CreateDocument(Document{ID: id, Scope: "task", Owner: r.taskID, Kind: codemodeImageChunkKind, Family: true, Key: address, Version: 1, Value: JSON{"data": chunk}})
+			_, err = tx.createDocumentRecord(Document{ID: id, Scope: "task", Owner: r.taskID, Kind: codemodeImageChunkKind, Family: true, Key: address, Version: 1, Value: JSON{"data": chunk}})
 			return nil, err
 		})
 		if err != nil {

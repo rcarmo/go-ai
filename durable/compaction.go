@@ -519,7 +519,7 @@ func placeCompactionSummary(tx *Tx, r *TaskRuntime, task TaskRecord, firstKept I
 		}
 		result["submissionId"] = id
 	} else {
-		id, err := tx.MintID()
+		id, err := tx.mintID()
 		if err != nil {
 			return nil, err
 		}

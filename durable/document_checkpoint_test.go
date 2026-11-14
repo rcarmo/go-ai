@@ -274,7 +274,7 @@ func TestDocumentCheckpointOperationErrorHandledAndForkFence(t *testing.T) {
 			if _, err := tx.AcquireDocument(def, 1, nil, nil); err != nil {
 				return err
 			}
-			id, err := tx.MintID()
+			id, err := tx.mintID()
 			if err != nil {
 				return err
 			}
@@ -332,7 +332,7 @@ func TestDocumentCheckpointMigrationResetCopyAndRetirement(t *testing.T) {
 			if e = h.Set(JSON{"n": 1}); e != nil {
 				return e
 			}
-			id, e := tx.MintID()
+			id, e := tx.mintID()
 			if e != nil {
 				return e
 			}
@@ -405,7 +405,7 @@ func TestDocumentCheckpointInvalidFinalReferencesSkipPredicate(t *testing.T) {
 			if e = h.Set(JSON{"n": 1}); e != nil {
 				return nil, e
 			}
-			id, e := tx.MintID()
+			id, e := tx.mintID()
 			if e != nil {
 				return nil, e
 			}

@@ -706,11 +706,11 @@ func TestMainSynchronousDocumentObserverTaskOwnerEnds(t *testing.T) {
 	var taskID ID
 	_, err = s.Commit(context.Background(), func(tx *Tx) (any, error) {
 		var err error
-		taskID, err = tx.MintID()
+		taskID, err = tx.mintID()
 		if err != nil {
 			return nil, err
 		}
-		if err := tx.PutTask(Task{ID: taskID, Conversation: 1, Kind: "observe.p06.owner", Status: "running", Checkpoint: JSON{}}); err != nil {
+		if err := tx.putTaskRecord(Task{ID: taskID, Conversation: 1, Kind: "observe.p06.owner", Status: "running", Checkpoint: JSON{}}); err != nil {
 			return nil, err
 		}
 		_, err = tx.AcquireDocument(def, taskID, nil, nil)
@@ -744,7 +744,7 @@ func TestMainSynchronousDocumentObserverTaskOwnerEnds(t *testing.T) {
 		if err := tx.RetireDefinition(def, taskID, nil); err != nil {
 			return nil, err
 		}
-		return nil, tx.PutTask(Task{ID: taskID, Conversation: 1, Kind: "observe.p06.owner", Status: "done", Checkpoint: JSON{}})
+		return nil, tx.putTaskRecord(Task{ID: taskID, Conversation: 1, Kind: "observe.p06.owner", Status: "done", Checkpoint: JSON{}})
 	})
 	if err != nil {
 		t.Fatal(err)

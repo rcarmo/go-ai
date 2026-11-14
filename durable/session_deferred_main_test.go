@@ -67,7 +67,7 @@ func TestMainSessionDeferredInfiniteWindow(t *testing.T) {
 			t.Fatal(err)
 		}
 		if _, err := s.Commit(bg, func(tx *Tx) (any, error) {
-			h, err := tx.Document(doc)
+			h, err := tx.documentRecord(doc)
 			if err != nil {
 				return nil, err
 			}
@@ -82,7 +82,7 @@ func TestMainSessionDeferredInfiniteWindow(t *testing.T) {
 		// A throwing writing callback leaves the hold and both stored docs alone.
 		failure := errors.New("callback failure")
 		if _, err := s.Commit(bg, func(tx *Tx) (any, error) {
-			h, err := tx.Document(doc)
+			h, err := tx.documentRecord(doc)
 			if err != nil {
 				return nil, err
 			}
@@ -101,7 +101,7 @@ func TestMainSessionDeferredInfiniteWindow(t *testing.T) {
 		}
 		// An actual writing commit that reads the document stores the held value.
 		if _, err := s.Commit(bg, func(tx *Tx) (any, error) {
-			h, err := tx.Document(doc)
+			h, err := tx.documentRecord(doc)
 			if err != nil {
 				return nil, err
 			}
@@ -169,7 +169,7 @@ func TestMainSessionDeferredFallbackAndClose(t *testing.T) {
 			if err := mainDeferredSet(doc, "mixed")(tx); err != nil {
 				return err
 			}
-			id, err := tx.MintID()
+			id, err := tx.mintID()
 			if err != nil {
 				return err
 			}
@@ -231,11 +231,11 @@ func TestMainSessionDeferredCreationIsImmediate(t *testing.T) {
 		var created ID
 		if _, err := s.commitDeferred(bg, func(tx *Tx) error {
 			var err error
-			created, err = tx.MintID()
+			created, err = tx.mintID()
 			if err != nil {
 				return err
 			}
-			_, err = tx.CreateDocument(Document{ID: created, Scope: "conversation", Owner: 1, Kind: "test.created", Version: 1, History: "latest", Fork: "initial", Value: JSON{"text": "new"}})
+			_, err = tx.createDocumentRecord(Document{ID: created, Scope: "conversation", Owner: 1, Kind: "test.created", Version: 1, History: "latest", Fork: "initial", Value: JSON{"text": "new"}})
 			return err
 		}); err != nil {
 			t.Fatal(err)
@@ -264,7 +264,7 @@ func TestMainSessionDeferredOperationOverflowStoresBase(t *testing.T) {
 				ops[index] = Operation{"s", []any{"box"}, map[string]any{"n": total}}
 			}
 			if _, err := s.commitDeferred(bg, func(tx *Tx) error {
-				h, err := tx.Document(doc)
+				h, err := tx.documentRecord(doc)
 				if err != nil {
 					return err
 				}
@@ -277,7 +277,7 @@ func TestMainSessionDeferredOperationOverflowStoresBase(t *testing.T) {
 			t.Fatal("overflow caused an early store")
 		}
 		if _, err := s.Commit(bg, func(tx *Tx) (any, error) {
-			h, err := tx.Document(doc)
+			h, err := tx.documentRecord(doc)
 			if err != nil {
 				return nil, err
 			}
@@ -405,7 +405,7 @@ func openMainDeferredSession(t *testing.T, b sqliteFixture) (*Session, ID, ID) {
 		cid := ID(1)
 		var err error
 		for _, p := range []*ID{&doc, &other} {
-			*p, err = tx.MintID()
+			*p, err = tx.mintID()
 			if err != nil {
 				return nil, err
 			}
@@ -413,7 +413,7 @@ func openMainDeferredSession(t *testing.T, b sqliteFixture) (*Session, ID, ID) {
 			if p == &other {
 				kind = "test.other"
 			}
-			if _, err = tx.CreateDocument(Document{ID: *p, Scope: "conversation", Owner: cid, Kind: kind, Version: 1, History: "latest", Fork: "initial", Value: JSON{"text": ""}}); err != nil {
+			if _, err = tx.createDocumentRecord(Document{ID: *p, Scope: "conversation", Owner: cid, Kind: kind, Version: 1, History: "latest", Fork: "initial", Value: JSON{"text": ""}}); err != nil {
 				return nil, err
 			}
 		}
@@ -425,7 +425,7 @@ func openMainDeferredSession(t *testing.T, b sqliteFixture) (*Session, ID, ID) {
 }
 func mainDeferredAppend(id ID, text string) func(*Tx) error {
 	return func(tx *Tx) error {
-		h, err := tx.Document(id)
+		h, err := tx.documentRecord(id)
 		if err != nil {
 			return err
 		}
@@ -434,7 +434,7 @@ func mainDeferredAppend(id ID, text string) func(*Tx) error {
 }
 func mainDeferredSet(id ID, text string) func(*Tx) error {
 	return func(tx *Tx) error {
-		h, err := tx.Document(id)
+		h, err := tx.documentRecord(id)
 		if err != nil {
 			return err
 		}
@@ -586,7 +586,7 @@ func TestSourcePublicCommitPersistenceOptions(t *testing.T) {
 				if _, err := set("mixed")(tx); err != nil {
 					return nil, err
 				}
-				id, err := tx.MintID()
+				id, err := tx.mintID()
 				if err != nil {
 					return nil, err
 				}

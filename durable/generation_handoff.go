@@ -18,7 +18,7 @@ func (h *Harness) handoffToolGeneration(tx *Tx, current Task, cp generationCheck
 	if !ok || entry.Conversation != current.Conversation || entry.ByTask != current.ID {
 		return Task{}, generationCheckpoint{}, reject("generation handoff assistant missing")
 	}
-	id, err := tx.MintID()
+	id, err := tx.mintID()
 	if err != nil {
 		return Task{}, generationCheckpoint{}, err
 	}

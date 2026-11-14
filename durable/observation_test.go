@@ -689,12 +689,12 @@ func TestObservationPublicationCompleteAdoptedTablePlacementAndReopen(t *testing
 				return e
 			}
 			first = a.ID
-			id, e := tx.MintID()
+			id, e := tx.mintID()
 			if e != nil {
 				return e
 			}
 			taskID = id
-			if e = tx.PutTask(Task{ID: id, Conversation: 1, Kind: "publication.task", Status: "pending", Checkpoint: JSON{"phase": "start"}}); e != nil {
+			if e = tx.putTaskRecord(Task{ID: id, Conversation: 1, Kind: "publication.task", Status: "pending", Checkpoint: JSON{"phase": "start"}}); e != nil {
 				return e
 			}
 			b, e := tx.appendTypedEntryFixture(token, 1, entryContentFixture{Data: "b", HasData: true})

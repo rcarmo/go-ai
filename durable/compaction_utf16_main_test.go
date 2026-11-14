@@ -80,7 +80,7 @@ func TestCompactionUTF16MainExecutionReopen(t *testing.T) {
 		conversation := root(t, first, ref)
 		_, err := conversation.Commit(bg, func(tx *Tx) (any, error) {
 			for _, message := range []MessageReceipt{userReceipt("old question"), {Role: goai.RoleAssistant, Content: []goai.ContentBlock{call}, StopReason: goai.StopReasonToolUse}, {Role: goai.RoleToolResult, ToolCallID: "c", ToolName: "leaf", IsError: true, ErrorCode: "invalid_arguments", Content: []goai.ContentBlock{diagnostic}}, userReceipt("recent question")} {
-				id, err := tx.MintID()
+				id, err := tx.mintID()
 				if err != nil {
 					return nil, err
 				}

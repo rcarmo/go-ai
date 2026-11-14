@@ -58,7 +58,7 @@ func TestMainBuiltinTraceBackgroundCompaction(t *testing.T) {
 				if err != nil {
 					return nil, err
 				}
-				id, err := tx.MintID()
+				id, err := tx.mintID()
 				if err != nil {
 					return nil, err
 				}

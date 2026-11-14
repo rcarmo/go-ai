@@ -26,7 +26,7 @@ func TestConversationInitializersBindTaskCreationToRootNewAndFork(t *testing.T) 
 		var at ID
 		_, err = root.Commit(bg, func(tx *Tx) (any, error) {
 			var err error
-			at, err = tx.MintID()
+			at, err = tx.mintID()
 			if err != nil {
 				return nil, err
 			}

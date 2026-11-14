@@ -177,7 +177,7 @@ func TestTelemetry140BackendPanicsCannotReplaceTaskOutcome(t *testing.T) {
 				}
 				return r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
 					if where == "event" {
-						id, err := tx.MintID()
+						id, err := tx.mintID()
 						if err != nil {
 							return nil, err
 						}
@@ -677,7 +677,7 @@ func TestTelemetry140AdoptedEntryAndSettlementEvents(t *testing.T) {
 		carrier.span.Store(backend())
 		ctx := context.WithValue(bg, telemetryContextKey{}, carrier)
 		if _, err := conv.Commit(ctx, func(tx *Tx) (any, error) {
-			id, err := tx.MintID()
+			id, err := tx.mintID()
 			if err != nil {
 				return nil, err
 			}
@@ -689,7 +689,7 @@ func TestTelemetry140AdoptedEntryAndSettlementEvents(t *testing.T) {
 			t.Fatal(events)
 		}
 		if _, err := conv.Commit(ctx, func(tx *Tx) (any, error) {
-			id, err := tx.MintID()
+			id, err := tx.mintID()
 			if err != nil {
 				return nil, err
 			}

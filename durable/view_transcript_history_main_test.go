@@ -26,10 +26,10 @@ func transcriptNotes(t *testing.T, h *Harness, count int) []ID {
 	_, err := h.session.Commit(bg, func(tx *Tx) (any, error) {
 		for i := 0; i < count; i++ {
 			// Deliberate allocator gaps: before must identify an actual predecessor.
-			if _, err := tx.MintID(); err != nil {
+			if _, err := tx.mintID(); err != nil {
 				return nil, err
 			}
-			id, err := tx.MintID()
+			id, err := tx.mintID()
 			if err != nil {
 				return nil, err
 			}
@@ -132,7 +132,7 @@ func TestMainTranscriptHeadMarkersAppend(t *testing.T) {
 		var summary ID
 		if _, err = h.session.Commit(bg, func(tx *Tx) (any, error) {
 			var err error
-			summary, err = tx.MintID()
+			summary, err = tx.mintID()
 			if err != nil {
 				return nil, err
 			}

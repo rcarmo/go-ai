@@ -172,7 +172,7 @@ func TestCompactionReopenPinsRequestButRehydratesModel(t *testing.T) {
 		var recent ID
 		_, err = conversation.Commit(bg, func(tx *Tx) (any, error) {
 			for _, text := range []string{"old", "recent"} {
-				id, err := tx.MintID()
+				id, err := tx.mintID()
 				if err != nil {
 					return nil, err
 				}
@@ -349,7 +349,7 @@ func TestSourceManualCompactionInstructionPresence(t *testing.T) {
 			configureCompactionTestPolicy(t, c, compactionTestInt(0), nil)
 			if _, err := c.Commit(bg, func(tx *Tx) (any, error) {
 				for _, text := range []string{"old", "recent"} {
-					id, err := tx.MintID()
+					id, err := tx.mintID()
 					if err != nil {
 						return nil, err
 					}
@@ -527,7 +527,7 @@ func TestSourceCompactionProviderSummaryTrim(t *testing.T) {
 			configureCompactionTestPolicy(t, c, compactionTestInt(0), nil)
 			if _, err := c.Commit(bg, func(tx *Tx) (any, error) {
 				for _, text := range []string{"old", "recent"} {
-					id, err := tx.MintID()
+					id, err := tx.mintID()
 					if err != nil {
 						return nil, err
 					}

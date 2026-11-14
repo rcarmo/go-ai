@@ -284,7 +284,7 @@ func TestDocumentDefinitionHistoricalAncestorAndCopyMigration(t *testing.T) {
 		var cut ID
 		_, e = session.Commit(bg, func(tx *Tx) (any, error) {
 			var e error
-			cut, e = tx.MintID()
+			cut, e = tx.mintID()
 			if e != nil {
 				return nil, e
 			}
@@ -484,7 +484,7 @@ func TestDocumentDefinitionTaskScopeLiveAndPolicyMismatch(t *testing.T) {
 		t.Fatal(e)
 	}
 	_, e = session.Commit(bg, func(tx *Tx) (any, error) {
-		return nil, tx.PutTask(Task{ID: task, Conversation: 1, Kind: "custom", Status: "done", Checkpoint: JSON{}})
+		return nil, tx.putTaskRecord(Task{ID: task, Conversation: 1, Kind: "custom", Status: "done", Checkpoint: JSON{}})
 	})
 	if e != nil {
 		t.Fatal(e)
@@ -621,7 +621,7 @@ func TestDocumentDefinitionInitializerFailureReentrancyAndClose(t *testing.T) {
 	}
 	var active *Tx
 	def := mustDefinition(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "reentrant.init", Version: 1, Scope: "session", Initial: func(JSON) (JSON, error) {
-		if _, e := active.MintID(); !errors.Is(e, ErrConcurrent) {
+		if _, e := active.mintID(); !errors.Is(e, ErrConcurrent) {
 			return nil, fmt.Errorf("reentrancy %v", e)
 		}
 		return JSON{"value": "owned"}, nil
@@ -673,7 +673,7 @@ func TestDocumentDefinitionHistoricalMigrationDocumentBudget(t *testing.T) {
 			var cutoff ID
 			_, e = session.Commit(bg, func(tx *Tx) (any, error) {
 				var e error
-				cutoff, e = tx.MintID()
+				cutoff, e = tx.mintID()
 				if e != nil {
 					return nil, e
 				}

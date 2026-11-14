@@ -57,11 +57,11 @@ func (r *TaskRuntime) persistImageChunks(ctx context.Context, key string, images
 					}
 				}
 				var err error
-				id, err = tx.MintID()
+				id, err = tx.mintID()
 				if err != nil {
 					return nil, err
 				}
-				_, err = tx.CreateDocument(Document{ID: id, Scope: scope, Owner: owner, Kind: codemodeImageChunkKind, Version: 1, Family: true, Key: chunkKey, Value: JSON{"data": image.Data[offset:end]}})
+				_, err = tx.createDocumentRecord(Document{ID: id, Scope: scope, Owner: owner, Kind: codemodeImageChunkKind, Version: 1, Family: true, Key: chunkKey, Value: JSON{"data": image.Data[offset:end]}})
 				return nil, err
 			})
 			if err != nil {

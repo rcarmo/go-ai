@@ -59,7 +59,7 @@ func TestMainSessionDeferredStoredObserverOracle(t *testing.T) {
 			if _, err := tx.AcquireDocument(old, 1, nil, nil); err != nil {
 				return nil, err
 			}
-			id, err := tx.MintID()
+			id, err := tx.mintID()
 			if err != nil {
 				return nil, err
 			}

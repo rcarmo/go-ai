@@ -340,7 +340,7 @@ func (s *Session) SubmissionByRequest(ctx context.Context, conversation ID, requ
 	}
 	return lookupSubmissionByRequest(state, s.limits, conversation, request)
 }
-func (t *Tx) Submission(id ID) (SubmissionRecord, bool, error) {
+func (t *Tx) submissionRecord(id ID) (SubmissionRecord, bool, error) {
 	if err := t.enterTableRead("submission", submissionKey(id)); err != nil {
 		return SubmissionRecord{}, false, err
 	}
