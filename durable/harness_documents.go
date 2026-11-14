@@ -4,7 +4,7 @@ import "context"
 
 // Commit exposes the Session commit surface without conversation binding or
 // scheduling. ConversationHandle.Commit supplies the bound form.
-func (h *Harness) Commit(ctx context.Context, change func(*Tx) (any, error)) (any, error) {
+func (h *Harness) Commit(ctx context.Context, change func(*Tx) (any, error), options ...CommitOptions) (any, error) {
 	if change == nil {
 		return nil, reject("nil transaction callback")
 	}
@@ -13,7 +13,7 @@ func (h *Harness) Commit(ctx context.Context, change func(*Tx) (any, error)) (an
 		var callbackErr error
 		value, callbackErr = change(tx)
 		return callbackErr
-	})
+	}, options...)
 	if err != nil {
 		return nil, err
 	}

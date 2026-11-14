@@ -1270,7 +1270,7 @@ func assertToolUsageReceipts(t *testing.T, state Snapshot, name string, want *go
 // minted ID and inspects the adopted entry separately, leaving that API gap open.
 func TestSourceToolAPICommitReturnsValuesAndAttributedEntry(t *testing.T) {
 	type committer interface {
-		Commit(context.Context, func(*Tx) (any, error)) (any, error)
+		Commit(context.Context, func(*Tx) (any, error), ...CommitOptions) (any, error)
 	}
 	for _, mode := range []string{"model", "nested"} {
 		t.Run(mode, func(t *testing.T) {

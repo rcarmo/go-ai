@@ -3,7 +3,10 @@ package durable
 import (
 	"context"
 	"errors"
+	"math"
+	"reflect"
 	"testing"
+	"time"
 )
 
 // Source-derived scenarios from session-deferred-commits.test.ts:189,285,299,
@@ -445,4 +448,402 @@ func mainDeferredSnapshot(t *testing.T, store Storage) Snapshot {
 		t.Fatal(err)
 	}
 	return v
+}
+
+// Source Session, Harness, Conversation, ToolExecutionApi and TaskRuntime
+// commits all accept CommitOptions.persistence on the same public method.
+func TestSourceCommitOptionsPublicMethodShapes(t *testing.T) {
+	for _, receiver := range []any{(*Session)(nil), (*Harness)(nil), (*ConversationHandle)(nil), (*ToolAPI)(nil), (*TaskRuntime)(nil)} {
+		typ := reflect.TypeOf(receiver)
+		method, found := typ.MethodByName("Commit")
+		if !found || !method.Type.IsVariadic() || method.Type.NumIn() != 4 {
+			t.Error("source public commit options missing", typ)
+			continue
+		}
+		options := method.Type.In(3).Elem()
+		if options.Kind() != reflect.Struct || options.Name() != "CommitOptions" {
+			t.Error("source CommitOptions mapping missing", typ, options)
+			continue
+		}
+		persistence, found := options.FieldByName("Persistence")
+		if !found || persistence.Type.Kind() != reflect.Pointer || persistence.Type.Elem().Name() != "CommitPersistence" {
+			t.Error("optional CommitPersistence mapping missing", typ)
+			continue
+		}
+		kind, found := persistence.Type.Elem().FieldByName("Kind")
+		window, windowFound := persistence.Type.Elem().FieldByName("WithinMs")
+		if !found || kind.Type.Kind() != reflect.String || !windowFound || window.Type.Kind() != reflect.Pointer || window.Type.Elem().Kind() != reflect.Float64 {
+			t.Error("source persistence union/optional Number window missing", typ)
+		}
+	}
+}
+
+// Source deferred-commit policy through the actual public Session/Harness/
+// conversation methods, without a private infinite-window entry.
+func TestSourcePublicCommitPersistenceOptions(t *testing.T) {
+	type committer interface {
+		Commit(context.Context, func(*Tx) (any, error), ...CommitOptions) (any, error)
+	}
+	for _, name := range []string{"session", "harness", "conversation"} {
+		t.Run(name, func(t *testing.T) {
+			store, err := newTestSQLite(t)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var session *Session
+			var target any
+			var closeOwner func() error
+			if name == "session" {
+				seedRootConversation(t, store)
+				session, err = OpenSession(store)
+				if err != nil {
+					t.Fatal(err)
+				}
+				target = session
+				closeOwner = func() error { return session.Close(bg) }
+			} else {
+				h := openHarness(t, store, Options{})
+				conversation := root(t, h, ModelRef{Provider: "source", ID: "model"})
+				session, target = h.session, h
+				if name == "conversation" {
+					target = conversation
+				}
+				closeOwner = func() error { return h.Close(bg) }
+			}
+			t.Cleanup(func() { closeOwner() })
+			api, ok := target.(committer)
+			if !ok {
+				t.Fatal("public source CommitOptions signature missing", name)
+			}
+			definition, err := DefineDocument(DefinitionOptions{Kind: "source.options", Scope: "conversation", History: "latest", Fork: "initial", Version: 1, Initial: func(JSON) (JSON, error) { return JSON{"text": ""}, nil }, CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var docID ID
+			if _, err := api.Commit(bg, func(tx *Tx) (any, error) {
+				doc, err := tx.AcquireDocument(definition, 1, nil, nil)
+				if err == nil {
+					docID = doc.id
+				}
+				return nil, err
+			}); err != nil {
+				t.Fatal(err)
+			}
+			set := func(text string) func(*Tx) (any, error) {
+				return func(tx *Tx) (any, error) {
+					doc, err := tx.AcquireDocument(definition, 1, nil, nil)
+					if err != nil {
+						return nil, err
+					}
+					return text, doc.Set(JSON{"text": text})
+				}
+			}
+			before, err := store.Snapshot(bg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			infinite := math.Inf(1)
+			value, err := api.Commit(bg, set("held"), CommitOptions{Persistence: &CommitPersistence{Kind: "deferred", WithinMs: &infinite}})
+			if err != nil || value != "held" {
+				t.Fatal("public deferred commit", value, err)
+			}
+			raw, err := store.Snapshot(bg)
+			if err != nil || raw.Seq != before.Seq || !equalJSONValue(raw.Documents[docID].Value, JSON{"text": ""}) {
+				t.Error("deferred public commit stored early", raw.Seq, before.Seq, raw.Documents[docID].Value, err)
+			}
+			view, found, err := session.SnapshotDefinition(bg, definition, 1, nil)
+			if err != nil || !found || !equalJSONValue(view.Copy(), JSON{"text": "held"}) {
+				t.Error("public deferred memory publication missing", view, found, err)
+			}
+			value, err = api.Commit(bg, set("stored"), CommitOptions{Persistence: &CommitPersistence{Kind: "immediate"}})
+			if err != nil || value != "stored" {
+				t.Fatal(value, err)
+			}
+			raw, err = store.Snapshot(bg)
+			if err != nil || raw.Seq != before.Seq+1 || !equalJSONValue(raw.Documents[docID].Value, JSON{"text": "stored"}) {
+				t.Error("immediate dependency did not fold held/current values into one commit", raw.Seq, before.Seq, raw.Documents[docID].Value, err)
+			}
+			for _, invalid := range []float64{-1, math.NaN()} {
+				called := false
+				value, err := api.Commit(bg, func(*Tx) (any, error) { called = true; return "bad", nil }, CommitOptions{Persistence: &CommitPersistence{Kind: "deferred", WithinMs: &invalid}})
+				if err == nil || value != nil || called {
+					t.Error("invalid public window reached callback", value, err, called)
+				}
+			}
+			invalid := math.NaN()
+			for _, kind := range []string{"immediate", "unknown"} {
+				value, err := api.Commit(bg, func(*Tx) (any, error) { return "immediate", nil }, CommitOptions{Persistence: &CommitPersistence{Kind: kind, WithinMs: &invalid}})
+				if err != nil || value != "immediate" {
+					t.Error("non-deferred policy incorrectly validated ignored window", kind, value, err)
+				}
+			}
+			value, err = api.Commit(bg, func(*Tx) (any, error) { return "first option", nil }, CommitOptions{Persistence: &CommitPersistence{Kind: "immediate"}}, CommitOptions{Persistence: &CommitPersistence{Kind: "deferred", WithinMs: &invalid}})
+			if err != nil || value != "first option" {
+				t.Error("extra optional argument changed source first-option semantics", value, err)
+			}
+			beforeMixed := raw.Seq
+			value, err = api.Commit(bg, func(tx *Tx) (any, error) {
+				if _, err := set("mixed")(tx); err != nil {
+					return nil, err
+				}
+				id, err := tx.MintID()
+				if err != nil {
+					return nil, err
+				}
+				return id, tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "source.options-note", HasData: true, Data: JSON{"mixed": true}})
+			}, CommitOptions{Persistence: &CommitPersistence{Kind: "deferred", WithinMs: &infinite}})
+			entryID, validID := value.(ID)
+			raw, readErr := store.Snapshot(bg)
+			if err != nil || readErr != nil || !validID || entryID == 0 || raw.Seq != beforeMixed+1 || raw.Entries[entryID].Kind != "source.options-note" || !equalJSONValue(raw.Documents[docID].Value, JSON{"text": "mixed"}) {
+				t.Error("mixed public transaction incorrectly deferred durable work", value, err, readErr, raw)
+			}
+			if err := closeOwner(); err != nil {
+				t.Fatal(err)
+			}
+			called := false
+			value, err = api.Commit(bg, func(*Tx) (any, error) { called = true; return "closed", nil }, CommitOptions{Persistence: &CommitPersistence{Kind: "deferred", WithinMs: &invalid}})
+			if !errors.Is(err, ErrClosed) || value != nil || called {
+				t.Error("closed must precede invalid persistence options", value, err, called)
+			}
+		})
+	}
+}
+
+func TestSourceInvocationCommitPersistenceOptions(t *testing.T) {
+	type toolCommitter interface {
+		Commit(context.Context, func(*Tx) (any, error), ...CommitOptions) (any, error)
+	}
+	type runtimeCommitter interface {
+		Commit(context.Context, func(*Tx, TaskRecord) (*TaskState, error), ...CommitOptions) error
+	}
+	for _, mode := range []string{"runtime", "tool"} {
+		t.Run(mode, func(t *testing.T) {
+			store, err := newTestSQLite(t)
+			if err != nil {
+				t.Fatal(err)
+			}
+			registry := NewRegistry()
+			var h *Harness
+			var docID ID
+			definition, err := DefineDocument(DefinitionOptions{Kind: "source.invocation-options", Scope: "conversation", History: "latest", Fork: "initial", Version: 1, Initial: func(JSON) (JSON, error) { return JSON{"text": ""}, nil }, CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }})
+			if err != nil {
+				t.Fatal(err)
+			}
+			check := func(ctx context.Context, commit func(context.Context, func(*Tx) (any, error), ...CommitOptions) (any, error)) error {
+				before, err := store.Snapshot(ctx)
+				if err != nil {
+					return err
+				}
+				set := func(text string) func(*Tx) (any, error) {
+					return func(tx *Tx) (any, error) {
+						doc, err := tx.AcquireDocument(definition, 1, nil, nil)
+						if err != nil {
+							return nil, err
+						}
+						return text, doc.Set(JSON{"text": text})
+					}
+				}
+				infinite := math.Inf(1)
+				value, err := commit(ctx, set("held"), CommitOptions{Persistence: &CommitPersistence{Kind: "deferred", WithinMs: &infinite}})
+				if err != nil || value != "held" {
+					t.Error("invocation deferred result", value, err)
+					return err
+				}
+				raw, err := store.Snapshot(ctx)
+				if err != nil || raw.Seq != before.Seq || !equalJSONValue(raw.Documents[docID].Value, JSON{"text": ""}) {
+					t.Error("invocation deferred write stored early", raw.Seq, before.Seq, raw.Documents[docID].Value, err)
+				}
+				view, found, err := h.session.SnapshotDefinition(ctx, definition, 1, nil)
+				if err != nil || !found || !equalJSONValue(view.Copy(), JSON{"text": "held"}) {
+					t.Error("invocation memory publication missing", view, found, err)
+				}
+				value, err = commit(ctx, set("stored"), CommitOptions{Persistence: &CommitPersistence{Kind: "immediate"}})
+				if err != nil || value != "stored" {
+					t.Error("invocation immediate result", value, err)
+					return err
+				}
+				raw, err = store.Snapshot(ctx)
+				if err != nil || raw.Seq != before.Seq+1 || !equalJSONValue(raw.Documents[docID].Value, JSON{"text": "stored"}) {
+					t.Error("invocation immediate dependency did not fold held/current values", raw.Seq, before.Seq, raw.Documents[docID].Value, err)
+				}
+				for _, invalid := range []float64{-1, math.NaN()} {
+					called := false
+					value, err := commit(ctx, func(*Tx) (any, error) { called = true; return "bad", nil }, CommitOptions{Persistence: &CommitPersistence{Kind: "deferred", WithinMs: &invalid}})
+					if err == nil || value != nil || called {
+						t.Error("invalid invocation options reached callback", value, err, called)
+					}
+				}
+				return nil
+			}
+			reg := wrapRegistration("source_options_probe")
+			reg.Execute = func(ctx context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+				committer, ok := any(api).(toolCommitter)
+				if !ok {
+					t.Error("source tool commit options missing")
+					return ToolResult{IsError: true}, nil
+				}
+				err := check(ctx, committer.Commit)
+				return ToolResult{Content: "stored"}, err
+			}
+			if err := registry.Register(reg); err != nil {
+				t.Fatal(err)
+			}
+			task := taskDefinition(t, "source.invocation-options", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+				if mode == "runtime" {
+					committer, ok := any(r).(runtimeCommitter)
+					if !ok {
+						t.Error("source runtime commit options missing")
+					} else if err := check(ctx, func(ctx context.Context, callback func(*Tx) (any, error), options ...CommitOptions) (any, error) {
+						var value any
+						err := committer.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
+							var callbackErr error
+							value, callbackErr = callback(tx)
+							return nil, callbackErr
+						}, options...)
+						if err != nil {
+							return nil, err
+						}
+						return value, nil
+					}); err != nil {
+						return err
+					}
+				} else {
+					result, err := r.CallTool(ctx, "options", "source_options_probe", JSON{})
+					if err != nil || result.IsError || result.Content != "stored" {
+						t.Error("source tool options call", result, err)
+					}
+				}
+				return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone(nil), nil })
+			})
+			if _, err := registry.RegisterTask(task); err != nil {
+				t.Fatal(err)
+			}
+			h = openHarness(t, store, Options{Registry: registry})
+			conversation := root(t, h, ModelRef{Provider: "source", ID: "model"})
+			if _, err := h.Commit(bg, func(tx *Tx) (any, error) {
+				doc, err := tx.AcquireDocument(definition, conversation.ID(), nil, nil)
+				if err == nil {
+					docID = doc.id
+				}
+				return nil, err
+			}); err != nil {
+				t.Fatal(err)
+			}
+			record := waitPublicTask(t, h, createPublicTask(t, h, task, nil, TaskOptions{Conversation: conversation.ID(), Ownership: TaskOwnership{Kind: "conversation"}}))
+			if record.State.Outcome.Status != "completed" {
+				t.Error("invocation options task", record.State.Outcome)
+			}
+		})
+	}
+}
+
+// Source #deferral reads the explicit/default Number at the call boundary,
+// before a queued callback can start; later options/settings changes cannot win.
+func TestSourceCommitPersistenceWindowCapturedBeforeAdmission(t *testing.T) {
+	for _, mode := range []string{"explicit", "default"} {
+		t.Run(mode, func(t *testing.T) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+				window := math.Inf(1)
+				f := openMainDeadlineSession(t, b, &window)
+				before := mainDeferredSnapshot(t, b.store)
+				entered, release := make(chan struct{}), make(chan struct{})
+				defer releaseTaskGate(release)
+				blocked := make(chan error, 1)
+				go func() {
+					_, err := f.session.Commit(bg, func(*Tx) (any, error) { close(entered); <-release; return nil, nil })
+					blocked <- err
+				}()
+				watchReceive(t, entered)
+				admission := &mainCommitAdmissionContext{Context: bg, entered: make(chan struct{})}
+				persistence := &CommitPersistence{Kind: "deferred"}
+				if mode == "explicit" {
+					persistence.WithinMs = &window
+				}
+				settled := make(chan error, 1)
+				go func() {
+					_, err := f.session.Commit(admission, func(tx *Tx) (any, error) { return "held", mainDeferredAppend(f.doc, "held")(tx) }, CommitOptions{Persistence: persistence})
+					settled <- err
+				}()
+				watchReceive(t, admission.entered)
+				window = 0
+				releaseTaskGate(release)
+				if err := watchReceive(t, blocked); err != nil {
+					t.Fatal(err)
+				}
+				if err := watchReceive(t, settled); err != nil {
+					t.Fatal(err)
+				}
+				f.assertArmed(t)
+				raw := mainDeferredSnapshot(t, b.store)
+				if raw.Seq != before.Seq || !equalJSONValue(raw.Documents[f.doc].Value, before.Documents[f.doc].Value) {
+					t.Error("queued commit read later persistence policy", raw, before)
+				}
+			})
+		})
+	}
+}
+
+func TestSourcePublicCommitNumericWindows(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		window float64
+		delay  time.Duration
+	}{{"zero", 0, 0}, {"fraction", .25, 250 * time.Microsecond}, {"infinite", math.Inf(1), 0}} {
+		t.Run(test.name, func(t *testing.T) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+				f := openMainDeadlineSession(t, b, nil)
+				before := mainDeferredSnapshot(t, b.store).Seq
+				value, err := f.session.Commit(bg, func(tx *Tx) (any, error) { return "held", mainDeferredAppend(f.doc, "held")(tx) }, CommitOptions{Persistence: &CommitPersistence{Kind: "deferred", WithinMs: &test.window}})
+				if err != nil || value != "held" {
+					t.Fatal(value, err)
+				}
+				if math.IsInf(test.window, 1) {
+					f.assertArmed(t)
+				} else {
+					f.assertArmed(t, test.delay)
+				}
+				if raw := mainDeferredSnapshot(t, b.store); raw.Seq != before {
+					t.Error("public numeric window stored early", raw.Seq, before)
+				}
+				if !math.IsInf(test.window, 1) {
+					f.fire(t)
+					if raw := mainDeferredSnapshot(t, b.store); raw.Seq != before+1 || !equalJSONValue(raw.Documents[f.doc].Value, JSON{"text": "held"}) {
+						t.Error("public numeric deadline lost hold", raw)
+					}
+				}
+			})
+		})
+	}
+}
+
+func TestSourceInvalidCommitOptionsRejectBeforeAdmission(t *testing.T) {
+	s := gatedSession(t)
+	entered, release := make(chan struct{}), make(chan struct{})
+	defer releaseTaskGate(release)
+	blocked := make(chan error, 1)
+	go func() {
+		_, err := s.Commit(bg, func(*Tx) (any, error) { close(entered); <-release; return nil, nil })
+		blocked <- err
+	}()
+	watchReceive(t, entered)
+	invalid := math.NaN()
+	type result struct {
+		value  any
+		err    error
+		called bool
+	}
+	settled := make(chan result, 1)
+	go func() {
+		called := false
+		value, err := s.Commit(bg, func(*Tx) (any, error) { called = true; return "bad", nil }, CommitOptions{Persistence: &CommitPersistence{Kind: "deferred", WithinMs: &invalid}})
+		settled <- result{value, err, called}
+	}()
+	outcome := watchReceive(t, settled)
+	if outcome.err == nil || outcome.value != nil || outcome.called {
+		t.Error("invalid options queued behind admission or ran callback", outcome)
+	}
+	releaseTaskGate(release)
+	if err := watchReceive(t, blocked); err != nil {
+		t.Fatal(err)
+	}
 }

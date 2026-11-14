@@ -140,8 +140,8 @@ func Open(ctx context.Context, store Storage, options Options) (*Harness, error)
 		h.report(context.Background(), err, ReportInfo{Type: "host_error", Callback: "setTimer"})
 	}
 	s.clockReport = func(err error) { h.report(context.Background(), err, ReportInfo{Type: "host_error", Callback: "now"}) }
-	// Source reads the current host's global durability policy at each use.
-	// This getter does not enable deferred commits for scheduler Sessions.
+	// Source snapshots the current host's global durability policy at each
+	// commit call, independently of request/streaming throttling.
 	s.persistWithinMs = func() float64 {
 		settings := h.hostSettings.Load()
 		if settings != nil && settings.Progress != nil && settings.Progress.PersistWithinMs != nil {
@@ -608,7 +608,7 @@ func (c *ConversationHandle) Entries(ctx context.Context, q EntryQuery, limit in
 
 // Commit binds task/document creation to this conversation without enabling
 // scheduling. Committed application changes are allowed while work is live.
-func (c *ConversationHandle) Commit(ctx context.Context, callback func(*Tx) (any, error)) (any, error) {
+func (c *ConversationHandle) Commit(ctx context.Context, callback func(*Tx) (any, error), options ...CommitOptions) (any, error) {
 	if callback == nil {
 		return nil, reject("nil transaction callback")
 	}
@@ -624,7 +624,7 @@ func (c *ConversationHandle) Commit(ctx context.Context, callback func(*Tx) (any
 		var callbackErr error
 		value, callbackErr = callback(tx)
 		return callbackErr
-	})
+	}, options...)
 	if err != nil {
 		return nil, err
 	}
@@ -771,11 +771,15 @@ func initializeBuiltins(tx *Tx, conversation ID) error {
 
 // commitTasks binds native task creation to an optional conversation.
 // Execution replacements still require private runtime actions.
-func (h *Harness) commitTasks(ctx context.Context, conversation ID, callback func(*Tx) error) (uint64, error) {
+func (h *Harness) commitTasks(ctx context.Context, conversation ID, callback func(*Tx) error, options ...CommitOptions) (uint64, error) {
 	if h.closing.Load() {
 		return 0, h.closedError()
 	}
-	return h.session.commit(ctx, func(tx *Tx) error {
+	deferred, window, err := h.session.commitPolicy(options)
+	if err != nil {
+		return 0, err
+	}
+	return h.session.commitPersistence(ctx, func(tx *Tx) error {
 		if h.closing.Load() {
 			return h.closedError()
 		}
@@ -789,7 +793,7 @@ func (h *Harness) commitTasks(ctx context.Context, conversation ID, callback fun
 		}
 		tx.taskConversation = conversation
 		return callback(tx)
-	}, true, 0)
+	}, true, 0, deferred, window...)
 }
 func (h *Harness) Task(ctx context.Context, id ID) (TaskRecord, bool, error) {
 	var view TaskRecord

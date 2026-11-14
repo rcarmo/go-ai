@@ -62,9 +62,9 @@ func TestMainHarnessPersistencePolicyDynamic(t *testing.T) {
 			t.Fatal("explicit commit policy lost", got, err)
 		}
 		called := false
-		_, err = h.session.commitDeferred(bg, func(*Tx) error { called = true; return nil })
-		if !errors.Is(err, ErrUnsupported) || called {
-			t.Fatal("policy wiring prematurely enabled Harness deferral", err, called)
+		value, err := h.Commit(bg, func(*Tx) (any, error) { called = true; return "public", nil }, CommitOptions{Persistence: &CommitPersistence{Kind: "deferred"}})
+		if err != nil || !called || value != "public" {
+			t.Fatal("public Harness persistence option not enabled", value, err, called)
 		}
 	})
 }

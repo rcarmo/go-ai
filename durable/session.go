@@ -301,20 +301,24 @@ func (s *Session) MintID(ctx context.Context) (ID, error) {
 	return id, s.backendResult(ctx, err, true)
 }
 
-// Commit returns the callback's value after stored publication. It seals every
-// escaped handle after callback return, including panic. A canceled preparation
-// may reject before admission; afterwards the writer completes adopt-or-poison
-// off the admission line. Callback results are host values, not persisted JSON.
-func (s *Session) Commit(ctx context.Context, callback func(*Tx) (any, error)) (any, error) {
+// Commit returns the callback's value after publication. Eligible deferred
+// document changes publish in memory; other writes wait for stored publication.
+// Escaped handles seal after callback return, including panic. Results are host
+// values, not persisted JSON. Admitted writes complete adopt-or-poison off-line.
+func (s *Session) Commit(ctx context.Context, callback func(*Tx) (any, error), options ...CommitOptions) (any, error) {
 	if callback == nil {
 		return nil, reject("nil transaction callback")
 	}
+	deferred, window, err := s.commitPolicy(options)
+	if err != nil {
+		return nil, err
+	}
 	var value any
-	_, err := s.commit(ctx, func(tx *Tx) error {
+	_, err = s.commitPersistence(ctx, func(tx *Tx) error {
 		var callbackErr error
 		value, callbackErr = callback(tx)
 		return callbackErr
-	}, true, 0)
+	}, true, 0, deferred, window...)
 	if err != nil {
 		return nil, err
 	}
@@ -378,7 +382,7 @@ func (s *Session) commitJob(ctx context.Context, callback func(*Tx) error, exter
 			return 0, err
 		}
 	}
-	if deferred && (!s.hasNativeReadImage() || (s.taskScheduler != nil && taskID == 0)) {
+	if deferred && !s.hasNativeReadImage() {
 		s.leave()
 		return 0, ErrUnsupported
 	}

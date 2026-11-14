@@ -750,3 +750,18 @@ it("returns entry and host values from the original tool execution api commit",a
  setup.faux.setResponses([fauxAssistantMessage([fauxToolCall("commit_value_probe",{},{id:"source-value"})],{stopReason:"toolUse"}),fauxAssistantMessage([fauxText("done")])]);const {harness,root}=await openChat(new MemoryStorage(),setup);
  expect((await (await root.submit({type:"input",content:"go"},context)).wait(context)).status).toBe("done");expect(effects).toBe(1);let called=false;await expect(escaped.commit(()=>{called=true;return"late"},context)).rejects.toThrow();expect(called).toBe(false);await harness.close(context);
 });
+
+it("accepts persistence options on original Session Harness and conversation commits",async()=>{
+ const {MemoryStorage}=await import("@earendil-works/pi-durable"),{chatSetup,openChat}=await import("@pinned/chat");
+ for(const name of ["session","harness","conversation"]){const storage=new MemoryStorage();let api:any,reader:any,owner:any;let close:()=>Promise<void>;
+  if(name==="session"){const session=new SessionImpl(storage,Date.now,()=>600000);const conversation=await session.commit(tx=>tx.createConversation({ownership:{kind:"ownerless"}}),context);api=reader=session;owner=conversation.id;close=()=>session.close(context)}else{const opened=await openChat(storage,chatSetup());api=name==="harness"?opened.harness:opened.root;reader=opened.harness;owner=opened.root.id;close=()=>opened.harness.close(context)}
+  const Doc=defineDoc({kind:"source.options",scope:"conversation",history:"latest",fork:"initial",version:1,initial:()=>({text:""}),checkpointWhen:()=>false});await api.commit(async(tx:any)=>{await tx.doc(Doc,owner)},context);const record=(await storage.findDocument({kind:Doc.definition.kind,scope:{kind:"conversation",conversationId:owner}},"current",context))!;
+  expect(await api.commit(async(tx:any)=>{(await tx.doc(Doc,owner)).text="held";return"held"},context,{persistence:{kind:"deferred",withinMs:Infinity}})).toBe("held");expect((await storage.document(record.id,"current",context))!.value).toEqual({text:""});expect(await reader.snapshot(Doc,owner,context)).toEqual({text:"held"});
+  expect(await api.commit(async(tx:any)=>{(await tx.doc(Doc,owner)).text="stored";return"stored"},context,{persistence:{kind:"immediate"}})).toBe("stored");expect((await storage.document(record.id,"current",context))!.value).toEqual({text:"stored"});
+  for(const withinMs of [-1,NaN]){let called=false;await expect(api.commit(()=>{called=true},context,{persistence:{kind:"deferred",withinMs}})).rejects.toThrow("CommitPersistence.withinMs");expect(called).toBe(false)}
+  for(const kind of ["immediate","unknown"])expect(await api.commit(()=>"immediate",context,{persistence:{kind,withinMs:NaN}})).toBe("immediate");
+  expect(await api.commit(()=>"first option",context,{persistence:{kind:"immediate"}},{persistence:{kind:"deferred",withinMs:NaN}})).toBe("first option");
+  const entryId=await api.commit(async(tx:any)=>{(await tx.doc(Doc,owner)).text="mixed";return(await tx.appendEntry(owner,{kind:"source.options-note",data:{mixed:true}})).id},context,{persistence:{kind:"deferred",withinMs:Infinity}});expect((await storage.entry(entryId,context))!.entry.kind).toBe("source.options-note");expect((await storage.document(record.id,"current",context))!.value).toEqual({text:"mixed"});
+  await close();let called=false;await expect(api.commit(()=>{called=true},context,{persistence:{kind:"deferred",withinMs:NaN}})).rejects.toThrow(/closed/i);expect(called).toBe(false);
+ }
+});

@@ -308,7 +308,8 @@ func mainDeadlineDocument(id, owner ID) Document {
 	return Document{ID: id, Owner: owner, Scope: "conversation", Kind: "test.deferred.text", Version: 1, History: "latest", Fork: "initial", Value: JSON{"text": ""}}
 }
 func (f *mainDeadlineSession) append(id ID, text string, withinMs ...float64) error {
-	// Internal native option boundary; public/Harness wiring is still gated.
+	// Scalar-window fixture for numeric deadline tests. Public API controls
+	// separately exercise CommitOptions through the same persistence path.
 	_, err := f.session.commitPersistence(bg, mainDeferredAppend(id, text), true, 0, true, withinMs...)
 	return err
 }

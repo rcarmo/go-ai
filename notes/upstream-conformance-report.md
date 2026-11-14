@@ -4,7 +4,7 @@
 
 Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Native implementation: `/work/go-ai/durable`, authorised SQLite-only, pure Go. The preceding pushed implementation checkpoint is `04726f3` (request-time model/retry authority); image-resource diagnosis is recorded at `1e0f3ad`.
 
-Latest continuation: ToolExecutionApi.Commit returns callback values through its invocation runtime, preserving host/error identity, stored entry attribution and post-invocation rejection in model-issued and nested paths. See [evidence](commit-callback-values.md#tool-execution-callback-values). Source persistence options, Tx constructor record results, full API/worker/runtime/Storage/ordering and release acceptance remain open.
+Latest continuation: public persistence options on all five commit APIs, with deferred memory/raw SQLite, fold/mixed-write, before-admission capture, Number windows and validation/health precedence controls. See [evidence](commit-callback-values.md#public-commit-persistence-options). Complete persistence lifecycle/order, Tx constructor record results, full API/worker/runtime/Storage and release acceptance remain open.
 
 ## Earlier queue-production checkpoint
 
@@ -18,7 +18,11 @@ Latest continuation: ToolExecutionApi.Commit returns callback values through its
 
 The exact input/write shape tests failed before the fixes. Idle progress and continuation already passed and required no speculative runtime changes. A failure/reopen fixture initially tried to close storage already owned/closed by Session; correcting the fixture required no runtime fix. Tests remain in the existing version-neutral transaction suite.
 
-## Latest tool callback-value verification
+## Latest public persistence verification
+
+Full repository ./... passes26 packages: root0.693s, durable439.106s/tools19.928s and public consumers12.206s. Eleven semantic faults, ten shuffled options/value/numeric/policy repetitions20.851s, vet/Staticcheck/logging/register pass. Selected original270 (200 unchanged +70 probes) and complete original session-deferred25+78 supplements103 pass, zero skipped. Analysed logs/overlays are removed. Complete persistence lifecycle/ordering, Tx constructor record results, canonical generation/ToolTask/migration, broader API/Storage and pre-release profiling remain open.
+
+## Previous tool callback-value verification
 
 Full repository ./... passes26 packages: root0.667s, durable443.832s/tools20.803s and public consumers12.761s. Six semantic faults, ten shuffled value/recovery/authority repetitions29.581s, vet/Staticcheck/logging/register pass. Selected original269 (200 unchanged +69 probes) and complete original harness-tools42+77 supplements119 pass, zero skipped. Analysed temporary logs/overlays are removed. Source CommitOptions, Tx.appendEntry record results and complete API/worker/runtime/Storage/release acceptance remain open. The native control is source-derived and returns its minted ID; the original probe returns the appended record. This does not accept the still-different native AppendEntry signature or the full original API assertion packet.
 

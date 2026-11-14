@@ -843,7 +843,7 @@ func (a *ToolAPI) TaskID() ID { a.mu.Lock(); defer a.mu.Unlock(); return a.task.
 // Commit returns its callback's host value through this invocation's runtime.
 // ToolResult.Commit remains the separate atomic final-result callback; execution
 // replacement stays private even inside these transactions.
-func (a *ToolAPI) Commit(ctx context.Context, callback func(*Tx) (any, error)) (any, error) {
+func (a *ToolAPI) Commit(ctx context.Context, callback func(*Tx) (any, error), options ...CommitOptions) (any, error) {
 	if callback == nil {
 		return nil, reject("nil tool commit callback")
 	}
@@ -852,7 +852,7 @@ func (a *ToolAPI) Commit(ctx context.Context, callback func(*Tx) (any, error)) (
 		var callbackErr error
 		value, callbackErr = callback(tx)
 		return nil, callbackErr
-	})
+	}, options...)
 	if err != nil {
 		return nil, err
 	}

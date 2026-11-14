@@ -63,8 +63,8 @@ func (r *TaskRuntime) Registry() (TaskRegistrySnapshot, error) {
 	defer r.phaseMu.RUnlock()
 	return r.registry, nil
 }
-func (r *TaskRuntime) Commit(ctx context.Context, change func(*Tx, TaskRecord) (*TaskState, error)) error {
-	return r.commit(ctx, change, false)
+func (r *TaskRuntime) Commit(ctx context.Context, change func(*Tx, TaskRecord) (*TaskState, error), options ...CommitOptions) error {
+	return r.commit(ctx, change, false, options...)
 }
 
 // Private PROGRESS_COMMIT prerequisite. Runtime lifetime checks are identical
@@ -74,15 +74,22 @@ func (r *TaskRuntime) commitProgress(ctx context.Context, change func(*Tx, TaskR
 	return r.commit(ctx, change, true)
 }
 
-func (r *TaskRuntime) commit(ctx context.Context, change func(*Tx, TaskRecord) (*TaskState, error), progress bool) error {
+func (r *TaskRuntime) commit(ctx context.Context, change func(*Tx, TaskRecord) (*TaskState, error), progress bool, options ...CommitOptions) error {
 	if err := r.check(); err != nil {
 		return err
 	}
 	if change == nil {
 		return reject("nil runtime commit")
 	}
+	if progress {
+		options = []CommitOptions{{Persistence: &CommitPersistence{Kind: "deferred"}}}
+	}
+	deferred, window, err := r.harness.session.commitPolicy(options)
+	if err != nil {
+		return err
+	}
 	checkpointChanged := false
-	_, err := r.harness.session.commitPersistence(ctx, func(tx *Tx) error {
+	_, err = r.harness.session.commitPersistence(ctx, func(tx *Tx) error {
 		if err := r.check(); err != nil {
 			return err
 		}
@@ -157,7 +164,7 @@ func (r *TaskRuntime) commit(ctx context.Context, change func(*Tx, TaskRecord) (
 		previousPhase, _ := taskCheckpointMap(view.State.Checkpoint)["phase"].(string)
 		checkpointChanged = state.Status == "running" && nextOK && nextPhase != previousPhase
 		return tx.stage(Write{Op: "put-task", Task: &task})
-	}, false, r.taskID, progress)
+	}, false, r.taskID, deferred, window...)
 	if err == nil && checkpointChanged {
 		r.telemetryEvent("pi.durable.checkpoint", nil)
 	}

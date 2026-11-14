@@ -8,7 +8,7 @@ The sole alignment target is official upstream `v1.5.0` at `f9a26365568127461c47
 
 ## Commit callback results
 
-[Public callback results](../../notes/commit-callback-values.md) replace sequence returns on Session/Harness/conversation commits, preserving host identity, errors and stored-publication fencing. The native alternate task-transaction entry is private. Source persistence options and complete API/Storage/ordering acceptance remain open.
+[Public callback results](../../notes/commit-callback-values.md) replace sequence returns on Session/Harness/conversation commits, preserving host identity, errors and stored-publication fencing. The native alternate task-transaction entry is private. [Public persistence options](../../notes/commit-callback-values.md#public-commit-persistence-options) now cover all five public commit paths. Complete persistence lifecycle/ordering, constructor record results and API/Storage acceptance remain open.
 
 ## Typed model-result presence
 

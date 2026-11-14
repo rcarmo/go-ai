@@ -22,7 +22,7 @@ func TestSessionV150DisjointDocumentAdmissionBatchesWaitingParts(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) {
 			var s *Session
-			var commitChange func(context.Context, func(*Tx) (any, error)) (any, error)
+			var commitChange func(context.Context, func(*Tx) (any, error), ...CommitOptions) (any, error)
 			if withHarness {
 				store, err := newTestSQLite(t)
 				if err != nil {

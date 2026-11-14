@@ -1699,7 +1699,7 @@ func TestSubmitInContinuesFailedRunBeforeHostTableWrite(t *testing.T) {
 // including arbitrary host identity; it must not substitute a commit sequence.
 func TestSourcePublicCommitReturnsCallbackValue(t *testing.T) {
 	type committer interface {
-		Commit(context.Context, func(*Tx) (any, error)) (any, error)
+		Commit(context.Context, func(*Tx) (any, error), ...CommitOptions) (any, error)
 	}
 	for _, name := range []string{"session", "harness", "conversation"} {
 		t.Run(name, func(t *testing.T) {
