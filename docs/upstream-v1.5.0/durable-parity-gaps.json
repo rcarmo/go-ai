@@ -271,7 +271,6 @@
         "durable/testdata/pi-durable-v150/compaction-request.json",
         "durable/testdata/pi-durable-v150/compaction-retry.json",
         "scripts/capture-durable-compaction-request.mjs",
-        "durable/compaction_failure_120_test.go",
         "durable/compaction_test.go",
         "durable/hooks_test.go"
       ],
@@ -413,7 +412,6 @@
         "durable/testdata/pi-durable-v150/compaction-request.json",
         "durable/testdata/pi-durable-v150/compaction-retry.json",
         "scripts/capture-durable-compaction-request.mjs",
-        "durable/compaction_failure_120_test.go",
         "durable/compaction_test.go",
         "durable/hooks_test.go"
       ],

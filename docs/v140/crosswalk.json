@@ -463,7 +463,6 @@
         "durable/compaction_background_test.go",
         "durable/compaction_current_retry_test.go",
         "durable/compaction_cut_test.go",
-        "durable/compaction_failure_120_test.go",
         "durable/compaction_generation_test.go",
         "durable/compaction_invalid_summary_test.go",
         "durable/compaction_no_model_test.go",

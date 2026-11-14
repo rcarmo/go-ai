@@ -121,3 +121,9 @@ to have run.
 The parser, inventories and merge scratch are deleted after comparison.
 [Submission-read receipts](submission-record-reads.md) retain the full pre-move
 runtime verification and its remaining scope.
+
+## Compaction lifecycle consolidation
+
+After runtime0b13193, compaction_status_test.go absorbs the failure/reopen/no-cut/summary test from compaction_failure_120_test.go. Both test targets and the status helper remain unchanged. The destination equals the previous status suite followed by the byte-identical moved declaration after gofmt. Its SHA256 is 672e2e476512fcf2df2f073f6b5c8c91dea48dd5d615f5a915269853445801a1. Neither file has build constraints; production code is unchanged.
+
+The recursive durable *_test.go inventory (including nested fixture and constrained files) falls599→598. Ten shuffled repetitions of both tests pass4.320s; vet, Staticcheck, logging, register and diff hygiene pass. Runtime full-suite evidence remains430.208s/tools20.080s before this mechanical move. Active v1.5 assertion/register paths and the older crosswalk's current-file references are updated. No temporary merge/parser artifacts remain.
