@@ -127,14 +127,18 @@ func TestCompactionPromptsMatchPinnedSourceLiterals(t *testing.T) {
 	}
 }
 
-func TestCompactionReopenPinsBehaviorButRehydratesTransport(t *testing.T) {
+func TestCompactionReopenPinsRequestButRehydratesModel(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered := make(chan struct{})
 		var calls atomic.Int64
 		var changed atomic.Bool
 		ref, options := setupFakeAPI(t, func(ctx context.Context, model *goai.Model, input *goai.Context, opts *goai.StreamOptions) <-chan goai.Event {
 			n := calls.Add(1)
-			if model.ContextWindow != 128000 || opts.MaxTokens == nil || *opts.MaxTokens != 100 || opts.Temperature == nil || *opts.Temperature != 0.3 {
+			wantWindow := 128000
+			if n == 2 {
+				wantWindow = 123
+			}
+			if model.ContextWindow != wantWindow || opts.MaxTokens == nil || *opts.MaxTokens != 100 || opts.Temperature == nil || *opts.Temperature != 0.3 {
 				t.Error("summary behavior changed", model.ContextWindow, opts)
 			}
 			if !strings.Contains(input.Messages[0].Content[0].Text, "<conversation>\n[User]: old") || !strings.Contains(input.Messages[0].Content[0].Text, "Additional focus: paths") {
@@ -194,6 +198,25 @@ func TestCompactionReopenPinsBehaviorButRehydratesTransport(t *testing.T) {
 			t.Fatal(err)
 		}
 		awaitTaskSignal(t, entered)
+		heldState, err := first.Snapshot(bg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, task := range heldState.Tasks {
+			if task.Kind != "pi.compaction" {
+				continue
+			}
+			record, err := CanonicalTask(task, first.session.limits)
+			if err != nil {
+				t.Fatal(err)
+			}
+			checkpoint := taskCheckpointMap(record.State.Checkpoint)
+			for _, private := range []string{"pinnedModel", "retry"} {
+				if _, exists := checkpoint[private]; exists {
+					t.Errorf("source request must not persist %s snapshot", private)
+				}
+			}
+		}
 		if err := first.Close(bg); err != nil {
 			t.Fatal(err)
 		}

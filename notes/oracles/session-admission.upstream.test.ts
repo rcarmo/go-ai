@@ -588,3 +588,33 @@ it("uses model-window compaction thresholds and canonical automatic input",async
   }finally{await harness.close(context)}
  }
 });
+
+it("ignores legacy retry extras on a compaction task in favour of current settings",async()=>{
+ const {chatSetup,openChat}=await import("@pinned/chat"),{assistant}=await import("@pinned/harness-support"),{CompactionTask}=await import("@earendil-works/pi-durable");
+ const setup=chatSetup();setup.settings.compaction={enabled:false,keepRecentTokens:0,reserveTokens:125};setup.settings.retry={enabled:true,maxRetries:1,baseDelayMs:1,maxDelayMs:1};
+ setup.faux.setResponses([{...assistant("",{stopReason:"error"}),errorMessage:"503 overloaded"},assistant("summary")]);
+ const {harness,root}=await openChat(new ControlledStorage(),setup);
+ const input={reason:"manual",retry:{enabled:false,maxRetries:9,baseDelayMs:1,maxDelayMs:2}};
+ try{
+  const id=await root.commit(async tx=>{for(const content of ["old","recent"])await tx.appendEntry(root.id,{kind:"note",model:[{role:"user",content,timestamp:0}]});return tx.createTask(CompactionTask,input as any,{ownership:{kind:"conversation"},conversationId:root.id})},context);
+  harness.resume();const record=await harness.waitForTask(id,context);
+  expect(record.state.outcome.status).toBe("completed");expect(record.input).toEqual(input);
+ }finally{await harness.close(context)}
+});
+
+it("rehydrates current model metadata when resending an orderly closed summary",async()=>{
+ const {chatSetup,openChat,unanswered}=await import("@pinned/chat"),{assistant}=await import("@pinned/harness-support"),{openNodeSqliteStorage}=await import("@pinned/sqlite-node");
+ const {mkdtempSync,rmSync}=await import("node:fs"),{tmpdir}=await import("node:os"),{join}=await import("node:path");
+ const directory=mkdtempSync(join(tmpdir(),"summary-model-authority-")),path=join(directory,"state.db"),setup=chatSetup({models:[{id:"faux-1",contextWindow:128000,maxTokens:256}]}),blocked=unanswered();
+ setup.settings.compaction={enabled:false,keepRecentTokens:0,reserveTokens:125};setup.faux.setResponses([blocked.step]);
+ const seen:any[]=[],complete=setup.models.completeSimple.bind(setup.models);setup.models.completeSimple=(model:any,input:any,options:any)=>{seen.push([model.contextWindow,options.maxTokens]);return complete(model,input,options)};
+ let harness:any;
+ try{
+  let opened=await openChat(await openNodeSqliteStorage(path),setup);harness=opened.harness;
+  await opened.root.commit(async tx=>{for(const content of ["old","recent"])await tx.appendEntry(opened.root.id,{kind:"note",model:[{role:"user",content,timestamp:0}]})},context);
+  const id=await opened.root.compact(undefined,context);await blocked.reached;await harness.close(context);harness=undefined;
+  const next=chatSetup({models:[{id:"faux-1",contextWindow:123,maxTokens:256}]});next.faux.setResponses([assistant("summary")]);setup.models.setProvider(next.faux.provider);
+  opened=await openChat(await openNodeSqliteStorage(path),setup);harness=opened.harness;
+  expect((await harness.waitForTask(id,context)).state.outcome.status).toBe("completed");expect(seen).toEqual([[128000,100],[123,100]]);
+ }finally{if(harness)await harness.close(context);rmSync(directory,{recursive:true,force:true})}
+});

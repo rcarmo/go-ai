@@ -86,3 +86,55 @@ func TestAutomaticCompactionRetryDecisionFollowsCurrentSettingsAfterResponse(t *
 		}
 	})
 }
+
+// Source compaction.ts:summarize reads runtime.settings.retry after a response;
+// arbitrary extra task input is not a private per-call policy channel.
+func TestSourceCompactionIgnoresLegacyTaskRetryOverride(t *testing.T) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+		var requests atomic.Int64
+		ref, options := setupFakeAPI(t, func(_ context.Context, _ *goai.Model, _ *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
+			ch := make(chan goai.Event, 1)
+			if requests.Add(1) == 1 {
+				ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: &goai.Message{Role: goai.RoleAssistant, Content: []goai.ContentBlock{}, StopReason: goai.StopReasonError, ErrorMessage: "503 overloaded"}}
+			} else {
+				ch <- terminal("summary")
+			}
+			close(ch)
+			return ch
+		})
+		h := openHarness(t, b.store, options)
+		c, err := h.Root(bg, AgentChange{Model: ref, Settings: RequestSettings{Retry: RetryPolicy{Enabled: true, MaxRetries: 1, BaseDelayMs: 1, MaxDelayMs: 1}, CompactionOverrides: &CompactionSettings{KeepRecentTokens: compactionTestInt(0)}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		registry, err := h.options.Registry.taskSnapshot(h.session.limits)
+		if err != nil {
+			t.Fatal(err)
+		}
+		input := JSON{"reason": "manual", "retry": JSON{"enabled": false, "maxRetries": 9, "baseDelayMs": 1, "maxDelayMs": 2}}
+		var task ID
+		if _, err := c.Commit(bg, func(tx *Tx) error {
+			for _, text := range []string{"old", "recent"} {
+				id, err := tx.MintID()
+				if err != nil {
+					return err
+				}
+				if err := tx.AppendEntry(Entry{ID: id, Conversation: c.ID(), Kind: "pi.user", Model: []MessageReceipt{userReceipt(text)}}); err != nil {
+					return err
+				}
+			}
+			var err error
+			task, err = tx.CreateTask(registry.Task("pi.compaction"), input, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.Resume(bg); err != nil {
+			t.Fatal(err)
+		}
+		record := waitPublicTask(t, h, task)
+		if record.State.Outcome.Status != "completed" || requests.Load() != 2 || !equalJSONValue(record.Input.Value, input) {
+			t.Fatal("private task retry replaced current settings", record, requests.Load())
+		}
+	})
+}

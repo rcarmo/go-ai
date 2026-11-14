@@ -2,9 +2,9 @@
 
 **Overall migration: incomplete. Full parity and release acceptance are not established.** This report closes a verified development slice, not the complete upstream port.
 
-Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Native implementation: `/work/go-ai/durable`, authorised SQLite-only, pure Go. The preceding pushed implementation checkpoint is `e4279f1` (manual compact API); image-resource diagnosis is recorded at `1e0f3ad`.
+Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Native implementation: `/work/go-ai/durable`, authorised SQLite-only, pure Go. The preceding pushed implementation checkpoint is `8b0955a` (source compaction policy/input); image-resource diagnosis is recorded at `1e0f3ad`.
 
-Latest continuation: compaction uses the source four-field policy and actual model-window threshold; automatic task input is reason only. Native trigger/max overrides are removed, and required false/zero policy values are preserved. See [compaction evidence](canonical-compaction-kind.md#source-transcript-and-prompt-literals). See [submission admission](submission-admission.md#canonical-string-content-and-placement-clock). Selected reference coverage is200 unchanged cases +56 probes. Exact reference assets repair the original Cloudflare suite (36 pass); two provider suites now reach original credential skips, not live acceptance. Image execution still exceeds its768 MiB worker cap. The full99-file oracle is not green; see [oracle limits](upstream-oracle.md).
+Latest continuation: summary requests rehydrate current model metadata across reopen and retry decisions use current settings, not legacy task-input overrides. Model/retry policy snapshots are removed, without claiming complete canonical checkpoint execution. See [compaction evidence](canonical-compaction-kind.md#source-transcript-and-prompt-literals). See [submission admission](submission-admission.md#canonical-string-content-and-placement-clock). Selected reference coverage is200 unchanged cases +58 probes. Exact reference assets repair the original Cloudflare suite (36 pass); two provider suites now reach original credential skips, not live acceptance. Image execution still exceeds its768 MiB worker cap. The full99-file oracle is not green; see [oracle limits](upstream-oracle.md).
 
 ## Earlier queue-production checkpoint
 
@@ -18,7 +18,11 @@ Latest continuation: compaction uses the source four-field policy and actual mod
 
 The exact input/write shape tests failed before the fixes. Idle progress and continuation already passed and required no speculative runtime changes. A failure/reopen fixture initially tried to close storage already owned/closed by Session; correcting the fixture required no runtime fix. Tests remain in the existing version-neutral transaction suite.
 
-## Latest compaction-policy verification
+## Latest compaction request-authority verification
+
+Full durable420.167s/tools19.837s; ten focused shuffled repetitions6.877s; four semantic faults; vet, Staticcheck, logging and register pass. Selected reference258 cases (200 unchanged +58 probes), plus the separately executed original compaction110-case file and66 supplements (176 total), pass with zero skipped. Real SQLite reopen and legacy-input retry controls failed before fixes. Canonical checkpoint DTO/execution and remaining state/ordering/interoperability remain open.
+
+## Previous compaction-policy verification
 
 Full durable417.368s/tools17.347s; ten shuffled focused repetitions16.922s; four semantic faults; vet, Staticcheck, logging and register pass. Selected reference256 cases pass (200 unchanged +56 probes). Existing threshold fixtures now use real model windows/reserves rather than native trigger knobs. Source-derived exact field-set/zero-value, strict threshold/owner and complete automatic-input assertions pass. Legacy raw-input retry fallback and canonical checkpoint execution remain open.
 

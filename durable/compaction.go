@@ -160,15 +160,11 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 			if model.MaxTokens > 0 && maxTokens > model.MaxTokens {
 				maxTokens = model.MaxTokens
 			}
-			pinned, err := dtoObject(model, h.session.limits)
-			if err != nil {
-				return err
-			}
 			settings, err := dtoObject(agent.Settings, h.session.limits)
 			if err != nil {
 				return err
 			}
-			checkpoint := JSON{"pinnedModel": pinned, "settings": settings, "reason": reason, "phase": "summarize", "tail": tail, "firstKept": view.Entries[cut].ID, "model": JSON{"provider": string(agent.Model.Provider), "id": agent.Model.ID}, "maxTokens": maxTokens, "attempt": 1}
+			checkpoint := JSON{"settings": settings, "reason": reason, "phase": "summarize", "tail": tail, "firstKept": view.Entries[cut].ID, "model": JSON{"provider": string(agent.Model.Provider), "id": agent.Model.ID}, "maxTokens": maxTokens, "attempt": 1}
 			if instructions != nil {
 				checkpoint["instructions"] = *instructions
 			}
@@ -176,12 +172,6 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 				return err
 			}
 			checkpoint["thinkingLevel"] = string(agent.ThinkingLevel)
-			retry := agent.Settings.Retry
-			retryValue, err := dtoObject(retry, h.session.limits)
-			if err != nil {
-				return err
-			}
-			checkpoint["retry"] = retryValue
 			return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) {
 				return &TaskState{Status: "running", Checkpoint: checkpoint}, nil
 			})
@@ -207,16 +197,6 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 			model, err := cloneModel(local, h.session.limits)
 			if err != nil {
 				return err
-			}
-			if raw, ok := cp["pinnedModel"].(map[string]any); ok {
-				var pinned goai.Model
-				if err := fromObject(JSON(raw), &pinned, h.session.limits); err != nil {
-					return err
-				}
-				if pinned.ID != ref.ID || pinned.Provider != ref.Provider {
-					return reject("compaction pinned model identity")
-				}
-				model = &pinned
 			}
 			model.BaseURL, model.APIKey = local.BaseURL, local.APIKey
 			model.Headers = make(map[string]string, len(local.Headers))
@@ -301,17 +281,6 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 							return nil, err
 						}
 						policy = h.resolvedSettings(agent.Settings).Retry
-					}
-					if input, ok := task.Input.Value.(map[string]any); ok {
-						if raw, ok := input["retry"].(map[string]any); ok {
-							var explicit RetryPolicy
-							if err := fromObject(JSON(raw), &explicit, tx.limits); err != nil {
-								return nil, err
-							}
-							if explicit != (RetryPolicy{}) {
-								policy = explicit
-							}
-						}
 					}
 					attempt := 1
 					if n, ok := cp["attempt"]; ok {
