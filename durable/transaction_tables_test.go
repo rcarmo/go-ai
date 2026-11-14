@@ -1565,15 +1565,48 @@ func TestSubmitInStorageFailureHasNoAdmissionAfterReopen(t *testing.T) {
 	}
 }
 
-// Source-derived from harness-submit-in-commit.test.ts:290-307: the provider
-// rather than the source's tool is held at a boundary. Assert the canonical
-// queued write draft as well as eventual placement and completion.
+// Literal harness-submit-in-commit.test.ts286-310: a tool holds the run,
+// then its post-tools boundary places the write admitted in a host commit.
+// The additional exact Inbox draft assertions are source-derived.
 func TestSubmitInModelVisibleWriteQueueAndPlacement(t *testing.T) {
-	h, c, first, release := busySubmitInFixture(t)
+	store, err := newTestSQLite(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	entered, gate := make(chan struct{}), make(chan struct{})
+	registry := NewRegistry()
+	if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "hold", Parameters: []byte(`{"type":"object","properties":{}}`)}, Implementation: "source.hold", Version: 1, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+		close(entered)
+		<-gate
+		return ToolResult{}, nil
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	var requests atomic.Int64
+	ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
+		ch := make(chan goai.Event, 1)
+		if requests.Add(1) == 1 {
+			ch <- toolAnswer("hold-1", "hold", JSON{})
+		} else {
+			ch <- terminal("answer")
+		}
+		close(ch)
+		return ch
+	})
+	options.Registry = registry
+	h := openHarness(t, store, options)
+	cleanupTaskGates(t, gate)
+	c := root(t, h, ref)
+	first, err := c.Submit(bg, Input{Type: "input", Content: "work"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	awaitTaskSignal(t, entered)
+	release := func() { releaseTaskGate(gate) }
 	note := userReceipt("a note the model sees")
 	note.Timestamp = 1
 	var id ID
-	_, err := h.Commit(bg, func(tx *Tx) (any, error) {
+	_, err = h.Commit(bg, func(tx *Tx) (any, error) {
 		var err error
 		id, err = c.SubmitIn(tx, Input{Type: "write", Entry: &Entry{Kind: "test.note", Model: []MessageReceipt{note}}})
 		return nil, err

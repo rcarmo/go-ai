@@ -308,6 +308,8 @@ type submitTrace struct {
 	span    *goai.TelemetrySpan
 	carrier *goai.TelemetryCarrier
 	results map[ID]string
+	runLink *goai.TelemetryCarrier // captured on admission, resolved off-line before End
+	extract func(goai.TelemetryCarrier) *goai.TelemetrySpan
 	events  durableEventBuffer
 }
 
@@ -349,7 +351,7 @@ func (c *ConversationHandle) beginSubmitTrace(ctx context.Context, input Input) 
 	if span == nil {
 		return nil
 	}
-	trace := &submitTrace{span: span}
+	trace := &submitTrace{span: span, extract: parent.ExtractContext}
 	if span.Context != nil {
 		// Snapshot the backend's immutable carrier as data, without invoking
 		// carrier injection/extraction callbacks.
@@ -375,6 +377,13 @@ func (trace *submitTrace) observe(sub SubmissionRecord) {
 // admission locks; SubmitIn ends it inside the caller callback, as upstream does.
 // Error text may carry input.
 func (trace *submitTrace) finish(handle *SubmissionHandle, err error) {
+	if trace.runLink != nil && trace.extract != nil && trace.span.AddLink != nil {
+		var linked *goai.TelemetrySpan
+		telemetryCall(func() { linked = trace.extract(*copyTelemetryCarrier(trace.runLink)) })
+		if linked != nil {
+			telemetryCall(func() { trace.span.AddLink(linked) })
+		}
+	}
 	trace.events.deliver()
 	if err != nil {
 		if trace.span.SetStatus != nil {

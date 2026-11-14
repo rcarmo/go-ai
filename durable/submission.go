@@ -281,6 +281,25 @@ func (c *ConversationHandle) admitSubmission(ctx context.Context, tx *Tx, input 
 				return nil
 			}
 		}
+		// Source steer admission links the current run after deduplication and
+		// before any table write. Capture data here; host extraction/linking runs
+		// off-line when the standalone admission finishes.
+		if input.Type == "steer" {
+			if trace := submitTraceFromContext(ctx); trace != nil && trace.extract != nil && trace.span.AddLink != nil {
+				for _, doc := range tx.state.Documents {
+					if doc.Kind != "pi.live" || doc.Scope != "conversation" || doc.Owner != c.id || doc.Retired {
+						continue
+					}
+					run := generationObject(doc.Value["run"])
+					if task, found := tx.state.Tasks[submissionEntryID(run["task"])]; found {
+						if carrier, ok := task.Trace.(goai.TelemetryCarrier); ok {
+							trace.runLink = copyTelemetryCarrier(&carrier)
+						}
+					}
+					break
+				}
+			}
+		}
 		// A continue never queues. Reject before any IDs, documents or entries
 		// are written; the committed request-ID lookup has already returned.
 		if input.Type == "continue" && h.conversationGenerationBusy(tx.state, c.id) {

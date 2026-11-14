@@ -26,8 +26,8 @@ func TestHarnessRootBootstrapsReservedConversation(t *testing.T) {
 	if state, err := store.Snapshot(bg); err != nil || len(state.Conversations) != 0 {
 		t.Fatalf("fresh store conversations %+v err=%v", state.Conversations, err)
 	}
-	if _, err := h.Conversation(bg, 1); err == nil {
-		t.Fatal("root visible before its owner created it")
+	if missing, err := h.Conversation(bg, 1); err != nil || missing != nil {
+		t.Fatal("source missing lookup must return no handle before root creation", missing, err)
 	}
 
 	if _, err := h.Root(bg, AgentChange{}); err != nil {
@@ -49,7 +49,6 @@ func TestHarnessRootBootstrapsReservedConversation(t *testing.T) {
 	if state.Seq == 0 {
 		t.Fatal("root bootstrap was not a committed write")
 	}
-
 
 	// Reopening proves the root is persisted, not an in-memory convenience.
 	if err := h.Close(bg); err != nil {

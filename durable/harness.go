@@ -284,7 +284,7 @@ func (h *Harness) Conversation(ctx context.Context, id ID) (*ConversationHandle,
 		return nil, e
 	}
 	if _, ok := s.Conversations[id]; !ok {
-		return nil, reject("unknown conversation")
+		return nil, nil
 	}
 	return &ConversationHandle{h: h, id: id}, nil
 }

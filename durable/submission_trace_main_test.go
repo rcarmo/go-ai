@@ -375,3 +375,98 @@ func TestMainSubmissionTracePublicEmptyAndAbsent(t *testing.T) {
 		})
 	}
 }
+
+// Literal pinned harness-telemetry.test.ts341-380. A held tool exposes
+// the running trace while a steer is admitted; later phases keep that root.
+func TestSubmissionSteerLinksRunningTraceWithoutReparenting(t *testing.T) {
+	store, err := newTestSQLite(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	backend := newMainTaskTraceBackend(t)
+	entered, gate := make(chan struct{}), make(chan struct{})
+	registry := NewRegistry()
+	if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "hold", Description: "hold", Parameters: []byte(`{"type":"object","properties":{}}`)}, Implementation: "source.trace.hold", Version: 1, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+		close(entered)
+		<-gate
+		return ToolResult{}, nil
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	var calls atomic.Int64
+	ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
+		ch := make(chan goai.Event, 1)
+		if calls.Add(1) == 1 {
+			ch <- toolAnswer("call-1", "hold", JSON{})
+		} else {
+			ch <- terminal("answer")
+		}
+		close(ch)
+		return ch
+	})
+	options.Registry = registry
+	options.Telemetry = backend.root
+	h := openHarness(t, store, options)
+	backend.h = h
+	cleanupTaskGates(t, gate)
+	root := root(t, h, ref)
+	first, err := root.Submit(bg, Input{Type: "input", Content: "first"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	awaitTaskSignal(t, entered)
+	inspection, err := h.Inspect(bg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var run TaskRecord
+	for _, task := range inspection.Tasks {
+		if task.Record.Kind == "pi.generation" {
+			run = task.Record
+			break
+		}
+	}
+	if run.ID == 0 {
+		t.Fatal("missing running generation")
+	}
+	steer, err := root.Submit(bg, Input{Type: "input", Content: "steer", WhenBusy: "steer"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	record, err := steer.Status(bg)
+	if err != nil || record.Trace == nil {
+		t.Fatal(record, err)
+	}
+	backend.mu.Lock()
+	found := false
+	for _, span := range backend.spans {
+		if span.name == "pi.durable.submit" && span.attrs["submission.id"] == uint64(steer.ID()) {
+			found = true
+			if len(span.parent) != 0 || !reflect.DeepEqual(span.links, []goai.TelemetryCarrier{run.Trace.(goai.TelemetryCarrier)}) {
+				t.Error("steer did not link the current run as a root", span.parent, span.links, run.Trace)
+			}
+		}
+	}
+	backend.mu.Unlock()
+	if !found {
+		t.Error("missing steer span")
+	}
+	releaseTaskGate(gate)
+	waitSubmission(t, first)
+	waitSubmission(t, steer)
+	if err := h.WaitForIdle(bg); err != nil {
+		t.Fatal(err)
+	}
+	backend.mu.Lock()
+	defer backend.mu.Unlock()
+	for _, span := range backend.spans {
+		if span.name == "pi.durable.phase" {
+			if reflect.DeepEqual(span.parent, *record.Trace) {
+				t.Error("steer reparented a phase", span.attrs)
+			}
+			if !span.ended {
+				t.Error("phase not settled at idle", span.attrs)
+			}
+		}
+	}
+}

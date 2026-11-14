@@ -5,6 +5,8 @@ Compact index. Read a linked note only when it is relevant to the current task.
 - [Upstream conformance completion report](upstream-conformance-report.md) — latest verified
   implementation checkpoints, exact evidence and remaining migration/release blockers.
 
+- [Submission tool/trace/lifetime](submission-tool-lifetime.md) — literal held-tool boundary, steer links, ended child handles and remaining canonical runtime scope.
+
 - [Internal task replacement](internal-task-replacement.md) — complete record replacement, staged times, assembly ordering, verification and runtime-integration gaps.
 
 - [Public transaction surface](public-tx-surface.md) — pinned interface/private class distinction, removed native raw exports and precise structural scope.

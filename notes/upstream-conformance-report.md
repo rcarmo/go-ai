@@ -4,7 +4,7 @@
 
 Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Native implementation: `/work/go-ai/durable`, authorised SQLite-only, pure Go. The preceding pushed implementation checkpoint is `04726f3` (request-time model/retry authority); image-resource diagnosis is recorded at `1e0f3ad`.
 
-Latest implementation checkpoint: `6c6758bf41812bf594822fb0b102eeb3c12f9f82`, pushed. [Internal task replacement](internal-task-replacement.md) records the source contract, verification and remaining runtime-integration gaps.
+Latest continuation: [submission tool/trace/lifetime packets](submission-tool-lifetime.md). A real held-tool boundary, steer-to-run trace link and invocation-bound child lifetime now have literal native source packets. Canonical builtin execution/migrations are the next unfinished boundary. The preceding implementation checkpoint is `6c6758bf41812bf594822fb0b102eeb3c12f9f82`.
 
 ## Earlier queue-production checkpoint
 
@@ -18,7 +18,11 @@ Latest implementation checkpoint: `6c6758bf41812bf594822fb0b102eeb3c12f9f82`, pu
 
 The exact input/write shape tests failed before the fixes. Idle progress and continuation already passed and required no speculative runtime changes. A failure/reopen fixture initially tried to close storage already owned/closed by Session; correcting the fixture required no runtime fix. Tests remain in the existing version-neutral transaction suite.
 
-## Internal task replacement verification
+## Submission tool/trace/lifetime verification
+
+Full26 tested packages pass: durable838.557s/tools28.232s/public12.387s; three compiled faults, ten shuffled trace9.393s/lifetime11.248s, tool-bound placement repeats1.794s and vet/Staticcheck/logging pass. Unmodified original submit-in-commit110, telemetry113 and ownership128 cases pass with87 supplements each, zero skips. Earlier full571.063s failed the obsolete missing-conversation error assertion; the corrected test retains absence/bootstrap/reopen assertions. See the linked packet for fixture errors and exact remaining scope.
+
+## Previous internal task replacement verification
 
 Implementation [6c6758b](internal-task-replacement.md) is pushed. The internal canonical setter now supports complete replacement, staged guards/timestamps, deferred committed validation, final owner checks and fork-error precedence. It stays private; production runtime callers have not migrated. Full26 tested packages pass (durable746.181s/tools27.556s/public13.197s), five compiled semantic faults, three shuffled repetitions0.897s, vet/Staticcheck/logging/register and selected original279 pass, zero original skips. Complete builtin/runtime integration, document/family/identity/API/Storage/lifecycle/readonly/assertion audits and pre-release profiling are incomplete. The new source clock supplement initially used an invalid total-commit clock-count assumption; corrected supplemental fixtures isolate setter calls. Original assertions are unchanged. See the linked note for red controls, source lines and precise subsets.
 
@@ -172,7 +176,7 @@ The retained source snapshot has no `.git`: retained hashes and the complete tes
 | Storage interfaces and persistence — D10–D12 | Complete wrapper/public-interface authority, original SQLite schema/record interoperability, and remaining result/query DTO assertions. |
 | Commit/public API — D13 | Original callback-result/options semantics and full exported-symbol mapping. Go Commit still returns a sequence and uses caller-side result capture. |
 | Publication/admission — D01–D06 | Exhaustive dependencies, bounded outcomes, caller-continuation turns, deferred persistence and close/error ordering. D04 is not accepted. |
-| Submission/lifecycle — D20/D21 | Original tool-bound write placement, arbitrary/uncertain Storage failures, trace/link/span propagation, task-bound lifetime/close and exhaustive resume/scheduling assertions. The earlier queued progress/close error-order caveat remains open. |
+| Submission/lifecycle — D20/D21 | Tool-bound write placement, steer link/non-reparenting and the named ended-tool child lifetime packet now pass. Arbitrary/uncertain Storage failures, full trace callback/event ordering, queued task-bound close/seal precedence and exhaustive resume/scheduling assertions are incomplete. The earlier queued progress/close error-order caveat remains open. |
 | Readonly/document/view lifetimes — D14–D17 | Complete mount/collection/cache/reload/lifecycle and observer-dispatch acceptance, beyond the mapped passing identity assertions. |
 | Resources, ownership and external viewers — D18/D19/D27 | Complete resource/numeric/ownership/race corpus and read-only concurrent SQLite viewers. |
 | Codemode/schema/provider — D22–D24 | Complete worker/restart, dependency/compiler/RegExp and inherited AI/provider acceptance. |
@@ -180,4 +184,4 @@ The retained source snapshot has no `.git`: retained hashes and the complete tes
 
 D08, D28 and D29 are recorded as fixed; other groups contain partial progress, confirmed deviations or unverified obligations. Alternative storage engines remain outside the user's authorised SQLite-only scope (D25). Neither those status labels nor green development suites define a completion percentage.
 
-The next acceptance work is the remaining submission tool/trace/lifetime packet and canonical builtin execution/migrations. The complete register, including causes, evidence and acceptance criteria, remains authoritative: [deviations](../docs/upstream-v1.5.0/durable-deviations.md), [structured gaps](../docs/upstream-v1.5.0/durable-parity-gaps.json), [assertion crosswalk](../docs/upstream-v1.5.0/task-table-assertions.tsv). Detailed slice receipts are in [submission admission](submission-admission.md).
+The next implementation work is canonical builtin execution/migrations; broader submission/trace/queued-close acceptance is still incomplete. The complete register, including causes, evidence and acceptance criteria, remains authoritative: [deviations](../docs/upstream-v1.5.0/durable-deviations.md), [structured gaps](../docs/upstream-v1.5.0/durable-parity-gaps.json), [assertion crosswalk](../docs/upstream-v1.5.0/task-table-assertions.tsv). Detailed slice receipts are in [submission admission](submission-admission.md).

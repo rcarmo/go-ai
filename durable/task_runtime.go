@@ -623,7 +623,13 @@ func (r *TaskRuntime) Conversation(ctx context.Context, id ID) (*InvocationConve
 	if err != nil {
 		return nil, err
 	}
-	return &InvocationConversation{runtime: r, handle: handle}, r.check()
+	if err := r.check(); err != nil {
+		return nil, err
+	}
+	if handle == nil {
+		return nil, nil
+	}
+	return &InvocationConversation{runtime: r, handle: handle}, nil
 }
 func (c *InvocationConversation) ID() ID { return c.handle.id }
 

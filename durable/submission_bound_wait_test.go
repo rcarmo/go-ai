@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	goai "github.com/rcarmo/go-ai"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -158,5 +159,140 @@ func TestInvocationSubmissionQueuedStatusAbortAndWaitRejectAfterSeal(t *testing.
 				releaseTaskGate(release)
 			})
 		})
+	}
+}
+
+// Literal pinned harness-ownership.test.ts1013-1075: the tool's handles
+// expire, but its child's submitted work and records remain durable.
+func TestSubmissionToolBoundConversationLifetime(t *testing.T) {
+	store, err := newTestSQLite(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var handle, missing *InvocationConversation
+	var submission *InvocationSubmission
+	var ref ModelRef
+	registry := NewRegistry()
+	err = registry.Register(ToolRegistration{Definition: goai.Tool{Name: "delegate", Description: "Delegates", Parameters: []byte(`{"type":"object","properties":{}}`)}, Implementation: "source.delegate", Version: 1, Execute: func(ctx context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+		value, err := api.Commit(ctx, func(tx *Tx) (any, error) {
+			child, err := tx.CreateConversation(JSON{"ownership": JSON{"kind": "task", "taskId": api.TaskID()}})
+			if err != nil {
+				return nil, err
+			}
+			agent, err := builtin(tx, child.ID, "pi.agent")
+			if err != nil {
+				return nil, err
+			}
+			configured, err := api.h.agent(AgentChange{Model: ref})
+			if err != nil {
+				return nil, err
+			}
+			data, err := dtoObject(configured, tx.limits)
+			if err != nil {
+				return nil, err
+			}
+			return child.ID, agent.Set(data)
+		})
+		if err != nil {
+			return ToolResult{}, err
+		}
+		missing, err = api.Conversation(ctx, 99999)
+		if err != nil {
+			t.Error("source missing conversation lookup must return no handle without error", err)
+		}
+		handle, err = api.Conversation(ctx, value.(ID))
+		if err != nil {
+			return ToolResult{}, err
+		}
+		submission, err = handle.Submit(ctx, Input{Type: "input", Content: "child task", RequestID: "child"})
+		if err != nil {
+			return ToolResult{}, err
+		}
+		settled, err := submission.Wait(ctx)
+		if err != nil {
+			return ToolResult{}, err
+		}
+		return ToolResult{Content: settled.Record.Status}, nil
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var calls atomic.Int64
+	var options Options
+	ref, options = setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
+		ch := make(chan goai.Event, 1)
+		switch calls.Add(1) {
+		case 1:
+			ch <- toolAnswer("c1", "delegate", JSON{})
+		case 2:
+			ch <- terminal("child answer")
+		default:
+			ch <- terminal("done")
+		}
+		close(ch)
+		return ch
+	})
+	options.Registry = registry
+	h := openHarness(t, store, options)
+	root := root(t, h, ref)
+	first, err := root.Submit(bg, Input{Type: "input", Content: "go"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitSubmission(t, first)
+	if err := h.WaitForIdle(bg); err != nil {
+		t.Fatal(err)
+	}
+	if missing != nil {
+		t.Error("source missing conversation returned a handle")
+	}
+	if handle == nil || submission == nil {
+		t.Fatal("delegate did not create bound work")
+	}
+	if _, err := handle.Submit(bg, Input{Type: "input", Content: "again"}); !errors.Is(err, ErrSealed) {
+		t.Error("ended submit", err)
+	}
+	if err := handle.WaitForIdle(bg); !errors.Is(err, ErrSealed) {
+		t.Error("ended idle", err)
+	}
+	if err := handle.Abort(bg); !errors.Is(err, ErrSealed) {
+		t.Error("ended abort", err)
+	}
+	if _, err := submission.Wait(bg); !errors.Is(err, ErrSealed) {
+		t.Error("ended submission wait", err)
+	}
+	child, err := h.Conversation(bg, handle.ID())
+	if err != nil || child == nil {
+		t.Fatal(child, err)
+	}
+	page, err := child.Entries(bg, EntryQuery{}, 100, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	users := 0
+	for _, entry := range page.Items {
+		if entry.Kind == "pi.user" {
+			users++
+		}
+	}
+	if users != 1 {
+		t.Error("late operation admitted input", users)
+	}
+	inspection, err := h.Inspect(bg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, task := range inspection.Tasks {
+		if task.Record.Conversation == handle.ID() {
+			t.Error("child task still active", task)
+		}
+	}
+	durable, err := h.Submission(bg, submission.ID())
+	if err != nil || durable == nil {
+		t.Fatal(durable, err)
+	}
+	record, err := durable.Status(bg)
+	if err != nil || record.Status != "done" {
+		t.Fatal(record, err)
 	}
 }
