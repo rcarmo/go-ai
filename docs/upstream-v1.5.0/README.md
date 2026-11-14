@@ -6,6 +6,10 @@ The sole alignment target is official upstream `v1.5.0` at `f9a26365568127461c47
 
 [Assessment fixes and verification](assessment-fixes.md) records the 166-fixture validation regression table, short OAuth interval correction, deterministic retry timer checks, catalogue verification and seven inherited durable full-suite failures. The 24 reproduced common-domain validation mismatches are fixed; broader schema/compiler and durable/codemode alignment remain open.
 
+## Typed model-result presence
+
+[Image/classifier result JSON and paid calls](../../notes/typed-model-results.md) preserve optional errors and omit absent classifier error/usage fields through actual QuickJS execution and typed replay. Full repository and fault/static gates pass; complete tool/worker/API/schema/release acceptance remains open.
+
 ## Optional assistant error text
 
 The [current development continuation](../../notes/canonical-compaction-kind.md#optional-provider-error-text) preserves optional empty assistant errors across root/durable JSON and actual summary failure handling. Other message variants/fields and full API/schema/release acceptance remain open.

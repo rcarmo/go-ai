@@ -273,3 +273,29 @@ func TestGenerateImagesOpenRouterRetriesAndHookError(t *testing.T) {
 		t.Fatalf("expected payload hook error result, got out=%#v err=%v", out, err)
 	}
 }
+
+// Source AssistantImages.errorMessage is optional; an explicit empty value
+// must survive JSON independently of the absent arm.
+func TestImagesResultOptionalErrorJSON(t *testing.T) {
+	for _, field := range []string{"", `,"errorMessage":""`, `,"errorMessage":" "`, `,"errorMessage":"failed"`} {
+		raw := []byte(`{"api":"test","provider":"test","model":"image","output":[],"stopReason":"error","timestamp":0` + field + `}`)
+		var result images.AssistantImages
+		if err := json.Unmarshal(raw, &result); err != nil {
+			t.Fatal(err)
+		}
+		wire, err := json.Marshal(result)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got, want map[string]json.RawMessage
+		if err := json.Unmarshal(wire, &got); err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(raw, &want); err != nil {
+			t.Fatal(err)
+		}
+		if string(got["errorMessage"]) != string(want["errorMessage"]) {
+			t.Error("image error presence changed", string(raw), string(wire))
+		}
+	}
+}

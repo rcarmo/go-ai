@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	goai "github.com/rcarmo/go-ai"
+	"github.com/rcarmo/go-ai/images"
 	"github.com/rcarmo/go-ai/internal/jsonparse"
 )
 
@@ -18,6 +19,8 @@ func (callerStreamingMain) MarshalJSON() ([]byte, error) { panic("caller marshal
 type inheritedStreamingMain struct{ goai.ContentBlock }
 type inheritedUTF16Main struct{ goai.UTF16String }
 type inheritedMessageMain struct{ goai.Message }
+type inheritedClassifierMain struct{ goai.ClassifierResult }
+type inheritedImagesMain struct{ images.AssistantImages }
 
 func TestStreamingArgumentsMainDurableReplay(t *testing.T) {
 	raw := []byte(`{"role":"assistant","content":[{"type":"toolCall","id":"c","name":"f","arguments":{"\ud800":"\udfff","n":9007199254740993},"argumentsError":"bad \ud800"}]}`)
@@ -122,7 +125,7 @@ func TestStreamingArgumentsMainBoundaryIsolation(t *testing.T) {
 	if _, err := encodeBounded(tool, DefaultLimits(), 4096); err == nil {
 		t.Fatal("native mode relaxed finite-number check")
 	}
-	for _, value := range []any{callerStreamingMain{}, &callerStreamingMain{}, inheritedStreamingMain{}, inheritedUTF16Main{}, inheritedMessageMain{}, &inheritedMessageMain{}} {
+	for _, value := range []any{callerStreamingMain{}, &callerStreamingMain{}, inheritedStreamingMain{}, inheritedUTF16Main{}, inheritedMessageMain{}, &inheritedMessageMain{}, inheritedClassifierMain{}, &inheritedClassifierMain{}, inheritedImagesMain{}, &inheritedImagesMain{}} {
 		if _, err := encodeBounded(value, DefaultLimits(), 4096); err == nil {
 			t.Fatal("caller wrapper inherited native privilege")
 		}

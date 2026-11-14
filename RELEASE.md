@@ -2,6 +2,10 @@
 
 The sole acceptance target is official upstream **v1.5.0**, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Alignment is unverified. Older entries below are historical receipts, not compatibility requirements or v1.5.0 acceptance. Retained tests and active identity/schema/catalogue/regeneration pins must be reconciled with this release; obsolete behaviour must change.
 
+## Development continuation: typed model-result presence
+
+Image/classifier JSON now preserves optional empty errors. Actual QuickJS paid classifier output omits absent errorMessage/usage; typed paid calls retain provided errors through task replay without repeating effects. [Source-derived controls and limits](notes/typed-model-results.md): full ./...26packages pass (durable433.467s/tools20.365s), six semantic faults and static gates pass. Complete model-tool input/output/name, API/runtime/worker/schema and pre-release acceptance remain open. No dependency/generated/tag/publication changes.
+
 ## Development continuation: optional assistant error text
 
 At the pinned v1.5.0 target, assistant errorMessage is optional and an explicit empty string differs from absence. Root Message JSON and durable receipt/provider projection now preserve that distinction with a non-wire Go presence flag. Actual compaction failures follow the original nullish fallback. [Evidence and remaining scope](notes/canonical-compaction-kind.md#optional-provider-error-text) records the failing baseline, strict-decoder regression/fix, provider reference and fault controls. Full repository ./... passes26 packages (durable433.921s/tools24.354s); five presence faults plus the bounded-authority fault and static gates pass. Full alignment, pre-release profiling/security/CI and release acceptance remain open. No dependency, generated asset, tag, hosted workflow or published asset changes.

@@ -59,6 +59,8 @@ type AssistantImages struct {
 	ResponseID   string          `json:"responseId,omitempty"`
 	Usage        *goai.Usage     `json:"usage,omitempty"`
 	ErrorMessage string          `json:"errorMessage,omitempty"`
+	// ErrorMessagePresent retains an explicit empty optional error string.
+	ErrorMessagePresent bool `json:"-"`
 }
 
 type ImagesResponseMetadata struct {

@@ -20,6 +20,8 @@ type ClassifierResult struct {
 	Timestamp    int64                       `json:"timestamp"`
 	Usage        *Usage                      `json:"usage,omitempty"`
 	ErrorMessage string                      `json:"errorMessage,omitempty"`
+	// ErrorMessagePresent retains an explicit empty optional error string.
+	ErrorMessagePresent bool `json:"-"`
 }
 
 type ClassifierPayloadHook func(payload map[string]any, model *ClassifierModel) (map[string]any, error)

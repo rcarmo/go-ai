@@ -389,3 +389,28 @@ func TestIssue1SystemOneResponseHookDispatchAfterDecodedSuccess(t *testing.T) {
 		}
 	}
 }
+
+// Source ClassifierResult.errorMessage has the same optional string contract.
+func TestClassifierResultOptionalErrorJSON(t *testing.T) {
+	for _, field := range []string{"", `,"errorMessage":""`, `,"errorMessage":" "`, `,"errorMessage":"failed"`} {
+		raw := []byte(`{"api":"test","provider":"test","model":"judge","answers":{},"stopReason":"error","timestamp":0` + field + `}`)
+		var result goai.ClassifierResult
+		if err := json.Unmarshal(raw, &result); err != nil {
+			t.Fatal(err)
+		}
+		wire, err := json.Marshal(result)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got, want map[string]json.RawMessage
+		if err := json.Unmarshal(wire, &got); err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(raw, &want); err != nil {
+			t.Fatal(err)
+		}
+		if string(got["errorMessage"]) != string(want["errorMessage"]) {
+			t.Error("classifier error presence changed", string(raw), string(wire))
+		}
+	}
+}

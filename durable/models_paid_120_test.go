@@ -2,6 +2,7 @@ package durable
 
 import (
 	"context"
+	"encoding/json"
 	"sync/atomic"
 	"testing"
 
@@ -129,4 +130,99 @@ func TestModels120PaidTypedCallsDurableScopedAuthUsageAndKeyReuse(t *testing.T) 
 			t.Fatal("open repeated paid effects")
 		}
 	})
+}
+
+func TestPaidModelResultOptionalErrorReplay(t *testing.T) {
+	limits := DefaultLimits()
+	for _, target := range []any{new(goai.ClassifierResult), new(images.AssistantImages)} {
+		if err := decodeStrict([]byte(`{"unexpected":true}`), limits, limits.MaxRecordBytes, target); err == nil {
+			t.Error("result codec bypassed strict field validation")
+		}
+	}
+	for _, test := range []struct{ name, field, wire string }{
+		{"absent", "", ""}, {"empty", `,"errorMessage":""`, `""`}, {"nonempty", `,"errorMessage":"failed"`, `"failed"`},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var classified goai.ClassifierResult
+			if err := json.Unmarshal([]byte(`{"api":"presence-classifier","provider":"presence","model":"judge","answers":{},"stopReason":"error","timestamp":0`+test.field+`}`), &classified); err != nil {
+				t.Fatal(err)
+			}
+			var generated images.AssistantImages
+			if err := json.Unmarshal([]byte(`{"api":"presence-images","provider":"presence","model":"painter","output":[],"stopReason":"error","timestamp":0`+test.field+`}`), &generated); err != nil {
+				t.Fatal(err)
+			}
+			for _, result := range []any{classified, generated} {
+				bounded, err := dtoObject(result, DefaultLimits())
+				if err != nil {
+					t.Fatal(err)
+				}
+				_, present := bounded["errorMessage"]
+				if present != (test.wire != "") {
+					t.Error("bounded result lost error presence", bounded)
+				}
+			}
+			var classCalls, imageCalls atomic.Int64
+			goai.RegisterClassifierApiProvider(&goai.ClassifierApiProvider{Api: "presence-classifier", Classify: func(*goai.ClassifierModel, goai.ClassifierContext, *goai.ClassifierOptions) (*goai.ClassifierResult, error) {
+				classCalls.Add(1)
+				return &classified, nil
+			}})
+			images.RegisterImagesApiProvider(&images.ImagesApiProvider{Api: "presence-images", GenerateImages: func(*images.ImagesModel, images.ImagesContext, *images.ImagesOptions) (*images.AssistantImages, error) {
+				imageCalls.Add(1)
+				return &generated, nil
+			}})
+			t.Cleanup(func() { images.UnregisterImagesApiProvider("presence-images") })
+			check := func(result any) {
+				wire, err := json.Marshal(result)
+				if err != nil {
+					t.Error(err)
+					return
+				}
+				var fields map[string]json.RawMessage
+				if err := json.Unmarshal(wire, &fields); err != nil {
+					t.Error(err)
+					return
+				}
+				if string(fields["errorMessage"]) != test.wire {
+					t.Error("paid error presence changed", string(wire))
+				}
+				if _, present := fields["usage"]; present {
+					t.Error("paid absent usage became present", string(wire))
+				}
+			}
+			registry := NewRegistry()
+			definition := taskDefinition(t, "paid-error-presence", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+				access, err := r.Models()
+				if err != nil {
+					return err
+				}
+				for i := 0; i < 2; i++ {
+					result, err := access.Classify(ctx, "judge", goai.TypedModelRef{Provider: "presence", ID: "judge"}, goai.ClassifierContext{State: map[string]any{}, Questions: map[string]goai.ClassifierQuestion{"q": {Type: "bool", Instructions: "yes?", Criteria: goai.ClassifierBoolCriteria{True: "yes", False: "no"}}}})
+					if err != nil {
+						return err
+					}
+					check(result)
+					image, err := access.GenerateImages(ctx, "painter", goai.TypedModelRef{Provider: "presence", ID: "painter"}, images.ImagesContext{Input: []images.ImageInput{{Type: "text", Text: "draw"}}})
+					if err != nil {
+						return err
+					}
+					check(image)
+				}
+				return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone(nil), nil })
+			})
+			if _, err := registry.RegisterTask(definition); err != nil {
+				t.Fatal(err)
+			}
+			catalog := &typedCatalog120{ModelRuntime: goai.NewModelRuntime(nil), classifier: &goai.ClassifierModel{Provider: "presence", ID: "judge", Api: "presence-classifier"}, image: &goai.ImageModel{Provider: "presence", ID: "painter", Api: "presence-images"}}
+			store, err := newTestSQLite(t)
+			if err != nil {
+				t.Fatal(err)
+			}
+			h := openHarness(t, store, Options{Registry: registry, Catalog: catalog, PaidModels: true})
+			root(t, h, ModelRef{Provider: "presence", ID: "chat"})
+			record := waitPublicTask(t, h, createPublicTask(t, h, definition, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}}))
+			if record.State.Outcome.Status != "completed" || classCalls.Load() != 1 || imageCalls.Load() != 1 {
+				t.Fatal("paid optional replay failed", record.State.Outcome, classCalls.Load(), imageCalls.Load())
+			}
+		})
+	}
 }

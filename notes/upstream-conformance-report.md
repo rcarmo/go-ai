@@ -4,7 +4,7 @@
 
 Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Native implementation: `/work/go-ai/durable`, authorised SQLite-only, pure Go. The preceding pushed implementation checkpoint is `04726f3` (request-time model/retry authority); image-resource diagnosis is recorded at `1e0f3ad`.
 
-Latest continuation: root Message/durable receipt JSON and provider projection retain absent versus present-empty errorMessage; compaction follows original nullish fallback. Original JSON/runtime tests failed before changes. Strict decoding and exact SDK-only marshal authority are preserved after caught regressions. See [evidence](canonical-compaction-kind.md#optional-provider-error-text). Full API/message/runtime/release acceptance remains open.
+Latest continuation: image/classifier JSON retains optional empty errors; actual QuickJS classifier result omits absent errorMessage/usage, and typed paid calls preserve errors through replay. Public SDK and actual QuickJS baselines failed before fixes. See [evidence](typed-model-results.md). Complete model-tool input/name/output, engine/worker/API/schema/runtime and release acceptance remain open.
 
 ## Earlier queue-production checkpoint
 
@@ -18,7 +18,11 @@ Latest continuation: root Message/durable receipt JSON and provider projection r
 
 The exact input/write shape tests failed before the fixes. Idle progress and continuation already passed and required no speculative runtime changes. A failure/reopen fixture initially tried to close storage already owned/closed by Session; correcting the fixture required no runtime fix. Tests remain in the existing version-neutral transaction suite.
 
-## Latest optional-error verification
+## Latest typed-result verification
+
+Full repository ./... passes26 packages, including root0.742s, durable433.467s/tools20.365s and public consumers13.536s. Ten shuffled repetitions pass public SDK0.381s/durable10.498s; six semantic faults, vet, Staticcheck, logging and register pass. Selected reference264 (200 unchanged +64 probes), original codemode-models7 plus72 supplements (79 total) and original compaction110 plus72 supplements (182 total) pass, zero skipped. Analysed logs/overlays are removed. D09/D13 current evidence is condensed to remove superseded contradictions; linked history remains and no disposition closes.
+
+## Previous optional-error verification
 
 Full repository ./... passes26 packages, including root0.699s, durable433.921s/tools24.354s and public consumers12.641s. Ten shuffled presence/trim repetitions11.563s and replay/presence repetitions4.502s pass. Five presence/strict/projection faults plus one broad-authority fault are rejected; vet, Staticcheck, logging and register pass. Selected reference263 (200 unchanged +63 probes) and separate original compaction181 pass, zero skipped. Analysed logs/overlays are removed. The first full run failed unchanged durable replay controls420.884s; the exact library-type fix passes without relaxing caller wrappers. No failing receipt is relabelled green.
 

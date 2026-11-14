@@ -678,3 +678,17 @@ it("distinguishes absent and present-empty provider errors in compaction failure
   }finally{await harness.close(context)}
  }
 });
+
+it("keeps optional errors and usage in actual internal model-tool projections",async()=>{
+ const {createModelTools}=await import("@pinned/model-tools"),{createModels,createProvider}=await import("@reference/pi-ai");
+ const cost={input:0,output:0,cacheRead:0,cacheWrite:0};
+ for(const errorMessage of [undefined,"","failed"]){
+  const models=createModels();const result=(model:any,kind:string)=>({api:model.api,provider:model.provider,model:model.id,...(kind==="classifier"?{answers:{}}:{output:[]}),stopReason:"error",timestamp:0,...(errorMessage===undefined?{}:{errorMessage})});
+  models.setProvider(createProvider({id:"presence",auth:{apiKey:{name:"Presence",resolve:async()=>({auth:{}})}},models:[{id:"judge",name:"Judge",api:"presence-classifier",provider:"presence",baseUrl:"https://example.invalid",input:["text"],cost,type:"classifier",contextWindow:1000},{id:"painter",name:"Painter",api:"presence-images",provider:"presence",baseUrl:"https://example.invalid",input:["text"],output:["image"],cost,type:"image"}],classifiers:{"presence-classifier":{classify:async(model:any)=>result(model,"classifier")}},images:{"presence-images":{generateImages:async(model:any)=>result(model,"image")}}}));
+  for(const tool of createModelTools()){
+   const classifier=tool.name.endsWith("classify"),model={provider:"presence",id:classifier?"judge":"painter"};const input=classifier?{state:{},questions:{q:{type:"bool",instructions:"yes?",criteria:{true:"yes",false:"no"}}}}:{input:[{type:"text",text:"draw"}]};
+   const response=await tool.execute({model,context:input},{models} as any,context);const value=response.structuredOutput as any;
+   expect(Object.hasOwn(value,"errorMessage")).toBe(errorMessage!==undefined);if(errorMessage!==undefined)expect(value.errorMessage).toBe(errorMessage);expect(Object.hasOwn(value,"usage")).toBe(false);expect(response.isError).toBe(true);
+  }
+ }
+});

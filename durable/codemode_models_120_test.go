@@ -22,7 +22,7 @@ func TestCodemode120QuickJSClassifierGlobalOptInAndReplay(t *testing.T) {
 		}})
 		registry := NewRegistry()
 		def := taskDefinition(t, "model-global-parent", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
-			code := `if(ALL_TOOLS.length!==0)throw Error("hidden model tools");let rejected=false;try{await models.classify(null,{})}catch(e){rejected=true}if(!rejected)throw Error("invalid model");const result=await models.classify({provider:"test",id:"judge"},{state:{},questions:{yes:{type:"bool",instructions:"yes?",criteria:{true:"yes",false:"no"}}}});return result.answers.yes.probability;`
+			code := `if(ALL_TOOLS.length!==0)throw Error("hidden model tools");let rejected=false;try{await models.classify(null,{})}catch(e){rejected=true}if(!rejected)throw Error("invalid model");const result=await models.classify({provider:"test",id:"judge"},{state:{},questions:{yes:{type:"bool",instructions:"yes?",criteria:{true:"yes",false:"no"}}}});if("errorMessage" in result)throw Error("absent classifier errorMessage became present");if("usage" in result)throw Error("absent classifier usage became present");return result.answers.yes.probability;`
 			result, err := r.RunCodemode(ctx, "run", code, sandbox)
 			if err != nil {
 				return err

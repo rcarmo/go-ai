@@ -112,7 +112,14 @@ func paidModelRegistration(name string, kind goai.ModelType) ToolRegistration {
 				stopReason = goai.StopReasonError
 				errorMessage = "Invalid classifier answers"
 			}
-			output = JSON{"api": result.Api, "provider": result.Provider, "model": result.Model, "answers": answers, "stopReason": stopReason, "timestamp": result.Timestamp, "usage": result.Usage, "errorMessage": errorMessage}
+			classified := JSON{"api": result.Api, "provider": result.Provider, "model": result.Model, "answers": answers, "stopReason": stopReason, "timestamp": result.Timestamp}
+			if result.Usage != nil {
+				classified["usage"] = result.Usage
+			}
+			if result.ErrorMessagePresent || errorMessage != "" {
+				classified["errorMessage"] = errorMessage
+			}
+			output = classified
 			usage = result.Usage
 			stop = string(stopReason)
 		case goai.ModelTypeImage:

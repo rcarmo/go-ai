@@ -1,8 +1,8 @@
 // Package goai — core types for the unified LLM API.
 //
-// These types mirror @earendil-works/pi-ai's type system exactly,
-// enabling serialization-compatible context hand-off between the
-// TypeScript and Go implementations.
+// These types target the pinned @earendil-works/pi-ai contracts.
+// Complete union/API and serialization acceptance remains open; see
+// docs/upstream-v1.5.0/README.md for the current evidence and gaps.
 package goai
 
 import "encoding/json"
