@@ -2,8 +2,10 @@ package durable
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -1752,5 +1754,157 @@ func TestSourcePublicCommitReturnsCallbackValue(t *testing.T) {
 				t.Error("callback error poisoned Session", got, err)
 			}
 		})
+	}
+}
+
+// The entry assertions from session-tables.test.ts:136-189 and306-331 at
+// f9a26365, through the public draft constructor. Conversation/task constructor
+// assertions and source publication-object identity are not accepted here.
+func TestSourceTxAppendEntryDraftReturnsRecord(t *testing.T) {
+	store := taskConformanceStoreV150(t)
+	session, err := OpenSession(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close(bg)
+	var first, headed Entry
+	value, err := session.Commit(bg, func(tx *Tx) (any, error) {
+		appendEntry, ok := any(tx.AppendEntry).(func(ID, JSON) (Entry, error))
+		if !ok {
+			t.Fatal("source AppendEntry(conversation, draft) record-result signature missing")
+		}
+		var err error
+		first, err = appendEntry(1, JSON{"kind": "note", "data": "one"})
+		if err != nil {
+			return nil, err
+		}
+		headed, err = appendEntry(1, JSON{"kind": "summary", "head": "self"})
+		return headed, err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.ID == 0 || headed.ID == 0 || first.ID == headed.ID || headed.Head != headed.ID {
+		t.Fatal("minted identities/self head", first, headed)
+	}
+	if first.Conversation != 1 || first.Kind != "note" || !first.HasData || first.Data != "one" || first.ByTask != 0 {
+		t.Fatal("complete returned record", first)
+	}
+	if !reflect.DeepEqual(value, headed) {
+		t.Fatal("commit replaced constructor record", value, headed)
+	}
+	for _, want := range []Entry{first, headed} {
+		stored, found, err := store.Entry(bg, want.ID)
+		if err != nil || !found {
+			t.Fatal(found, err)
+		}
+		gotWire, e := stored.Entry.MarshalJSON()
+		if e != nil {
+			t.Fatal(e)
+		}
+		wantWire, e := want.MarshalJSON()
+		if e != nil || string(gotWire) != string(wantWire) {
+			t.Fatal("stored/returned record differs", string(gotWire), string(wantWire), e)
+		}
+	}
+}
+func TestSourceTxAppendEntryTakesJSONOwnership(t *testing.T) {
+	store := taskConformanceStoreV150(t)
+	session, err := OpenSession(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close(bg)
+	payload := JSON{"nested": JSON{"value": 1}}
+	value, err := session.Commit(bg, func(tx *Tx) (any, error) {
+		appendEntry, ok := any(tx.AppendEntry).(func(ID, JSON) (Entry, error))
+		if !ok {
+			t.Fatal("source draft constructor missing")
+		}
+		entry, err := appendEntry(1, JSON{"kind": "data", "data": payload})
+		payload["nested"].(JSON)["value"] = 2
+		return entry, err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	entry := value.(Entry)
+	stored, found, err := store.Entry(bg, entry.ID)
+	if err != nil || !found {
+		t.Fatal(found, err)
+	}
+	if !reflect.DeepEqual(stored.Entry.Data, map[string]any{"nested": map[string]any{"value": json.Number("1")}}) {
+		t.Fatal("caller mutation changed stored data", stored.Entry.Data)
+	}
+	for _, draft := range []JSON{{"kind": "omitted"}, {"kind": "null", "data": nil}, {"kind": "empty", "model": []any{}, "edits": []any{}}} {
+		value, err = session.Commit(bg, func(tx *Tx) (any, error) { return any(tx.AppendEntry).(func(ID, JSON) (Entry, error))(1, draft) })
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := value.(Entry)
+		stored, found, err = store.Entry(bg, got.ID)
+		if err != nil || !found {
+			t.Fatal(found, err)
+		}
+		for _, record := range []Entry{got, stored.Entry} {
+			wire, err := record.MarshalJSON()
+			if err != nil {
+				t.Fatal(err)
+			}
+			obj := dropinJSON(t, wire).(map[string]any)
+			_, hasData := obj["data"]
+			_, wantData := draft["data"]
+			if hasData != wantData {
+				t.Fatal("data presence changed", obj, draft)
+			}
+			if draft["kind"] == "empty" && (obj["model"] == nil || obj["edits"] == nil) {
+				t.Fatal("explicit empty arrays omitted", obj)
+			}
+		}
+	}
+	before, err := store.Snapshot(bg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = session.Commit(bg, func(tx *Tx) (any, error) {
+		return any(tx.AppendEntry).(func(ID, JSON) (Entry, error))(1, JSON{"kind": "invalid", "data": math.NaN()})
+	})
+	if err == nil {
+		t.Fatal("non-strict JSON accepted")
+	}
+	after, err := store.Snapshot(bg)
+	if err != nil || after.Seq != before.Seq {
+		t.Fatal("invalid draft stored", before.Seq, after.Seq, err)
+	}
+}
+func TestSourceTxAppendEntryMissingConversationBeforeMint(t *testing.T) {
+	store := taskConformanceStoreV150(t)
+	session, err := OpenSession(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close(bg)
+	_, err = session.Commit(bg, func(tx *Tx) (any, error) {
+		appendEntry, ok := any(tx.AppendEntry).(func(ID, JSON) (Entry, error))
+		if !ok {
+			t.Fatal("source draft constructor missing")
+		}
+		high := tx.state.HighWater
+		_, err := appendEntry(12345, JSON{"kind": "note"})
+		if err == nil || err.Error() != "Conversation 12345 does not exist" {
+			t.Fatal("source missing-conversation error changed", err)
+		}
+		if tx.state.HighWater != high {
+			t.Fatal("missing conversation minted an ID")
+		}
+		_, _, err = tx.Entry(1)
+		var fenced *ReadAfterWrite
+		if !errors.As(err, &fenced) {
+			t.Fatal("failed entry write did not fence table reads", err)
+		}
+		return nil, nil
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 }

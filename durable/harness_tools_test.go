@@ -1288,18 +1288,16 @@ func TestSourceToolAPICommitReturnsValuesAndAttributedEntry(t *testing.T) {
 					return ToolResult{IsError: true}, nil
 				}
 				value, err := values.Commit(ctx, func(tx *Tx) (any, error) {
-					id, err := tx.MintID()
-					if err != nil {
-						return nil, err
+					appendEntry, ok := any(tx.AppendEntry).(func(ID, JSON) (Entry, error))
+					if !ok {
+						return nil, errors.New("source draft/record append signature missing")
 					}
-					if err := tx.AppendEntry(Entry{ID: id, Conversation: api.runtime.ConversationID(), Kind: "test.note", HasData: true, Data: JSON{"probe": true}}); err != nil {
-						return nil, err
-					}
-					return id, nil
+					return appendEntry(api.runtime.ConversationID(), JSON{"kind": "test.note", "data": JSON{"probe": true}})
 				})
-				committed, ok = value.(ID)
-				if err != nil || !ok || committed == 0 {
-					t.Error("tool commit lost its callback ID value", value, err)
+				entry, ok := value.(Entry)
+				committed = entry.ID
+				if err != nil || !ok || committed == 0 || entry.ByTask != api.TaskID() || entry.Kind != "test.note" {
+					t.Error("tool commit lost its constructor record/attribution", value, err)
 				}
 				marker := &struct{ Cycle any }{}
 				marker.Cycle = marker
