@@ -21,6 +21,8 @@ type inheritedUTF16Main struct{ goai.UTF16String }
 type inheritedMessageMain struct{ goai.Message }
 type inheritedClassifierMain struct{ goai.ClassifierResult }
 type inheritedImagesMain struct{ images.AssistantImages }
+type inheritedImageInputMain struct{ images.ImageInput }
+type inheritedImageOutputMain struct{ images.ImageOutput }
 
 func TestStreamingArgumentsMainDurableReplay(t *testing.T) {
 	raw := []byte(`{"role":"assistant","content":[{"type":"toolCall","id":"c","name":"f","arguments":{"\ud800":"\udfff","n":9007199254740993},"argumentsError":"bad \ud800"}]}`)
@@ -125,7 +127,7 @@ func TestStreamingArgumentsMainBoundaryIsolation(t *testing.T) {
 	if _, err := encodeBounded(tool, DefaultLimits(), 4096); err == nil {
 		t.Fatal("native mode relaxed finite-number check")
 	}
-	for _, value := range []any{callerStreamingMain{}, &callerStreamingMain{}, inheritedStreamingMain{}, inheritedUTF16Main{}, inheritedMessageMain{}, &inheritedMessageMain{}, inheritedClassifierMain{}, &inheritedClassifierMain{}, inheritedImagesMain{}, &inheritedImagesMain{}} {
+	for _, value := range []any{callerStreamingMain{}, &callerStreamingMain{}, inheritedStreamingMain{}, inheritedUTF16Main{}, inheritedMessageMain{}, &inheritedMessageMain{}, inheritedClassifierMain{}, &inheritedClassifierMain{}, inheritedImagesMain{}, &inheritedImagesMain{}, inheritedImageInputMain{}, &inheritedImageInputMain{}, inheritedImageOutputMain{}, &inheritedImageOutputMain{}} {
 		if _, err := encodeBounded(value, DefaultLimits(), 4096); err == nil {
 			t.Fatal("caller wrapper inherited native privilege")
 		}

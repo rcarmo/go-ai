@@ -57,21 +57,44 @@ func validatePaidClassifierContext(input goai.ClassifierContext) error {
 	}
 	return nil
 }
+
+// Source checkImagesContext checks required field types on the original
+// object; typed zero values alone cannot distinguish missing from empty.
+func validatePaidImageInput(context map[string]any) error {
+	input, ok := context["input"].([]any)
+	if !ok || len(input) == 0 {
+		return reject("image input must be a nonempty array")
+	}
+	for _, value := range input {
+		block, ok := value.(map[string]any)
+		if !ok {
+			return reject("invalid image input block")
+		}
+		switch block["type"] {
+		case "text":
+			if _, ok := block["text"].(string); !ok {
+				return reject("image text must be a string")
+			}
+		case "image":
+			if _, ok := block["data"].(string); !ok {
+				return reject("image data must be a string")
+			}
+			if _, ok := block["mimeType"].(string); !ok {
+				return reject("image mimeType must be a string")
+			}
+		default:
+			return reject("invalid image input type")
+		}
+	}
+	return nil
+}
+
 func validatePaidImageContext(input images.ImagesContext) error {
 	if len(input.Input) == 0 {
 		return reject("nonempty image input required")
 	}
 	for _, item := range input.Input {
-		switch item.Type {
-		case "text":
-			if item.Text == "" {
-				return reject("image text prompt required")
-			}
-		case "image":
-			if item.Data == "" || item.MimeType == "" {
-				return reject("image data/mimeType required")
-			}
-		default:
+		if item.Type != "text" && item.Type != "image" {
 			return reject("invalid image input type")
 		}
 	}

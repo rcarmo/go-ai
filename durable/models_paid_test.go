@@ -19,7 +19,7 @@ func TestModels120PaidValidationAndReservedAuthority(t *testing.T) {
 	if e := validatePaidImageContext(images.ImagesContext{}); e == nil {
 		t.Fatal("empty image input accepted")
 	}
-	if e := validatePaidImageContext(images.ImagesContext{Input: []images.ImageInput{{Type: "image", Data: "x"}}}); e == nil {
+	if e := validatePaidImageInput(map[string]any{"input": []any{map[string]any{"type": "image", "data": "x"}}}); e == nil {
 		t.Fatal("missing MIME accepted")
 	}
 	registry := NewRegistry()
@@ -810,5 +810,77 @@ func TestSourceClassifierImagesPresenceAndValidation(t *testing.T) {
 	record := waitPublicTask(t, h, createPublicTask(t, h, definition, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}}))
 	if record.State.Outcome.Status != "completed" || effects.Load() != 3 {
 		t.Error("classifier image validation/effects changed", record.State.Outcome, effects.Load())
+	}
+}
+
+// Source checkImagesContext accepts empty strings but requires each selected
+// block field to exist with string type before conversion to the typed DTO.
+func TestSourceImageGenerationEmptyBlockStringsAndRequiredFields(t *testing.T) {
+	for _, target := range []any{&images.ImageInput{}, &images.ImageOutput{}} {
+		if err := decodeStrict([]byte(`{"type":"image","data":"","mimeType":"","unexpected":true}`), DefaultLimits(), 4096, target); err == nil {
+			t.Error("SDK image bridge weakened unknown-field checks", target)
+		}
+	}
+	var effects atomic.Int64
+	images.RegisterImagesApiProvider(&images.ImagesApiProvider{Api: "source-empty-image-blocks", GenerateImages: func(_ *images.ImagesModel, input images.ImagesContext, _ *images.ImagesOptions) (*images.AssistantImages, error) {
+		effects.Add(1)
+		if len(input.Input) != 2 || input.Input[0] != (images.ImageInput{Type: "text"}) || input.Input[1] != (images.ImageInput{Type: "image"}) {
+			t.Error("source image block fields changed before provider", input)
+		}
+		return &images.AssistantImages{Output: []images.ImageOutput{{Type: "text"}, {Type: "image"}}, StopReason: "stop"}, nil
+	}})
+	defer images.UnregisterImagesApiProvider("source-empty-image-blocks")
+	registry := NewRegistry()
+	definition := taskDefinition(t, "source.image-blocks", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+		access, err := r.Models()
+		if err != nil {
+			return err
+		}
+		input := images.ImagesContext{Input: []images.ImageInput{{Type: "text"}, {Type: "image"}}}
+		want := JSON{"input": []any{JSON{"type": "text", "text": ""}, JSON{"type": "image", "data": "", "mimeType": ""}}}
+		produced, err := dtoObject(input, DefaultLimits())
+		if err != nil || !equalJSONValue(produced, want) {
+			t.Error("typed image producer omitted required strings", produced, want, err)
+		}
+		for repeat := 0; repeat < 2; repeat++ {
+			result, err := r.CallTool(ctx, "raw", imagesToolName, JSON{"model": JSON{"provider": "presence", "id": "painter"}, "context": want})
+			if err != nil || result.IsError || !result.HasStructuredOutput {
+				t.Error("source empty image strings rejected", result, err)
+			} else {
+				value, _ := result.StructuredOutput.(map[string]any)
+				if !equalJSONValue(value["output"], want["input"]) {
+					t.Error("image output union lost required empty fields", value["output"], want["input"])
+				}
+			}
+			out, err := access.GenerateImages(ctx, "typed", goai.TypedModelRef{Provider: "presence", ID: "painter"}, input)
+			if err != nil || out == nil || out.StopReason != "stop" || len(out.Output) != 2 {
+				t.Error("typed empty image strings rejected", out, err)
+			}
+		}
+		before := effects.Load()
+		for i, invalid := range []any{nil, []any{}, "not-array", []any{nil}, []any{JSON{"type": "text"}}, []any{JSON{"type": "text", "text": nil}}, []any{JSON{"type": "image", "data": ""}}, []any{JSON{"type": "image", "data": nil, "mimeType": ""}}, []any{JSON{"type": "other", "text": ""}}} {
+			result, err := r.CallTool(ctx, strings.Repeat("invalid", i+1), imagesToolName, JSON{"model": JSON{"provider": "presence", "id": "painter"}, "context": JSON{"input": invalid}})
+			if err != nil || !result.IsError {
+				t.Error("source invalid image input admitted", invalid, result, err)
+			}
+		}
+		if effects.Load() != before {
+			t.Error("invalid image input reached provider", before, effects.Load())
+		}
+		return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone(nil), nil })
+	})
+	if _, err := registry.RegisterTask(definition); err != nil {
+		t.Fatal(err)
+	}
+	store, err := newTestSQLite(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	catalog := &typedCatalog120{ModelRuntime: goai.NewModelRuntime(nil), image: &goai.ImageModel{Provider: "presence", ID: "painter", Api: "source-empty-image-blocks", Input: []string{"text", "image"}}}
+	h := openHarness(t, store, Options{Registry: registry, Catalog: catalog, PaidModels: true})
+	root(t, h, ModelRef{Provider: "presence", ID: "chat"})
+	record := waitPublicTask(t, h, createPublicTask(t, h, definition, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}}))
+	if record.State.Outcome.Status != "completed" || effects.Load() != 2 {
+		t.Error("source image input effects/replay changed", record.State.Outcome, effects.Load())
 	}
 }

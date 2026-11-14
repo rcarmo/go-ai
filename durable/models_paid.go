@@ -136,6 +136,9 @@ func paidModelRegistration(name string, kind goai.ModelType) ToolRegistration {
 			if !ok {
 				return ToolResult{}, reject("invalid image context")
 			}
+			if err := validatePaidImageInput(object); err != nil {
+				return ToolResult{}, err
+			}
 			data, err := encodeBounded(object, h.session.limits, h.session.limits.MaxRecordBytes)
 			if err != nil {
 				return ToolResult{}, err

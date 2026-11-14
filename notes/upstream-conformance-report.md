@@ -4,7 +4,7 @@
 
 Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Native implementation: `/work/go-ai/durable`, authorised SQLite-only, pure Go. The preceding pushed implementation checkpoint is `04726f3` (request-time model/retry authority); image-resource diagnosis is recorded at `1e0f3ad`.
 
-Latest continuation: optional classifier image arrays preserve absence versus supplied empty/nonempty values through public SDK JSON and real paid/provider normalization. The internal tool checks image fields before typed decoding, rejecting malformed inputs without effects. See [evidence](typed-model-results.md#optional-classifier-image-arrays-and-validation). Complete context/error/union, ToolTask/runtime/migration, worker/API/Storage and release acceptance remain open.
+Latest continuation: image-generation input/output union arms retain required empty text/data/MIME strings through public and bounded SDK JSON plus actual paid calls/replay. Original objects validate before typed decoding; malformed inputs reject without effects. See [evidence](typed-model-results.md#image-generation-content-unions). Complete unions/errors, canonical generation/ToolTask/runtime/migration, worker/API/Storage and release acceptance remain open.
 
 ## Earlier queue-production checkpoint
 
@@ -18,7 +18,11 @@ Latest continuation: optional classifier image arrays preserve absence versus su
 
 The exact input/write shape tests failed before the fixes. Idle progress and continuation already passed and required no speculative runtime changes. A failure/reopen fixture initially tried to close storage already owned/closed by Session; correcting the fixture required no runtime fix. Tests remain in the existing version-neutral transaction suite.
 
-## Latest classifier-image verification
+## Latest image-content verification
+
+Full repository ./... passes26 packages: root0.841s, durable444.877s/tools20.573s and public consumers11.752s. Eight semantic faults, ten shuffled SDK/native repetitions0.213s/34.278s, vet/Staticcheck/logging/register pass. Selected original267 (200 unchanged +67 probes) and original codemode-models7+75 supplements82 pass, zero skipped. Analysed temporary logs/overlays are removed. Complete image/context/criteria/error/optional unions, canonical generation/ToolTask/migration, worker/API/Storage and pre-release acceptance remain open. D09/D13/D22 current evidence is condensed; historical receipts remain and no disposition closes. The stale reference to exported CommitDeferred is corrected: there is no public source CommitOptions argument, while private deferred entries remain.
+
+## Previous classifier-image verification
 
 Full repository ./... passes26 packages: root0.750s, durable425.515s/tools20.279s and public consumers13.255s. Seven semantic faults, ten shuffled repetitions SDK0.180s/durable13.085s, vet/Staticcheck/logging/register pass. Selected original266 and separate codemode81 pass, zero skipped. Analysed temporary logs/overlays are removed. Complete image/context/criteria/error unions, canonical ToolTask/runtime/migrations, worker/API/Storage and pre-release acceptance remain open.
 

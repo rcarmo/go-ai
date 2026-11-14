@@ -14,11 +14,15 @@ bun run scripts/check-durable-session-oracles.mjs --upstream /path/to/pinned/pi 
 bun run scripts/check-durable-session-oracles.mjs --upstream /path/to/pinned/pi --file test/tools-images.test.ts --case 'gives the same result as the calling thread'
 ```
 
-The selected mode now passes **200 unchanged cases +66 independent probes**:192 tests in ten original files (including all11 input-entry cases), eight unchanged Storage conformance cases and66 probes. It reports zero skipped/todo cases. The runner reports266 total cases:192 original-file cases plus74 supplemental cases; the supplemental total includes those eight unchanged conformance cases.
+The selected mode now passes **200 unchanged cases +67 independent probes**:192 tests in ten original files (including all11 input-entry cases), eight unchanged Storage conformance cases and67 probes. It reports zero skipped/todo cases. The runner reports267 total cases:192 original-file cases plus75 supplemental cases; the supplemental total includes those eight unchanged conformance cases.
 
 `--all` discovers all 99 files under `packages/durable/test`. It starts a fresh Vitest process per file, one worker at a time, with a384 MiB V8 heap cap (768 MiB for the image file). A single process for the whole corpus previously stopped this 2 GiB workspace with an OOM; the sharded attempts completed without a workspace OOM. Subprocess failures remain failures, not skips. The full command continues to collect failures and exits nonzero if any group failed. JSON reports and transform caches are temporary and deleted on exit.
 
 Current probes also require exact empty, submissionId-only and entryId-only CompactionResult arms. The latest selected258 and separate original compaction176 cases pass, zero skipped.
+
+## Image-generation content
+
+An added original-source probe executes real createModelTools/provider machinery with empty text/image data/MIME fields, compares the full input/output block packet and done text, then rejects nine missing/null/type-invalid inputs with one provider effect total. Selected267 and original codemode-models7+75 supplements82 pass, zero skipped.
 
 ## Classifier images
 

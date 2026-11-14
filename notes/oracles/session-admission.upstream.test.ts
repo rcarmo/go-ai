@@ -726,3 +726,12 @@ it("accepts empty classifier strings and one score level in the original interna
  for(const question of[{type:"choice",instructions:"",criteria:{}},{type:"score",instructions:"",criteria:[]},{type:"bool",instructions:"",criteria:{true:""}},{type:"other",instructions:"",criteria:{}}])await expect(tool.execute({model:{provider:"empty",id:"judge"},context:{state:{},questions:{"":question}}},{models} as any,context)).rejects.toThrow();
  expect(seen).toHaveLength(5);
 });
+
+it("retains empty image block strings and rejects missing fields in the original model tool",async()=>{
+ const {createModelTools}=await import("@pinned/model-tools"),{createModels,createProvider}=await import("@reference/pi-ai");
+ const seen:any[]=[];const blocks=[{type:"text",text:""},{type:"image",data:"",mimeType:""}];const models=createModels();models.setProvider(createProvider({id:"presence",auth:{apiKey:{name:"Presence",resolve:async()=>({auth:{}})}},models:[{id:"painter",name:"Painter",api:"empty-images",provider:"presence",baseUrl:"https://example.invalid",input:["text","image"],output:["text","image"],cost:{input:0,output:0,cacheRead:0,cacheWrite:0},type:"image"}],images:{"empty-images":{generateImages:async(_model:any,input:any)=>{seen.push(input);return{api:"empty-images",provider:"presence",model:"painter",output:blocks,stopReason:"stop",timestamp:0}}}}}));
+ const tool=createModelTools().find(tool=>tool.name.endsWith("generateImages"))!;const result=await tool.execute({model:{provider:"presence",id:"painter"},context:{input:blocks}},{models} as any,context);
+ expect(seen).toEqual([{input:blocks}]);expect((result.structuredOutput as any).output).toEqual(blocks);expect(result.output).toEqual([{type:"text",text:"generateImages presence/painter done"}]);
+ for(const input of [null,[],"not-array",[null],[{type:"text"}],[{type:"text",text:null}],[{type:"image",data:""}],[{type:"image",data:null,mimeType:""}],[{type:"other",text:""}]])await expect(tool.execute({model:{provider:"presence",id:"painter"},context:{input}},{models} as any,context)).rejects.toThrow();
+ expect(seen).toHaveLength(1);
+});

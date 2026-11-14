@@ -25,7 +25,7 @@ func isNativeJSONType(t reflect.Type) bool {
 	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
-	return t == nativeReceiptType || t == reflect.TypeFor[goai.Message]() || t == reflect.TypeFor[goai.ClassifierResult]() || t == reflect.TypeFor[images.AssistantImages]() || t == reflect.TypeFor[readonlyJSON]() || t == reflect.TypeFor[ImmutableValue]() || t == reflect.TypeFor[NativeTaskExecution]() || t == reflect.TypeFor[TaskState]() || t == reflect.TypeFor[Conversation]() || t == reflect.TypeFor[Submission]() || t == reflect.TypeFor[Entry]() || t == reflect.TypeFor[ProgressSettings]() || t == reflect.TypeFor[CodemodeCall]() || t == nativeUsageType || t == nativeToolCallType || t == nativeContentBlockType || t == nativeUTF16Type || t == nativeArgumentsType
+	return t == nativeReceiptType || t == reflect.TypeFor[goai.Message]() || t == reflect.TypeFor[goai.ClassifierResult]() || t == reflect.TypeFor[images.AssistantImages]() || t == reflect.TypeFor[images.ImageInput]() || t == reflect.TypeFor[images.ImageOutput]() || t == reflect.TypeFor[readonlyJSON]() || t == reflect.TypeFor[ImmutableValue]() || t == reflect.TypeFor[NativeTaskExecution]() || t == reflect.TypeFor[TaskState]() || t == reflect.TypeFor[Conversation]() || t == reflect.TypeFor[Submission]() || t == reflect.TypeFor[Entry]() || t == reflect.TypeFor[ProgressSettings]() || t == reflect.TypeFor[CodemodeCall]() || t == nativeUsageType || t == nativeToolCallType || t == nativeContentBlockType || t == nativeUTF16Type || t == nativeArgumentsType
 }
 func nativeStreamingFields(v reflect.Value) bool {
 	if nativeArgumentDTO(v.Type()) {
@@ -91,6 +91,10 @@ func nativeJSONField(v reflect.Value, field jsonStructField) (reflect.Value, err
 	return value, nil
 }
 func nativeFieldPresent(v reflect.Value, name string) bool {
+	if v.Type() == reflect.TypeFor[images.ImageInput]() || v.Type() == reflect.TypeFor[images.ImageOutput]() {
+		kind := v.FieldByName("Type").String()
+		return kind == "text" && name == "text" || kind == "image" && (name == "data" || name == "mimeType")
+	}
 	if v.Type() == reflect.TypeFor[toolOffer]() && name == "structuredOutputSchema" {
 		return !v.FieldByName("StructuredOutputSchema").IsNil()
 	}

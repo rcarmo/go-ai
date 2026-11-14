@@ -299,3 +299,22 @@ func TestImagesResultOptionalErrorJSON(t *testing.T) {
 		}
 	}
 }
+
+// Source ImagesInputContent/ImagesOutputContent are TextContent | ImageContent;
+// the selected arm's string fields remain required even when empty.
+func TestImagesContentRequiredEmptyStringsJSON(t *testing.T) {
+	for _, test := range []struct {
+		value any
+		want  string
+	}{
+		{images.ImageInput{Type: "text"}, `{"type":"text","text":""}`},
+		{images.ImageInput{Type: "image"}, `{"type":"image","data":"","mimeType":""}`},
+		{images.ImageOutput{Type: "text"}, `{"type":"text","text":""}`},
+		{images.ImageOutput{Type: "image"}, `{"type":"image","data":"","mimeType":""}`},
+	} {
+		data, err := json.Marshal(test.value)
+		if err != nil || string(data) != test.want {
+			t.Error("image union omitted required empty strings", string(data), test.want, err)
+		}
+	}
+}
