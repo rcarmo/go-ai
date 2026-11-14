@@ -34,6 +34,12 @@ The selected mode now passes **200 unchanged cases +55 independent probes**:192 
 - The original Cloudflare suite now passes all36 cases. Both provider E2E files now load, then skip under their original credential gates with isolated HOME. Those live-provider assertions remain unverified, not passing.
 - The image suite still exhausts a768 MiB worker heap, including isolated `gives the same result as the calling thread`. No workspace OOM occurred. The full-corpus command is not green; raising the worker cap did not repair acceptance.
 
+## Bounded image-memory diagnostic
+
+The isolated equality case also failed with a1 MiB V8 young generation at the768 MiB old-generation cap. A further isolated1 GiB old-generation experiment, budgeted against the measured non-reclaimable workspace memory, still exhausted its worker heap. Wait4 resource accounting reported maximum descendant RSS **1,503,332 KiB**, elapsed28.025s, exit1; cgroup oom/oom_kill remained zero. The runner was restored to768 MiB. No assertion, equality engine or image implementation was replaced. The temporary resource-accounting binary/source were deleted after analysis. A rejected optimize-for-size NODE_OPTIONS attempt failed before assertions and provides no test coverage.
+
+This remains a reference resource blocker, not accepted image coverage. Do not infer that merely raising the heap to1 GiB repairs it or that original-worker errors may be ignored.
+
 ## Historical full-corpus result and remaining limits
 
 The 99-file attempt reached every original Node test file. **95 original files completed successfully; four original groups remain unaccepted:**
