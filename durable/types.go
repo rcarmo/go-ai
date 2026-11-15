@@ -205,12 +205,14 @@ type TaskOutcome struct {
 // TaskState is a strict union. Live states own an object checkpoint. Outcomes
 // have no checkpoint/memos; waiting additionally owns On and Policy.
 type TaskState struct {
-	Until      *int64       `json:"until,omitempty"` // required only for sleeping; epoch milliseconds
-	Status     string       `json:"status"`
-	Checkpoint any          `json:"checkpoint,omitempty"`
-	On         []ID         `json:"on,omitempty"`
-	Policy     string       `json:"policy,omitempty"`
-	Outcome    *TaskOutcome `json:"outcome,omitempty"`
+	// Source endedByCrashes marks the returned state, never its stored copy.
+	endedByCrashes string
+	Until          *int64       `json:"until,omitempty"` // required only for sleeping; epoch milliseconds
+	Status         string       `json:"status"`
+	Checkpoint     any          `json:"checkpoint,omitempty"`
+	On             []ID         `json:"on,omitempty"`
+	Policy         string       `json:"policy,omitempty"`
+	Outcome        *TaskOutcome `json:"outcome,omitempty"`
 }
 
 type NativeTaskExecution struct {

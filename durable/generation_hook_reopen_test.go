@@ -3,6 +3,7 @@ package durable
 import (
 	"context"
 	"errors"
+	"reflect"
 	"sync/atomic"
 	"testing"
 
@@ -73,6 +74,10 @@ func TestGenerationHookHeldHandoffReopenDoesNotReplayHooksOrRequests(t *testing.
 		if before.Tasks[owner].Status != "completing" || before.Tasks[childID].Status != "running" {
 			t.Fatal("handoff not held", before.Tasks[owner], before.Tasks[childID])
 		}
+		held, found, err := h.Task(bg, owner)
+		if err != nil || !found || held.State.Status != "completing" {
+			t.Fatal("held public task", held, err)
+		}
 		if err := h.Close(bg); err != nil {
 			t.Fatal(err)
 		}
@@ -98,9 +103,17 @@ func TestGenerationHookHeldHandoffReopenDoesNotReplayHooksOrRequests(t *testing.
 		if final.Tasks[owner].Status != "done" || final.Tasks[childID].Status != "done" || requests.Load() != 2 || hookCalls.Load() != 1 || childRuns.Load() != 2 {
 			t.Fatal("held handoff replayed or failed to retire", requests.Load(), hookCalls.Load(), childRuns.Load())
 		}
-		hold := final.Tasks[owner].Execution.Builtin.Hold
-		if hold.Action != "generation-handoff" || hold.Stage != "final" {
-			t.Fatal("handoff final disposition", hold)
+		// Source finishToolRound completes with the assistant entryId; the
+		// scheduler holds that public outcome while owned children remain.
+		// There is no private generation-handoff envelope in the source.
+		retired, found, err := reopened.Task(bg, owner)
+		if err != nil || !found || held.State.Outcome == nil || held.State.Outcome.Status != "completed" || held.State.Outcome.Result == nil || !held.State.Outcome.Result.Present || !reflect.DeepEqual(retired.State.Outcome, held.State.Outcome) {
+			t.Fatal("handoff final disposition", held, retired, err)
+		}
+		result := generationObject(held.State.Outcome.Result.Value)
+		entry, found, err := reopened.Entry(bg, submissionEntryID(result["entryId"]))
+		if err != nil || !found || entry.Kind != "pi.assistant" {
+			t.Fatal("handoff result entry", entry, err)
 		}
 		if _, err := h.Conversation(bg, 1); !errors.Is(err, ErrClosed) {
 			t.Fatal("closed original harness retained authority", err)

@@ -2,6 +2,12 @@
 
 The sole alignment target is official upstream `v1.5.0` at `f9a26365568127461c47a07a37dcb42c140a3ac5`. GitHub published the stable release at `2026-11-02T11:05:31Z`. Earlier release pins and receipts are historical comparison inputs; they establish no v1.5.0 acceptance. Retained tests, runtime identity and generated-schema/catalogue tooling must follow this release, including required breaking semantics.
 
+## Current findings and plan
+
+The [revised findings and fresh plan](alignment-roadmap.md) supersede older roadmap/checklist claims. All 29 register groups have been reviewed against retained evidence; the assertion-level audit is still incomplete. Last pushed full-tree checkpoint is `89c031e`. The uncommitted production-admission migration fails full durable regression; focused/static passes do not establish integration acceptance. Execution is authorised under plan145; the recovery/abort packet has focused/source/static checks and the integrated tree is red.
+
+The [machine register](durable-parity-gaps.json) separates current evidence from historical evidence and distinguishes the last verified revision from the red worktree. Required scope includes pi-ai, pi-durable, pi-codemode and relevant schema/dependency contracts. Native alternative storage engines are the sole authorised product exclusion.
+
 ## Reproduced inference assessment fixes
 
 [Assessment fixes and verification](assessment-fixes.md) records the 166-fixture validation regression table, short OAuth interval correction, deterministic retry timer checks, catalogue verification and seven inherited durable full-suite failures. The 24 reproduced common-domain validation mismatches are fixed; broader schema/compiler and durable/codemode alignment remain open.
@@ -16,7 +22,7 @@ The sole alignment target is official upstream `v1.5.0` at `f9a26365568127461c47
 
 ## Canonical builtin execution
 
-[Generation2/Tool3 execution](../../notes/canonical-builtin-execution.md) now runs canonical imported/created tasks, migrations and selected model/tool/nested/replay packets. Normal Submit/private producers and complete phase/recovery/provider/control assertions still need migration. Full alignment is incomplete.
+[Generation2/Tool3 execution](../../notes/canonical-builtin-execution.md) runs canonical imported/created tasks, migrations and selected model/tool/nested/replay packets at the pushed checkpoint. Normal Submit now uses these definitions only in the uncommitted, regression-failing migration. Complete phase/recovery/provider/control and remaining private-consumer assertions still need reconciliation.
 
 ## Conversation ownership constructors
 
@@ -50,7 +56,7 @@ The [durable deviation register](durable-deviations.md) tracks current evidence 
 
 The semantic-equivalence request supersedes the earlier direction-before-runtime pauses below. Some earlier diagnoses were fixture-translation errors; the current deviation register and semantic-port receipts reconcile them.
 
-[Parity work packets](parity-work-packets.md) define bounded assignments, source/native entry points, reproduction setup, acceptance tests, dependencies and stop conditions. [Contract decisions](parity-contract-decisions.md) records the afterRun, close/requeue, wait-cycle and refusal/failure conflicts; afterRun and close runtime changes need Rui's explicit direction. [Wait-cycle admission](wait-cycle-admission.md) records the P03 graph analysis and its separate runtime-change pause.
+[Parity work packets](parity-work-packets.md), [contract decisions](parity-contract-decisions.md) and [wait-cycle admission](wait-cycle-admission.md) retain historical investigations and pause decisions. The later authorised direct port supersedes those old direction pauses. Recheck every diagnosis against the pinned source and current implementation; the fresh roadmap governs remaining work.
 
 ## Terminal-only deferred polling
 
@@ -117,4 +123,4 @@ Caller-owned [submission admission](../../notes/submission-admission.md#caller-o
 
 The [current completion report](../../notes/upstream-conformance-report.md) records canonical queued Inbox drafts, the full atomic busy-steer assertion packet and remaining blockers. Latest reference coverage:189 unchanged source cases +49 probes. The full migration is not complete.
 
-Canonical queued write consumption now follows Inbox drafts and defers target transitions to assembly; see the [updated report](../../notes/upstream-conformance-report.md). The [expanded original oracle](../../notes/upstream-oracle.md) reaches all99 Node test files but retains four original fixture/resource failures; it is not a full-oracle pass or native parity claim.
+Canonical queued write consumption now follows Inbox drafts and defers target transitions to assembly; see the [updated report](../../notes/upstream-conformance-report.md). The [expanded original oracle](../../notes/upstream-oracle.md) historically reached all 99 Node test files. Exact catalogue/Chord assets have since been restored and the Cloudflare suite passes; image-worker memory, original credential/platform skips and worker-specific coverage remain unaccepted. Selected counts elsewhere on this page are historical receipts, not cumulative native coverage or a full-oracle pass.

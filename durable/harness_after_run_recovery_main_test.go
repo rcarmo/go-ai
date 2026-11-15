@@ -113,7 +113,13 @@ func mainAfterRecoveryIdle(t *testing.T, c *ConversationHandle) {
 		t.Error("answered run did not become idle", err)
 	}
 }
-func mainAfterRecoveryStart(t *testing.T, p *mainAfterRecoveryProbe, store Storage) (*Harness, *ConversationHandle, Settlement) {
+
+type mainAfterRecoveryRun struct {
+	Record       SubmissionRecord
+	GenerationID ID
+}
+
+func mainAfterRecoveryStart(t *testing.T, p *mainAfterRecoveryProbe, store Storage) (*Harness, *ConversationHandle, mainAfterRecoveryRun) {
 	t.Helper()
 	h := openHarness(t, store, p.options)
 	c := root(t, h, p.ref)
@@ -121,7 +127,13 @@ func mainAfterRecoveryStart(t *testing.T, p *mainAfterRecoveryProbe, store Stora
 	if err != nil {
 		t.Fatal(err)
 	}
-	return h, c, waitSubmission(t, sub)
+	record := waitSubmission(t, sub).Record
+	live := mainAfterRunLive(t, h, c.ID())
+	generation := submissionEntryID(generationObject(live["run"])["taskId"])
+	if generation == 0 {
+		t.Fatal("answered run missing its public generation", live)
+	}
+	return h, c, mainAfterRecoveryRun{Record: record, GenerationID: generation}
 }
 func mainAfterRecoveryOutcome(t *testing.T, h *Harness, id ID) {
 	t.Helper()
@@ -189,7 +201,7 @@ func TestMainAfterRunCrashFinishReasksDrainDoesNot(t *testing.T) {
 		if err != nil || len(inspect.Tasks) != 0 {
 			t.Error("unfinished tasks", inspect, err)
 		}
-		mainAfterRecoveryOutcome(t, h, settled.Task.ID)
+		mainAfterRecoveryOutcome(t, h, settled.GenerationID)
 	})
 }
 
@@ -227,7 +239,7 @@ func TestMainAfterRunAnsweredFinishRestartLimit(t *testing.T) {
 		if count != 1 {
 			t.Error("cutoff consumed queued input", count, later.ID())
 		}
-		mainAfterRecoveryOutcome(t, h, settled.Task.ID)
+		mainAfterRecoveryOutcome(t, h, settled.GenerationID)
 		if err := h.Close(bg); err != nil {
 			t.Error(err)
 		}
@@ -244,7 +256,7 @@ func TestMainAfterRunChildRestartLimitCompletesGeneration(t *testing.T) {
 		store := mainAfterRecoveryCrash(t, h, b.store)
 		h, c = mainAfterRecoveryOpen(t, p, store, c.ID())
 		mainAfterRecoveryIdle(t, c)
-		mainAfterRecoveryOutcome(t, h, settled.Task.ID)
+		mainAfterRecoveryOutcome(t, h, settled.GenerationID)
 		if live := mainAfterRunLive(t, h, c.ID()); live["runFailure"] != nil || live["run"] != nil {
 			t.Error("child cutoff failed or retained answered run", live)
 		}

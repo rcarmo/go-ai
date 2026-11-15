@@ -32,12 +32,20 @@ func (c *ConversationHandle) Reset(ctx context.Context, text string) error {
 		if err != nil {
 			return nil, err
 		}
+		model := []any{}
+		if text != "" {
+			model = append(model, JSON{"role": "user", "content": text, "timestamp": h.session.now()})
+		}
+		record, err := tx.CreateSubmission(SubmissionCreate{Conversation: c.id, Type: "write", Status: "queued"})
+		if err != nil {
+			return nil, err
+		}
 		return nil, inbox.Update(func(value JSON) error {
 			items, ok := value["items"].([]any)
 			if !ok {
 				return reject("inbox shape")
 			}
-			value["items"] = append(items, JSON{"mode": "reset", "content": text})
+			value["items"] = append(items, JSON{"id": record.ID, "mode": "write", "entry": JSON{"kind": "pi.reset", "head": "self", "model": model}})
 			return nil
 		})
 	})
@@ -71,7 +79,7 @@ func (h *Harness) hasQueuedReset(state Snapshot, conversation ID) bool {
 		}
 		items, _ := doc.Value["items"].([]any)
 		for _, item := range items {
-			if object, ok := item.(map[string]any); ok && object["mode"] == "reset" {
+			if object, ok := item.(map[string]any); ok && object["mode"] == "write" && generationObject(object["entry"])["head"] == "self" {
 				return true
 			}
 		}

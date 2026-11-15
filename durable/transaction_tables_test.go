@@ -2813,3 +2813,29 @@ func TestSourceInternalSetTaskOwnsValuesAndStagedTimes(t *testing.T) {
 		t.Fatal("source omitted committed fields were merged", record, found, err)
 	}
 }
+
+// Internal representation control for the source producer: no private input or
+// generation checkpoint may be required after ordinary public admission.
+func TestSubmitCreatesCanonicalGenerationExecution(t *testing.T) {
+	h, c, _, release := busySubmitInFixture(t)
+	defer release()
+	state, err := h.Snapshot(bg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, task := range state.Tasks {
+		if task.Conversation == c.ID() && task.Kind == "pi.generation" && !terminalStatus(task.Status) {
+			found = true
+			if task.Execution == nil || task.Execution.Native == nil {
+				t.Fatal("public admission still requires private generation execution")
+			}
+			if task.Execution.Native.Version != 2 || !equalJSONValue(task.Execution.Native.Input.Value, JSON{}) {
+				t.Fatal(task)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("no generation admitted")
+	}
+}

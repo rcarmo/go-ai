@@ -105,6 +105,7 @@ func TestMainHarnessDeferredPollAfterCrash(t *testing.T) {
 		if err := f.c.Configure(bg, AgentChange{Model: ref, Settings: RequestSettings{Deferred: &goai.DeferredOptions{PollAfterMs: 60000}}}); err != nil {
 			t.Fatal(err)
 		}
+		publications := recordGenerationPublications(t, f.h)
 		sub, err := f.c.Submit(bg, Input{Content: "hi"})
 		if err != nil {
 			t.Fatal(err)
@@ -116,6 +117,10 @@ func TestMainHarnessDeferredPollAfterCrash(t *testing.T) {
 				break
 			}
 		}
+		storedTask := publications.waitTask(t, "poll", "sleeping")
+		if submissionEntryID(taskCheckpointMap(storedTask.State.Checkpoint)["attempt"]) != 1 {
+			t.Fatal("stored poll charged request attempt", storedTask)
+		}
 		state := f.stored()
 		generation, _ := f.live(state)["generation"].(map[string]any)
 		if generation["deferred"] == nil {
@@ -126,6 +131,7 @@ func TestMainHarnessDeferredPollAfterCrash(t *testing.T) {
 		}
 		store := f.crash()
 		f = mainOpenRecovery(t, store, ref, options, clock, math.Inf(1))
+		publications = recordGenerationPublications(t, f.h)
 		clock.Store(61000)
 		if err := f.h.Resume(bg); err != nil {
 			t.Fatal(err)
@@ -146,12 +152,11 @@ func TestMainHarnessDeferredPollAfterCrash(t *testing.T) {
 		if requests.Load() != 1 || polls.Load() != 1 {
 			t.Error("request replayed or wrong fetch count", requests.Load(), polls.Load())
 		}
-		var cp generationCheckpoint
-		if err := fromObject(result.Task.Checkpoint, &cp, f.h.session.limits); err != nil {
-			t.Fatal(err)
-		}
-		if cp.Attempt != 1 {
-			t.Error("poll charged request attempt", cp.Attempt)
+		// Source drops the checkpoint at terminal; inspect the stored poll
+		// invocation instead of inventing a terminal attempt field.
+		polledTask := publications.waitTask(t, "poll", "running")
+		if polledTask.ID != storedTask.ID || submissionEntryID(taskCheckpointMap(polledTask.State.Checkpoint)["attempt"]) != 1 {
+			t.Error("poll charged request attempt", polledTask)
 		}
 		if err := f.h.Close(bg); err != nil {
 			t.Fatal(err)

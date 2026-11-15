@@ -69,8 +69,11 @@ func TestMainSubmissionSourceWhenIdleAfterFailedRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !failedQueueHeld(before, c.ID()) {
-		t.Fatal("fixture did not retain failed queue")
+	inbox := mainContinueBoundaryDocument(t, before, c.ID(), "pi.inbox")
+	items, _ := inbox["items"].([]any)
+	failedLive := mainContinueBoundaryDocument(t, before, c.ID(), "pi.live")
+	if len(items) != 1 || submissionEntryID(generationObject(items[0])["id"]) != queued.ID() || generationObject(failedLive["runFailure"])["reason"] != "model_error" {
+		t.Fatal("fixture did not retain the source failed queue", inbox, failedLive)
 	}
 	if _, err = c.Submit(bg, Input{Type: "input", Content: "steer", WhenBusy: "steer", WhenIdle: "reject"}); !errors.Is(err, ErrConversationIdle) {
 		t.Fatalf("idle after failure: %v", err)

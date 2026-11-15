@@ -68,6 +68,7 @@ func TestGenerationTimer140ProductionClockEarlyFireAndTerminalDisarm(t *testing.
 		h := openHarness(t, b.store, options)
 		t.Cleanup(func() { releaseTaskGate(more); releaseTaskGate(release) })
 		r := root(t, h, ref)
+		_, frames := recordUpstreamWindow(t, r)
 		submitted, err := r.Submit(bg, Input{Content: "input", RequestID: "partial-host-timer"})
 		if err != nil {
 			t.Fatal(err)
@@ -92,55 +93,66 @@ func TestGenerationTimer140ProductionClockEarlyFireAndTerminalDisarm(t *testing.
 		if second.delay != 100*time.Millisecond {
 			t.Fatal("early timer did not retain same clock deadline", second.delay)
 		}
-		var taskID ID
+		view, err := r.View(bg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		liveNode, _ := view.Docs.Get("pi.live")
+		runNode, _ := liveNode.Get("run")
+		idNode, _ := runNode.Get("taskId")
+		taskID := submissionEntryID(idNode.Copy())
+		if taskID == 0 {
+			t.Fatal("no canonical running generation", liveNode.Copy())
+		}
 		partial := func() *MessageReceipt {
 			t.Helper()
-			state, err := h.Snapshot(bg)
+			record, found, err := h.Task(bg, taskID)
+			if err != nil || !found {
+				t.Fatal(record, err)
+			}
+			cp := taskCheckpointMap(record.State.Checkpoint)
+			if cp["partial"] != nil {
+				t.Fatal("partial leaked into task", record)
+			}
+			view, err := r.View(bg)
 			if err != nil {
 				t.Fatal(err)
 			}
-			for _, task := range state.Tasks {
-				if task.Kind != "pi.generation" {
-					continue
-				}
-				var cp generationCheckpoint
-				if err := fromObject(task.Checkpoint, &cp, h.session.limits); err != nil {
-					t.Fatal(err)
-				}
-				if cp.Submission == submitted.ID() {
-					taskID = task.ID
-					if cp.Partial != nil {
-						t.Fatal("partial leaked into durable task checkpoint")
-					}
-					message, err := generationPartial(state, task, cp, h.session.limits)
-					if err != nil {
-						t.Fatal(err)
-					}
-					return message
-				}
+			live, _ := view.Docs.Get("pi.live")
+			message := generationObject(generationObject(generationObject(live.Copy())["generation"])["message"])
+			if message == nil {
+				return nil
 			}
-			return nil
+			var receipt MessageReceipt
+			if err := fromObject(message, &receipt, h.session.limits); err != nil {
+				t.Fatal(err)
+			}
+			return &receipt
 		}
 		if value := partial(); value != nil {
 			t.Fatal("early timer committed partial")
 		}
 		clock.Store(1100)
 		second.timer.fire()
+		// Observe the production watch memory feed; the storage window is
+		// still held. No private checkpoint reads or polling supply the barrier.
+		for {
+			frame := watchReceive(t, frames)
+			message := generationObject(generationObject(frame.value.Docs["pi.live"]["generation"])["message"])
+			if message == nil {
+				continue
+			}
+			var receipt MessageReceipt
+			if err := fromObject(message, &receipt, h.session.limits); err != nil {
+				t.Fatal(err)
+			}
+			if len(receipt.Content) != 1 || receipt.Content[0].Text != "first prefix" {
+				t.Fatal(receipt)
+			}
+			break
+		}
 		ctx, cancel := context.WithTimeout(bg, 3*time.Second)
 		defer cancel()
-		for {
-			if value := partial(); value != nil {
-				if len(value.Content) != 1 || value.Content[0].Text != "first prefix" {
-					t.Fatal(value)
-				}
-				break
-			}
-			select {
-			case <-ctx.Done():
-				t.Fatal(ctx.Err())
-			case <-time.After(time.Millisecond):
-			}
-		}
 		releaseTaskGate(more)
 		third := next()
 		if third.delay != 100*time.Millisecond {

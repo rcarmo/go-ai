@@ -17,6 +17,7 @@ func TestDeferredAbortCancelsRemoteOnceAndReportsFailure(t *testing.T) {
 			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				api := goai.Api("durable-cancel-" + strings.ReplaceAll(t.Name(), "/", "-"))
 				var cancels, polls, reports atomic.Int64
+				cancelError := errors.New("cancel failed")
 				provider := &goai.ApiProvider{Api: api, Stream: func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
 					ch := make(chan goai.Event, 1)
 					ch <- &goai.DoneEvent{Reason: goai.StopReasonDeferred, Message: &goai.Message{Role: goai.RoleAssistant, Content: []goai.ContentBlock{}, StopReason: goai.StopReasonDeferred, Deferred: &goai.DeferredHandle{ID: "job", PollAfterMs: 100000}}}
@@ -39,7 +40,7 @@ func TestDeferredAbortCancelsRemoteOnceAndReportsFailure(t *testing.T) {
 						panic("host callback")
 					}
 					if mode == "error" {
-						return errors.New("cancel failed")
+						return cancelError
 					}
 					return nil
 				}}
@@ -56,36 +57,33 @@ func TestDeferredAbortCancelsRemoteOnceAndReportsFailure(t *testing.T) {
 					reports.Add(1)
 				}})
 				conversation := root(t, h, ModelRef{Provider: goai.ProviderOpenAI, ID: "durable-test"})
+				publications := recordGenerationPublications(t, h)
 				sub, err := conversation.Submit(bg, Input{Content: "go"})
 				if err != nil {
 					t.Fatal(err)
 				}
 				deadline, cancel := context.WithTimeout(bg, 3*time.Second)
 				defer cancel()
-				var id ID
-				for id == 0 {
-					state, err := h.Snapshot(deadline)
-					if err != nil {
-						t.Fatal(err)
-					}
-					for _, task := range state.Tasks {
-						if task.Kind == "pi.generation" {
-							var cp generationCheckpoint
-							if err := fromObject(task.Checkpoint, &cp, h.session.limits); err != nil {
-								t.Fatal(err)
-							}
-							if cp.Phase == "poll" {
-								id = task.ID
-							}
-						}
-					}
-				}
+				record := publications.waitTask(t, "poll", "sleeping")
+				id := record.ID
 				if status, err := h.AbortTask(deadline, id); err != nil || status != "marked" {
 					t.Fatal(status, err)
 				}
 				result := waitSubmission(t, sub)
-				if result.Submission.Status != "aborted" || cancels.Load() != 1 || polls.Load() != 0 {
+				if result.Record.Status != "unanswered" || result.Record.Reason != "aborted" || cancels.Load() != 1 || polls.Load() != 0 {
 					t.Fatal(result, cancels.Load(), polls.Load())
+				}
+				view, err := conversation.View(bg)
+				if err != nil {
+					t.Fatal(err)
+				}
+				live, found := view.Docs.Get("pi.live")
+				if err != nil || !found || !equalJSONValue(live.Copy(), JSON{"runFailure": JSON{"taskId": int(id), "inputs": []any{int(sub.ID())}, "reason": "aborted", "first": int(result.Record.Entry)}}) {
+					t.Fatal("aborted live", live.Copy(), found, err)
+				}
+				ended, err := h.WaitForTask(bg, id)
+				if err != nil || ended.State.Outcome == nil || ended.State.Outcome.Status != "aborted" {
+					t.Fatal("abort outcome", ended, err)
 				}
 				want := int64(0)
 				if mode != "success" {
@@ -97,6 +95,11 @@ func TestDeferredAbortCancelsRemoteOnceAndReportsFailure(t *testing.T) {
 					reportMu.Unlock()
 					t.FailNow()
 				}
+				reportMu.Lock()
+				if mode == "error" && (len(reportErrors) != 1 || reportErrors[0] != cancelError) {
+					t.Error("cancellation error identity lost", reportErrors)
+				}
+				reportMu.Unlock()
 				if status, err := h.AbortTask(bg, id); err != nil || status != "terminal" || cancels.Load() != 1 {
 					t.Fatal("terminal repeated cancellation", status, err, cancels.Load())
 				}

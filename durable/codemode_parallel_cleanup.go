@@ -20,15 +20,19 @@ func (r *TaskRuntime) abortCodemodeChildren(ctx context.Context, key string, jou
 		if doc.Owner != r.taskID || doc.Scope != "task" || doc.Kind != nestedCallDocument || !keys[doc.Key] {
 			continue
 		}
-		var state nestedCallState
-		if err := fromObject(doc.Value, &state, r.harness.session.limits); err != nil {
-			return err
+		id := submissionEntryID(doc.Value["taskId"])
+		if !canonicalToolRecord(snap.Tasks[r.taskID]) {
+			var state nestedCallState
+			if err := fromObject(doc.Value, &state, r.harness.session.limits); err != nil {
+				return err
+			}
+			id = state.Task
 		}
-		child, ok := snap.Tasks[state.Task]
+		child, ok := snap.Tasks[id]
 		if !ok || terminalStatus(child.Status) {
 			continue
 		}
-		if err := r.AbortOwned(ctx, state.Task); err != nil {
+		if err := r.AbortOwned(ctx, id); err != nil {
 			return err
 		}
 	}

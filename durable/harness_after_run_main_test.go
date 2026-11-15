@@ -16,6 +16,7 @@ import (
 // controls, mapped per function below. The original source181/251 assertions
 // are promoted from the saved failure baseline without weakening them.
 type mainAfterRunProbe struct {
+	aborted atomic.Int64
 	mu      sync.Mutex
 	asked   []RunSummary
 	runs    []string
@@ -48,7 +49,12 @@ func mainAfterRunTask(t *testing.T, probe *mainAfterRunProbe) *TaskDefinition {
 				err = tx.appendEntryRecord(Entry{ID: id, Conversation: r.ConversationID(), Kind: "test.tests", Value: JSON{"label": label}, ByTask: r.TaskID()})
 				return taskDone(JSON{"label": label}), err
 			})
-		}}, Abort: taskAbort})
+		}}, Abort: func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+			probe.aborted.Add(1)
+			return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) {
+				return &TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "aborted"}}, nil
+			})
+		}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,7 +146,7 @@ func TestMainAfterRunAnswerTasksHoldRun(t *testing.T) {
 			t.Fatal("requested child list", run)
 		}
 		child, ok, err := h.Task(bg, submissionEntryID(tasks[0]))
-		if err != nil || !ok || child.Owner != submissionEntryID(run["task"]) || child.Background {
+		if err != nil || !ok || child.Owner != submissionEntryID(run["taskId"]) || child.Background {
 			t.Fatal("afterRun ownership/background", child, ok, err)
 		}
 		select {
@@ -186,7 +192,7 @@ func TestMainAfterRunAnswerTasksHoldRun(t *testing.T) {
 		if err != nil || entries.Items[len(entries.Items)-1].Kind != "test.tests" {
 			t.Fatal("child result is not the last entry", entries, err)
 		}
-		generation, ok, err := h.Task(bg, submissionEntryID(run["task"]))
+		generation, ok, err := h.Task(bg, submissionEntryID(run["taskId"]))
 		if err != nil || !ok || generation.State.Outcome == nil || generation.State.Outcome.Status != "completed" || generation.State.Outcome.Result == nil {
 			t.Fatal("generation outcome", generation, ok, err)
 		}
@@ -697,6 +703,7 @@ func TestMainAfterRunStopAnswered(t *testing.T) {
 				if stage == "task" {
 					awaitTaskSignal(t, probe.started)
 				}
+				beforeStop := mainAfterRunLive(t, h, c.ID())
 				if err := c.Abort(bg); err != nil {
 					t.Fatal(err)
 				}
@@ -708,14 +715,27 @@ func TestMainAfterRunStopAnswered(t *testing.T) {
 				if live := mainAfterRunLive(t, h, c.ID()); live["run"] != nil || live["runFailure"] != nil {
 					t.Error("answered Stop failure/live", live)
 				}
-				task, ok, err := h.Task(bg, settlement.Task.ID)
-				if err != nil || !ok || task.State.Outcome == nil || task.State.Outcome.Status != "completed" {
+				// Source generation.abort returns aborted even after answering; the
+				// input stays done and no failure is published (source478).
+				generationID := submissionEntryID(generationObject(beforeStop["run"])["taskId"])
+				task, ok, err := h.Task(bg, generationID)
+				if err != nil || !ok || task.State.Outcome == nil || task.State.Outcome.Status != "aborted" {
 					t.Error("answered Stop outcome", task, ok, err)
 				}
 				status, err := sub.Status(bg)
 				if err != nil || status.Status != "done" || status.Answer != settlement.Record.Answer {
 					t.Error("answered input changed", status, err)
 				}
+				wantRuns := []string{}
+				wantAborted := int64(0)
+				if stage == "task" {
+					wantRuns, wantAborted = []string{"run"}, 1
+				}
+				probe.mu.Lock()
+				if !reflect.DeepEqual(append([]string{}, probe.runs...), wantRuns) || probe.aborted.Load() != wantAborted {
+					t.Error("Stop task runs/aborts", probe.runs, probe.aborted.Load())
+				}
+				probe.mu.Unlock()
 			})
 		})
 	}
@@ -787,7 +807,16 @@ func TestMainAfterRunCloseInFinishReasks(t *testing.T) {
 		if live := mainAfterRunLive(t, h2, c.ID()); len(live) != 0 {
 			t.Error("reopened run", live)
 		}
-		task, ok, err := h2.Task(bg, settlement.Task.ID)
+		resumed, err := h2.Submission(bg, sub.ID())
+		if err != nil {
+			t.Fatal(err)
+		}
+		status, err := resumed.Status(bg)
+		if err != nil || status.Status != "done" || status.Answer != settlement.Record.Answer {
+			t.Fatal("reopened answer changed", status, err)
+		}
+		generationID := submissionEntryID(generationObject(before["run"])["taskId"])
+		task, ok, err := h2.Task(bg, generationID)
 		if err != nil || !ok || task.State.Outcome == nil || task.State.Outcome.Status != "completed" {
 			t.Error("resumed outcome", task, ok, err)
 		}

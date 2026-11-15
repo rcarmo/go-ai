@@ -55,7 +55,7 @@ func canonicalAppendAssistant(tx *Tx, conversation ID, message MessageReceipt) (
 	entry, err := tx.AppendEntry(conversation, JSON{"kind": assistantEntryKind, "model": []any{wire}})
 	return entry.ID, err
 }
-func canonicalConvertPartial(tx *Tx, r *TaskRuntime, live JSON) error {
+func canonicalConvertPartial(tx *Tx, conversation ID, live JSON) error {
 	partial := generationObject(generationObject(live["generation"])["message"])
 	if partial == nil {
 		return nil
@@ -65,7 +65,7 @@ func canonicalConvertPartial(tx *Tx, r *TaskRuntime, live JSON) error {
 		return err
 	}
 	message.StopReason = goai.StopReasonAborted
-	_, err := canonicalAppendAssistant(tx, r.conversation, message)
+	_, err := canonicalAppendAssistant(tx, conversation, message)
 	return err
 }
 func canonicalFailedRun(tx *Tx, r *TaskRuntime, live JSON, boundary *canonicalBoundary, reason, message string) error {
@@ -132,7 +132,7 @@ func canonicalGenerationCutOff(ctx context.Context, task TaskRecord, r *TaskRunt
 		if phase == "finish" {
 			answer = submissionEntryID(generationObject(cp["run"])["answer"])
 		}
-		return canonicalGenerationEndAnswered(ctx, r, answer, true)
+		return canonicalGenerationEndAnswered(ctx, r, answer, true, fmt.Sprintf("The generation was interrupted %s in its %s phase", canonicalCutOffCount(task.Restarts), phase))
 	}
 	return canonicalGenerationFail(ctx, r, "restart_limit", fmt.Sprintf("The generation was interrupted %s in its %s phase", canonicalCutOffCount(task.Restarts), phase))
 }
@@ -200,7 +200,7 @@ func canonicalGenerationPrepare(ctx context.Context, task TaskRecord, r *TaskRun
 		r.reportHostError(envErr, "env")
 	}
 	sections := append(append([]PromptSection{}, agent.Sections...), r.harness.options.Sections...)
-	desired, err := RenderPromptSections(ctx, sections, PromptInput{Conversation: r.conversation, Agent: agent.Configuration, Env: env, Shown: shown, Read: &InvocationReader{r}}, shown, r.reportError)
+	desired, err := RenderPromptSections(ctx, sections, PromptInput{Conversation: r.conversation, Agent: agent.Configuration, Env: env, Shown: shown, Tools: agent.Tools, Messages: view.Messages, Read: &InvocationReader{r}}, shown, r.reportError)
 	if err != nil {
 		return err
 	}
@@ -312,7 +312,7 @@ func canonicalGenerationRequest(ctx context.Context, task TaskRecord, r *TaskRun
 		if err != nil {
 			return nil, err
 		}
-		if err := canonicalConvertPartial(tx, r, live); err != nil {
+		if err := canonicalConvertPartial(tx, r.conversation, live); err != nil {
 			return nil, err
 		}
 		live["generation"] = JSON{"attempt": cp["attempt"]}
@@ -324,7 +324,23 @@ func canonicalGenerationRequest(ctx context.Context, task TaskRecord, r *TaskRun
 	if err != nil {
 		return err
 	}
-	messages := view.Messages
+	messages := append([]MessageReceipt(nil), view.Messages...)
+	var imageState Snapshot
+	for _, message := range messages {
+		if len(message.ImageChunks) != 0 {
+			imageState, err = r.harness.Snapshot(ctx)
+			if err != nil {
+				return err
+			}
+			break
+		}
+	}
+	for i, message := range messages {
+		messages[i], err = hydrateReceiptImages(message, imageState, r.conversation, r.harness.session.limits)
+		if err != nil {
+			return err
+		}
+	}
 	_, agent, err := canonicalGenerationAgent(ctx, r)
 	if err != nil {
 		return err
@@ -358,7 +374,13 @@ func canonicalGenerationRequest(ctx context.Context, task TaskRecord, r *TaskRun
 		return err
 	}
 	declarations := receiptMessage(MessageReceipt{Role: goai.RoleSystem, ToolsAdded: ReplayToolDeclarations(messages)})
-	conversation := &goai.Context{Tools: declarations.ToolsAdded}
+	conversation := &goai.Context{Tools: declarations.ToolsAdded, SystemPrompt: agent.SystemPrompt}
+	if text := promptText(ReplayPromptSections(view.Messages)); text != "" {
+		if conversation.SystemPrompt != "" {
+			conversation.SystemPrompt += "\n\n"
+		}
+		conversation.SystemPrompt += text
+	}
 	for _, message := range messages {
 		conversation.Messages = append(conversation.Messages, receiptMessage(message))
 	}
@@ -494,10 +516,10 @@ func canonicalGenerationPoll(ctx context.Context, task TaskRecord, r *TaskRuntim
 	if err != nil {
 		return err
 	}
-	receipt, err := contributionReceipt(*message, r.harness.session.limits)
-	if err != nil {
-		return err
-	}
+	events := make(chan goai.Event, 1)
+	events <- &goai.DoneEvent{Reason: message.StopReason, Message: message}
+	close(events)
+	receipt, _, _ := r.harness.drainInvocation(r, events, model)
 	return canonicalGenerationClassify(ctx, r, cp, receipt, nil)
 }
 func canonicalGenerationRetry(ctx context.Context, task TaskRecord, r *TaskRuntime) error {
@@ -561,7 +583,7 @@ func canonicalGenerationInterrupted(ctx context.Context, r *TaskRuntime, cp JSON
 		if err != nil {
 			return nil, err
 		}
-		if err := canonicalConvertPartial(tx, r, live); err != nil {
+		if err := canonicalConvertPartial(tx, r.conversation, live); err != nil {
 			return nil, err
 		}
 		live["generation"] = JSON{"attempt": attempt, "retry": JSON{"at": until, "error": message}}
@@ -657,6 +679,8 @@ func canonicalGenerationClassify(ctx context.Context, r *TaskRuntime, cp JSON, m
 	if message.StopReason == goai.StopReasonStop || message.StopReason == goai.StopReasonLength || message.StopReason == goai.StopReasonToolUse {
 		return canonicalGenerationAnswer(ctx, r, message, agent)
 	}
+	// Source failResponse reads runtime.settings at classification. The
+	// phase-cached agent must not freeze policy while the response streams.
 	settings := r.harness.resolvedSettings(RequestSettings{})
 	attempt := int(submissionEntryID(cp["attempt"]))
 	retry := message.StopReason == goai.StopReasonError && !message.ContextOverflow && message.Retryable && settings.Retry.Enabled && attempt <= settings.Retry.MaxRetries
@@ -743,7 +767,7 @@ func canonicalGenerationStartTools(ctx context.Context, r *TaskRuntime, cp JSON,
 	for _, tool := range ReplayToolDeclarations(messages) {
 		offered[tool.Name] = true
 	}
-	sequential := r.harness.resolvedSettings(RequestSettings{}).ToolExecution == "sequential"
+	sequential := agent.Settings.ToolExecution == "sequential"
 	_, pins, _, _, err := r.phaseSelection().selectedGeneration(r.harness.selectionAgent(agent), r.harness.session.limits, r.reportError)
 	if err != nil {
 		return err
@@ -1027,12 +1051,49 @@ func canonicalGenerationFinishTools(ctx context.Context, r *TaskRuntime, cp JSON
 				return nil, err
 			}
 		}
+		last := submissionEntryID(cp["assistant"])
+		for _, id := range results {
+			if id > last {
+				last = id
+			}
+		}
 		if handoff != nil {
 			entry, err := tx.AppendEntry(r.conversation, JSON{"kind": "pi.reset", "head": "self", "model": []any{JSON{"role": "user", "content": *handoff, "timestamp": r.harness.session.now()}}})
 			if err != nil {
 				return nil, err
 			}
 			boundary.head = entry.ID
+			last = entry.ID
+		}
+		if terminate {
+			for _, hook := range r.phaseSelection().selectedHooks(r.harness.selectionAgent(agent)) {
+				if hook.AfterRun == nil {
+					continue
+				}
+				run := generationObject(live["run"])
+				if submissionEntryID(run["taskId"]) != r.taskID {
+					break
+				}
+				answer := submissionEntryID(cp["assistant"])
+				inputs, _ := run["inputs"].([]any)
+				for _, id := range inputs {
+					if err := tx.SettleSubmission(submissionEntryID(id), SubmissionSettlement{Status: "done", Answer: answer}); err != nil {
+						return nil, err
+					}
+				}
+				run["inputs"], run["afterRun"] = []any{}, JSON{}
+				for _, key := range []string{"generation", "tools", "nestedTools"} {
+					delete(live, key)
+				}
+				first := submissionEntryID(run["first"])
+				if first == 0 {
+					first = answer
+				}
+				if err := doc.Set(live); err != nil {
+					return nil, err
+				}
+				return &TaskState{Status: "running", Checkpoint: JSON{"phase": "finish", "run": JSON{"reason": "terminate", "first": first, "answer": answer, "last": last}}}, nil
+			}
 		}
 		users, first, reset, err := boundary.apply(tx, terminate, r.harness.session.now())
 		if err != nil {
@@ -1115,6 +1176,33 @@ func canonicalAddTools(tx *Tx, conversation ID, names []string) error {
 		}
 	}
 	state.ModelTools.Remove = kept
+	if state.Tools != nil {
+		selected := append([]string{}, (*state.Tools)...)
+		for _, name := range names {
+			present := false
+			for _, existing := range selected {
+				present = present || name == existing
+			}
+			if !present {
+				selected = append(selected, name)
+			}
+		}
+		state.Tools = &selected
+	} else if state.ToolsRemoved != nil {
+		kept := []string{}
+		for _, name := range *state.ToolsRemoved {
+			keep := true
+			for _, added := range names {
+				if name == added {
+					keep = false
+				}
+			}
+			if keep {
+				kept = append(kept, name)
+			}
+		}
+		state.ToolsRemoved = &kept
+	}
 	encoded, err := dtoObject(state, tx.limits)
 	if err != nil {
 		return err
@@ -1189,7 +1277,7 @@ func canonicalGenerationDrain(ctx context.Context, task TaskRecord, r *TaskRunti
 	}
 	return canonicalGenerationEndAnswered(ctx, r, submissionEntryID(taskCheckpointMap(task.State.Checkpoint)["answer"]), false)
 }
-func canonicalGenerationEndAnswered(ctx context.Context, r *TaskRuntime, answer ID, cutoff bool) error {
+func canonicalGenerationEndAnswered(ctx context.Context, r *TaskRuntime, answer ID, cutoff bool, crashMessage ...string) error {
 	return r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
 		var boundary *canonicalBoundary
 		var err error
@@ -1222,7 +1310,11 @@ func canonicalGenerationEndAnswered(ctx context.Context, r *TaskRuntime, answer 
 		if err := doc.Set(live); err != nil {
 			return nil, err
 		}
-		return &TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "completed", Result: &TaskValue{Present: true, Value: JSON{"entryId": answer}}}}, nil
+		completed := &TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "completed", Result: &TaskValue{Present: true, Value: JSON{"entryId": answer}}}}
+		if len(crashMessage) > 0 {
+			completed.endedByCrashes = crashMessage[0]
+		}
+		return completed, nil
 	})
 }
 func canonicalGenerationAbort(ctx context.Context, task TaskRecord, r *TaskRuntime) error {
@@ -1238,8 +1330,12 @@ func canonicalGenerationAbort(ctx context.Context, task TaskRecord, r *TaskRunti
 			if resolveErr == nil && model != nil {
 				var deferred goai.DeferredHandle
 				if fromObject(handle, &deferred, r.harness.session.limits) == nil {
-					if err := goai.CancelDeferred(ctx, model, deferred, &goai.StreamOptions{Telemetry: TelemetryFromContext(ctx)}); err != nil {
-						r.reportError(err)
+					// The Models boundary applies host identity to cancellation too.
+					// Like source cancelDeferred, report a throwing provider without
+					// replacing the durable aborted outcome with a scheduler fault.
+					options := &goai.StreamOptions{Telemetry: TelemetryFromContext(ctx), Identity: goai.MergeClientIdentity(r.harness.options.Identity, nil)}
+					if err := callDeferredCancel(ctx, model, deferred, options); err != nil {
+						r.reportHostError(err, "models")
 					}
 				}
 			}
@@ -1268,7 +1364,7 @@ func canonicalGenerationAbort(ctx context.Context, task TaskRecord, r *TaskRunti
 		if err != nil {
 			return nil, err
 		}
-		if err := canonicalConvertPartial(tx, r, live); err != nil {
+		if err := canonicalConvertPartial(tx, r.conversation, live); err != nil {
 			return nil, err
 		}
 		for _, call := range calls {

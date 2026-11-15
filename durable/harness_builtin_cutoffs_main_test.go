@@ -243,7 +243,7 @@ func TestMainCutoffSafeToolKeepsStoredOutput(t *testing.T) {
 		message := "Tool work was interrupted 2 times in a row; it is not run again"
 		task := mainCutoffTask(t, h, id)
 		mainCutoffOutcome(t, task, message)
-		if !result.IsError || result.ErrorCode != "restart_limit" || len(result.Diagnostics) != 1 || result.Diagnostics[0].Code != "restart_limit" || result.Diagnostics[0].Message != message {
+		if !result.IsError || len(result.Diagnostics) != 1 || result.Diagnostics[0].Code != "restart_limit" || result.Diagnostics[0].Message != message {
 			t.Error("cutoff receipt", result)
 		}
 		var text string

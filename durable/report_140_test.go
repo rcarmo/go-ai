@@ -626,3 +626,117 @@ func TestReport140RuntimeClockPanicKeepsInvocationContext(t *testing.T) {
 		}
 	})
 }
+
+// Source scheduler Runtime.commit and endedByCrashes: report only after the
+// stored decision, and never persist the process-local crash marker.
+// Supplemental rollback/publication probes beside the afterRun source packet.
+func TestRuntimeCrashTerminationReportStoredBoundary(t *testing.T) {
+	for _, mode := range []string{"failed", "completed", "rollback"} {
+		t.Run(mode, func(t *testing.T) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+				reports := make(chan observedReport140, 4)
+				committed := make(chan error, 1)
+				var stored atomic.Bool
+				var count atomic.Int64
+				cause := errors.New("completion rollback")
+				def := taskDefinition(t, "test.crash-report", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+					err := r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) {
+						if mode == "failed" {
+							return &TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "failed", Error: &TaskOutcomeError{Message: "source crash termination", Detail: &TaskValue{Present: true, Value: JSON{"reason": "interrupted"}}}}}, nil
+						}
+						state := taskDone(JSON{"entryId": 7})
+						state.endedByCrashes = "source crash termination"
+						return state, nil
+					})
+					committed <- err
+					return err
+				})
+				h := taskTestHarnessOptions(t, b.store, Options{OnReportWithInfo: func(ctx context.Context, err error, info ReportInfo) {
+					if info.Type != "task_interrupted" {
+						return
+					}
+					count.Add(1)
+					if !stored.Load() {
+						t.Error("crash report before stored outcome")
+					}
+					reports <- observedReport140{err: err, info: info, ctx: ctx}
+				}}, def)
+				guard, err := h.ObserveCommits(CommitObserver{Advance: func(_ context.Context, p CommitPublication) error {
+					for i := 0; i < p.Changes.Len(); i++ {
+						change, _ := p.Changes.Index(i)
+						kind, _ := change.Get("type")
+						if kind.String() != "task" {
+							continue
+						}
+						value, _ := change.Get("value")
+						name, _ := value.Get("kind")
+						state, _ := value.Get("state")
+						status, _ := state.Get("status")
+						if name.String() == def.Kind() && status.String() == "terminal" {
+							stored.Store(true)
+						}
+					}
+					return nil
+				}, End: func(WatchEnd) error { return nil }})
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer guard.Detach()
+				if mode == "rollback" {
+					core := h.session.core
+					original := core.appendFrame
+					installTaskAppend(t, h, core, func(kind byte, ordinal, high uint64, payload []byte) error {
+						if kind == 2 {
+							var commit commitRecord
+							if err := decodeStrict(payload, h.session.limits, h.session.limits.MaxFramePayloadBytes, &commit); err != nil {
+								return err
+							}
+							for _, write := range commit.Writes {
+								if write.Task != nil && write.Task.Kind == def.Kind() && taskHasDecidedOutcome(*write.Task) {
+									return cause
+								}
+							}
+						}
+						if original != nil {
+							return original(kind, ordinal, high, payload)
+						}
+						return nil
+					})
+				}
+				id := createPublicTask(t, h, def, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
+				if err := h.Resume(bg); err != nil {
+					t.Fatal(err)
+				}
+				commitErr := watchReceive(t, committed)
+				if mode == "rollback" {
+					if !errors.Is(commitErr, cause) || count.Load() != 0 || stored.Load() {
+						t.Fatal("rollback reported a completion", commitErr, count.Load(), stored.Load())
+					}
+					return
+				}
+				if commitErr != nil {
+					t.Fatal(commitErr)
+				}
+				report := awaitReport140(t, reports)
+				reason := "restart_limit"
+				if mode == "failed" {
+					reason = "interrupted"
+				}
+				if report.err.Error() != "source crash termination" || report.info.Reason != reason || report.info.Task == nil || report.info.Task.ID != id || report.info.Task.Kind != def.Kind() || report.info.Restarts == nil || *report.info.Restarts != 0 || count.Load() != 1 {
+					t.Fatal("crash report", report, count.Load())
+				}
+				record, found, err := h.Task(bg, id)
+				if err != nil || !found || record.State.endedByCrashes != "" {
+					t.Fatal("stored crash marker", record, err)
+				}
+				wire, err := publicTaskStateJSON(record.State)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if mode == "completed" && !equalJSONValue(wire, JSON{"status": "terminal", "outcome": JSON{"status": "completed", "result": JSON{"entryId": 7}}}) {
+					t.Fatal("completed wire contains crash marker", wire)
+				}
+			})
+		})
+	}
+}

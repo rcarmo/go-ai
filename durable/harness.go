@@ -728,8 +728,10 @@ func contextReceipts(s Snapshot, id ID, l Limits) ([]messageReceipt, error) {
 }
 
 func builtin(tx *Tx, conversation ID, kind string) (*DocumentHandle, error) {
-	if kind == "pi.live" {
-		return tx.AcquireDocument(mountedDocumentDefinitions[1], conversation, nil, nil)
+	for _, definition := range mountedDocumentDefinitions {
+		if definition.options.Kind == kind {
+			return tx.AcquireDocument(definition, conversation, nil, nil)
+		}
 	}
 	for _, d := range tx.state.Documents {
 		if !d.Retired && d.Scope == "conversation" && d.Owner == conversation && d.Kind == kind && d.Key == "" {

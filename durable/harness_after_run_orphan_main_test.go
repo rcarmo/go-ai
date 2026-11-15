@@ -23,8 +23,8 @@ func TestMainAfterRunMissingDefinitionStopOrphans(t *testing.T) {
 			t.Fatal("real after-run child missing", live)
 		}
 		childID := submissionEntryID(tasks[0])
-		parentID := submissionEntryID(run["task"])
-		if parentID != settled.Task.ID {
+		parentID := submissionEntryID(run["taskId"])
+		if parentID != settled.GenerationID {
 			t.Fatal("wrong generation owner", parentID, settled)
 		}
 		child, ok, err := h.Task(bg, childID)
@@ -42,30 +42,25 @@ func TestMainAfterRunMissingDefinitionStopOrphans(t *testing.T) {
 		run = generationObject(live["run"])
 		after = generationObject(run["afterRun"])
 		tasks, ok = after["tasks"].([]any)
-		if !ok || len(tasks) != 1 || submissionEntryID(tasks[0]) != childID || submissionEntryID(run["task"]) != parentID {
+		if !ok || len(tasks) != 1 || submissionEntryID(tasks[0]) != childID || submissionEntryID(run["taskId"]) != parentID {
 			t.Fatal("lost after-run ownership on reopen", live)
 		}
 		ctx, cancel := context.WithTimeout(bg, 3*time.Second)
 		defer cancel()
-		for {
-			view, err := h.Inspect(ctx)
-			if err != nil {
-				t.Fatal(err)
+		// Inspect derives definition fit without scheduling or migration;
+		// the missing definition is directly blocked after reopen.
+		view, err := h.Inspect(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		blocked := false
+		for _, item := range view.Tasks {
+			if item.Record.ID == childID && item.Kind == "blocked" {
+				blocked = true
 			}
-			blocked := false
-			for _, item := range view.Tasks {
-				if item.Record.ID == childID && item.Kind == "blocked" {
-					blocked = true
-				}
-			}
-			if blocked {
-				break
-			}
-			select {
-			case <-ctx.Done():
-				t.Fatal("missing-definition child never inspected blocked", view)
-			case <-time.After(time.Millisecond):
-			}
+		}
+		if !blocked {
+			t.Fatal("missing-definition child not inspected blocked", view)
 		}
 		// A bounded caller cancellation witnesses that public WaitForIdle remains
 		// unsettled; it must not clear or fault the blocked run.
@@ -93,7 +88,12 @@ func TestMainAfterRunMissingDefinitionStopOrphans(t *testing.T) {
 		if err != nil || !ok || child.State.Status != "terminal" || child.State.Outcome == nil || child.State.Outcome.Status != "orphaned" {
 			t.Error("missing-definition child not orphaned", child, ok, err)
 		}
-		mainAfterRecoveryOutcome(t, h, parentID)
+		// generation.abort returns aborted; the already answered input stays
+		// done. Source785 asserts the child's orphaned outcome and no failure.
+		parent, found, err := h.Task(ctx, parentID)
+		if err != nil || !found || parent.State.Outcome == nil || parent.State.Outcome.Status != "aborted" {
+			t.Error("answered Stop task outcome", parent, err)
+		}
 		status := mainCutoffStatus(t, h, settled.Record.ID)
 		if status.Status != "done" || status.Answer != settled.Record.Answer {
 			t.Error("Stop unsettled committed answer", status, settled)

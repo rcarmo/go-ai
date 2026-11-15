@@ -32,12 +32,8 @@ func (r *TaskRuntime) CodemodeTools(ctx context.Context) ([]CodemodeToolDescript
 	if err != nil {
 		return nil, err
 	}
-	object, err := dtoObject(agent.Configuration, r.harness.session.limits)
+	state, err := r.harness.agent(agent.Configuration)
 	if err != nil {
-		return nil, err
-	}
-	var state agentState
-	if err = fromObject(object, &state, r.harness.session.limits); err != nil {
 		return nil, err
 	}
 	offers, _, _, _, err := r.phaseSelection().selectedTools(r.harness.selectionAgent(state), r.harness.session.limits, false, r.reportError)

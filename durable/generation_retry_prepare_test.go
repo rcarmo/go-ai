@@ -3,10 +3,8 @@ package durable
 import (
 	"context"
 	goai "github.com/rcarmo/go-ai"
-	"runtime"
 	"sync/atomic"
 	"testing"
-	"time"
 )
 
 func TestGenerationRetryRepreparesCommittedAgentToolsPromptAfterReopen(t *testing.T) {
@@ -56,42 +54,38 @@ func TestGenerationRetryRepreparesCommittedAgentToolsPromptAfterReopen(t *testin
 			t.Fatal(err)
 		}
 		options.Registry = registry
+		enabled, maximum, delay := true, 1, int64(1000)
+		options.Settings = &HarnessSettings{Retry: &RetrySettings{Enabled: &enabled, MaxRetries: &maximum, BaseDelayMs: &delay}}
 		h := openHarness(t, b.store, options)
-		conversation, err := h.CreateConversation(bg, AgentChange{Model: ref, SystemPrompt: "old prompt", Settings: RequestSettings{Retry: RetryPolicy{Enabled: true, MaxRetries: 1, BaseDelayMs: 1000, MaxDelayMs: 60000}}})
+		conversation, err := h.CreateConversation(bg, AgentChange{Model: ref, SystemPrompt: "old prompt"})
 		if err != nil {
 			t.Fatal(err)
 		}
+		publications := recordGenerationPublications(t, h)
 		sub, err := conversation.Submit(bg, Input{Content: "question"})
 		if err != nil {
 			t.Fatal(err)
 		}
-		deadline, cancel := context.WithTimeout(bg, 3*time.Second)
-		for {
-			_, cp, ok, err := h.nextTask(conversation.ID())
-			if err != nil {
-				t.Fatal(err)
-			}
-			if ok && cp.Phase == "retry" {
-				break
-			}
-			select {
-			case <-deadline.Done():
-				t.Fatal("retry checkpoint deadline", deadline.Err())
-			default:
-				runtime.Gosched()
-			}
+		retryTask := publications.waitTask(t, "retry", "sleeping")
+		if submissionEntryID(taskCheckpointMap(retryTask.State.Checkpoint)["until"]) != 2000 {
+			t.Fatal("retry deadline", retryTask)
 		}
-		cancel()
 		prompt, temperature := "changed prompt", 0.7
 		model := ModelRef{Provider: ref.Provider, ID: "changed-model"}
 		tools := []string{"changed-tool"}
-		if err := conversation.ConfigurePatch(bg, AgentPatch{Model: &model, SystemPrompt: &prompt, Tools: &tools, Settings: &RequestSettings{Temperature: &temperature}}); err != nil {
+		if err := conversation.ConfigurePatch(bg, AgentPatch{Model: &model, SystemPrompt: &prompt, Tools: &tools, Settings: nil}); err != nil {
+			t.Fatal(err)
+		}
+		// Source stream settings belong to HarnessSettings; agent fields are
+		// reread from pi.agent at preparation, not a competing settings surface.
+		if err := h.SetSettings(bg, HarnessSettings{Stream: RequestSettings{Temperature: &temperature}}); err != nil {
 			t.Fatal(err)
 		}
 		if err := h.Close(bg); err != nil {
 			t.Fatal(err)
 		}
 		now.Store(2000)
+		options.Settings = &HarnessSettings{Stream: RequestSettings{Temperature: &temperature}}
 		h = openHarness(t, reopenStoreAfterHarnessClose(t, b.store), options)
 		handle, err := h.Submission(bg, sub.ID())
 		if err != nil {

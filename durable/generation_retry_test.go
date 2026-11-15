@@ -5,7 +5,6 @@ import (
 	goai "github.com/rcarmo/go-ai"
 	"sync/atomic"
 	"testing"
-	"time"
 )
 
 func TestGenerationDurableRetryUsageAndReopenDeadline(t *testing.T) {
@@ -26,52 +25,26 @@ func TestGenerationDurableRetryUsageAndReopenDeadline(t *testing.T) {
 		options.Now = clock.Load
 		wakes := make(chan Wake, 128)
 		options.OnWake = func(w Wake) { wakes <- copyWake(w) }
+		enabled, maximum, delay := true, 1, int64(1000)
+		options.Settings = &HarnessSettings{Retry: &RetrySettings{Enabled: &enabled, MaxRetries: &maximum, BaseDelayMs: &delay}}
 		first := openHarness(t, b.store, options)
-		conversation, err := first.Root(bg, AgentChange{Model: ref, Settings: RequestSettings{Retry: RetryPolicy{Enabled: true, MaxRetries: 1, BaseDelayMs: 1000, MaxDelayMs: 60000}}})
+		conversation, err := first.Root(bg, AgentChange{Model: ref})
 		if err != nil {
 			t.Fatal(err)
 		}
+		publications := recordGenerationPublications(t, first)
 		sub, err := conversation.Submit(bg, Input{Content: "retry"})
 		if err != nil {
 			t.Fatal(err)
 		}
-		deadline, cancel := context.WithTimeout(bg, 3*time.Second)
-		defer cancel()
-		var taskID ID
-		for {
-			state, err := first.Snapshot(deadline)
-			if err != nil {
-				t.Fatal(err)
-			}
-			for _, task := range state.Tasks {
-				if task.Kind == "pi.generation" {
-					var cp generationCheckpoint
-					if err := fromObject(task.Checkpoint, &cp, first.session.limits); err != nil {
-						t.Fatal(err)
-					}
-					if cp.Phase == "retry" {
-						taskID = task.ID
-						if cp.RetryUntil != 2000 || cp.RetryCount != 1 {
-							t.Fatal(cp)
-						}
-						record, err := CanonicalTask(task, first.session.limits)
-						if err != nil || record.State.Status != "sleeping" || record.State.Until == nil || *record.State.Until != 2000 {
-							t.Fatal("retry did not persist sleep", record.State, err)
-						}
-						until := int64(2000)
-						awaitWake140(t, wakes, false, &until)
-					}
-				}
-			}
-			if taskID != 0 {
-				break
-			}
-			select {
-			case <-deadline.Done():
-				t.Fatal("retry checkpoint missing")
-			default:
-			}
+		retryTask := publications.waitTask(t, "retry", "sleeping")
+		taskID := retryTask.ID
+		cp := taskCheckpointMap(retryTask.State.Checkpoint)
+		if submissionEntryID(cp["until"]) != 2000 || submissionEntryID(cp["attempt"]) != 1 || retryTask.State.Until == nil || *retryTask.State.Until != 2000 {
+			t.Fatal("stored retry", retryTask)
 		}
+		until := int64(2000)
+		awaitWake140(t, wakes, false, &until)
 		before, err := first.Snapshot(bg)
 		if err != nil {
 			t.Fatal(err)

@@ -27,12 +27,20 @@ func TestCommittedLiveGenerationPartialAndToolProgressSlots(t *testing.T) {
 			t.Fatal(err)
 		}
 		calls := 0
-		ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
+		ref, options := setupFakeAPI(t, func(ctx context.Context, model *goai.Model, _ *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
 			calls++
 			ch := make(chan goai.Event, 1)
 			if calls == 1 {
 				close(providerEntered)
-				go func() { <-providerRelease; ch <- toolAnswer("live-call", "live-tool", JSON{}); close(ch) }()
+				go func() {
+					defer close(ch)
+					ch <- &goai.TextDeltaEvent{ContentIndex: 0, Delta: "committed partial", Partial: &goai.Message{Role: goai.RoleAssistant, Content: []goai.ContentBlock{{Type: "text", Text: "committed partial"}}, Api: model.Api, Provider: model.Provider, Model: model.ID}}
+					select {
+					case <-providerRelease:
+						ch <- toolAnswer("live-call", "live-tool", JSON{})
+					case <-ctx.Done():
+					}
+				}()
 			} else {
 				ch <- terminal("answer")
 				close(ch)
@@ -40,26 +48,19 @@ func TestCommittedLiveGenerationPartialAndToolProgressSlots(t *testing.T) {
 			return ch
 		})
 		options.Registry = registry
+		zero := int64(0)
+		options.Settings = &HarnessSettings{Progress: &ProgressSettings{PartialIntervalMs: &zero}}
 		h := openHarness(t, b.store, options)
 		conversation := root(t, h, ref)
+		publications := recordGenerationPublications(t, h)
 		sub, err := conversation.Submit(bg, Input{Content: "question"})
 		if err != nil {
 			t.Fatal(err)
 		}
 		awaitTaskSignal(t, providerEntered)
-		state, err := h.Snapshot(bg)
-		if err != nil {
-			t.Fatal(err)
-		}
-		var generation ID
-		for _, task := range state.Tasks {
-			if task.Kind == "pi.generation" {
-				generation = task.ID
-			}
-		}
-		if err := h.commitPartial(generation, MessageReceipt{Role: goai.RoleAssistant, Content: []goai.ContentBlock{{Type: "text", Text: "committed partial"}}, Api: goai.Api("test")}); err != nil {
-			t.Fatal(err)
-		}
+		// Follow the stored partial emitted by the production stream handler;
+		// the retired private commitPartial path does not own canonical runs.
+		publications.waitLive(t, func(live JSON) bool { return generationObject(generationObject(live["generation"])["message"]) != nil })
 		live := readLiveStatus(t, h, conversation.ID())
 		present := live["generation"].(map[string]any)
 		if !equalJSONValue(present["attempt"], 1) || present["message"].(map[string]any)["role"] != string(goai.RoleAssistant) {

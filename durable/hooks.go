@@ -348,7 +348,7 @@ func callAfterTools(ctx context.Context, hook func(context.Context, []MessageRec
 	return hook(ctx, results, &HookAPI{r})
 }
 func detachToolResult(result ToolResult, limits Limits) (ToolResult, error) {
-	blocks, err := detachReceipts([]MessageReceipt{{Role: goai.RoleToolResult, Content: result.Blocks}}, limits)
+	blocks, err := detachReceipts([]MessageReceipt{{Role: goai.RoleToolResult, Content: result.Blocks, IsError: true, ErrorCode: "invalid_arguments", Diagnostics: result.Diagnostics}}, limits)
 	if err != nil {
 		return ToolResult{}, err
 	}
@@ -366,7 +366,7 @@ func detachToolResult(result ToolResult, limits Limits) (ToolResult, error) {
 		Diagnostics         []ToolDiagnostic    `json:"diagnostics"`
 		IsError             bool                `json:"isError"`
 		Control             *ToolControl        `json:"control"`
-	}{result.StructuredOutput, result.HasStructuredOutput || result.StructuredOutput != nil, result.Content, result.Blocks, result.Details, result.DetailsValue, result.HasDetails, result.Usage, result.Diagnostics, result.IsError, result.Control}, limits)
+	}{result.StructuredOutput, result.HasStructuredOutput || result.StructuredOutput != nil, result.Content, result.Blocks, result.Details, result.DetailsValue, result.HasDetails, result.Usage, nil, result.IsError, result.Control}, limits)
 	if err != nil {
 		return ToolResult{}, err
 	}
@@ -386,7 +386,7 @@ func detachToolResult(result ToolResult, limits Limits) (ToolResult, error) {
 	if err = fromObject(value, &copy, limits); err != nil {
 		return ToolResult{}, err
 	}
-	return ToolResult{imageChunks: result.imageChunks, StructuredOutput: copy.StructuredOutput, HasStructuredOutput: copy.HasStructuredOutput, Content: copy.Content, Blocks: originalBlocks, Details: copy.Details, DetailsValue: copy.DetailsValue, HasDetails: copy.HasDetails, Usage: copy.Usage, Diagnostics: copy.Diagnostics, IsError: copy.IsError, Control: copy.Control, Commit: result.Commit, usesRetainedOutput: result.usesRetainedOutput, usesReportedDiagnostics: result.usesReportedDiagnostics}, nil
+	return ToolResult{imageChunks: result.imageChunks, StructuredOutput: copy.StructuredOutput, HasStructuredOutput: copy.HasStructuredOutput, Content: copy.Content, Blocks: originalBlocks, Details: copy.Details, DetailsValue: copy.DetailsValue, HasDetails: copy.HasDetails, Usage: copy.Usage, Diagnostics: blocks[0].Diagnostics, IsError: copy.IsError, Control: copy.Control, Commit: result.Commit, usesRetainedOutput: result.usesRetainedOutput, usesReportedDiagnostics: result.usesReportedDiagnostics}, nil
 }
 
 func callOnYield(ctx context.Context, hook func(context.Context, MessageReceipt, *HookAPI) (*Input, error), message MessageReceipt, r *TaskRuntime) (input *Input, err error) {

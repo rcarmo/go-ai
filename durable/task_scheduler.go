@@ -924,10 +924,7 @@ func (s *taskScheduler) orphan(tx *Tx, task Task, reason string) error {
 	if task.Execution == nil || task.Execution.Native == nil {
 		return reject("orphan generic task envelope missing")
 	}
-	task.Execution.Native.State = TaskState{Status: "terminal", Outcome: &outcome}
-	task.Execution.Native.Memos = nil
-	task.Status = "failed"
-	return tx.stage(Write{Op: "put-task", Task: &task})
+	return s.nativeDecision(tx, task, outcome)
 }
 
 func (s *taskScheduler) fault(tx *Tx, task Task, err error) error {
@@ -963,7 +960,13 @@ func (s *taskScheduler) nativeDecision(tx *Tx, task Task, outcome TaskOutcome) e
 	if runtime != nil {
 		tx.taskStops = append(tx.taskStops, taskStop{runtime: runtime})
 	}
-	return tx.stage(Write{Op: "put-task", Task: &task})
+	if err := tx.stage(Write{Op: "put-task", Task: &task}); err != nil {
+		return err
+	}
+	if task.Status != "completing" {
+		return canonicalSchedulerOutcome(tx, task, outcome)
+	}
+	return nil
 }
 func taskAborted(task Task) bool {
 	if task.Execution != nil {
@@ -1464,6 +1467,9 @@ func (s *taskScheduler) reconcilePass(requireEnabled bool) error {
 					task.Status = outcomeRawStatus(task.Execution.Native.State.Outcome)
 					task.Execution.Native.State.Status = "terminal"
 					if err := tx.stage(Write{Op: "put-task", Task: &task}); err != nil {
+						return err
+					}
+					if err := canonicalSchedulerOutcome(tx, task, *task.Execution.Native.State.Outcome); err != nil {
 						return err
 					}
 				} else {

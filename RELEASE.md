@@ -2,7 +2,15 @@
 
 The sole acceptance target is official upstream **v1.5.0**, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Alignment is unverified. Older entries below are historical receipts, not compatibility requirements or v1.5.0 acceptance. Retained tests and active identity/schema/catalogue/regeneration pins must be reconciled with this release; obsolete behaviour must change.
 
-## Development continuation: canonical builtin execution
+## Findings and plan reset
+
+The [fresh alignment review](docs/upstream-v1.5.0/alignment-roadmap.md) supersedes older roadmap/checklist status. All 29 groups now separate current evidence from historical receipts; complete assertion acceptance is still open. The register's current checkpoint distinguishes pushed `89c031e` from the red uncommitted tree. Execution now follows plan145. Bounded recovery/abort assertions pass; integrated acceptance, new commit/push and release preparation are incomplete.
+
+## Uncommitted production-admission migration
+
+The worktree after89c031e fails complete durable regression; latest durable163.708s failed and panicked in the private BeforeRequest recovery fixture, now corrected; full regression remains red. Canonical production admission and targeted runtime fixes pass focused60.888s and three shuffled9.501s, vet/Staticcheck/logging/register. No commit, push, full-suite/fault/oracle or release acceptance for this migration. [Failures and next actions](notes/canonical-builtin-execution.md#uncommitted-production-admission-migration).
+
+## Previous development continuation: canonical builtin execution
 
 [Source packets, failures and remaining scope](notes/canonical-builtin-execution.md): actual Generation2/Tool3 definitions, input migrations, generic canonical execution and nested pi.tool3 records now pass their focused packets. Full actual26 tested packages pass durable458.890s/tools21.525s/public12.579s, no overlays/exclusions; six compiled faults, ten shuffled canonical repetitions14.008s, static/logging/register and original282/nested125 zero skipped. Normal Submit/private producers and complete phase/provider/control/recovery assertions are not migrated or accepted. Full alignment/release and profiling remain incomplete.
 

@@ -2,10 +2,12 @@
 
 Compact index. Read a linked note only when it is relevant to the current task.
 
+- [Revised alignment findings and fresh plan](../docs/upstream-v1.5.0/alignment-roadmap.md) — all gap groups, current red baseline, corrected diagnoses, priorities and acceptance criteria.
+
 - [Upstream conformance completion report](upstream-conformance-report.md) — latest verified
   implementation checkpoints, exact evidence and remaining migration/release blockers.
 
-- [Canonical builtin execution](canonical-builtin-execution.md) — executable records/migrations, exact passing packets and remaining producer/runtime contracts.
+- [Canonical builtin execution](canonical-builtin-execution.md) — pushed executable records/migrations, uncommitted RED admission migration, exact passing packets and remaining producer/runtime contracts.
 
 - [Submission tool/trace/lifetime](submission-tool-lifetime.md) — literal held-tool boundary, steer links, ended child handles and remaining canonical runtime scope.
 

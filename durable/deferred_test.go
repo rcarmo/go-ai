@@ -2,12 +2,101 @@ package durable
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	goai "github.com/rcarmo/go-ai"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 )
+
+// Public stored publications are the barrier; no private checkpoint or polling.
+// Source harness-generation.test.ts:287-374 and deferred-progress:228-248.
+type generationPublications struct {
+	tasks chan TaskRecord
+	live  chan JSON
+}
+
+func recordGenerationPublications(t *testing.T, h *Harness) *generationPublications {
+	t.Helper()
+	out := &generationPublications{make(chan TaskRecord, 64), make(chan JSON, 64)}
+	guard, err := h.ObserveCommits(CommitObserver{Advance: func(_ context.Context, p CommitPublication) error {
+		for i := 0; i < p.Changes.Len(); i++ {
+			change, _ := p.Changes.Index(i)
+			kind, _ := change.Get("type")
+			value, _ := change.Get("value")
+			switch kind.String() {
+			case "task":
+				name, _ := value.Get("kind")
+				if name.String() != "pi.generation" {
+					continue
+				}
+				raw, err := json.Marshal(value.Copy())
+				if err != nil {
+					return err
+				}
+				var task TaskRecord
+				if err = json.Unmarshal(raw, &task); err != nil {
+					return err
+				}
+				select {
+				case out.tasks <- task:
+				default:
+					return fmt.Errorf("generation publication test capacity exceeded")
+				}
+			case "document":
+				record, _ := change.Get("record")
+				name, _ := record.Get("kind")
+				if name.String() != "pi.live" {
+					continue
+				}
+				select {
+				case out.live <- JSON(value.Copy().(map[string]any)):
+				default:
+					return fmt.Errorf("live publication test capacity exceeded")
+				}
+			}
+		}
+		return nil
+	}, End: func(WatchEnd) error { return nil }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(guard.Detach)
+	return out
+}
+func (p *generationPublications) waitTask(t *testing.T, phase, status string) TaskRecord {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(bg, 3*time.Second)
+	defer cancel()
+	for {
+		select {
+		case task := <-p.tasks:
+			if task.State.Status == status && taskCheckpointMap(task.State.Checkpoint)["phase"] == phase {
+				return task
+			}
+		case <-ctx.Done():
+			t.Fatalf("no stored generation %s/%s", phase, status)
+		}
+	}
+}
+
+func (p *generationPublications) waitLive(t *testing.T, matches func(JSON) bool) JSON {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(bg, 3*time.Second)
+	defer cancel()
+	for {
+		select {
+		case live := <-p.live:
+			if matches(live) {
+				return live
+			}
+		case <-ctx.Done():
+			t.Fatal("no matching stored live publication")
+		}
+	}
+}
 
 func TestDeferredGenerationPollCheckpointReopenNoRedispatch(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
@@ -43,39 +132,18 @@ func TestDeferredGenerationPollCheckpointReopenNoRedispatch(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		publications := recordGenerationPublications(t, first)
 		sub, err := conversation.Submit(bg, Input{Content: "defer"})
 		if err != nil {
 			t.Fatal(err)
 		}
-		ctx, cancel := context.WithTimeout(bg, 3*time.Second)
-		defer cancel()
-		found := false
-		for !found {
-			state, err := first.Snapshot(ctx)
-			if err != nil {
-				t.Fatal(err)
-			}
-			for _, task := range state.Tasks {
-				if task.Kind == "pi.generation" {
-					var cp generationCheckpoint
-					if err := fromObject(task.Checkpoint, &cp, first.session.limits); err != nil {
-						t.Fatal(err)
-					}
-					if cp.Phase == "poll" {
-						found = true
-						if cp.PollAt != 2000 || cp.Deferred.ID != "job" {
-							t.Fatal(cp)
-						}
-						record, err := CanonicalTask(task, first.session.limits)
-						if err != nil || record.State.Status != "sleeping" || record.State.Until == nil || *record.State.Until != 2000 {
-							t.Fatal("poll did not persist sleep", record.State, err)
-						}
-						until := int64(2000)
-						awaitWake140(t, wakes, false, &until)
-					}
-				}
-			}
+		record := publications.waitTask(t, "poll", "sleeping")
+		cp := taskCheckpointMap(record.State.Checkpoint)
+		if submissionEntryID(cp["pollAt"]) != 2000 || generationObject(cp["handle"])["id"] != "job" || record.State.Until == nil || *record.State.Until != 2000 {
+			t.Fatal("stored poll checkpoint", record)
 		}
+		until := int64(2000)
+		awaitWake140(t, wakes, false, &until)
 		if err := first.Close(bg); err != nil {
 			t.Fatal(err)
 		}
@@ -130,18 +198,37 @@ func TestDeferredRepollKeepsRequestAttemptAndSkipsRequestHooks(t *testing.T) {
 		}
 		h := openHarness(t, b.store, Options{Registry: registry, Now: func() int64 { return clock.Add(10) }, Models: func(goai.Provider, string) *goai.Model { return fakeModel(api) }})
 		conversation := root(t, h, ModelRef{Provider: goai.ProviderOpenAI, ID: "durable-test"})
+		publications := recordGenerationPublications(t, h)
 		sub, err := conversation.Submit(bg, Input{Content: "deferred"})
 		if err != nil {
 			t.Fatal(err)
 		}
 		result := waitSubmission(t, sub)
-		var cp generationCheckpoint
-		if err := fromObject(result.Task.Checkpoint, &cp, h.session.limits); err != nil {
-			t.Fatal(err)
+		attempts := 0
+		for len(publications.tasks) > 0 {
+			record := <-publications.tasks
+			cp := taskCheckpointMap(record.State.Checkpoint)
+			if cp["phase"] == "poll" {
+				attempts++
+				if submissionEntryID(cp["attempt"]) != 1 {
+					t.Fatal("poll attempt changed", record)
+				}
+			}
 		}
-		if result.Submission.Status != "done" || cp.Attempt != 1 || streams.Load() != 1 || polls.Load() != 2 || before.Load() != 1 || after.Load() != 1 {
-			t.Fatal("poll became a new request", result, cp.Attempt, streams.Load(), polls.Load(), before.Load(), after.Load())
+		times := []ID{}
+		for len(publications.live) > 0 {
+			live := <-publications.live
+			if deferred := generationObject(generationObject(live["generation"])["deferred"]); deferred != nil {
+				times = append(times, submissionEntryID(deferred["pollAt"]))
+			}
 		}
+		if attempts == 0 || len(times) != 2 || times[1] <= times[0] {
+			t.Fatal("poll publications", attempts, times)
+		}
+		if result.Record.Status != "done" || result.Record.Type != "input" || result.Message == nil || result.Message.Content[0].Text != "ready" || streams.Load() != 1 || polls.Load() != 2 || before.Load() != 1 || after.Load() != 1 {
+			t.Fatal("poll became a new request", result, streams.Load(), polls.Load(), before.Load(), after.Load())
+		}
+
 	})
 }
 func TestDeferredExpiryOnReopenStillPollsProvider(t *testing.T) {
@@ -167,30 +254,14 @@ func TestDeferredExpiryOnReopenStillPollsProvider(t *testing.T) {
 		options := Options{Now: clock.Load, Models: func(goai.Provider, string) *goai.Model { return fakeModel(api) }}
 		first := openHarness(t, b.store, options)
 		conversation := root(t, first, ModelRef{Provider: goai.ProviderOpenAI, ID: "durable-test"})
+		publications := recordGenerationPublications(t, first)
 		sub, err := conversation.Submit(bg, Input{Content: "expire"})
 		if err != nil {
 			t.Fatal(err)
 		}
-		ctx, cancel := context.WithTimeout(bg, 3*time.Second)
-		defer cancel()
-		for {
-			state, err := first.Snapshot(ctx)
-			if err != nil {
-				t.Fatal(err)
-			}
-			found := false
-			for _, task := range state.Tasks {
-				if task.Kind == "pi.generation" {
-					var cp generationCheckpoint
-					if err := fromObject(task.Checkpoint, &cp, first.session.limits); err != nil {
-						t.Fatal(err)
-					}
-					found = cp.Phase == "poll"
-				}
-			}
-			if found {
-				break
-			}
+		record := publications.waitTask(t, "poll", "sleeping")
+		if submissionEntryID(generationObject(taskCheckpointMap(record.State.Checkpoint)["handle"])["expiresAt"]) != 1500 {
+			t.Fatal("expiry checkpoint", record)
 		}
 		if err := first.Close(bg); err != nil {
 			t.Fatal(err)

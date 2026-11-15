@@ -2,6 +2,7 @@ package durable
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -89,6 +90,8 @@ func (r *TaskRuntime) commit(ctx context.Context, change func(*Tx, TaskRecord) (
 		return err
 	}
 	checkpointChanged := false
+	var interruptedMessage, interruptedReason string
+	var interruptedRestarts uint64
 	_, err = r.harness.session.commitPersistence(ctx, func(tx *Tx) error {
 		if err := r.check(); err != nil {
 			return err
@@ -172,8 +175,31 @@ func (r *TaskRuntime) commit(ctx context.Context, change func(*Tx, TaskRecord) (
 		if err != nil {
 			return err
 		}
-		return tx.setTask(replacement)
+		if err := tx.setTask(replacement); err != nil {
+			return err
+		}
+		// Source Runtime.commit reports crash termination after its commit
+		// settles, with the pre-transition restart count. Nothing is stored.
+		if next.Status == "terminal" && next.Outcome != nil {
+			if next.Outcome.Status == "failed" && next.Outcome.Error != nil && next.Outcome.Error.Detail != nil {
+				detail := generationObject(next.Outcome.Error.Detail.Value)
+				reason, _ := detail["reason"].(string)
+				if reason == "restart_limit" || reason == "interrupted" {
+					interruptedMessage, interruptedReason = next.Outcome.Error.Message, reason
+				}
+			}
+			if interruptedReason == "" && next.endedByCrashes != "" {
+				interruptedMessage, interruptedReason = next.endedByCrashes, "restart_limit"
+			}
+			interruptedRestarts = view.Restarts
+		}
+		return nil
 	}, false, r.taskID, deferred, window...)
+	if err == nil && interruptedReason != "" {
+		info := r.reportInfo("task_interrupted", interruptedReason)
+		info.Restarts = &interruptedRestarts
+		r.report(errors.New(interruptedMessage), info)
+	}
 	if err == nil && checkpointChanged {
 		r.telemetryEvent("pi.durable.checkpoint", nil)
 	}

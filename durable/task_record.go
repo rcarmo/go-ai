@@ -117,6 +117,7 @@ func copyTaskMemos(memos map[string]*TaskValue, l Limits) (map[string]*TaskValue
 }
 
 func copyTaskState(state TaskState, l Limits) (TaskState, error) {
+	state.endedByCrashes = ""
 	if state.Until != nil {
 		until := *state.Until
 		state.Until = &until

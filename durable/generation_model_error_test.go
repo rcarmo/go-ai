@@ -20,12 +20,24 @@ func TestGenerationModelFailurePreservesProviderTextReasonAndReceipt(t *testing.
 			t.Fatal(err)
 		}
 		result := waitSubmission(t, sub)
-		if result.Submission.Status != "failed" || result.Message == nil || result.Message.ErrorMessage != "billing limit reached" || result.Submission.Value["errorCode"] != "model_error" {
+		if result.Record.Status != "unanswered" || result.Record.Reason != "model_error" || result.Record.Detail == nil || result.Record.Detail.Value != "billing limit reached" {
 			t.Fatal(result)
 		}
 		state, err := h.Snapshot(bg)
 		if err != nil {
 			t.Fatal(err)
+		}
+		errorsFound := 0
+		for _, entry := range state.Entries {
+			if entry.Kind == "pi.assistant" {
+				errorsFound++
+				if len(entry.Model) != 1 || entry.Model[0].ErrorMessage != "billing limit reached" || entry.Model[0].StopReason != goai.StopReasonError {
+					t.Fatal("provider error receipt", entry)
+				}
+			}
+		}
+		if errorsFound != 1 {
+			t.Fatal("error receipts", errorsFound)
 		}
 		for _, task := range state.Tasks {
 			record, err := CanonicalTask(task, h.session.limits)
@@ -41,7 +53,7 @@ func TestGenerationModelFailurePreservesProviderTextReasonAndReceipt(t *testing.
 		if err != nil {
 			t.Fatal(err)
 		}
-		if reopened := waitSubmission(t, handle); reopened.Message.ErrorMessage != "billing limit reached" {
+		if reopened := waitSubmission(t, handle); reopened.Record.Detail == nil || reopened.Record.Detail.Value != "billing limit reached" {
 			t.Fatal(reopened)
 		}
 	})

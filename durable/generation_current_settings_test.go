@@ -63,12 +63,14 @@ func TestGenerationRetryDecisionReadsCurrentSettingsAfterResponse(t *testing.T) 
 			t.Fatal(err)
 		}
 		awaitTaskSignal(t, entered)
-		settings := RequestSettings{Retry: RetryPolicy{Enabled: false, MaxRetries: 3, BaseDelayMs: 2000, MaxDelayMs: 60000}}
-		if err := conversation.ConfigurePatch(bg, AgentPatch{Settings: &settings}); err != nil {
+		// Source retry policy is process-local HarnessSettings, read at the
+		// response decision (generation.ts failResponse), not pi.agent.
+		disabled := false
+		if err := h.SetSettings(bg, HarnessSettings{Retry: &RetrySettings{Enabled: &disabled}}); err != nil {
 			t.Fatal(err)
 		}
 		releaseTaskGate(release)
-		if result := waitSubmission(t, sub); result.Submission.Status != "failed" || calls.Load() != 1 {
+		if result := waitSubmission(t, sub); result.Record.Status != "unanswered" || result.Record.Reason != "model_error" || calls.Load() != 1 {
 			t.Fatal(result, calls.Load())
 		}
 	})

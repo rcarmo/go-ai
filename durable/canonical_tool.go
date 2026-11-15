@@ -162,6 +162,9 @@ func canonicalToolCallPhase(ctx context.Context, task TaskRecord, r *TaskRuntime
 	if !found {
 		return rejectCall(canonicalToolError("tool_unavailable", fmt.Sprintf("Tool %s is not available", call.Name)))
 	}
+	if call.ArgumentsError != "" {
+		return rejectCall(ToolResult{IsError: true, harnessResult: true, Blocks: []goai.ContentBlock{}, Diagnostics: []ToolDiagnostic{{Severity: "error", Code: "invalid_arguments", Message: fmt.Sprintf(`Invalid arguments for tool "%s": %s`, call.Name, call.ArgumentsError), argumentError: true}}})
+	}
 	args, err := validateScopedArguments(ctx, reg, JSON(call.Arguments), r.harness.session.limits, call.HasStreamingArguments())
 	if err != nil {
 		return rejectCall(canonicalToolError("invalid_arguments", err.Error()))
@@ -235,7 +238,9 @@ func canonicalToolExecutePhase(ctx context.Context, task TaskRecord, r *TaskRunt
 	cp := taskCheckpointMap(task.State.Checkpoint)
 	if cp["replay"] == "safe" && found && reg.offer.ReplaySafe {
 		args := taskCheckpointMap(cp["arguments"])
-		if err := r.commitProgress(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
+		// Recovery removes stale output durably before another effect. This
+		// source Runtime.commit is immediate, not a progress publication.
+		if err := r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
 			return nil, canonicalToolSlotUpdate(tx, r.taskID, r.conversation, func(slot JSON) {
 				for _, key := range []string{"output", "details", "diagnostics", "droppedBytes", "droppedLines"} {
 					delete(slot, key)
@@ -305,7 +310,7 @@ func canonicalToolCutOff(ctx context.Context, task TaskRecord, r *TaskRuntime, i
 			return err
 		}
 	}
-	return settleCanonicalTool(ctx, r, input, call, reg, result, "failed", message, 0)
+	return settleCanonicalTool(ctx, r, input, call, reg, result, "failed", message, 0, "restart_limit")
 }
 
 func canonicalToolSlot(value JSON, id ID) JSON {
@@ -340,6 +345,9 @@ func canonicalToolFromSlot(ctx context.Context, r *TaskRuntime, code, message st
 				slot := canonicalToolSlot(doc.Value, r.taskID)
 				if slot != nil {
 					result.Content, _ = slot["output"].(string)
+					if result.Content != "" {
+						result.Blocks = []goai.ContentBlock{{Type: "text", Text: result.Content}}
+					}
 					if details, found := slot["details"]; found {
 						result.DetailsValue, result.HasDetails = details, true
 					}
@@ -468,7 +476,7 @@ func (a *ToolAPI) publishCanonicalProgress() (int, error) {
 	return written, err
 }
 
-func settleCanonicalTool(ctx context.Context, r *TaskRuntime, input canonicalToolInput, call goai.ToolCall, reg registeredTool, result ToolResult, ending, message string, duration int64) error {
+func settleCanonicalTool(ctx context.Context, r *TaskRuntime, input canonicalToolInput, call goai.ToolCall, reg registeredTool, result ToolResult, ending, message string, duration int64, failureReason ...string) error {
 	l := r.harness.session.limits
 	owned, err := detachToolResult(result, l)
 	if err != nil {
@@ -488,6 +496,16 @@ func settleCanonicalTool(ctx context.Context, r *TaskRuntime, input canonicalToo
 			content = []goai.ContentBlock{{Type: "text", Text: owned.Content}}
 		}
 	}
+	var original strings.Builder
+	for _, block := range content {
+		if block.Type == "text" {
+			original.WriteString(block.Text)
+		}
+	}
+	bounded := boundToolText(original.String(), limits)
+	if len(bounded) < original.Len() {
+		owned.Diagnostics = append(owned.Diagnostics, truncatedToolOutput(uint64(original.Len()-len(bounded)), outputLines(original.String())-outputLines(bounded), limits.Retain))
+	}
 	content = boundToolBlocks(content, limits)
 	if input.Kind == "nested" {
 		if result.harnessResult {
@@ -505,7 +523,14 @@ func settleCanonicalTool(ctx context.Context, r *TaskRuntime, input canonicalToo
 		owned = r.harness.validateModelStructuredResult(owned, reg.offer, r.reportError)
 	}
 	if len(owned.Diagnostics) > 0 {
-		content = append(content, goai.ContentBlock{Type: "text", Text: renderToolDiagnostics(owned.Diagnostics)})
+		block := goai.ContentBlock{Type: "text", Text: renderToolDiagnostics(owned.Diagnostics)}
+		for _, diagnostic := range owned.Diagnostics {
+			if diagnostic.argumentError {
+				block.SetToolArgumentDiagnostic(block.Text)
+				break
+			}
+		}
+		content = append(content, block)
 	}
 	// Abort every live nested child before waiting on any sibling.
 	children, err := r.OwnedTasks(ctx)
@@ -569,7 +594,13 @@ func settleCanonicalTool(ctx context.Context, r *TaskRuntime, input canonicalToo
 			}
 			settled = JSON{"kind": "nested"}
 		} else {
-			receipt := MessageReceipt{Role: goai.RoleToolResult, ToolCallID: call.ID, ToolName: call.Name, Content: content, IsError: owned.IsError, Diagnostics: owned.Diagnostics, Timestamp: r.harness.session.now(), DurationMs: &duration, Details: owned.Details, DetailsValue: owned.DetailsValue, HasDetails: owned.HasDetails, Usage: owned.Usage}
+			receipt := MessageReceipt{ImageChunks: owned.imageChunks, Role: goai.RoleToolResult, ToolCallID: call.ID, ToolName: call.Name, Content: content, IsError: owned.IsError, Diagnostics: owned.Diagnostics, Timestamp: r.harness.session.now(), DurationMs: &duration, Details: owned.Details, DetailsValue: owned.DetailsValue, HasDetails: owned.HasDetails, Usage: owned.Usage}
+			for _, diagnostic := range owned.Diagnostics {
+				if diagnostic.argumentError {
+					receipt.ErrorCode = "invalid_arguments"
+					break
+				}
+			}
 			wire, err := dtoObject(receipt, l)
 			if err != nil {
 				return nil, err
@@ -620,6 +651,9 @@ func settleCanonicalTool(ctx context.Context, r *TaskRuntime, input canonicalToo
 		outcome := &TaskOutcome{Status: ending, Result: &TaskValue{Present: true, Value: settled}}
 		if ending == "failed" {
 			outcome.Error = &TaskOutcomeError{Message: message}
+			if len(failureReason) > 0 {
+				outcome.Error.Detail = &TaskValue{Present: true, Value: JSON{"reason": failureReason[0]}}
+			}
 		}
 		return &TaskState{Status: "terminal", Outcome: outcome}, nil
 	})

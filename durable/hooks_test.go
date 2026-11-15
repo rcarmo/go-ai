@@ -573,16 +573,32 @@ func TestBeforeRequestRecoveryRunsAgainWithoutPersistingRewrite(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		// Source request reloads context at cutoff before beforeRequest;
+		// transformed messages are never stored in the task checkpoint.
+		generation := ID(0)
 		for _, task := range state.Tasks {
-			if task.Kind == "pi.generation" {
-				var cp generationCheckpoint
-				if err := fromObject(task.Checkpoint, &cp, first.session.limits); err != nil {
-					t.Fatal(err)
-				}
-				if cp.Messages[len(cp.Messages)-1].ContentText == nil || *cp.Messages[len(cp.Messages)-1].ContentText != "original" {
-					t.Fatal("transient rewrite became request intent", cp)
-				}
+			if task.Kind != "pi.generation" {
+				continue
 			}
+			record, found, err := first.Task(bg, task.ID)
+			if err != nil || !found {
+				t.Fatal(record, err)
+			}
+			cp := taskCheckpointMap(record.State.Checkpoint)
+			if cp["phase"] != "request" || cp["messages"] != nil {
+				t.Fatal("request intent shape", record)
+			}
+			context, err := conversation.ContextView(bg, submissionEntryID(cp["cutoff"]))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(context.Messages) == 0 || context.Messages[len(context.Messages)-1].ContentText == nil || *context.Messages[len(context.Messages)-1].ContentText != "original" {
+				t.Fatal("transient rewrite became request intent", context)
+			}
+			generation = task.ID
+		}
+		if generation == 0 {
+			t.Fatal("request generation missing")
 		}
 		if err := first.Close(bg); err != nil {
 			t.Fatal(err)

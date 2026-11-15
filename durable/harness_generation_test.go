@@ -209,61 +209,75 @@ func TestM1bTerminalAndExplicitUnsupported(t *testing.T) {
 	}
 }
 
+// Source generation.ts prepare/request: committed model, streamOptions and
+// cutoff precede provider effects. Configuration changes cannot alter that intent.
 func TestM1bIntentBeforeDispatchAndPinnedContext(t *testing.T) {
-	entered := make(chan struct{})
-	release := make(chan struct{})
+	entered, release := make(chan struct{}), make(chan struct{})
 	var calls atomic.Int64
 	var h *Harness
+	var before TaskRecord
 	ref, options := setupFakeAPI(t, func(ctx context.Context, m *goai.Model, c *goai.Context, o *goai.StreamOptions) <-chan goai.Event {
 		calls.Add(1)
-		s, e := h.Snapshot(bg)
-		if e != nil {
-			t.Error(e)
+		state, err := h.Snapshot(bg)
+		if err != nil {
+			t.Error(err)
 		}
 		found := false
-		for _, task := range s.Tasks {
-			var cp generationCheckpoint
-			_ = fromObject(task.Checkpoint, &cp, h.session.limits)
-			if cp.Phase == "intent" && cp.Attempt == 1 && len(cp.Messages) == 1 {
+		for id, task := range state.Tasks {
+			if task.Kind != "pi.generation" {
+				continue
+			}
+			record, ok, err := h.Task(bg, id)
+			if err != nil || !ok {
+				t.Error(err)
+				continue
+			}
+			cp := taskCheckpointMap(record.State.Checkpoint)
+			if cp["phase"] == "request" && submissionEntryID(cp["attempt"]) == 1 && submissionEntryID(cp["cutoff"]) != 0 && generationObject(cp["model"])["modelId"] == m.ID {
 				found = true
+				before = record
 			}
 		}
 		if !found {
-			t.Error("effect before committed intent")
+			t.Error("effect before committed request intent")
 		}
-		if c.SystemPrompt != "system" || c.Messages[0].Content[0].Text != "first" {
-			t.Error(c)
+		if c.SystemPrompt != "system" || len(c.Messages) != 1 || c.Messages[0].Content[0].Text != "first" {
+			t.Error("provider pinned context", c)
 		}
 		close(entered)
 		ch := make(chan goai.Event)
-		go func() { <-release; ch <- terminal("answer"); close(ch) }()
+		go func() {
+			defer close(ch)
+			select {
+			case <-release:
+				select {
+				case ch <- terminal("answer"):
+				case <-ctx.Done():
+				}
+			case <-ctx.Done():
+			}
+		}()
 		return ch
 	})
-	s, _ := newTestSQLite(t)
-	h = openHarness(t, s, options)
+	store, _ := newTestSQLite(t)
+	h = openHarness(t, store, options)
+	t.Cleanup(func() { releaseTaskGate(release) })
 	r := root(t, h, ref)
-	sub, e := r.Submit(bg, Input{Content: "first"})
-	if e != nil {
-		t.Fatal(e)
+	sub, err := r.Submit(bg, Input{Content: "first"})
+	if err != nil {
+		t.Fatal(err)
 	}
-	<-entered
-	if e = r.Configure(bg, AgentChange{Model: ref, SystemPrompt: "changed"}); e != nil {
-		t.Fatal(e)
+	awaitTaskSignal(t, entered)
+	if err := r.Configure(bg, AgentChange{Model: ref, SystemPrompt: "changed"}); err != nil {
+		t.Fatal(err)
 	}
-	snapshot, e := h.Snapshot(bg)
-	if e != nil {
-		t.Fatal(e)
+	after, found, err := h.Task(bg, before.ID)
+	if err != nil || !found || !equalJSONValue(taskCheckpointMap(after.State.Checkpoint), taskCheckpointMap(before.State.Checkpoint)) {
+		t.Fatal("inflight request intent changed", before, after, err)
 	}
-	for _, task := range snapshot.Tasks {
-		var cp generationCheckpoint
-		_ = fromObject(task.Checkpoint, &cp, h.session.limits)
-		if cp.Agent.SystemPrompt != "system" {
-			t.Fatal("inflight configuration changed")
-		}
-	}
-	close(release)
-	if waitSubmission(t, sub).Submission.Status != "done" || calls.Load() != 1 {
-		t.Fatal("badsettlement")
+	releaseTaskGate(release)
+	if result := waitSubmission(t, sub); result.Record.Status != "done" || calls.Load() != 1 {
+		t.Fatal("bad settlement", result, calls.Load())
 	}
 }
 

@@ -193,7 +193,13 @@ func TestMainBuiltinTraceToolMetadata(t *testing.T) {
 					if task.Kind != "pi.tool" && task.Kind != nestedToolKind {
 						continue
 					}
-					if task.Kind == "pi.tool" {
+					record, err := CanonicalTask(task, DefaultLimits())
+					if err != nil {
+						t.Fatal(err)
+					}
+					input := generationObject(record.Input.Value)
+					isNested := input["kind"] == "nested"
+					if !isNested {
 						tools++
 					} else {
 						nested++
@@ -223,14 +229,17 @@ func TestMainBuiltinTraceToolMetadata(t *testing.T) {
 						t.Error("wrong creating parent", task.ID, task.Owner, child.parent)
 						continue
 					}
-					if task.Kind == "pi.tool" {
+					if !isNested {
 						wantPhase := "request"
-						if mode == "sequential" && task.Checkpoint["callId"] == "call-two" {
+						if mode == "sequential" && input["callId"] == "call-two" {
 							wantPhase = "tools"
 						}
 						if parent.attrs["phase"] != wantPhase {
 							t.Error("wrong creating phase", task.ID, parent.attrs, wantPhase)
 						}
+					}
+					if isNested && parent.attrs["phase"] != "call" {
+						t.Error("wrong nested creating phase", parent.attrs)
 					}
 					mainTaskTraceFields(t, task, parent.context, nil)
 				}

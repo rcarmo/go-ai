@@ -2,7 +2,6 @@ package durable
 
 import (
 	"context"
-	"errors"
 	"sync/atomic"
 	"testing"
 
@@ -61,27 +60,43 @@ func TestGenerationToolHandoffCommittedReopenNoToolReplayAndTerminalSubmissionTa
 		if err != nil {
 			t.Fatal(err)
 		}
-		var first, successor ID
-		for _, task := range state.Tasks {
-			if task.Kind != "pi.generation" {
+		view, err := conversation.View(bg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		live, _ := view.Docs.Get("pi.live")
+		run, _ := live.Get("run")
+		taskNode, _ := run.Get("taskId")
+		successor := submissionEntryID(taskNode.Copy())
+		pending, found, err := h.Task(bg, successor)
+		if err != nil || !found || pending.Owner != 0 || pending.Kind != "pi.generation" || pending.State.Status != "running" || taskCheckpointMap(pending.State.Checkpoint)["phase"] != "request" {
+			t.Fatal("handoff successor", pending, err)
+		}
+		first := ID(0)
+		for id, task := range state.Tasks {
+			if task.Kind != "pi.generation" || id == successor {
 				continue
 			}
-			var cp generationCheckpoint
-			if err := fromObject(task.Checkpoint, &cp, h.session.limits); err != nil {
-				t.Fatal(err)
+			record, found, err := h.Task(bg, id)
+			if err != nil || !found || record.State.Status != "terminal" || record.State.Outcome == nil || record.State.Outcome.Status != "completed" {
+				t.Fatal("handoff predecessor", record, err)
 			}
-			if cp.Successor != 0 {
-				first, successor = task.ID, cp.Successor
+			first = id
+			entryID := submissionEntryID(generationObject(record.State.Outcome.Result.Value)["entryId"])
+			entry, found, err := h.Entry(bg, entryID)
+			if err != nil || !found || entry.Kind != "pi.assistant" {
+				t.Fatal("predecessor receipt", entry, err)
 			}
 		}
-		if first == 0 || successor == 0 || state.Tasks[first].Status != "done" || state.Tasks[successor].Owner != 0 || terminalStatus(state.Submissions[sub.ID()].Status) {
-			t.Fatal("handoff not committed atomically", first, successor, state)
+		status, err := sub.Status(bg)
+		if err != nil || status.Status != "placed" || first == 0 {
+			t.Fatal("handoff input prematurely settled", status, first, err)
 		}
-		firstEntry := publicSubmission(state.Submissions[sub.ID()]).Entry
-		for _, doc := range state.Documents {
-			if doc.Kind == "pi.live" && doc.Owner == conversation.ID() && (firstEntry == 0 || submissionEntryID(generationObject(doc.Value["run"])["first"]) != firstEntry) {
-				t.Error("handoff lost its actual first input entry", doc.Value, firstEntry)
-			}
+		firstEntry := status.Entry
+		firstNode, _ := run.Get("first")
+		inputsNode, _ := run.Get("inputs")
+		if firstEntry == 0 || submissionEntryID(firstNode.Copy()) != firstEntry || !equalJSONValue(inputsNode.Copy(), []any{int(sub.ID())}) {
+			t.Fatal("handoff lost inputs", run.Copy(), status)
 		}
 		if err := h.Close(bg); err != nil {
 			t.Fatal(err)
@@ -115,30 +130,11 @@ func TestGenerationToolHandoffCommittedReopenNoToolReplayAndTerminalSubmissionTa
 		if err != nil || len(state.Tasks) != 3 {
 			t.Fatal("handoff task replay duplicated", len(state.Tasks), err)
 		}
-		// Corrupt a detached final handoff envelope: neither missing successor nor
-		// another submission is valid. Candidate validation must reject both.
-		bad := state
-		bad.Tasks = make(map[ID]Task, len(state.Tasks))
-		for id, task := range state.Tasks {
-			bad.Tasks[id] = task
-		}
-		delete(bad.Tasks, successor)
-		if err := validateTaskReferences(bad, bad.Tasks[first], h.session.limits); err == nil {
-			t.Fatal("missing successor accepted")
-		}
-		var rejected *StorageRejected
-		if err := validateTaskReferences(bad, bad.Tasks[first], h.session.limits); !errors.As(err, &rejected) {
-			t.Fatal("handoff failure not rejected", err)
-		}
-		bad.Tasks[successor], err = copyTask(state.Tasks[successor], h.session.limits)
-		if err != nil {
-			t.Fatal(err)
-		}
-		wrong := bad.Tasks[successor]
-		wrong.Checkpoint["submission"] = ID(MaxID)
-		bad.Tasks[successor] = wrong
-		if err := validateTaskReferences(bad, bad.Tasks[first], h.session.limits); !errors.As(err, &rejected) {
-			t.Fatal("foreign handoff submission accepted", err)
+		// Source handOver changes live.run.taskId; it does not persist a
+		// successor/submission pointer in the terminal predecessor checkpoint.
+		previous, found, err := h.Task(bg, first)
+		if err != nil || !found || previous.State.Checkpoint != nil {
+			t.Fatal("terminal predecessor checkpoint", previous, err)
 		}
 	})
 }

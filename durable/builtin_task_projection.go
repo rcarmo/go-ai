@@ -111,6 +111,9 @@ func generationThinkingLevel(cp generationCheckpoint) string {
 // ConversationStreamOptions holds only the present source fields.
 func generationStreamOptions(settings RequestSettings) JSON {
 	out := JSON{}
+	if settings.Temperature != nil {
+		out["temperature"] = *settings.Temperature
+	}
 	if settings.Transport != "" {
 		out["transport"] = string(settings.Transport)
 	}

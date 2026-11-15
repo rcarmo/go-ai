@@ -50,13 +50,13 @@ func TestIdlePassiveEntryRetainsPayloadAndRejectsStaleHead(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	draft := Entry{Kind: "app.note", Value: JSON{"text": "retained"}, Model: []MessageReceipt{userReceipt("model contribution")}}
+	draft := Entry{Kind: "app.note", HasData: true, Data: JSON{"text": "retained"}, Model: []MessageReceipt{userReceipt("model contribution")}}
 	write, err := conversation.Submit(bg, Input{Type: "write", Entry: &draft})
 	if err != nil {
 		t.Fatal(err)
 	}
 	waitSubmission(t, write)
-	draft.Value["text"] = "caller mutation"
+	draft.Data.(JSON)["text"] = "caller mutation"
 	state, err := h.Snapshot(bg)
 	if err != nil {
 		t.Fatal(err)
@@ -65,7 +65,7 @@ func TestIdlePassiveEntryRetainsPayloadAndRejectsStaleHead(t *testing.T) {
 	for _, entry := range state.Entries {
 		if entry.Kind == "app.note" {
 			old = entry.ID
-			if legacyEntryValue(entry)["text"] != "retained" || len(entry.Model) != 1 {
+			if !entry.HasData || !equalJSONValue(entry.Data, JSON{"text": "retained"}) || len(entry.Model) != 1 {
 				t.Fatal("passive draft lost", entry)
 			}
 		}

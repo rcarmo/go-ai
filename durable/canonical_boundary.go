@@ -154,7 +154,7 @@ func canonicalWithdrawInputs(tx *Tx, conversation ID, reason string) error {
 	}
 	return doc.Set(JSON{"items": keep})
 }
-func canonicalEndRun(tx *Tx, live JSON, task ID, answer ID, reason string, detail *string) error {
+func canonicalEndRun(tx *Tx, live JSON, task ID, answer ID, reason string, detail *string, overridden ...SubmissionSettlement) error {
 	run := generationObject(live["run"])
 	if submissionEntryID(run["taskId"]) == task {
 		inputs, _ := run["inputs"].([]any)
@@ -168,6 +168,9 @@ func canonicalEndRun(tx *Tx, live JSON, task ID, answer ID, reason string, detai
 			settlement := SubmissionSettlement{Status: "unanswered", Reason: reason}
 			if detail != nil && reason != "no_model" {
 				settlement.Detail = &TaskValue{Present: true, Value: *detail}
+			}
+			if len(overridden) > 0 {
+				settlement = overridden[0]
 			}
 			for _, id := range inputs {
 				if err := tx.SettleSubmission(submissionEntryID(id), settlement); err != nil {

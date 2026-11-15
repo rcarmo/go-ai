@@ -29,6 +29,14 @@ type Input struct {
 	WhenIdle string
 }
 
+// ConversationBusy identifies the conversation that rejected busy admission.
+type ConversationBusy struct{ ConversationID ID }
+
+func (e *ConversationBusy) Error() string {
+	return fmt.Sprintf("Conversation %d is busy", e.ConversationID)
+}
+func (e *ConversationBusy) Unwrap() error { return ErrConversationBusy }
+
 // ConversationIdle identifies the conversation that rejected idle input.
 type ConversationIdle struct{ ConversationID ID }
 
@@ -237,285 +245,228 @@ func (c *ConversationHandle) prepareSubmissionInput(input Input) (Input, error) 
 // opens a transaction nor acquires Harness.mu (the caller may own the Session line).
 func (c *ConversationHandle) admitSubmission(ctx context.Context, tx *Tx, input Input, binding *TaskRuntime) (ID, *SubmissionRecord, error) {
 	h := c.h
-	var subID ID
-	var dedup *SubmissionRecord
+	if err := tx.touchKeys(ALL_KEYS); err != nil {
+		return 0, nil, err
+	}
+	if h.closing.Load() {
+		return 0, nil, ErrClosed
+	}
+	if binding != nil {
+		if err := binding.check(); err != nil {
+			return 0, nil, err
+		}
+		if taskAborted(tx.state.Tasks[binding.taskID]) && !binding.abortMode {
+			return 0, nil, reject("bound submit after abort")
+		}
+		tx.byTask = binding.taskID
+		tx.taskConversation = c.id
+	}
+	if _, found := tx.state.Conversations[c.id]; !found {
+		return 0, nil, reject("unknown conversation")
+	}
+	kind := "input"
+	if input.Type == "write" || input.Type == "continue" {
+		kind = input.Type
+	}
+	if input.RequestID != "" || input.RequestIDPresent {
+		record, found, err := tx.SubmissionByRequest(c.id, input.RequestID)
+		if err != nil {
+			return 0, nil, err
+		}
+		if found {
+			if record.Type != kind {
+				//lint:ignore ST1005 Exact pinned submissions.ts request discriminator error.
+				return 0, nil, fmt.Errorf("Request %s already identifies a submission of type %s", input.RequestID, record.Type)
+			}
+			if trace := submitTraceFromContext(ctx); trace != nil {
+				trace.observe(record)
+			}
+			return record.ID, &record, nil
+		}
+	}
 	carrier := submissionTelemetryCarrier(submitTraceFromContext(ctx))
-	err := func() error {
-		if err := tx.touchKeys(ALL_KEYS); err != nil {
-			return err
+	create := func(status string, entry ID, reason string) (SubmissionRecord, error) {
+		return tx.CreateSubmission(SubmissionCreate{Conversation: c.id, Type: kind, Status: status, Entry: entry, Reason: reason, RequestID: input.RequestID, RequestIDPresent: input.RequestIDPresent, Trace: carrier})
+	}
+	now := h.session.now()
+	settings := h.resolvedSettings(RequestSettings{})
+	var draft JSON
+	var content any = input.Content
+	if input.Blocks != nil {
+		message, err := inputReceipt(input.Content, input.Blocks, tx.limits)
+		if err != nil {
+			return 0, nil, err
 		}
-		if h.closing.Load() {
-			return ErrClosed
+		wire, err := dtoObject(message, tx.limits)
+		if err != nil {
+			return 0, nil, err
 		}
-		if binding != nil {
-			if err := binding.check(); err != nil {
-				return err
-			}
-			if taskAborted(tx.state.Tasks[binding.taskID]) && !binding.abortMode {
-				return reject("bound submit after abort")
-			}
-			tx.byTask = binding.taskID
-			tx.taskConversation = c.id
-		}
-		if _, found := tx.state.Conversations[c.id]; !found {
-			return reject("unknown conversation")
-		}
-		if input.RequestID != "" || input.RequestIDPresent {
-			existing, found, err := tx.SubmissionByRequest(c.id, input.RequestID)
+		content = wire["content"]
+	}
+	if kind == "write" {
+		if input.Entry != nil {
+			var err error
+			draft, err = inboxEntryDraft(*input.Entry, tx.limits)
 			if err != nil {
-				return err
+				return 0, nil, err
+			}
+		} else {
+			draft = JSON{"kind": userEntryKind, "model": []any{JSON{"role": "user", "content": content, "timestamp": now}}}
+		}
+	}
+	inbox, err := builtin(tx, c.id, "pi.inbox")
+	if err != nil {
+		return 0, nil, err
+	}
+	inboxValue, err := inbox.Get()
+	if err != nil {
+		return 0, nil, err
+	}
+	items, _ := inboxValue["items"].([]any)
+	hasReset := false
+	for _, raw := range items {
+		item := generationObject(raw)
+		if item["mode"] == "write" && generationObject(item["entry"])["head"] == "self" {
+			hasReset = true
+		}
+	}
+	_, model := draft["model"]
+	_, head := draft["head"]
+	_, edits := draft["edits"]
+	if kind == "write" && !model && !head && !edits && !hasReset {
+		entry, err := tx.AppendEntry(c.id, draft)
+		if err != nil {
+			return 0, nil, err
+		}
+		record, err := create("done", entry.ID, "")
+		return record.ID, nil, err
+	}
+	liveDoc, err := builtin(tx, c.id, "pi.live")
+	if err != nil {
+		return 0, nil, err
+	}
+	live, err := liveDoc.Get()
+	if err != nil {
+		return 0, nil, err
+	}
+	run := generationObject(live["run"])
+	busy := run != nil
+	if kind == "input" && input.Type == "steer" && busy {
+		if trace := submitTraceFromContext(ctx); trace != nil && trace.extract != nil && trace.span.AddLink != nil {
+			record, found, err := tx.Task(submissionEntryID(run["taskId"]))
+			if err != nil {
+				return 0, nil, err
 			}
 			if found {
-				kind := input.Type
-				if kind != "write" && kind != "continue" {
-					kind = "input"
-				}
-				if existing.Type != kind {
-					return reject("request ID cross-type conflict")
-				}
-				subID = existing.ID
-				dedup = &existing
-				if trace := submitTraceFromContext(ctx); trace != nil {
-					trace.observe(existing)
-				}
-				return nil
-			}
-		}
-		// Source steer admission links the current run after deduplication and
-		// before any table write. Capture data here; host extraction/linking runs
-		// off-line when the standalone admission finishes.
-		if input.Type == "steer" {
-			if trace := submitTraceFromContext(ctx); trace != nil && trace.extract != nil && trace.span.AddLink != nil {
-				for _, doc := range tx.state.Documents {
-					if doc.Kind != "pi.live" || doc.Scope != "conversation" || doc.Owner != c.id || doc.Retired {
-						continue
-					}
-					run := generationObject(doc.Value["run"])
-					if task, found := tx.state.Tasks[submissionEntryID(run["task"])]; found {
-						if carrier, ok := task.Trace.(goai.TelemetryCarrier); ok {
-							trace.runLink = copyTelemetryCarrier(&carrier)
-						}
-					}
-					break
+				if carrier, ok := record.Trace.(goai.TelemetryCarrier); ok {
+					trace.runLink = copyTelemetryCarrier(&carrier)
 				}
 			}
 		}
-		// A continue never queues. Reject before any IDs, documents or entries
-		// are written; the committed request-ID lookup has already returned.
-		if input.Type == "continue" && h.conversationGenerationBusy(tx.state, c.id) {
-			return ErrConversationBusy
-		}
-		// Older plain-Session conversations need runtime docs for placement, but
-		// submitting does not configure their optional agent document.
-		if err := initializeBuiltins(tx, c.id); err != nil {
-			return err
-		}
-		if input.Type == "continue" {
-			var err error
-			subID, err = tx.mintID()
-			if err != nil {
-				return err
-			}
-			return h.startExplicitContinue(tx, c.id, subID, input.RequestID, input.RequestIDPresent, carrier)
-		}
-		receipt, err := inputReceipt(input.Content, input.Blocks, tx.limits)
+	}
+	if busy && (kind == "continue" || kind == "input" && input.WhenBusy == "reject") {
+		return 0, nil, &ConversationBusy{ConversationID: c.id}
+	}
+	if !busy && kind == "input" && input.WhenIdle == "reject" {
+		return 0, nil, &ConversationIdle{ConversationID: c.id}
+	}
+	var boundary *canonicalBoundary
+	if !busy {
+		boundary, err = prepareCanonicalBoundary(tx, c.id, settings)
 		if err != nil {
-			return err
+			return 0, nil, err
 		}
-		busy := h.conversationGenerationBusy(tx.state, c.id)
-		if input.WhenIdle == "reject" && !busy {
-			return &ConversationIdle{ConversationID: c.id}
-		}
-		if input.WhenBusy == "reject" && input.Type != "write" && busy && !failedQueueHeld(tx.state, c.id) {
-			return ErrConversationBusy
-		}
-		subID, err = tx.mintID()
+	}
+	if kind == "continue" {
+		record, err := create("placed", 0, "")
 		if err != nil {
-			return err
+			return 0, nil, err
 		}
-		value := JSON{"content": input.Content}
-		if input.Blocks != nil {
-			wire, err := dtoObject(receipt, tx.limits)
-			if err != nil {
-				return err
-			}
-			value["inputMessage"] = map[string]any(wire)
-		}
-		status := "pending"
-		if input.Type == "write" && input.Entry != nil && input.Entry.Model == nil && input.Entry.Head == 0 && input.Entry.Edits == nil {
-			queuedReset := false
-			inbox, err := builtin(tx, c.id, "pi.inbox")
-			if err != nil {
-				return err
-			}
-			inboxValue, err := inbox.Get()
-			if err != nil {
-				return err
-			}
-			items, ok := inboxValue["items"].([]any)
-			if !ok {
-				return reject("inbox shape")
-			}
-			for _, raw := range items {
-				item, ok := raw.(map[string]any)
-				if !ok {
-					return reject("inbox item")
-				}
-				if item["mode"] == "reset" {
-					queuedReset = true
-					break
-				}
-			}
-
-			if !queuedReset {
-				busy = false
-			}
-		}
-		if input.Type == "write" {
-			if !busy {
-				status = "done"
-			}
-			if input.Entry != nil {
-				entry, err := copyEntry(*input.Entry, tx.limits)
-				if err != nil {
-					return err
-				}
-				entry.ID, entry.Conversation, entry.Seq, entry.Position = 0, 0, 0, 0
-				wire, err := dtoObject(entry, tx.limits)
-				if err != nil {
-					return err
-				}
-				value["entry"] = map[string]any(wire)
-			}
-		}
-		if err = tx.putSubmissionRecord(Submission{ID: subID, Conversation: c.id, RequestID: input.RequestID, RequestIDPresent: input.RequestIDPresent, Type: input.Type, Status: status, Value: value, Trace: carrier}); err != nil {
-			return err
-		}
-		if input.Type == "write" {
-			if busy {
-				draft := Entry{Kind: userEntryKind, Model: []MessageReceipt{receipt}}
-				if input.Entry != nil {
-					draft = *input.Entry
-				}
-				entry, err := inboxEntryDraft(draft, tx.limits)
-				if err != nil {
-					return err
-				}
-				inbox, err := builtin(tx, c.id, "pi.inbox")
-				if err != nil {
-					return err
-				}
-				return inbox.Update(func(v JSON) error {
-					items, ok := v["items"].([]any)
-					if !ok {
-						return reject("inbox shape")
-					}
-					v["items"] = append(items, JSON{"id": subID, "mode": "write", "entry": entry})
-					return nil
-				})
-			}
-			if input.Entry != nil {
-				stale, err := passiveHeadStale(tx.state, c.id, value, tx.limits)
-				if err != nil {
-					return err
-				}
-				if stale {
-					value["errorCode"] = "stale"
-					return tx.putSubmissionRecord(Submission{ID: subID, Conversation: c.id, RequestID: input.RequestID, RequestIDPresent: input.RequestIDPresent, Type: "write", Status: "failed", Value: value, Trace: carrier})
-				}
-				if err := appendPassiveWrite(tx, c.id, value); err != nil {
-					return err
-				}
-				return tx.putSubmissionRecord(Submission{ID: subID, Conversation: c.id, RequestID: input.RequestID, RequestIDPresent: input.RequestIDPresent, Type: "write", Status: "done", Value: value, Trace: carrier})
-			}
-			id, err := tx.mintID()
-			if err != nil {
-				return err
-			}
-			obj, err := dtoObject(receipt, h.session.limits)
-			if err != nil {
-				return err
-			}
-			if err := tx.appendMessage(id, c.id, 0, obj); err != nil {
-				return err
-			}
-			value["placedEntry"] = id
-			return tx.putSubmissionRecord(Submission{ID: subID, Conversation: c.id, RequestID: input.RequestID, RequestIDPresent: input.RequestIDPresent, Type: "write", Status: "done", Value: value, Trace: carrier})
-		}
-		// Only a genuinely new user input releases a kept queue. Deduplication
-		// and passive writes have returned before this point.
-		if failedQueueHeld(tx.state, c.id) {
-			live, err := builtin(tx, c.id, "pi.live")
-			if err != nil {
-				return err
-			}
-			if err := live.Update(func(value JSON) error { delete(value, "failedRun"); return nil }); err != nil {
-				return err
-			}
-		}
-		taskID, err := tx.mintID()
+		users, first, _, err := boundary.apply(tx, true, now)
 		if err != nil {
-			return err
+			return 0, nil, err
 		}
-		cp := generationCheckpoint{Phase: "queued", Submission: subID, Input: input.Content, InputBlocks: input.Blocks}
-		if input.Entry != nil {
-			metadata := *input.Entry
-			metadata.Value = JSON{}
-			owned, err := copyEntry(metadata, tx.limits)
-			if err != nil {
-				return err
-			}
-			stored := storedEntry(owned)
-			cp.InputMetadata = &stored
+		failureFirst := submissionEntryID(generationObject(live["runFailure"])["first"])
+		if failureFirst != 0 {
+			first = failureFirst
 		}
-
-		checkpoint, err := dtoObject(cp, h.session.limits)
+		users = append(users, record.ID)
+		if _, err := canonicalStartRun(tx, c.id, live, users, first, false); err != nil {
+			return 0, nil, err
+		}
+		return record.ID, nil, liveDoc.Set(live)
+	}
+	if boundary == nil || len(boundary.items) > 0 {
+		record, err := create("queued", 0, "")
 		if err != nil {
-			return err
+			return 0, nil, err
 		}
-		// Private submission adapter, not public raw execution authority.
-		task := Task{ID: taskID, Conversation: c.id, Kind: "pi.generation", Status: "pending", Checkpoint: checkpoint}
-		if err := tx.bindTaskTrace(&task, TaskOptions{SubmissionIDs: []ID{subID}}); err != nil {
-			return err
-		}
-		if err = tx.stage(Write{Op: "put-task", Task: &task}); err != nil {
-			return err
-		}
-		inbox, err := builtin(tx, c.id, "pi.inbox")
-		if err != nil {
-			return err
-		}
-		if err := inbox.Update(func(v JSON) error {
-			items, ok := v["items"].([]any)
-			if !ok {
-				return reject("inbox shape")
-			}
+		item := JSON{"id": record.ID, "mode": "write", "entry": draft}
+		if kind == "input" {
 			mode := "followUp"
 			if input.Type == "steer" {
 				mode = "steer"
 			}
-			item := JSON{"id": subID, "mode": mode, "content": input.Content}
-			if input.Blocks != nil {
-				item["content"] = value["inputMessage"].(map[string]any)["content"]
-			}
+			item = JSON{"id": record.ID, "mode": mode, "content": content}
 			if input.Entry != nil {
-				entry := JSON{"kind": input.Entry.Kind}
+				metadata := JSON{"kind": input.Entry.Kind}
 				if input.Entry.HasData {
-					entry["data"] = input.Entry.Data
+					metadata["data"] = input.Entry.Data
 				}
-				item["entry"] = entry
+				item["entry"] = metadata
 			}
-			v["items"] = append(items, item)
-			return nil
-		}); err != nil {
-			return err
 		}
-		if !busy || failedQueueHeld(tx.state, c.id) {
-			return h.startQueuedRunBoundary(tx, c.id, 0, false)
+		items = append(items, item)
+		inboxValue["items"] = items
+		if err := inbox.Set(inboxValue); err != nil {
+			return 0, nil, err
 		}
-		return nil
-	}()
-	return subID, dedup, err
+		if boundary == nil {
+			return record.ID, nil, nil
+		}
+		boundary.items = items
+		users, first, _, err := boundary.apply(tx, true, now)
+		if err != nil {
+			return 0, nil, err
+		}
+		if len(users) > 0 {
+			if _, err := canonicalStartRun(tx, c.id, live, users, first, false); err != nil {
+				return 0, nil, err
+			}
+		}
+		return record.ID, nil, liveDoc.Set(live)
+	}
+	if kind == "write" {
+		if target := submissionEntryID(draft["head"]); target != 0 && boundary.head != 0 && target < boundary.head {
+			record, err := create("unanswered", 0, "stale")
+			return record.ID, nil, err
+		}
+		entry, err := tx.AppendEntry(c.id, draft)
+		if err != nil {
+			return 0, nil, err
+		}
+		record, err := create("done", entry.ID, "")
+		return record.ID, nil, err
+	}
+	user := JSON{"kind": userEntryKind, "model": []any{JSON{"role": "user", "content": content, "timestamp": now}}}
+	if input.Entry != nil {
+		user["kind"] = input.Entry.Kind
+		if input.Entry.HasData {
+			user["data"] = input.Entry.Data
+		}
+	}
+	entry, err := tx.AppendEntry(c.id, user)
+	if err != nil {
+		return 0, nil, err
+	}
+	record, err := create("placed", entry.ID, "")
+	if err != nil {
+		return 0, nil, err
+	}
+	if _, err := canonicalStartRun(tx, c.id, live, []ID{record.ID}, entry.ID, false); err != nil {
+		return 0, nil, err
+	}
+	return record.ID, nil, liveDoc.Set(live)
 }
 
 func (h *Harness) Submission(ctx context.Context, id ID) (*SubmissionHandle, error) {
@@ -615,6 +566,25 @@ func (s *SubmissionHandle) wait(ctx context.Context, binding *TaskRuntime) (Sett
 					}
 				}
 			}
+			if result.Task.ID == 0 && result.Record.Status == "unanswered" {
+				for _, doc := range state.Documents {
+					if doc.Kind != "pi.live" || doc.Owner != sub.Conversation || doc.Retired {
+						continue
+					}
+					failure := generationObject(doc.Value["runFailure"])
+					inputs, _ := failure["inputs"].([]any)
+					for _, input := range inputs {
+						if submissionEntryID(input) == s.id {
+							if selected, ok := state.Tasks[submissionEntryID(failure["taskId"])]; ok {
+								result.Task, err = copyTask(selected, s.h.session.limits)
+								if err != nil {
+									return err
+								}
+							}
+						}
+					}
+				}
+			}
 			for _, id := range ids(state.Tasks) {
 				if result.Task.ID != 0 {
 					break
@@ -630,6 +600,31 @@ func (s *SubmissionHandle) wait(ctx context.Context, binding *TaskRuntime) (Sett
 						return err
 					}
 					break
+				}
+			}
+			if result.Record.Answer != 0 {
+				if entry, ok := state.Entries[result.Record.Answer]; ok && len(entry.Model) > 0 {
+					messages, e := detachReceipts(entry.Model, s.h.session.limits)
+					if e != nil {
+						return e
+					}
+					result.Message = &messages[0]
+				}
+				for _, task := range state.Tasks {
+					if task.Kind != "pi.generation" || task.Conversation != sub.Conversation {
+						continue
+					}
+					record, e := CanonicalTask(task, s.h.session.limits)
+					if e != nil {
+						return e
+					}
+					if record.State.Outcome != nil && record.State.Outcome.Result != nil && submissionEntryID(generationObject(record.State.Outcome.Result.Value)["entryId"]) == result.Record.Answer {
+						result.Task, err = copyTask(task, s.h.session.limits)
+						if err != nil {
+							return err
+						}
+						break
+					}
 				}
 			}
 			if value, ok := sub.Value["message"].(map[string]any); ok {
