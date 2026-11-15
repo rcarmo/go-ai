@@ -564,7 +564,7 @@ func prepareRecord(s Snapshot, r commitRecord, l Limits, final, explicit bool) (
 					return Snapshot{}, err
 				}
 			}
-			if v.Kind == nestedCallDocument {
+			if v.Kind == nestedCallDocument && !canonicalToolRecord(n.Tasks[v.Owner]) {
 				next := v
 				next.Value = JSON(object)
 				if err := validateNestedDocumentReplacement(v, next, l); err != nil {
@@ -606,7 +606,7 @@ func prepareRecord(s Snapshot, r commitRecord, l Limits, final, explicit bool) (
 						return Snapshot{}, err
 					}
 				}
-				if old.Kind == nestedCallDocument {
+				if old.Kind == nestedCallDocument && !canonicalToolRecord(n.Tasks[v.Owner]) {
 					if err := validateNestedDocumentReplacement(old, v, l); err != nil {
 						return Snapshot{}, err
 					}

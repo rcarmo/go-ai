@@ -11,7 +11,7 @@ import (
 func (t *Tx) syncGenerationStatuses() error {
 	conversations := map[ID]bool{}
 	for _, write := range t.writes {
-		if write.Task != nil && (write.Task.Kind == "pi.generation" || write.Task.Kind == "pi.tool") {
+		if write.Task != nil && (privateBuiltinTask(*write.Task, "pi.generation") || privateBuiltinTask(*write.Task, "pi.tool")) {
 			conversations[write.Task.Conversation] = true
 		}
 	}

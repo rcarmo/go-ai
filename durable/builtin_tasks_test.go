@@ -11,6 +11,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 // Independent source-derived control paired with the real Harness probe in
@@ -336,5 +337,497 @@ func TestBuiltinToolUTF16ReadonlySubtrees(t *testing.T) {
 		if _, err := NewImmutableValue(value, DefaultLimits()); err == nil {
 			t.Fatal("untyped value gained UTF-16 authority")
 		}
+	}
+}
+
+// Source generation.ts162-175/tool.ts141-158 and unchanged original
+// harness-nested-tools.test.ts1230-1250. These are definitions used by Harness,
+// not publication projections of private builtin execution.
+func TestSourceCanonicalBuiltinDefinitionsAndMigrations(t *testing.T) {
+	registry := NewRegistry()
+	snapshot, err := registry.taskSnapshot(DefaultLimits())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, kind := range []string{"pi.generation", "pi.tool"} {
+		t.Run(kind, func(t *testing.T) {
+			definition := snapshot.Task(kind)
+			if definition == nil {
+				t.Fatal("source executable builtin definition missing", kind)
+			}
+			version, phase := uint64(2), "prepare"
+			want := JSON{"phase": phase, "attempt": 1}
+			if kind == "pi.tool" {
+				version, phase = 3, "call"
+				want = JSON{"phase": phase}
+			}
+			if definition.Version() != version {
+				t.Fatal(definition.Version(), version)
+			}
+			execution, err := definition.initial(JSON{}, DefaultLimits())
+			if err != nil || execution.State.Status != "pending" || !equalJSONValue(execution.State.Checkpoint, want) {
+				t.Fatal(execution, err)
+			}
+			if definition.options.Migrate == nil {
+				t.Fatal("source builtin migration missing")
+			}
+			checkpoint := JSON{"phase": "call"}
+			if kind == "pi.generation" {
+				input := JSON{}
+				cp := JSON{"phase": "prepare", "attempt": 3}
+				nextInput, nextCP, err := definition.options.Migrate(input, cp, 1)
+				if err != nil || !equalJSONValue(nextInput, input) || !equalJSONValue(nextCP, cp) {
+					t.Fatal(nextInput, nextCP, err)
+				}
+				return
+			}
+			old := JSON{"assistant": 3, "callId": "c1"}
+			input, cp, err := definition.options.Migrate(old, checkpoint, 1)
+			if err != nil || !equalJSONValue(input, JSON{"kind": "model", "assistant": 3, "callId": "c1"}) || !equalJSONValue(cp, checkpoint) {
+				t.Fatal(input, cp, err)
+			}
+			for _, value := range []JSON{{"kind": "model", "assistant": 3, "callId": "c1"}, {"kind": "nested", "parent": 7, "parentCallId": "c1", "key": "k", "call": JSON{"type": "toolCall", "id": "c1/k", "name": "echo", "arguments": JSON{}}}} {
+				input, cp, err := definition.options.Migrate(value, checkpoint, 2)
+				if err != nil || !equalJSONValue(input, value) || !equalJSONValue(cp, checkpoint) {
+					t.Fatal(input, cp, err)
+				}
+			}
+		})
+	}
+}
+
+// Source-derived imported-record execution: no private input/checkpoint is
+// available to reinterpret. Generation v1 migrates unchanged, then prepare
+// executes failNoModel through the actual generic runtime and persists v2.
+func TestSourceCanonicalBuiltinImportedGenerationNoModel(t *testing.T) {
+	for _, version := range []uint64{1, 2} {
+		t.Run(fmt.Sprint(version), func(t *testing.T) {
+			store, err := newTestSQLite(t)
+			if err != nil {
+				t.Fatal(err)
+			}
+			record := TaskRecord{ID: 2, Conversation: 1, Kind: "pi.generation", Version: version, Input: &TaskValue{Present: true, Value: JSON{}}, State: TaskState{Status: "pending", Checkpoint: JSON{"phase": "prepare", "attempt": 1}}}
+			result, err := store.Commit(bg, [][]StorageWrite{{{Type: "conversation", Value: Conversation{ID: 1}}}, {{Type: "task", Value: record}}}, nil)
+			if err != nil || result.Refused != nil {
+				t.Fatal(result, err)
+			}
+			h := openHarness(t, store, Options{})
+			_ = root(t, h, ModelRef{})
+			if err := h.Resume(bg); err != nil {
+				t.Fatal(err)
+			}
+			deadline, cancel := context.WithTimeout(bg, 3*time.Second)
+			defer cancel()
+			if err := h.WaitForIdle(deadline); err != nil {
+				t.Fatal("canonical imported generation did not finish", err)
+			}
+			task, found, err := h.Task(bg, 2)
+			if err != nil || !found || task.Version != 2 || task.Input == nil || !equalJSONValue(task.Input.Value, JSON{}) {
+				t.Fatal(task, found, err)
+			}
+			wire, err := task.State.MarshalJSON()
+			want := []byte(`{"status":"terminal","outcome":{"status":"failed","error":{"message":"No model is configured","detail":{"reason":"no_model"}}}}`)
+			if err != nil || !reflect.DeepEqual(dropinJSON(t, wire), dropinJSON(t, want)) {
+				t.Fatal("canonical imported builtin did not execute source prepare", string(wire), err)
+			}
+		})
+	}
+}
+
+// Source tool.ts136-239: canonical input, durable execute intent and migration
+// execute through the generic runtime, without a native tool checkpoint.
+func TestSourceCanonicalToolModelExecutionAndMigration(t *testing.T) {
+	for _, version := range []uint64{1, 2, 3} {
+		t.Run(fmt.Sprint(version), func(t *testing.T) {
+			store, err := newTestSQLite(t)
+			if err != nil {
+				t.Fatal(err)
+			}
+			registry := NewRegistry()
+			var calls atomic.Int64
+			if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "echo", Parameters: []byte(`{"type":"object","properties":{"text":{"type":"string"}},"required":["text"]}`)}, Implementation: "canonical.echo", Version: 1, Execute: func(_ context.Context, args JSON, _ *ToolAPI) (ToolResult, error) {
+				calls.Add(1)
+				return ToolResult{Content: args["text"].(string)}, nil
+			}}); err != nil {
+				t.Fatal(err)
+			}
+			h := openHarness(t, store, Options{Registry: registry})
+			c := root(t, h, ModelRef{})
+			snapshot, err := registry.taskSnapshot(DefaultLimits())
+			if err != nil {
+				t.Fatal(err)
+			}
+			definition := snapshot.Task("pi.tool")
+			if definition == nil {
+				t.Fatal("canonical tool definition missing")
+			}
+			old := *definition
+			old.options.Version = version
+			var id ID
+			_, err = c.Commit(bg, func(tx *Tx) (any, error) {
+				event := toolAnswer("c1", "echo", JSON{"text": "owned"})
+				receipt, err := contributionReceipt(*event.Message, tx.limits)
+				if err != nil {
+					return nil, err
+				}
+				wire, err := dtoObject(receipt, tx.limits)
+				if err != nil {
+					return nil, err
+				}
+				entry, err := tx.AppendEntry(c.ID(), JSON{"kind": "pi.assistant", "model": []any{wire}})
+				if err != nil {
+					return nil, err
+				}
+				input := JSON{"assistant": entry.ID, "callId": "c1"}
+				if version != 1 {
+					input["kind"] = "model"
+				}
+				id, err = tx.CreateTask(&old, input, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
+				return nil, err
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			record := waitPublicTask(t, h, id)
+			if record.Version != 3 || calls.Load() != 1 || record.State.Outcome == nil || record.State.Outcome.Status != "completed" || record.State.Outcome.Result == nil {
+				t.Fatal(record, calls.Load())
+			}
+			result := generationObject(record.State.Outcome.Result.Value)
+			if result["kind"] != "model" || submissionEntryID(result["entryId"]) == 0 {
+				t.Fatal(result)
+			}
+			entry, found, err := h.Entry(bg, submissionEntryID(result["entryId"]))
+			if err != nil || !found || entry.Kind != "pi.tool-result" || len(entry.Model) != 1 || goai.ContentText(entry.Model[0].Content) != "owned" {
+				t.Fatal(entry, found, err)
+			}
+		})
+	}
+}
+
+func TestSourceCanonicalGenerationModelAndToolExecution(t *testing.T) {
+	for _, tools := range []bool{false, true} {
+		t.Run(fmt.Sprint(tools), func(t *testing.T) {
+			store, err := newTestSQLite(t)
+			if err != nil {
+				t.Fatal(err)
+			}
+			registry := NewRegistry()
+			if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "echo", Parameters: []byte(`{"type":"object","properties":{}}`)}, Implementation: "source.echo", Version: 1, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) { return ToolResult{Content: "echoed"}, nil }}); err != nil {
+				t.Fatal(err)
+			}
+			var requests atomic.Int64
+			ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
+				ch := make(chan goai.Event, 1)
+				if requests.Add(1) == 1 && tools {
+					ch <- toolAnswer("c1", "echo", JSON{})
+				} else {
+					ch <- terminal("answer")
+				}
+				close(ch)
+				return ch
+			})
+			options.Registry = registry
+			h := openHarness(t, store, options)
+			c := root(t, h, ref)
+			snapshot, err := registry.taskSnapshot(DefaultLimits())
+			if err != nil {
+				t.Fatal(err)
+			}
+			definition := snapshot.Task("pi.generation")
+			if definition == nil {
+				t.Fatal("canonical generation missing")
+			}
+			var id ID
+			_, err = c.Commit(bg, func(tx *Tx) (any, error) {
+				if _, err := tx.AppendEntry(c.ID(), JSON{"kind": "pi.user", "model": []any{JSON{"role": "user", "content": "go", "timestamp": 42}}}); err != nil {
+					return nil, err
+				}
+				var err error
+				id, err = tx.CreateTask(definition, JSON{}, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
+				return nil, err
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			record := waitPublicTask(t, h, id)
+			if record.State.Outcome == nil || record.State.Outcome.Status != "completed" {
+				data, _ := record.MarshalJSON()
+				t.Fatal(string(data))
+			}
+			deadline, cancel := context.WithTimeout(bg, 3*time.Second)
+			defer cancel()
+			if err := h.WaitForIdle(deadline); err != nil {
+				t.Fatal(err)
+			}
+			page, err := c.Entries(bg, EntryQuery{}, 100, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			answer := false
+			tool := false
+			for _, entry := range page.Items {
+				if len(entry.Model) == 1 {
+					if entry.Kind == "pi.assistant" && goai.ContentText(entry.Model[0].Content) == "answer" {
+						answer = true
+					}
+					if entry.Kind == "pi.tool-result" && goai.ContentText(entry.Model[0].Content) == "echoed" {
+						tool = true
+					}
+				}
+			}
+			want := int64(1)
+			if tools {
+				want = 2
+			}
+			if !answer || tools && !tool || requests.Load() != want {
+				t.Fatal(answer, tool, requests.Load(), page.Items)
+			}
+		})
+	}
+}
+
+func TestSourceCanonicalToolThrownExecutionFails(t *testing.T) {
+	store, err := newTestSQLite(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	registry := NewRegistry()
+	if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "thrower", Parameters: []byte(`{"type":"object","properties":{}}`)}, Implementation: "source.thrower", Version: 1, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+		return ToolResult{}, fmt.Errorf("private failure")
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	h := openHarness(t, store, Options{Registry: registry})
+	c := root(t, h, ModelRef{})
+	var id ID
+	_, err = c.Commit(bg, func(tx *Tx) (any, error) {
+		event := toolAnswer("throw-1", "thrower", JSON{})
+		receipt, err := contributionReceipt(*event.Message, tx.limits)
+		if err != nil {
+			return nil, err
+		}
+		wire, err := dtoObject(receipt, tx.limits)
+		if err != nil {
+			return nil, err
+		}
+		entry, err := tx.AppendEntry(c.ID(), JSON{"kind": "pi.assistant", "model": []any{wire}})
+		if err != nil {
+			return nil, err
+		}
+		id, err = tx.CreateTask(ToolTask(), JSON{"kind": "model", "assistant": entry.ID, "callId": "throw-1"}, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
+		return nil, err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	record := waitPublicTask(t, h, id)
+	outcome := record.State.Outcome
+	if outcome == nil || outcome.Status != "failed" || outcome.Error == nil || outcome.Error.Message != "Tool thrower threw" || outcome.Result == nil {
+		wire, _ := record.MarshalJSON()
+		t.Fatal(string(wire))
+	}
+}
+
+func TestSourceCanonicalToolRecoveryReplayPolicy(t *testing.T) {
+	for _, safe := range []bool{false, true} {
+		t.Run(fmt.Sprint(safe), func(t *testing.T) {
+			store, err := newTestSQLite(t)
+			if err != nil {
+				t.Fatal(err)
+			}
+			registry := NewRegistry()
+			var calls atomic.Int64
+			if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "recover", Parameters: []byte(`{"type":"object","properties":{}}`)}, Implementation: "source.recover", Version: 1, ReplaySafe: safe, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+				calls.Add(1)
+				return ToolResult{Content: "replayed"}, nil
+			}}); err != nil {
+				t.Fatal(err)
+			}
+			h := openHarness(t, store, Options{Registry: registry})
+			c := root(t, h, ModelRef{})
+			definition := *ToolTask()
+			definition.options.Initial = func(any) (JSON, error) {
+				replay := "unsafe"
+				if safe {
+					replay = "safe"
+				}
+				return JSON{"phase": "execute", "arguments": JSON{}, "replay": replay}, nil
+			}
+			var id ID
+			_, err = c.Commit(bg, func(tx *Tx) (any, error) {
+				event := toolAnswer("c1", "recover", JSON{})
+				receipt, err := contributionReceipt(*event.Message, tx.limits)
+				if err != nil {
+					return nil, err
+				}
+				wire, err := dtoObject(receipt, tx.limits)
+				if err != nil {
+					return nil, err
+				}
+				entry, err := tx.AppendEntry(c.ID(), JSON{"kind": "pi.assistant", "model": []any{wire}})
+				if err != nil {
+					return nil, err
+				}
+				id, err = tx.CreateTask(&definition, JSON{"kind": "model", "assistant": entry.ID, "callId": "c1"}, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
+				return nil, err
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			record := waitPublicTask(t, h, id)
+			want := "failed"
+			count := int64(0)
+			if safe {
+				want = "completed"
+				count = 1
+			}
+			if record.State.Outcome == nil || record.State.Outcome.Status != want || calls.Load() != count {
+				wire, _ := record.MarshalJSON()
+				t.Fatal(string(wire), calls.Load())
+			}
+		})
+	}
+}
+
+func TestSourceCanonicalToolNestedUsesSameDefinition(t *testing.T) {
+	store, err := newTestSQLite(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	registry := NewRegistry()
+	var leaf atomic.Int64
+	if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "leaf", Parameters: []byte(`{"type":"object","properties":{}}`)}, Implementation: "source.leaf", Version: 1, StructuredOutputSchema: JSON{"type": "object", "properties": JSON{"value": JSON{"type": "string"}}, "required": []any{"value"}}, Callers: []string{"tools"}, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+		leaf.Add(1)
+		return ToolResult{StructuredOutput: JSON{"value": "owned"}, HasStructuredOutput: true}, nil
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "parent", Parameters: []byte(`{"type":"object","properties":{}}`)}, Implementation: "source.parent", Version: 1, Execute: func(ctx context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+		value, err := api.CallTool(ctx, "stable", "leaf", JSON{})
+		if err != nil {
+			t.Error("canonical nested call", err)
+			return ToolResult{}, err
+		}
+		if !value.HasStructuredOutput || !equalJSONValue(value.StructuredOutput, JSON{"value": "owned"}) {
+			return ToolResult{}, fmt.Errorf("nested structured output lost")
+		}
+		return ToolResult{Content: "parent done"}, nil
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	h := openHarness(t, store, Options{Registry: registry})
+	c := root(t, h, ModelRef{})
+	var id ID
+	_, err = c.Commit(bg, func(tx *Tx) (any, error) {
+		event := toolAnswer("p1", "parent", JSON{})
+		message, err := contributionReceipt(*event.Message, tx.limits)
+		if err != nil {
+			return nil, err
+		}
+		wire, err := dtoObject(message, tx.limits)
+		if err != nil {
+			return nil, err
+		}
+		entry, err := tx.AppendEntry(c.ID(), JSON{"kind": "pi.assistant", "model": []any{wire}})
+		if err != nil {
+			return nil, err
+		}
+		id, err = tx.CreateTask(ToolTask(), JSON{"kind": "model", "assistant": entry.ID, "callId": "p1"}, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
+		return nil, err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	record := waitPublicTask(t, h, id)
+	if record.State.Outcome == nil || record.State.Outcome.Status != "completed" || leaf.Load() != 1 {
+		wire, _ := record.MarshalJSON()
+		t.Fatal(string(wire), leaf.Load())
+	}
+	page, err := h.session.ScanTasks(bg, TaskQuery{Conversation: c.ID()}, 10, nil)
+	if err != nil {
+		t.Fatal(page, err)
+	}
+	children := []TaskRecord{}
+	for _, task := range page.Items {
+		if task.Owner == id {
+			children = append(children, task)
+		}
+	}
+	if len(children) != 1 {
+		t.Fatal(children)
+	}
+	child := children[0]
+	if child.Kind != "pi.tool" || child.Version != 3 || generationObject(child.Input.Value)["kind"] != "nested" || !equalJSONValue(child.State.Outcome.Result.Value, JSON{"kind": "nested"}) {
+		wire, _ := child.MarshalJSON()
+		t.Fatal(string(wire))
+	}
+}
+
+func TestSourceCanonicalToolNestedUnavailableSettles(t *testing.T) {
+	store, err := newTestSQLite(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	registry := NewRegistry()
+	var leaf atomic.Int64
+	if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "parent", Parameters: []byte(`{"type":"object","properties":{}}`)}, Implementation: "source.parent", Version: 1, Execute: func(ctx context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+		value, err := api.CallTool(ctx, "stable", "leaf", JSON{})
+		if err != nil {
+			t.Error("canonical nested call", err)
+			return ToolResult{}, err
+		}
+		if !value.IsError || len(value.Diagnostics) == 0 || value.Diagnostics[0].Code != "tool_unavailable" {
+			t.Error("unavailable result", value)
+			return ToolResult{}, fmt.Errorf("nested unavailable result lost")
+		}
+		return ToolResult{Content: "parent done"}, nil
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	h := openHarness(t, store, Options{Registry: registry})
+	c := root(t, h, ModelRef{})
+	var id ID
+	_, err = c.Commit(bg, func(tx *Tx) (any, error) {
+		event := toolAnswer("p1", "parent", JSON{})
+		message, err := contributionReceipt(*event.Message, tx.limits)
+		if err != nil {
+			return nil, err
+		}
+		wire, err := dtoObject(message, tx.limits)
+		if err != nil {
+			return nil, err
+		}
+		entry, err := tx.AppendEntry(c.ID(), JSON{"kind": "pi.assistant", "model": []any{wire}})
+		if err != nil {
+			return nil, err
+		}
+		id, err = tx.CreateTask(ToolTask(), JSON{"kind": "model", "assistant": entry.ID, "callId": "p1"}, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
+		return nil, err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	record := waitPublicTask(t, h, id)
+	if record.State.Outcome == nil || record.State.Outcome.Status != "completed" || leaf.Load() != 0 {
+		wire, _ := record.MarshalJSON()
+		t.Fatal(string(wire), leaf.Load())
+	}
+	page, err := h.session.ScanTasks(bg, TaskQuery{Conversation: c.ID()}, 10, nil)
+	if err != nil {
+		t.Fatal(page, err)
+	}
+	children := []TaskRecord{}
+	for _, task := range page.Items {
+		if task.Owner == id {
+			children = append(children, task)
+		}
+	}
+	if len(children) != 1 {
+		t.Fatal(children)
+	}
+	child := children[0]
+	if child.Kind != "pi.tool" || child.Version != 3 || generationObject(child.Input.Value)["kind"] != "nested" || !equalJSONValue(child.State.Outcome.Result.Value, JSON{"kind": "nested"}) {
+		wire, _ := child.MarshalJSON()
+		t.Fatal(string(wire))
 	}
 }

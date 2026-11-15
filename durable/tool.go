@@ -89,7 +89,7 @@ func validToolName(s string) bool {
 }
 
 func NewRegistry() *Registry {
-	return &Registry{tools: map[string]registeredTool{}, tasks: map[string]*TaskDefinition{"pi.compaction": CompactionTask()}}
+	return &Registry{tools: map[string]registeredTool{}, tasks: map[string]*TaskDefinition{"pi.compaction": CompactionTask(), "pi.tool": ToolTask(), "pi.generation": GenerationTask()}}
 }
 func (r *Registry) Register(reg ToolRegistration) error {
 	if (reg.Definition.Name == classifierToolName || reg.Definition.Name == imagesToolName) && !reg.paidModel {
@@ -579,6 +579,7 @@ type toolCheckpoint struct {
 // ToolAPI publishes only bounded committed prefixes while the invocation lives.
 // Output is fenced after return/abort; application mutation belongs to Commit.
 type ToolAPI struct {
+	canonicalInput      canonicalToolInput
 	nested              bool
 	mu                  sync.Mutex
 	h                   *Harness

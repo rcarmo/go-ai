@@ -2,7 +2,11 @@
 
 The sole acceptance target is official upstream **v1.5.0**, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Alignment is unverified. Older entries below are historical receipts, not compatibility requirements or v1.5.0 acceptance. Retained tests and active identity/schema/catalogue/regeneration pins must be reconciled with this release; obsolete behaviour must change.
 
-## Development continuation: task kind and phase string keys
+## Development continuation: canonical builtin execution
+
+[Source packets, failures and remaining scope](notes/canonical-builtin-execution.md): actual Generation2/Tool3 definitions, input migrations, generic canonical execution and nested pi.tool3 records now pass their focused packets. Full actual26 tested packages pass durable458.890s/tools21.525s/public12.579s, no overlays/exclusions; six compiled faults, ten shuffled canonical repetitions14.008s, static/logging/register and original282/nested125 zero skipped. Normal Submit/private producers and complete phase/provider/control/recovery assertions are not migrated or accepted. Full alignment/release and profiling remain incomplete.
+
+## Previous development continuation: task kind and phase string keys
 
 [Source boundaries and verification](notes/internal-task-replacement.md#task-kind-and-phase-string-keys): Task kinds and phase names now follow source string-map lookup, without Go’s lowercase identifier/128-byte grammar. Empty, uppercase/spaces, Unicode, NUL and129-byte keys execute through real task creation, reservation, phase transition and terminal settlement. Strict UTF-8/string-budget and state/record checks remain. The new native packet first failed0.023s on all five cases; its independent original Harness probe passes. Ten shuffled repetitions2.313s, four independently compiled grammar-restoration faults and static/logging/register pass. The candidate passes26 tested packages (durable450.325s/tools20.319s/public12.032s); its compiler overlay excludes only the two previously uncommitted canonical builtin RED targets, retaining every accepted assertion. Selected original281 (200 unchanged plus81 probes) and table101 pass zero skipped. Canonical builtin execution and the current working tree are not accepted.
 

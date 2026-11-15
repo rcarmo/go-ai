@@ -52,3 +52,18 @@ func TestSourceRegistryBuiltinCompactionBeforeHarnessOpen(t *testing.T) {
 		t.Fatal("source builtin replaced by extension before Harness.Open")
 	}
 }
+
+func TestSourceGenerationAndToolDefinitionsCannotBeReplaced(t *testing.T) {
+	for _, kind := range []string{"pi.generation", "pi.tool"} {
+		t.Run(kind, func(t *testing.T) {
+			registry := NewRegistry()
+			replacement := taskDefinition(t, kind, taskAbort)
+			if _, err := registry.RegisterTask(replacement); err == nil {
+				t.Error("source builtin replaced", kind)
+			}
+			if err := registry.Install(&Extension{Name: "collision", Tasks: []*TaskDefinition{replacement}}); err == nil {
+				t.Error("source builtin replaced by extension", kind)
+			}
+		})
+	}
+}

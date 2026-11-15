@@ -247,7 +247,7 @@ func (r *Registry) RegisterTask(definition *TaskDefinition) (func(), error) {
 	if r == nil || definition == nil || !definition.constructed {
 		return nil, reject("nil task registration")
 	}
-	if definition.options.Kind == "pi.compaction" || definition.options.Kind == nestedToolKind && definition != nestedToolDefinition() {
+	if definition.options.Kind == "pi.compaction" || definition.options.Kind == "pi.generation" || definition.options.Kind == "pi.tool" || definition.options.Kind == nestedToolKind && definition != nestedToolDefinition() {
 		return nil, reject("builtin task cannot be replaced")
 	}
 	r.mu.Lock()

@@ -69,6 +69,9 @@ func (h *NestedToolHandle) Wait(ctx context.Context) (ToolResult, error) {
 	if err != nil {
 		return ToolResult{}, err
 	}
+	if record.Kind == "pi.tool" && record.Input != nil && generationObject(record.Input.Value)["kind"] == "nested" {
+		return h.waitCanonicalTool(ctx, record)
+	}
 	if record.State.Outcome != nil && record.State.Outcome.Status == "faulted" {
 		return ToolResult{}, fmt.Errorf("nested task fault: %+v", record.State.Outcome.Error)
 	}
@@ -137,6 +140,9 @@ func (r *TaskRuntime) startTool(ctx context.Context, key, name string, arguments
 	return r.startToolScoped(ctx, key, name, arguments, sequential, false)
 }
 func (r *TaskRuntime) startToolScoped(ctx context.Context, key, name string, arguments JSON, sequential, native bool) (*NestedToolHandle, error) {
+	if r != nil && r.definition == ToolTask() {
+		return r.startCanonicalTool(ctx, key, name, arguments, sequential, native)
+	}
 	if err := r.check(); err != nil {
 		return nil, err
 	}

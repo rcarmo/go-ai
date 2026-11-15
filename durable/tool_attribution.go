@@ -30,6 +30,17 @@ func (api *HookAPI) ToolInvocation(ctx context.Context) (ToolInvocation, error) 
 		}
 		out.Task = task.ID
 		out.ParentTask = task.Owner
+		if canonicalToolRecord(task) {
+			var input canonicalToolInput
+			if err := fromObject(taskCheckpointMap(task.Execution.Native.Input.Value), &input, r.harness.session.limits); err != nil {
+				return err
+			}
+			out.Caller, out.CallID = "model", input.CallID
+			if input.Kind == "nested" {
+				out.Caller, out.CallID, out.Key, out.ParentCallID = "tools", input.Call.ID, input.Key, input.ParentCallID
+			}
+			return nil
+		}
 		switch task.Kind {
 		case nestedToolKind:
 			record, err := CanonicalTask(task, r.harness.session.limits)
@@ -60,6 +71,16 @@ func (api *HookAPI) ToolInvocation(ctx context.Context) (ToolInvocation, error) 
 }
 
 func nestedParentCallID(parent Task, l Limits) (string, error) {
+	if canonicalToolRecord(parent) {
+		var input canonicalToolInput
+		if err := fromObject(taskCheckpointMap(parent.Execution.Native.Input.Value), &input, l); err != nil {
+			return "", err
+		}
+		if input.Kind == "nested" {
+			return input.Call.ID, nil
+		}
+		return input.CallID, nil
+	}
 	switch parent.Kind {
 	case "pi.tool":
 		var cp toolCheckpoint
