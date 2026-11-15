@@ -163,7 +163,16 @@ func (r *TaskRuntime) commit(ctx context.Context, change func(*Tx, TaskRecord) (
 		nextPhase, nextOK := taskCheckpointMap(state.Checkpoint)["phase"].(string)
 		previousPhase, _ := taskCheckpointMap(view.State.Checkpoint)["phase"].(string)
 		checkpointChanged = state.Status == "running" && nextOK && nextPhase != previousPhase
-		return tx.stage(Write{Op: "put-task", Task: &task})
+		// Source scheduler #commitState clears restarts for changed states and
+		// decided outcomes; the raw stage helper no longer performs this step.
+		if task.Restarts != 0 && taskMadeProgress(tx.state.Tasks[r.taskID], task) {
+			task.Restarts = 0
+		}
+		replacement, err := CanonicalTask(task, tx.limits)
+		if err != nil {
+			return err
+		}
+		return tx.setTask(replacement)
 	}, false, r.taskID, deferred, window...)
 	if err == nil && checkpointChanged {
 		r.telemetryEvent("pi.durable.checkpoint", nil)

@@ -88,7 +88,9 @@ func validToolName(s string) bool {
 	return utf8.ValidString(s) && len(s) <= DefaultLimits().MaxStringBytes
 }
 
-func NewRegistry() *Registry { return &Registry{tools: map[string]registeredTool{}} }
+func NewRegistry() *Registry {
+	return &Registry{tools: map[string]registeredTool{}, tasks: map[string]*TaskDefinition{"pi.compaction": CompactionTask()}}
+}
 func (r *Registry) Register(reg ToolRegistration) error {
 	if (reg.Definition.Name == classifierToolName || reg.Definition.Name == imagesToolName) && !reg.paidModel {
 		return reject("reserved paid model tool")

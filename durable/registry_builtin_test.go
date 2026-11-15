@@ -32,3 +32,23 @@ func TestRegistryBuiltinCompactionCannotReplaceOrRemoveAcrossReopen(t *testing.T
 		}
 	})
 }
+
+// Source harness/registry.ts10-26 installs builtin tokens when the registry
+// is constructed; opening a Harness is not the installation boundary.
+func TestSourceRegistryBuiltinCompactionBeforeHarnessOpen(t *testing.T) {
+	registry := NewRegistry()
+	snapshot, err := registry.taskSnapshot(DefaultLimits())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.Task("pi.compaction") != CompactionTask() {
+		t.Fatal("source registry builtin absent before Harness.Open")
+	}
+	replacement := taskDefinition(t, "pi.compaction", taskAbort)
+	if _, err := registry.RegisterTask(replacement); err == nil {
+		t.Fatal("source builtin replaced before Harness.Open")
+	}
+	if err := registry.Install(&Extension{Name: "collision", Tasks: []*TaskDefinition{replacement}}); err == nil {
+		t.Fatal("source builtin replaced by extension before Harness.Open")
+	}
+}

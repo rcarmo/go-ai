@@ -4,7 +4,9 @@
 
 Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Native implementation: `/work/go-ai/durable`, authorised SQLite-only, pure Go. The preceding pushed implementation checkpoint is `04726f3` (request-time model/retry authority); image-resource diagnosis is recorded at `1e0f3ad`.
 
-Latest continuation: [submission tool/trace/lifetime packets](submission-tool-lifetime.md). A real held-tool boundary, steer-to-run trace link and invocation-bound child lifetime now have literal native source packets. Canonical builtin execution/migrations are the next unfinished boundary. The preceding implementation checkpoint is `6c6758bf41812bf594822fb0b102eeb3c12f9f82`.
+Latest foundation continuation: [generic runtime source replacement and registry construction](internal-task-replacement.md#generic-runtime-integration-and-registry-construction). The candidate passes the previously accepted suite plus its new registry control; two upcoming uncommitted canonical builtin tests remain red, so the current working tree is not green.
+
+Previous continuation: [submission tool/trace/lifetime packets](submission-tool-lifetime.md). A real held-tool boundary, steer-to-run trace link and invocation-bound child lifetime now have literal native source packets. Canonical builtin execution/migrations are the next unfinished boundary. The preceding implementation checkpoint is `6c6758bf41812bf594822fb0b102eeb3c12f9f82`.
 
 ## Earlier queue-production checkpoint
 

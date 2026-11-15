@@ -2,7 +2,11 @@
 
 The sole acceptance target is official upstream **v1.5.0**, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Alignment is unverified. Older entries below are historical receipts, not compatibility requirements or v1.5.0 acceptance. Retained tests and active identity/schema/catalogue/regeneration pins must be reconciled with this release; obsolete behaviour must change.
 
-## Development continuation: submission tool/trace/lifetime
+## Development continuation: canonical-runtime foundations
+
+[Generic runtime replacement and registry construction](notes/internal-task-replacement.md#generic-runtime-integration-and-registry-construction): TaskRuntime.Commit now uses private source setTask, preserving source progress-count clearing; CompactionTask is installed at registry construction. The candidate passes26 tested packages durable891.676s/tools27.174s/public13.087s, two compiled faults and static/logging/register. A compiler overlay excluded only two new uncommitted canonical builtin RED targets; all previously accepted tests and the new registry control ran. This is not a full working-tree or canonical builtin acceptance receipt. Earlier candidate879.259s failed unchanged restart-count assertions, fixed from scheduler2437–2457. Actual Generation2/Tool3 definitions/handlers/migrations are incomplete; new native tests fail while their source probe passes.
+
+## Previous development continuation: submission tool/trace/lifetime
 
 [Literal source packets and verification](notes/submission-tool-lifetime.md) cover real tool-bound write placement, steer-to-run root links and ended-tool child conversation/submission capabilities. Full26 tested packages pass durable838.557s/tools28.232s/public12.387s; three compiled faults, ten shuffled trace/lifetime repetitions, static/logging and original submit110/telemetry113/ownership128 pass zero skipped. The earlier full571.063s exposed the obsolete missing-conversation error assertion, now corrected to source absence with bootstrap/reopen controls retained. Canonical builtin execution/migrations and broader trace/queued-close/release acceptance are incomplete.
 

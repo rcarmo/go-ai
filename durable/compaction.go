@@ -7,6 +7,7 @@ import (
 	"github.com/rcarmo/go-ai/internal/errortext"
 	"math"
 	"strings"
+	"sync"
 	"unicode/utf8"
 )
 
@@ -26,18 +27,22 @@ type CompactionInput struct {
 	Instructions *string `json:"instructions,omitempty"`
 }
 
-var builtinCompactionTask = func() *TaskDefinition {
-	definition, err := newCompactionDefinition()
-	if err != nil {
-		panic(err)
-	}
-	return definition
-}()
+var builtinCompactionTask *TaskDefinition
+var builtinCompactionOnce sync.Once
 
 // CompactionTask returns the pinned source's immutable builtin task token.
 // A getter preserves the source constant binding: callers cannot replace the
-// token registered by Harness.Open through an assignable exported Go variable.
-func CompactionTask() *TaskDefinition { return builtinCompactionTask }
+// token held by every registry through an assignable exported Go variable.
+func CompactionTask() *TaskDefinition {
+	builtinCompactionOnce.Do(func() {
+		definition, err := newCompactionDefinition()
+		if err != nil {
+			panic(err)
+		}
+		builtinCompactionTask = definition
+	})
+	return builtinCompactionTask
+}
 
 // Compact creates a durable manual summarisation task. Selection and request
 // intent survive reopen; summary placement is a passive write, queued while a
