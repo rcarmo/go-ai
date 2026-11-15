@@ -192,3 +192,91 @@ All source phase names have executable handlers, but their full assertion packet
 ## User-requested incomplete checkpoint
 
 The user explicitly requested commit and push after the red baseline above. This snapshot preserves the canonical admission/refactor work and bounded verification; it is a WIP checkpoint, not a verified full-tree candidate. Last fully verified pushed checkpoint remains `89c031ebcdc7374b28240ca09511bfcd7e9f8c22`. Earlier references to uncommitted work describe its state when those checks ran. Continue terminal-close/reopen source reconciliation and the remaining plan; do not release this snapshot as accepted parity.
+
+## Clean-close and final-reset reconciliation after WIP checkpoint
+
+User-requested incomplete checkpoint365f5b6 was committed and pushed;89c031e stays the last fully verified tree. Native compatibility does not constrain this port.
+
+Source generation.ts classify first calls runtime.signal.throwIfAborted: a provider returning a terminal message after Close does not settle that attempt. The source generation-recovery75–125 and restart-failure254–273 resend cleanly at the same attempt, with no restart charge. The retired TestM1bCloseReceivedTerminalCommitsNoReplay expected a late terminal to be stored and then panicked in its provider on redispatch. TestGenerationCloseBeforeTerminalClassificationResendsRequest now asserts the source contract: Close joins noncooperative effects; late result is absent from storage; reopened task remains pending/request/attempt1/restarts0; input remains placed, Open dispatches nothing; explicit wait resends once and appends only one final assistant, with no duplicate input. The companion noncooperative-close test checks the canonical pending request before dispatch, replacing its impossible terminal checkpoint attempt assertion and removing its sleep. Production code was already correct for these cases. Three shuffled repetitions pass1.292s.
+
+The next full actual-tree command (all packages, no exclusions) failed durable213.651s/tools9.611s, reaching75 top-level failure groups before a reset fixture indexed block Content on a canonical string-content message. The final-reset fixture now preserves the string union and checks exact user/assistant/reset entry order and reset head:self, retaining done settlement and exact new context text. Source harness-inbox272–291. Corrected close/reset packet passes three shuffled repetitions1.759s. Other reset tests and later suite enumeration are still incomplete; no full-tree acceptance.
+
+Original unchanged generation-recovery9 pass, zero skipped,0.816s; separate inbox37 pass, zero skipped,0.781s. Each command also ran90 independent TypeScript probes; those are not original/native assertion credit. Whole-tree vet/Staticcheck v0.8.2/logging passed after close reconciliation; rerun after final-reset correction below. No runtime edits were required by this packet.
+
+Latest full-baseline observed groups (runtime versus fixture cause still requires pinned-source reconciliation):
+
+- `TestAutomaticCompactionRetryDecisionFollowsCurrentSettingsAfterResponse`
+- `TestOverflowCompactionOneRecoveryAndNoOrdinaryRetry`
+- `TestEntryContextActualHTTPSystemToolsEditedAncestorReopen`
+- `TestEnvironmentFactoryAbortAndFailureFenceEffects`
+- `TestAgentEventsActualPartialsAndToolEndAdjacentToResult`
+- `TestAgentEventsCommittedToolLifecycleAndReentrantListener`
+- `TestFailedRun140InboxPolicies`
+- `TestFailedRun140BoundedWithdrawalRecovery`
+- `TestFailedRun140WithdrawalJoinsOwnedHosts`
+- `TestGeneration140PacingAlarmAloneResumesRetryAndPoll`
+- `TestMainBoundaryAtomicSuccessorPublication`
+- `TestMainBoundaryEligibilityInheritedCancellationBeforePlacement`
+- `TestMainBoundaryEligibilityAbsentAgentHostAllModes`
+- `TestMainBoundaryEligibilityLocallyDecidedFailFast`
+- `TestMainBoundaryFirstIncludesPassiveWrite`
+- `TestMainBoundaryLifetimeBeforeModelResolution`
+- `TestMainBoundaryLegacyRecoveryBusyControl`
+- `TestMainBoundaryOwnedInvocationIdleChildAdmission`
+- `TestMainBoundaryOwnedAfterResponseHeldAdmission`
+- `TestMainBoundaryPassiveWriteRollback`
+- `TestCanonicalInboxWritesAreBoundaryAuthority`
+- `TestCanonicalInboxMissingWriteFailsAfterAdmissionCallback`
+- `TestMainContinueBoundaryKeptInputsAndWrite`
+- `TestMainContinueBoundaryLegacyFirstFallsBackToActualWrite`
+- `TestMainContinueNothingToAnswerEmptyAndAnswered`
+- `TestMainContinueToolHandoffOrderedInputs`
+- `TestMainContinueBusyRejectAndRequestIDDedup`
+- `TestMainContinueOwnedToolAfterModelError`
+- `TestMainContinueOwnedSubmissionAbortBeforeProviderDerived`
+- `TestMainCutoffKeepsCommittedPartialAtLimit`
+- `TestMainCutoffDropsPartialPastLimit`
+- `TestMainCutoffDeferredSalvagePhasesDerived`
+- `TestMainRunFailureOrdinaryAbortProjection`
+- `TestMainRunFailureAbortHandlerCutoffProjectionDerived`
+- `TestMainRunFailureAttachedInputsWithoutQueuedSuccessor`
+- `TestMainRunFailureNoModelBeforeRequest`
+- `TestMainRunFailureNoModelReplacesPreviousModelError`
+- `TestMainRunFailureQueuedFollowUpNoModelRetainsDecisionPlacement`
+- `TestMainRunFailureNoModelAttachedSteersAndRemainingSuccessor`
+- `TestMainRunFailureContinueQueueClearsFailureAfterAnswer`
+- `TestMainRunFailurePostToolsResetRetainsOnlyImmediateSuccessor`
+- `TestMainHarnessRecoveryCrashAfterConversion`
+- `TestMainGenerationAgentEventsBeforeStorage`
+- `TestM1bTerminalAndExplicitUnsupported`
+- `TestM1bLargeLocalModelAuthorizationHTTP`
+- `TestMainInterruptedBudgetAndCloseAccounting`
+- `TestMainInterruptedPollRetryEdges`
+- `TestMainPollTerminalOnlyBoundaryDerived`
+- `TestMainAbortedPollCancelHandlerCutoff`
+- `TestMainPollCutoffSkipsRepeatedCancellationDerived`
+- `TestMainToolProgressDeferredMemoryAndPersistence`
+- `TestMainToolProgressMemoryEventsNotStorageReplay`
+- `TestM1cActualHTTPToolResultAwareAnswer`
+- `TestM1cSchemaSubsetAndRepairBeforeIntent`
+- `TestM1cNotOfferedAndInvalidArgumentsZeroEffects`
+- `TestM1cAbortDrainsChildBeforeParentAndFencesEscapedAPI`
+- `TestM1cCloseNoncooperativeToolKeepsOwnershipAndReturnedOutcome`
+- `TestM1cRegistryPhasePinOutputCapAndAtomicAppFailure`
+- `TestM1cCommittedPartialAndQueuedWithdrawal`
+- `TestM1cInvalidToolUsageSettlesOnceNoAppOrReplay`
+- `TestM1cAbortAtOfferedCallBoundaryStartsNoTool`
+- `TestBeforeToolBlockOrThrowPreventsEffectAndRevalidatesReplacement`
+- `TestIdentity140DurableDefaultHostAndPinnedOverrides`
+- `TestInputMetadata120QueuedReopenBeforePlacement`
+- `TestM1bPinnedModelRecoveryIgnoresRegistryBehaviorChange`
+- `TestAssistantProtocolFieldsSignaturesPresenceContextAndReopen`
+- `TestNestedTool120ModelParentCallAttribution`
+- `TestOverflowFailedOrDeclinedCompactionEndsWithoutAnotherRequestOrReceipt`
+- `TestGeneration104ConfiguredPartialIntervalProductionPath`
+- `TestReaderUTF16MainCommittedEventsAndSnapshot`
+- `TestReport140ModelHostFailuresReportAfterFallbackAdoption`
+- `TestReport140StructuredOutputUsesCapturedProducer`
+- `TestResetIdleAndPostToolsStartsFollowUpInNewContext`
+- `TestResetAtFinalBoundaryKeepsAnswerThenCutsContext`
+- `TestRead120DefaultLargeImageReachesProvider`

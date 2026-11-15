@@ -151,12 +151,16 @@ func TestResetAtFinalBoundaryKeepsAnswerThenCutsContext(t *testing.T) {
 		}
 		releaseTaskGate(release)
 		settled := waitSubmission(t, sub)
-		if settled.Submission.Status != "done" || settled.Message.Content[0].Text != "answer" {
+		if settled.Record.Status != "done" || settled.Message == nil || len(settled.Message.Content) != 1 || settled.Message.Content[0].Text != "answer" {
 			t.Fatal(settled)
 		}
 		view, err := conversation.ContextView(bg, 0)
-		if err != nil || len(view.Messages) != 1 || view.Messages[0].Content[0].Text != "new" {
-			t.Fatal("final reset context", view, err)
+		if err != nil || len(view.Messages) != 1 || view.Messages[0].Role != goai.RoleUser || view.Messages[0].ContentText == nil || *view.Messages[0].ContentText != "new" || len(view.Messages[0].Content) != 0 {
+			t.Fatal("final reset string-content context", view, err)
+		}
+		entries, err := conversation.Entries(bg, EntryQuery{Order: Ascending}, 100, nil)
+		if err != nil || len(entries.Items) != 3 || entries.Items[0].Kind != "pi.user" || entries.Items[1].Kind != "pi.assistant" || entries.Items[2].Kind != "pi.reset" || entries.Items[2].Head != entries.Items[2].ID {
+			t.Fatal("final reset transcript ordering", entries, err)
 		}
 	})
 }

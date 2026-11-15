@@ -1137,7 +1137,7 @@
     "historical": true
   },
   "currentCheckpoint": {
-    "scope": "Uncommitted production admission migration; full alignment and release acceptance incomplete.",
+    "scope": "Canonical production migration checkpoint365f5b6 pushed at user request; known red integration.89c031e is last fully verified tree.",
     "baseRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
     "lastVerifiedPushed": {
       "revision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
@@ -1185,6 +1185,11 @@
           "seconds": 183.521,
           "result": "failed and panicked; terminal-close/reopen provider redispatch closes signal twice",
           "topLevelFailureGroups": 66
+        },
+        {
+          "seconds": 213.651,
+          "result": "failed and panicked; final-reset fixture indexed string content as blocks",
+          "topLevelFailureGroups": 75
         }
       ],
       "focusedSeconds": 60.888,
@@ -1233,6 +1238,14 @@
         "vet": "pass",
         "staticcheck": "v0.8.2 pass",
         "logging": "pass"
+      },
+      "closeResetPacket": {
+        "status": "test-only source reconciliation pass; full tree red",
+        "shuffledCount": 3,
+        "shuffledSeconds": 1.759,
+        "originalGenerationRecoveryCases": 9,
+        "originalInboxCases": 37,
+        "originalSkipped": 0
       }
     },
     "reference": {

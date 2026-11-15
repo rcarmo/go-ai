@@ -8,7 +8,7 @@ The [fresh alignment review](docs/upstream-v1.5.0/alignment-roadmap.md) supersed
 
 ## Uncommitted production-admission migration
 
-The worktree after89c031e fails complete durable regression; latest durable163.708s failed and panicked in the private BeforeRequest recovery fixture, now corrected; full regression remains red. Canonical production admission and targeted runtime fixes pass focused60.888s and three shuffled9.501s, vet/Staticcheck/logging/register. No commit, push, full-suite/fault/oracle or release acceptance for this migration. [Failures and next actions](notes/canonical-builtin-execution.md#uncommitted-production-admission-migration).
+The worktree after89c031e fails complete durable regression; latest durable213.651s failed at a final-reset string-content fixture panic, now corrected; complete regression is still red. Canonical production admission and targeted runtime fixes pass focused60.888s and three shuffled9.501s, vet/Staticcheck/logging/register. No commit, push, full-suite/fault/oracle or release acceptance for this migration. [Failures and next actions](notes/canonical-builtin-execution.md#uncommitted-production-admission-migration).
 
 ## Previous development continuation: canonical builtin execution
 
@@ -795,3 +795,5 @@ Native pi-durable M1a design is separately accepted at `/workspace/tmp/go-ai-dur
 ## Release documentation policy
 
 For every future upstream `@earendil-works/pi-ai` release audit, update this `RELEASE.md` in the same release parity commit before declaring completion. The update must include the upstream tag/SHA, npm artifact/checksum, changed-path and test-corpus counts/hashes, every Go implementation, fix, adaptation, N/A decision, local validation/fault-gate evidence, SBOM/security/license evidence, hosted CI evidence, and final/rollback SHAs.
+
+Current checkpoint: `365f5b6` was committed/pushed at the user’s request with known full-regression failures. It is not an accepted candidate; `89c031e` is the last fully verified tree. Close/reopen and final-reset fixture reconciliation has bounded passes; see [working receipt](notes/canonical-builtin-execution.md).

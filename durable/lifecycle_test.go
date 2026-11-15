@@ -43,7 +43,18 @@ func TestM1bCloseJoinsNoncooperativeAndReopenIntent(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	<-entered
+	awaitTaskSignal(t, entered)
+	view, err := r.View(bg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	live, _ := view.Docs.Get("pi.live")
+	run, _ := live.Get("run")
+	taskNode, _ := run.Get("taskId")
+	taskID := submissionEntryID(taskNode.Copy())
+	if taskID == 0 {
+		t.Fatal("request missing generation", live.Copy())
+	}
 	ctx, cancel := context.WithTimeout(bg, 20*time.Millisecond)
 	defer cancel()
 	if e = h.Close(ctx); !errors.Is(e, context.DeadlineExceeded) {
@@ -68,9 +79,9 @@ func TestM1bCloseJoinsNoncooperativeAndReopenIntent(t *testing.T) {
 	if snapshot.Submissions[sub.ID()].Status != "pending" || calls.Load() != 1 {
 		t.Fatal("close invented terminal or open dispatched")
 	}
-	time.Sleep(20 * time.Millisecond)
-	if calls.Load() != 1 {
-		t.Fatal("Open dispatch effect")
+	pending, found, err := h2.Task(bg, taskID)
+	if err != nil || !found || pending.Restarts != 0 || pending.State.Status != "pending" || taskCheckpointMap(pending.State.Checkpoint)["phase"] != "request" || submissionEntryID(taskCheckpointMap(pending.State.Checkpoint)["attempt"]) != 1 || calls.Load() != 1 {
+		t.Fatal("clean-close request recovery", pending, err, calls.Load())
 	}
 	resumed, e := h2.Submission(bg, sub.ID())
 	if e != nil {
@@ -84,12 +95,8 @@ func TestM1bCloseJoinsNoncooperativeAndReopenIntent(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	var cp generationCheckpoint
-	// Pinned v1.5.0 probe: a clean close during the request reopens and resends
-	// the same request at attempt1 with no restart charge; it is not a new attempt.
-	if e = fromObject(result.Task.Checkpoint, &cp, h2.session.limits); e != nil || cp.Attempt != 1 {
-		t.Fatal(cp, e)
-	}
+	// Terminal source tasks discard checkpoints. Observe the request record
+	// after reopen, before dispatch, to verify its unchanged charged attempt.
 	if len(snapshot.Entries) != 2 {
 		t.Fatal("recovery duplicate user/outcome entries")
 	}
@@ -249,43 +256,87 @@ func TestM1bIntentAndOutcomeFaultBarriers(t *testing.T) {
 	}
 }
 
-func TestM1bCloseReceivedTerminalCommitsNoReplay(t *testing.T) {
+// Source generation.ts classify checks runtime.signal before publishing any
+// terminal provider message. A result returned after Close is not committed;
+// clean reopen resends the unchanged attempt (generation-recovery:75-125).
+// This supplemental noncooperative provider probe must not expect the legacy
+// private producer's close-time terminal receipt or preserve it for compatibility.
+func TestGenerationCloseBeforeTerminalClassificationResendsRequest(t *testing.T) {
 	entered, release := make(chan struct{}), make(chan struct{})
 	var calls atomic.Int64
 	ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
-		calls.Add(1)
+		n := calls.Add(1)
 		ch := make(chan goai.Event)
-		go func() { close(entered); <-release; ch <- terminal("actual terminal"); close(ch) }()
+		go func() {
+			defer close(ch)
+			if n == 1 {
+				close(entered)
+				<-release
+				ch <- terminal("late terminal")
+			} else {
+				ch <- terminal("reopened answer")
+			}
+		}()
 		return ch
 	})
-	s, dir := newSQLiteTestStore(t)
-	h := openHarness(t, s, options)
+	store, dir := newSQLiteTestStore(t)
+	h := openHarness(t, store, options)
+	t.Cleanup(func() { releaseTaskGate(release) })
 	r := root(t, h, ref)
-	sub, e := r.Submit(bg, Input{Content: "close-terminal", RequestID: "terminal"})
-	if e != nil {
-		t.Fatal(e)
+	sub, err := r.Submit(bg, Input{Content: "close-terminal", RequestID: "terminal"})
+	if err != nil {
+		t.Fatal(err)
 	}
-	<-entered
+	awaitTaskSignal(t, entered)
+	view, err := r.View(bg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	live, _ := view.Docs.Get("pi.live")
+	run, _ := live.Get("run")
+	task, _ := run.Get("taskId")
+	id := submissionEntryID(task.Copy())
 	ctx, cancel := context.WithTimeout(bg, 20*time.Millisecond)
 	defer cancel()
-	if e = h.Close(ctx); !errors.Is(e, context.DeadlineExceeded) {
-		t.Fatal(e)
+	if err := h.Close(ctx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatal("close failed to join live provider", err)
 	}
-	close(release)
-	if e = h.Close(bg); e != nil {
-		t.Fatal(e)
+	releaseTaskGate(release)
+	if err := h.Close(bg); err != nil {
+		t.Fatal(err)
 	}
-	s, e = openSQLiteTestDirectory(dir, SQLiteOptions{})
-	if e != nil {
-		t.Fatal(e)
+	store, err = openSQLiteTestDirectory(dir, SQLiteOptions{})
+	if err != nil {
+		t.Fatal(err)
 	}
-	h2 := openHarness(t, s, options)
-	recovered, e := h2.Submission(bg, sub.ID())
-	if e != nil {
-		t.Fatal(e)
+	h2 := openHarness(t, store, options)
+	record, found, err := h2.Task(bg, id)
+	if err != nil || !found || record.Restarts != 0 || record.State.Status != "pending" || taskCheckpointMap(record.State.Checkpoint)["phase"] != "request" || submissionEntryID(taskCheckpointMap(record.State.Checkpoint)["attempt"]) != 1 {
+		t.Fatal("late terminal changed request", record, err)
 	}
-	if waitSubmission(t, recovered).Submission.Status != "done" || calls.Load() != 1 {
-		t.Fatal("observed terminal lost/replayed")
+	recovered, err := h2.Submission(bg, sub.ID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	status, err := recovered.Status(bg)
+	if err != nil || status.Status != "placed" || status.Answer != 0 || calls.Load() != 1 {
+		t.Fatal("late terminal settled input or Open dispatched", status, calls.Load(), err)
+	}
+	c, err := h2.Conversation(bg, r.ID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := c.Entries(bg, EntryQuery{Order: Ascending}, 100, nil)
+	if err != nil || len(before.Items) != 1 || before.Items[0].Kind != "pi.user" {
+		t.Fatal("late terminal was stored", before, err)
+	}
+	result := waitSubmission(t, recovered)
+	if result.Record.Status != "done" || result.Message == nil || result.Message.Content[0].Text != "reopened answer" || calls.Load() != 2 {
+		t.Fatal("resend result", result, calls.Load())
+	}
+	after, err := c.Entries(bg, EntryQuery{Order: Ascending}, 100, nil)
+	if err != nil || len(after.Items) != 2 || after.Items[0].Kind != "pi.user" || after.Items[1].Kind != "pi.assistant" {
+		t.Fatal("duplicate input or terminal", after, err)
 	}
 }
 
