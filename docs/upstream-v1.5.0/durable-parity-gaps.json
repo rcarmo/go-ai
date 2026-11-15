@@ -1137,7 +1137,7 @@
     "historical": true
   },
   "currentCheckpoint": {
-    "scope": "Canonical production migration checkpoint365f5b6 pushed at user request; known red integration.89c031e is last fully verified tree.",
+    "scope": "Canonical migration checkpoints365f5b6/6b637a3/c988681 pushed; current focused recovery/reset/image packet passes, integration red.89c031e remains last fully verified tree.",
     "baseRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
     "lastVerifiedPushed": {
       "revision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
@@ -1195,6 +1195,26 @@
           "seconds": 1200.042,
           "result": "failed and timed out; terminal admission fixture waits for retired phase:terminal",
           "topLevelFailureGroups": 75
+        },
+        {
+          "seconds": 237.135,
+          "result": "failed; obsolete tool-fault fixture panic",
+          "topLevelFailureGroups": 92
+        },
+        {
+          "seconds": 235.407,
+          "result": "failed; obsolete held-tool fault fixture panic",
+          "topLevelFailureGroups": 92
+        },
+        {
+          "seconds": 372.996,
+          "result": "failed; obsolete tool byte-output fixture panic",
+          "topLevelFailureGroups": 94
+        },
+        {
+          "seconds": 377.177,
+          "result": "failed; obsolete tool-output policy fixture panic",
+          "topLevelFailureGroups": 93
         }
       ],
       "focusedSeconds": 60.888,
@@ -1262,6 +1282,24 @@
         "vet": "pass",
         "staticcheck": "v0.8.2 pass",
         "logging": "pass"
+      },
+      "progressResetImagePacket": {
+        "status": "bounded pass; integration red",
+        "combinedShuffledCount": 3,
+        "combinedSeconds": 32.984,
+        "imageRedSeconds": 0.628,
+        "restoredImageReceiptSeconds": 8.68,
+        "outputUnionFixtureSeconds": 1.934,
+        "originalInboxCases": 37,
+        "originalToolsCases": 42,
+        "originalSkipped": 0,
+        "independentTypeScriptProbesPerRun": 90,
+        "semanticMutations": "9 compiled faults detected/restored: prior6 plus canonical progress owner key, call/name attribution and terminal-clear update",
+        "vet": "pass",
+        "staticcheck": "v0.8.2 pass",
+        "logging": "pass",
+        "assertionMappings": "notes/canonical-builtin-execution.md#progress-reset-and-tool-receipt-packet",
+        "canonicalProgress": "details/null/window/sealed result and exact attribution pass; deferred-memory private operation fixtures remain red"
       }
     },
     "reference": {

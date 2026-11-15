@@ -18,8 +18,8 @@ import (
 func mainRequirePreparationNoModel(t *testing.T, h *Harness, c *ConversationHandle, sub *SubmissionHandle, result Settlement, detail string, held bool) Snapshot {
 	t.Helper()
 	state := mainRequirePreparationNoModelState(t, h, c, sub, result, detail)
-	// Native adapters: numeric IDs and the explicitly permitted private
-	// failedRun queue gate. Compare the entire live value, including runFailure.
+	// Compare the entire source live value, including runFailure. Queue
+	// retention is observable in Inbox, not a native failedRun flag.
 	mainRequireRunFailure(t, state, c.ID(), result.Task.ID, sub.ID(), result.Record.Entry, "no_model", detail, held)
 	return state
 }
@@ -35,18 +35,11 @@ func mainRequirePreparationNoModelState(t *testing.T, h *Harness, c *Conversatio
 	if result.Task.ID == 0 || result.Task.Conversation != c.ID() || result.Record.Entry == 0 {
 		t.Fatal("no-model run lacks its own task/placed entry", result)
 	}
-	var cp generationCheckpoint
-	if err := fromObject(result.Task.Checkpoint, &cp, h.session.limits); err != nil {
-		t.Fatal(err)
-	}
-	if cp.Submission != sub.ID() || cp.InputEntry != result.Record.Entry {
-		t.Fatal("no-model failure must identify its own placed input", cp, result.Record)
-	}
 	task, err := CanonicalTask(result.Task, h.session.limits)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if task.State.Outcome == nil || task.State.Outcome.Status != "failed" || task.State.Outcome.Error == nil || task.State.Outcome.Error.Message != detail {
+	if task.Kind != "pi.generation" || task.Version != 2 || task.Input == nil || !task.Input.Present || !equalJSONValue(task.Input.Value, JSON{}) || task.State.Status != "terminal" || task.State.Checkpoint != nil || task.State.Outcome == nil || task.State.Outcome.Status != "failed" || task.State.Outcome.Error == nil || task.State.Outcome.Error.Message != detail {
 		t.Fatal("no-model task outcome", task)
 	}
 	state, err := h.Snapshot(bg)

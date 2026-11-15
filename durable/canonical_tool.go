@@ -532,6 +532,15 @@ func settleCanonicalTool(ctx context.Context, r *TaskRuntime, input canonicalToo
 		}
 		content = append(content, block)
 	}
+	// Keep non-text output verbatim (tool.ts finalResult/boundContent). Large
+	// transcript images use conversation-owned chunks, just as codemode output
+	// does, so the bounded entry envelope never drops their payload.
+	if input.Kind == "model" && len(owned.imageChunks) == 0 {
+		content, owned.imageChunks, err = r.chunkTranscriptImages(ctx, content)
+		if err != nil {
+			return err
+		}
+	}
 	// Abort every live nested child before waiting on any sibling.
 	children, err := r.OwnedTasks(ctx)
 	if err != nil {

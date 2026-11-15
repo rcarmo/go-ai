@@ -1,7 +1,10 @@
 package durable
 
 import (
+	"bytes"
+	"context"
 	goai "github.com/rcarmo/go-ai"
+	"runtime/pprof"
 	"testing"
 	"time"
 )
@@ -139,5 +142,45 @@ func TestGenerationProgressConsumedWakeDoesNotArmEmptyWindow(t *testing.T) {
 		}
 	case <-time.After(3 * time.Second):
 		t.Fatal("third partial missing")
+	}
+}
+
+// Source generation.ts streamResponse wraps provider acquisition and draining
+// in finally: stopped=true, timer cancelled, admitted publication joined. The
+// Go actor must also retire if provider acquisition throws before any event.
+// This is a source-derived resource probe through ordinary Submit/Close;
+// goroutine stacks are observations after the host's close/join barrier.
+func TestGenerationProgressProviderPanicRetiresActor(t *testing.T) {
+	actors := func() int {
+		var stacks bytes.Buffer
+		if err := pprof.Lookup("goroutine").WriteTo(&stacks, 2); err != nil {
+			t.Fatal(err)
+		}
+		return bytes.Count(stacks.Bytes(), []byte("durable.(*generationProgress).run("))
+	}
+	before := actors()
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+		ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
+			panic("provider acquisition failure")
+		})
+		h := openHarness(t, b.store, options)
+		c := root(t, h, ref)
+		sub, err := c.Submit(bg, Input{Content: "hi"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		settled := waitSubmission(t, sub)
+		if settled.Record.Status != "unanswered" || settled.Record.Reason != "faulted" {
+			t.Fatal("provider fault settlement", settled.Record)
+		}
+		if err := c.WaitForIdle(bg); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.Close(bg); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if after := actors(); after != before {
+		t.Fatalf("provider fault leaked progress actor: before=%d after=%d", before, after)
 	}
 }

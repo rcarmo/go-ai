@@ -378,12 +378,17 @@ func (s *AgentEventStream) Start(listener func(context.Context, []AgentEvent) er
 					if err != nil {
 						return err
 					}
-					if progress != nil {
+					// Canonical finalisation removes the progress slot. That is
+					// not an empty progress update from the tool invocation.
+					if progress != nil && !(canonicalToolRecord(task) && taskHasDecidedOutcome(task)) {
 						events = append(events, *progress)
 					}
 					schedulerMissing := task.Execution != nil && task.Execution.Builtin != nil && task.Execution.Builtin.Hold != nil && task.Execution.Builtin.Hold.Action == "scheduler-tool-missing"
 					ended := taskHasDecidedOutcome(task) && !taskHasDecidedOutcome(old)
-					if schedulerMissing {
+					if schedulerMissing || canonicalToolRecord(task) {
+						// Canonical outcomes may be held as completing while owned
+						// hosts still run. Publish their end only at final terminal
+						// adoption, matching scheduler finalisation/LiveDoc cleanup.
 						ended = terminalStatus(task.Status) && !terminalStatus(old.Status)
 					}
 					if ended {

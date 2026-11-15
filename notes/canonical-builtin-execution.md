@@ -6,9 +6,9 @@ GenerationTask2 and ToolTask3 are now real definition tokens held by every Regis
 
 The canonical handlers read source input/checkpoint fields and committed records directly. They do not reconstruct private generation/tool checkpoints. Canonical nested calls create pi.tool3 with `kind:nested`, and use the source `taskId/result` family document. The private nested schema guard is excluded only when the document's owner has the canonical tool execution representation; existing private forgery controls retain their assertions. Canonical task commits no longer invoke the private generation-status projector.
 
-## Uncommitted production-admission migration
+## Production-admission migration (known-red checkpoints)
 
-The worktree after `89c031ebcdc7374b28240ca09511bfcd7e9f8c22` is **not regression-green**. Normal Submit now creates source Generation2 records and uses canonical Inbox/live `taskId` boundaries. The obsolete private explicit-continue producer has been removed. These changes have not been committed or pushed.
+The worktree after `89c031ebcdc7374b28240ca09511bfcd7e9f8c22` is **not regression-green**. Normal Submit now creates source Generation2 records and uses canonical Inbox/live `taskId` boundaries. The obsolete private explicit-continue producer has been removed. The migration is committed/pushed in365f5b6; fixture reconciliation6b637a3 and cutoff salvagec988681 follow. These are known-red checkpoints, not full integration acceptance.
 
 Production-path failures led to fixes for sequential selection, addTools removal clearing, codemode agent conversion/nested `taskId` cleanup, prompt projection, transcript image references/hydration and UTF-16 argument diagnostics. Reset now queues a source write draft with `head:self`. Public native Settlement conveniences derive their answer/task from source records; they no longer depend solely on private checkpoint payloads. Full public-API alignment still needs audit.
 
@@ -292,3 +292,121 @@ Three semantic faults were detected: omitted partial conversion, cleanup past th
 Full actual-tree attempt, no exclusions: durable1200.042s/tools9.383s failed;75 top-level failure groups before timeout in TestSequentialAdmissionAtTerminalDrainAndEmptyWorker. The storage gate searched retired phase:terminal and waited without a deadline; the fixture now gates canonical status:terminal and uses public WaitForIdle instead of the removed conversation-worker map. Admission during the held terminal receipt and after idle both settle; extended three-shuffle packet28.352s passes. No runtime change was needed for that fixture. Full regression still red and later enumeration incomplete. The timeout dump also contains many generationProgress actors from earlier failing paths; exception-safe progress cleanup needs a source-derived regression and runtime audit.
 
 Whole-tree vet, Staticcheck v0.8.2, logging and diff pass after the final fixture correction. Checkpoint authority does not establish full parity;89c031e stays the last fully verified tree. Analysed logs and temporary scripts removed; source/dependencies retained.
+
+## Progress, reset and tool receipt packet
+
+Current focused work after c988681 passes; integration remains red. No complete plan workstream is accepted.
+
+| Pinned source | Native assertion/scope |
+| --- | --- |
+| generation.ts690–754 streamResponse finally | TestGenerationProgressProviderPanicRetiresActor: public idle/Close joins before goroutine stack comparison; acquisition panic leaked one actor before deferred stop |
+| source Inbox/admission IDs | TestFailedRun140InboxPolicies: canonical runFailure/Inbox queue checks; minted Go IDs now survive same-transaction trace conversion |
+| harness-inbox.test.ts272–306 | TestIdleResetCanonicalStringContentAndClock: exact string content and host timestamp7; final/owned boundary tests use taskId/Generation2, not private run fields |
+| scheduler terminal ownership cleanup; live.ts settleSchedulerOutcome | TestToolSchedulerFault*: exact orphan/result semantics, canonical decision faults and held owned host; supplemental native tool-end event waits for terminal adoption |
+| tool.ts94–96,817–858 | Byte flush/reopen, strict scalar/array/null details and thrown diagnostic tests resolve public Task result.entryId to public Entry.Model, not private Result checkpoints |
+| harness-tools.test.ts424–440; tool.ts674–736,1106–1118 | Large-image error/reconnect supplemental probes preserve non-text payload exactly; canonical settlement now persists conversation-owned image chunks before entry settlement |
+| same source output union/boundContent | Final-head and output-policy fixtures supply a single ordered block array, replacing native-only simultaneous Content+Blocks. Exact text/image/truncation assertions retained; public receipt diagnostic replaces absent terminal private policy/counters |
+
+Before production fixes, actor count rose0→1; same-transaction IDs rejected with submission-not-found; idle reset returned block content/timestamp0; canonical tool-end appeared while completing; image tests failed0.628s with missing provider/reconnect payloads. The earlier packet contains the individual red/green test transcripts in history. Progress actor, ID, string reset, clock reset, terminal tool-end and omitted image-chunk mutations all fail their corresponding assertions, then restore. Six semantic controls, no compilation-only credit.
+
+Combined progress/reset/owned/fault/image/receipt tests pass three shuffled repeats26.019s; restored image/receipt packet8.680s; source-correct output union fixtures1.934s. Whole-tree vet, Staticcheck v0.8.2, logging and diff checks pass before the final test-only output/progress fixture edits. Unchanged original inbox37 and tools42 pass with zero skipped;90 independent TypeScript probes per command counted separately. Whole original files are not full native assertion acceptance.
+
+Actual-tree durable runs, no exclusions: baseline8=237.135s/92 top-level failed groups, baseline9=235.407s/92, baseline10=372.996s/94, baseline11=377.177s/93. Each stops at an obsolete private-state fixture panic, not a complete baseline. Earlier summary counts74 for8/9 were incorrect; these are exact anchored FAIL-line counts. Fault/byte-output/policy panic fixtures are now source-correct; the next full run remains required.
+
+Latest baseline11 failures before its panic:
+
+- `TestAutomaticCompactionRetryDecisionFollowsCurrentSettingsAfterResponse`
+- `TestOverflowCompactionOneRecoveryAndNoOrdinaryRetry`
+- `TestEntryContextActualHTTPSystemToolsEditedAncestorReopen`
+- `TestEnvironmentFactoryAbortAndFailureFenceEffects`
+- `TestAgentEventsActualPartialsAndToolEndAdjacentToResult`
+- `TestAgentEventsCommittedToolLifecycleAndReentrantListener`
+- `TestFailedRun140BoundedWithdrawalRecovery`
+- `TestFailedRun140WithdrawalJoinsOwnedHosts`
+- `TestGeneration140PacingAlarmAloneResumesRetryAndPoll`
+- `TestMainBoundaryAtomicSuccessorPublication`
+- `TestMainBoundaryEligibilityInheritedCancellationBeforePlacement`
+- `TestMainBoundaryEligibilityAbsentAgentHostAllModes`
+- `TestMainBoundaryEligibilityLocallyDecidedFailFast`
+- `TestMainBoundaryFirstIncludesPassiveWrite`
+- `TestMainBoundaryLifetimeBeforeModelResolution`
+- `TestMainBoundaryLegacyRecoveryBusyControl`
+- `TestMainBoundaryPassiveWriteRollback`
+- `TestMainBoundaryWritesFirstAndSequentialHeads`
+- `TestMainContinueBoundaryKeptInputsAndWrite`
+- `TestMainContinueBoundaryLegacyFirstFallsBackToActualWrite`
+- `TestMainContinueNothingToAnswerEmptyAndAnswered`
+- `TestMainContinueToolHandoffOrderedInputs`
+- `TestMainContinueBusyRejectAndRequestIDDedup`
+- `TestMainContinueOwnedToolAfterModelError`
+- `TestMainContinueOwnedSubmissionAbortBeforeProviderDerived`
+- `TestMainRunFailureOrdinaryAbortProjection`
+- `TestMainRunFailureAbortHandlerCutoffProjectionDerived`
+- `TestMainRunFailureAttachedInputsWithoutQueuedSuccessor`
+- `TestMainRunFailureQueuedFollowUpNoModelRetainsDecisionPlacement`
+- `TestMainRunFailureNoModelAttachedSteersAndRemainingSuccessor`
+- `TestMainRunFailureContinueQueueClearsFailureAfterAnswer`
+- `TestMainRunFailurePostToolsResetRetainsOnlyImmediateSuccessor`
+- `TestMainHarnessRecoveryCrashAfterConversion`
+- `TestMainGenerationAgentEventsBeforeStorage`
+- `TestM1bTerminalAndExplicitUnsupported`
+- `TestM1bLargeLocalModelAuthorizationHTTP`
+- `TestMainInterruptedBudgetAndCloseAccounting`
+- `TestMainInterruptedPollRetryEdges`
+- `TestMainPollTerminalOnlyBoundaryDerived`
+- `TestMainAbortedPollCancelHandlerCutoff`
+- `TestMainPollCutoffSkipsRepeatedCancellationDerived`
+- `TestMainToolProgressDeferredMemoryAndPersistence`
+- `TestMainToolProgressMemoryEventsNotStorageReplay`
+- `TestM1cActualHTTPToolResultAwareAnswer`
+- `TestM1cSchemaSubsetAndRepairBeforeIntent`
+- `TestM1cNotOfferedAndInvalidArgumentsZeroEffects`
+- `TestM1cAbortDrainsChildBeforeParentAndFencesEscapedAPI`
+- `TestM1cCloseNoncooperativeToolKeepsOwnershipAndReturnedOutcome`
+- `TestM1cRegistryPhasePinOutputCapAndAtomicAppFailure`
+- `TestM1cCommittedPartialAndQueuedWithdrawal`
+- `TestM1cInvalidToolUsageSettlesOnceNoAppOrReplay`
+- `TestM1cAbortAtOfferedCallBoundaryStartsNoTool`
+- `TestBeforeToolBlockOrThrowPreventsEffectAndRevalidatesReplacement`
+- `TestIdentity140DurableDefaultHostAndPinnedOverrides`
+- `TestInputMetadata120QueuedReopenBeforePlacement`
+- `TestM1bPinnedModelRecoveryIgnoresRegistryBehaviorChange`
+- `TestAssistantProtocolFieldsSignaturesPresenceContextAndReopen`
+- `TestNestedTool120ModelParentCallAttribution`
+- `TestOverflowFailedOrDeclinedCompactionEndsWithoutAnotherRequestOrReceipt`
+- `TestGeneration104ConfiguredPartialIntervalProductionPath`
+- `TestReaderUTF16MainCommittedEventsAndSnapshot`
+- `TestReport140ModelHostFailuresReportAfterFallbackAdoption`
+- `TestReport140StructuredOutputUsesCapturedProducer`
+- `TestResetIdleAndPostToolsStartsFollowUpInNewContext`
+- `TestRestartLimit140BuiltinGenerationAbortCutoffSettlesSubmission`
+- `TestConversationPartialRetryDisabledKeepsDefaultsAtActualDispatch`
+- `TestStopBackgroundSuppressesReportAndChildStaysUsable`
+- `TestTaskRecoveryBuiltinHoldFinalFailureAndReopen`
+- `TestTaskRecoveryToolOutcomePanicRollbackFallbackAndReopen`
+- `TestTaskRecoveryGenerationPreparationFallbackWakeSequence`
+- `TestTaskRecoveryOfflineGenerationPreparationFallbackWakeSequence`
+- `TestTaskRecoveryToolDecidingHoldRejectedUncertainAndReopen`
+- `TestTaskRecoveryQueuedWithdrawalOwnedChildDefersSettlement`
+- `TestTaskRecoveryGenerationDecidingFinalFailureMatrix`
+- `TestTaskRecoveryGenerationHostCallbacksPreparationAndDispatchedReceipts`
+- `TestTaskRecoveryHostPanicDecidingStoragePrefixAndReopen`
+- `TestTaskRecoveryToolValidatorHostFailureBeforeIntentAndDecidingReopen`
+- `TestTaskRecoverySuccessfulValidatorIntentStoragePrefixAndReopen`
+- `TestTaskRecoveryOrderedToolContinuationAdmissionCloseAndLateOwnedWork`
+- `TestTaskSchedulerCapacityToolChildHoldOne`
+- `TestMainTaskTraceQueuedFirstInvocation`
+- `TestTelemetry140AdoptedEntryAndSettlementEvents`
+- `TestTool120GrammarConstraintDurableHTTPAndIntent`
+- `TestToolControlsUnavailableOrThrowingCallCannotTerminateRound`
+- `TestToolControlsPinnedUnanimousTerminationLastHandoffAndAddTools`
+- `TestToolDiagnosticsCommittedDetachedAndRenderedOutsideDetails`
+- `TestToolDiagnosticsInvalidReturnRejectsAppMutation`
+- `TestToolDuration110ExecutedErrorPanicAndUnexecuted`
+- `TestToolExecutionParallelAndSequentialRounds`
+- `TestToolDefaultOutputLimitsTruncateAndReturnedContentReplacesProgress`
+- `TestToolOutput104SkippedTailCountersAndWindow`
+- `TestToolOutputFinalHeadBoundsCombinedTextOnce`
+- `TestToolOutputPolicyPinsCopiesFinalTextAndNonTextBlocks`
+
+Canonical progress follow-up: TestToolProgressDetailsWindowAndSealedWrites reproduced missing details/null/window events0.639s after moving its final receipt assertion to public result.entryId. Source LiveDoc uses run.taskId and model call identity from ToolTask input/slot, not private run.task or an empty terminal checkpoint. The presentation/event consumer now uses those canonical identities. Removing a settled slot is not reported as a new empty tool update. Exact detail12/null/retained, trimStart3/appendXYZ, call/task attribution, sealed writes and final receipt assertions pass. Three additional compiled semantic mutations (old owner key, lost call/name attribution, spurious final clear) fail unchanged assertions and restore. Total current packet controls:9. The final expanded three-shuffle packet passes32.984s, followed by whole-tree vet, Staticcheck v0.8.2, logging and diff checks. Original tools42 passed earlier with zero skipped, separately from90 independent probes. The deferred-memory timer/dependent fixture remains red on retired native operation paths; it is not included in the passing packet or accepted as parity.

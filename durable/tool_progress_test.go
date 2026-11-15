@@ -75,6 +75,9 @@ func TestToolProgressDetailsWindowAndSealedWrites(t *testing.T) {
 			defer mu.Unlock()
 			for _, event := range events {
 				if event.Type == "tool_execution_update" {
+					if event.ToolCallID != "progress-call" || event.ToolName != "progress" || event.Task == 0 {
+						t.Error("progress attribution", event)
+					}
 					if event.HasDetails {
 						if event.Details == nil {
 							cleared = true
@@ -134,12 +137,9 @@ func TestToolProgressDetailsWindowAndSealedWrites(t *testing.T) {
 		}
 		for _, task := range state.Tasks {
 			if task.Kind == "pi.tool" {
-				var cp toolCheckpoint
-				if err := fromObject(task.Checkpoint, &cp, h.session.limits); err != nil {
-					t.Fatal(err)
-				}
-				if cp.Result.Content[0].Text != " final" || cp.Result.Details["retained"] != true {
-					t.Fatal("progress checkpoint", cp)
+				receipt := canonicalModelToolReceipt(t, h, task.ID)
+				if len(receipt.Content) == 0 || receipt.Content[0].Text != " final" || !receipt.HasDetails || !equalJSONValue(receipt.DetailsValue, JSON{"retained": true}) {
+					t.Fatal("progress receipt", receipt)
 				}
 			}
 		}

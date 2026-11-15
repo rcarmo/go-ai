@@ -69,12 +69,9 @@ func TestToolOutputBytesProductionFlushAndSealedReceipt(t *testing.T) {
 		}
 		for _, task := range snapshot.Tasks {
 			if task.Kind == "pi.tool" {
-				var cp toolCheckpoint
-				if err := fromObject(task.Checkpoint, &cp, second.session.limits); err != nil {
-					t.Fatal(err)
-				}
-				if cp.Result.Content[0].Text != "😀\n�x�" {
-					t.Fatal("flush receipt lost on reopen", cp)
+				receipt := canonicalModelToolReceipt(t, second, task.ID)
+				if len(receipt.Content) != 1 || receipt.Content[0].Text != "😀\n�x�" {
+					t.Fatal("flush receipt lost on reopen", receipt)
 				}
 			}
 		}

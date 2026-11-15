@@ -164,3 +164,36 @@ func TestResetAtFinalBoundaryKeepsAnswerThenCutsContext(t *testing.T) {
 		}
 	})
 }
+
+// Pinned harness-inbox.test.ts291-306: idle reset has no model when omitted;
+// handoff content stays a string and uses the host timestamp exactly.
+func TestIdleResetCanonicalStringContentAndClock(t *testing.T) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+		h := openHarness(t, b.store, Options{Now: func() int64 { return 7 }})
+		c, err := h.Root(bg, AgentChange{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := c.Commit(bg, func(tx *Tx) (any, error) { return tx.AppendEntry(c.ID(), JSON{"kind": "note"}) }); err != nil {
+			t.Fatal(err)
+		}
+		if err := c.Reset(bg, ""); err != nil {
+			t.Fatal(err)
+		}
+		view, err := c.ContextView(bg, 0)
+		if err != nil || view.Head == nil || view.Head.Kind != "pi.reset" || len(view.Head.Model) != 0 || len(view.Messages) != 0 {
+			t.Fatal("empty reset", view, err)
+		}
+		if err := c.Reset(bg, "carry on"); err != nil {
+			t.Fatal(err)
+		}
+		view, err = c.ContextView(bg, 0)
+		if err != nil || view.Head == nil || view.Head.Head != view.Head.ID || len(view.Messages) != 1 {
+			t.Fatal("handoff reset", view, err)
+		}
+		wire, err := dtoObject(view.Messages[0], DefaultLimits())
+		if err != nil || !equalJSONValue(wire, JSON{"role": "user", "content": "carry on", "timestamp": 7}) {
+			t.Fatal("reset model message", wire, err)
+		}
+	})
+}

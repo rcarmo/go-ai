@@ -155,7 +155,7 @@ func TestToolOutputFinalHeadBoundsCombinedTextOnce(t *testing.T) {
 	registry := NewRegistry()
 	limits := ToolOutputLimits{7, 10, "head"}
 	if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "combined", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "combined.output", Version: 1, OutputLimits: &limits, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
-		return ToolResult{Content: "aa\nbbbbb\n", Blocks: []goai.ContentBlock{{Type: "text", Text: "Z"}}}, nil
+		return ToolResult{Blocks: []goai.ContentBlock{{Type: "text", Text: "aa\nbbbbb\n"}, {Type: "text", Text: "Z"}}}, nil
 	}}); err != nil {
 		t.Fatal(err)
 	}
@@ -197,7 +197,7 @@ func TestToolOutputPolicyPinsCopiesFinalTextAndNonTextBlocks(t *testing.T) {
 			if err := api.Output("old line\nrecent\n"); err != nil {
 				return ToolResult{}, err
 			}
-			return ToolResult{Content: strings.Repeat("discarded\n", 5000) + "kept\n", Blocks: []goai.ContentBlock{{Type: "image", MimeType: "image/png", Data: "aGVsbG8="}, {Type: "text", Text: "last\n"}}}, nil
+			return ToolResult{Blocks: []goai.ContentBlock{{Type: "text", Text: strings.Repeat("discarded\n", 5000) + "kept\n"}, {Type: "image", MimeType: "image/png", Data: "aGVsbG8="}, {Type: "text", Text: "last\n"}}}, nil
 		}}
 		if err := registry.Register(reg); err != nil {
 			t.Fatal(err)
@@ -254,12 +254,12 @@ func TestToolOutputPolicyPinsCopiesFinalTextAndNonTextBlocks(t *testing.T) {
 		}
 		for _, task := range state.Tasks {
 			if task.Kind == "pi.tool" {
-				var cp toolCheckpoint
-				if err := fromObject(task.Checkpoint, &cp, h.session.limits); err != nil {
-					t.Fatal(err)
-				}
-				if cp.Offer.OutputLimits.MaxBytes != 12 || cp.DroppedBytes == 0 {
-					t.Fatal("policy or progress counts lost", cp)
+				// tool.ts terminal tasks retain an entry reference, not output
+				// limits/progress counters. Exact output and diagnostic above
+				// prove the detached twelve-byte policy through the model seam.
+				receipt := canonicalModelToolReceipt(t, h, task.ID)
+				if len(receipt.Diagnostics) != 1 || receipt.Diagnostics[0].Code != "truncated" || receipt.Diagnostics[0].Message != "Output truncated to its end: 5000 lines, 50000 bytes dropped" {
+					t.Fatal("policy or truncation counts lost", receipt)
 				}
 			}
 		}

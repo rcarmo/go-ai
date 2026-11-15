@@ -9,9 +9,9 @@ import (
 	goai "github.com/rcarmo/go-ai"
 )
 
-// Source f9a26365 live.ts:290-318 and restart-failure204/554. Native pi.live
-// retains a private failedRun queue gate; assert it explicitly, rather than
-// hiding arbitrary fields. first is an actual placed entry ID, not a clock.
+// Source f9a26365 live.ts:290-318 and restart-failure204/554.
+// Queue retention is asserted by each caller through Inbox/submission records;
+// LiveDoc has only runFailure, with no native failedRun compatibility flag.
 func mainRequireRunFailure(t *testing.T, state Snapshot, conversation, task, input, first ID, reason, detail string, held bool) {
 	t.Helper()
 	if entry, ok := state.Entries[first]; !ok || entry.Conversation != conversation || legacyEntryValue(entry)["role"] != "user" {
@@ -24,9 +24,7 @@ func mainRequireRunFailure(t *testing.T, state Snapshot, conversation, task, inp
 		}
 	}
 	want := JSON{"runFailure": JSON{"taskId": task, "inputs": []any{input}, "reason": reason, "detail": detail, "first": first}}
-	if held {
-		want["failedRun"] = true
-	}
+
 	wire, err := dtoObject(want, DefaultLimits())
 	if err != nil {
 		t.Fatal(err)

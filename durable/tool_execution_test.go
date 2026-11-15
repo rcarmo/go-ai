@@ -237,3 +237,19 @@ func TestToolExecutionParallelAndSequentialRounds(t *testing.T) {
 		})
 	}
 }
+
+// Source ToolTaskResult points to the model receipt entry, not a copied receipt
+// in a private checkpoint. Tests read that canonical record through public APIs.
+func canonicalModelToolReceipt(t *testing.T, h *Harness, id ID) MessageReceipt {
+	t.Helper()
+	record, found, err := h.Task(bg, id)
+	if err != nil || !found || record.Kind != "pi.tool" || record.State.Outcome == nil || record.State.Outcome.Result == nil || !record.State.Outcome.Result.Present {
+		t.Fatal("model tool result missing", record, err)
+	}
+	result := generationObject(record.State.Outcome.Result.Value)
+	entry, found, err := h.Entry(bg, submissionEntryID(result["entryId"]))
+	if err != nil || !found || result["kind"] != "model" || entry.Kind != "pi.tool-result" || len(entry.Model) != 1 || entry.Model[0].Role != goai.RoleToolResult {
+		t.Fatal("canonical tool result reference", result, entry, err)
+	}
+	return entry.Model[0]
+}

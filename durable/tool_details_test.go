@@ -54,13 +54,11 @@ func TestToolStrictJSONDetailsScalarArrayNullFallbackHooksAndReopen(t *testing.T
 					if task.Kind != "pi.tool" {
 						continue
 					}
-					var cp toolCheckpoint
-					if err := fromObject(task.Checkpoint, &cp, h.session.limits); err != nil {
-						t.Fatal(err)
+					receipt := canonicalModelToolReceipt(t, h, task.ID)
+					if receipt.IsError || !receipt.HasDetails || !equalJSONValue(receipt.DetailsValue, details) || !equalJSONValue(receiptMessage(receipt).Details, details) {
+						t.Fatal("strict JSON tool details lost", receipt)
 					}
-					if cp.Result == nil || cp.Result.IsError || !cp.Result.HasDetails || !equalJSONValue(cp.Result.DetailsValue, details) || !equalJSONValue(receiptMessage(*cp.Result).Details, details) {
-						t.Fatal("strict JSON tool details lost", cp)
-					}
+
 				}
 			}
 			check(state)

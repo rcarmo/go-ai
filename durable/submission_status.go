@@ -280,6 +280,15 @@ func (h *Harness) wakeAllSubmissionWaiters() {
 }
 
 func submissionEntryID(value any) ID {
+	// Trusted transaction drafts can still carry the minted Go ID before
+	// document encoding turns it into json.Number. Source uses one number
+	// representation at both boundaries; never silently turn that ID into 0.
+	if id, ok := value.(ID); ok {
+		if uint64(id) <= MaxID {
+			return id
+		}
+		return 0
+	}
 	n, ok := exactNumber(value)
 	if !ok || n == nil || !n.IsInt() || n.Sign() <= 0 || !n.Num().IsUint64() || n.Num().Uint64() > MaxID {
 		return 0

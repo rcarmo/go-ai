@@ -99,6 +99,9 @@ func TestToolSchedulerFaultHoldsEndAndFailureUntilOwnedHostDrains(t *testing.T) 
 		t.Fatal(err)
 	}
 	h = openHarness(t, store, options)
+	// Release a noncooperative test host before openHarness cleanup joins it,
+	// including when an assertion fails before the explicit release below.
+	cleanupTaskGates(t, abortRelease)
 	snapshot, err := h.Snapshot(bg)
 	if err != nil {
 		t.Fatal(err)
@@ -136,7 +139,7 @@ func TestToolSchedulerFaultHoldsEndAndFailureUntilOwnedHostDrains(t *testing.T) 
 		t.Fatal(err)
 	}
 	_, err = h.session.taskCommit(bg, func(tx *Tx) error {
-		return h.scheduler.builtinDecision(tx, tx.state.Tasks[toolID], TaskOutcome{Status: "faulted", Error: &TaskOutcomeError{Message: "held_fault"}})
+		return h.scheduler.nativeDecision(tx, tx.state.Tasks[toolID], TaskOutcome{Status: "faulted", Error: &TaskOutcomeError{Message: "held_fault"}})
 	})
 	if err != nil {
 		t.Fatal(err)

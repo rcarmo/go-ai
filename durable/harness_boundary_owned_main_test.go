@@ -72,7 +72,7 @@ func TestMainBoundaryOwnedInvocationIdleChildAdmission(t *testing.T) {
 		}
 		status := publicSubmission(state.Submissions[subID])
 		run := generationObject(mainAbortFailureLive(t, state, childID)["run"])
-		generationID := submissionEntryID(run["task"])
+		generationID := submissionEntryID(run["taskId"])
 		entry, exists := state.Entries[status.Entry]
 		if childID == c.ID() || state.Conversations[childID].Owner != callerID || status.Status != "placed" || status.Answer != 0 || !exists || entry.Conversation != childID || entry.ByTask != callerID || !isMessageEntry(entry) {
 			t.Fatal("bound idle admission must commit its real input attributed to the caller", status, entry, state.Conversations[childID])
@@ -81,16 +81,19 @@ func TestMainBoundaryOwnedInvocationIdleChildAdmission(t *testing.T) {
 		if err := decodeEntryMessage(entry, h.session.limits, &input); err != nil || input.Role != goai.RoleUser || input.ContentText == nil || *input.ContentText != "child input" {
 			t.Fatal("bound input payload", input, err)
 		}
-		wantRun, err := dtoObject(JSON{"task": generationID, "inputs": []any{subID}, "first": entry.ID}, h.session.limits)
+		wantRun, err := dtoObject(JSON{"taskId": generationID, "inputs": []any{subID}, "first": entry.ID, "turns": 0}, h.session.limits)
 		if err != nil {
 			t.Fatal(err)
 		}
 		generation := state.Tasks[generationID]
-		var cp generationCheckpoint
-		if err := fromObject(generation.Checkpoint, &cp, h.session.limits); err != nil {
+		record, err := CanonicalTask(generation, h.session.limits)
+		if err != nil {
 			t.Fatal(err)
 		}
-		if generationID == 0 || generationID == callerID || generation.Kind != "pi.generation" || generation.Conversation != childID || !equalJSONValue(run, wantRun) || cp.Submission != subID || cp.InputEntry != entry.ID {
+		cp := taskCheckpointMap(record.State.Checkpoint)
+		phase, _ := cp["phase"].(string)
+
+		if generationID == 0 || generationID == callerID || generation.Kind != "pi.generation" || generation.Conversation != childID || !equalJSONValue(run, wantRun) || record.Owner != 0 || record.Version != 2 || submissionEntryID(cp["attempt"]) != 1 || (phase != "prepare" && phase != "request") {
 			t.Fatal("bound admission must publish the child's distinct live run, not the caller's generation", run, generation, cp)
 		}
 		awaitTaskSignal(t, entered)
@@ -222,9 +225,9 @@ func TestMainBoundaryOwnedAfterResponseHeldAdmission(t *testing.T) {
 				if mode == "reject" || mode == "input" {
 					status := publicSubmission(placed.Submissions[next.ID()])
 					run := generationObject(live["run"])
-					nextOwner = submissionEntryID(run["task"])
+					nextOwner = submissionEntryID(run["taskId"])
 					entry := placed.Entries[status.Entry]
-					want, err := dtoObject(JSON{"task": nextOwner, "inputs": []any{next.ID()}, "first": entry.ID}, h.session.limits)
+					want, err := dtoObject(JSON{"taskId": nextOwner, "inputs": []any{next.ID()}, "first": entry.ID, "turns": 0}, h.session.limits)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -244,7 +247,7 @@ func TestMainBoundaryOwnedAfterResponseHeldAdmission(t *testing.T) {
 						}
 					} else {
 						view, err := c.ContextView(bg, 0)
-						if err != nil || view.Head == nil || view.Head.Kind != "pi.reset" || view.Head.ID == 0 || view.Head.Head != view.Head.ID || view.Head.ByTask != 0 || len(view.Head.Model) != 1 || view.Head.Model[0].Content[0].Text != "fresh" {
+						if err != nil || view.Head == nil || view.Head.Kind != "pi.reset" || view.Head.ID == 0 || view.Head.Head != view.Head.ID || view.Head.ByTask != 0 || len(view.Head.Model) != 1 || view.Head.Model[0].ContentText == nil || view.Head.Model[0].ContentText != nil && *view.Head.Model[0].ContentText != "fresh" {
 							t.Fatal("reset stranded behind held A", view, err)
 						}
 					}

@@ -73,7 +73,7 @@ func toolDocumentEvents(before, next Snapshot, frame PublicationFrame, conversat
 			if err != nil {
 				return nil, err
 			}
-			event, err := toolProgressEvent(a, b, AgentEvent{Seq: next.Seq, Task: task.ID, ToolCallID: cp.CallID, ToolName: cp.Offer.Name}, limits)
+			event, err := toolProgressEvent(a, b, AgentEvent{Seq: next.Seq, Task: task.ID, ToolCallID: b.CallID, ToolName: b.Offer.Name}, limits)
 			if err != nil {
 				return nil, err
 			}

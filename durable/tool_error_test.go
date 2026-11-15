@@ -79,10 +79,11 @@ func TestThrownToolErrorRetainsPartialAndOriginalDiagnosticAndFailedOutcome(t *t
 				if err != nil || record.State.Outcome.Status != "failed" || record.State.Outcome.Error.Message != "Tool throws threw" {
 					t.Fatal("thrown error changed", record, err)
 				}
-				var cp toolCheckpoint
-				if err := fromObject(task.Checkpoint, &cp, h.session.limits); err != nil || len(cp.Diagnostics) != 1 || cp.Diagnostics[0].Message != "rewritten diagnostic" || cp.Result.Diagnostics[0].Message != "rewritten diagnostic" {
-					t.Fatal("throw diagnostic changed", cp, err)
+				receipt := canonicalModelToolReceipt(t, h, task.ID)
+				if len(receipt.Diagnostics) != 1 || receipt.Diagnostics[0].Message != "rewritten diagnostic" {
+					t.Fatal("throw diagnostic changed", receipt)
 				}
+
 			}
 		}
 	})

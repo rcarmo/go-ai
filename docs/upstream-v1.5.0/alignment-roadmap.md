@@ -2,9 +2,13 @@
 
 **Alignment is incomplete. The current worktree fails full durable regression.** This review replaces the accumulated roadmap; historical receipts remain in the linked notes and Git history. It reviews all 29 gap groups and the broader AI/schema/codemode scope. The assertion-level audit is incomplete; the recovery/abort packet below has new runtime checks.
 
-Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Local HEAD and the local `origin/main` tracking ref both name `89c031ebcdc7374b28240ca09511bfcd7e9f8c22`; no remote fetch was performed for this review. Execution is authorised under plan revision 145. Existing uncommitted migration work is preserved and refactored against pinned source/tests.
+Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Latest pushed migration checkpoint is c9886813b858db4304bc4561dd579a37f914c6b5;89c031e remains the last fully verified tree. Execution is authorised; current focused changes remain uncommitted until their bounded gates pass. No new integrated acceptance.
 
-## Evidence baseline
+## Current focused packet
+
+Progress cleanup, canonical ID/reset/terminal event fixes and large-image tool settlement have focused regression and semantic fault controls. Canonical progress details/window/attribution also passes. Combined three-shuffle tests32.984s; original inbox37/tools42 zero skipped, separately counted TypeScript probes. Latest full durable attempt377.177s reached93 failed groups then panicked in a now-corrected private tool-output fixture. See [packet mappings and exact failures](../../notes/canonical-builtin-execution.md#progress-reset-and-tool-receipt-packet). This does not complete step1.
+
+## Evidence baseline (historical review)
 
 | Layer | Evidence | Limit |
 | --- | --- | --- |
@@ -19,7 +23,7 @@ Sources: [canonical execution](../../notes/canonical-builtin-execution.md), [ora
 ## Corrections to earlier findings
 
 - Session/Harness/conversation callbacks return values; public persistence options, canonical entry/conversation/fork constructors and the narrowed public Tx surface are installed. Remaining D13 work concerns complete semantics, identity and other exports, not reimplementing those APIs.
-- Generation2/Tool3 definitions and migrations execute canonical records. Production admission has migrated only in the uncommitted tree. Phase-name coverage is not complete phase semantics.
+- Generation2/Tool3 definitions and migrations execute canonical records. Production admission migrated in known-red checkpoint365f5b6. Phase-name coverage is not complete phase semantics.
 - Source ToolTask executes inside `call` after committing execute intent; `execute` is the recovery handler. Moving ordinary execution to a separate phase would change source behaviour. Nested calls are identified by `input.kind`, not a separate native kind.
 - Private checkpoint/envelope fixture failures are not automatically runtime defects. Correct fixtures from pinned assertions, retain all behavioural checks, and rerun to expose any underlying defect. A panic is never a passing result.
 - The writer, shared readonly handles, public observers, cold builtin hydration and the 256-job bound are installed. Their remaining audits must not be described as wholly missing implementations.

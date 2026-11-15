@@ -89,7 +89,7 @@ func TestToolSchedulerFaultOrphanMissingResultContinuationAndReopen(t *testing.T
 			} else {
 				outcome.Reason = "missing_builtin_phase"
 			}
-			_, err = h.session.taskCommit(bg, func(tx *Tx) error { return h.scheduler.builtinDecision(tx, tx.state.Tasks[child], outcome) })
+			_, err = h.session.taskCommit(bg, func(tx *Tx) error { return h.scheduler.nativeDecision(tx, tx.state.Tasks[child], outcome) })
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -125,12 +125,8 @@ func TestToolSchedulerFaultOrphanMissingResultContinuationAndReopen(t *testing.T
 					t.Fatal("fabricated persistent tool result", entry)
 				}
 			}
-			var cp toolCheckpoint
-			if err := fromObject(snapshot.Tasks[child].Checkpoint, &cp, h.session.limits); err != nil {
-				t.Fatal(err)
-			}
-			if cp.Result != nil {
-				t.Fatal("fabricated result checkpoint", cp.Result)
+			if record.State.Checkpoint != nil || record.State.Outcome.Result != nil {
+				t.Fatal("fabricated tool receipt/checkpoint", record)
 			}
 		})
 	}

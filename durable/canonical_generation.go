@@ -416,6 +416,9 @@ func canonicalGenerationRequest(ctx context.Context, task TaskRecord, r *TaskRun
 			r.reportError(err)
 		}
 	}, r, progressInterval(interval))
+	// Source streamResponse finally covers acquisition as well as iteration.
+	// Keep the explicit stop before classify, and join on every unwind too.
+	defer progress.stop()
 	events := goai.Stream(ctx, model, conversation, options)
 	observed := make(chan goai.Event)
 	go func() {

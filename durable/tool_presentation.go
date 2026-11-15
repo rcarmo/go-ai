@@ -4,7 +4,19 @@ package durable
 // and call. Old checkpoints remain a fallback when no such slot is present.
 func toolPresentationSlot(value JSON, task Task, callID string) JSON {
 	run := generationObject(value["run"])
-	owner, ok := exactNumber(run["task"])
+	ownerKey := "task"
+	if canonicalToolRecord(task) {
+		ownerKey = "taskId"
+		if task.Execution.Native.Input == nil {
+			return nil
+		}
+		input := generationObject(task.Execution.Native.Input.Value)
+		if input["kind"] != "model" {
+			return nil
+		}
+		callID, _ = input["callId"].(string)
+	}
+	owner, ok := exactNumber(run[ownerKey])
 	if !ok || !owner.IsInt() || !owner.Num().IsUint64() || owner.Num().Uint64() != uint64(task.Owner) {
 		return nil
 	}
@@ -42,6 +54,10 @@ func toolPresentation(state Snapshot, task Task, cp toolCheckpoint, limits Limit
 			return cp, err
 		}
 		copyToolProgress(&cp, progress)
+		if canonicalToolRecord(task) {
+			cp.CallID, _ = slot["callId"].(string)
+			cp.Offer.Name, _ = slot["name"].(string)
+		}
 		return cp, nil
 	}
 	return cp, nil

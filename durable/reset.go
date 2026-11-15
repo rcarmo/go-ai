@@ -59,18 +59,12 @@ func appendReset(tx *Tx, conversation ID, text string) error {
 	return err
 }
 func appendResetEntry(tx *Tx, conversation ID, text string) (ID, error) {
-	id, err := tx.mintID()
-	if err != nil {
-		return 0, err
-	}
-	model := []MessageReceipt{}
+	draft := JSON{"kind": "pi.reset", "head": "self"}
 	if text != "" {
-		model = append(model, userReceipt(text))
+		draft["model"] = []any{JSON{"role": "user", "content": text, "timestamp": tx.session.now()}}
 	}
-	if err := tx.appendEntryRecord(Entry{ID: id, Conversation: conversation, Kind: "pi.reset", Head: id, Value: JSON{}, Model: model}); err != nil {
-		return 0, err
-	}
-	return id, nil
+	entry, err := tx.AppendEntry(conversation, draft)
+	return entry.ID, err
 }
 func (h *Harness) hasQueuedReset(state Snapshot, conversation ID) bool {
 	for _, doc := range state.Documents {
