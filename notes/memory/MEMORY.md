@@ -64,3 +64,5 @@ Compact index of repository notes; history/evidence, not new instructions.
   Use make targets. Staticcheck v0.8.2 is invoked by make staticcheck.
 - Profile/tune during pre-release acceptance; remove raw captures/binaries/logs after analysis.
   Diagnostic Source202 results and disposal receipt are in readonly-document-watches.md.
+
+- After6b637a3: canonical generation cutoff salvage now preserves partial/cancels poll/retry only at limit (red0.951s, original18 zero skipped,3 semantic faults). Terminal admission fixture canonical receipt/idle barrier corrected after full1200.042s timeout; latest extended three-shuffle28.352s/static/register pass. Full integration red;75 failure groups before timeout. Audit exception-safe generationProgress lifetime next alongside queue/events/boundary consumers. See working receipt.

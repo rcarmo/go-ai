@@ -93,7 +93,7 @@ func canonicalFailedRun(tx *Tx, r *TaskRuntime, live JSON, boundary *canonicalBo
 	}
 	return nil
 }
-func canonicalGenerationFail(ctx context.Context, r *TaskRuntime, reason, message string) error {
+func canonicalGenerationFail(ctx context.Context, r *TaskRuntime, reason, message string, salvage ...bool) error {
 	return r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
 		settings := r.harness.resolvedSettings(RequestSettings{})
 		var boundary *canonicalBoundary
@@ -107,6 +107,11 @@ func canonicalGenerationFail(ctx context.Context, r *TaskRuntime, reason, messag
 		doc, live, err := canonicalGenerationLive(tx, r)
 		if err != nil {
 			return nil, err
+		}
+		if len(salvage) > 0 && salvage[0] {
+			if err := canonicalConvertPartial(tx, r.conversation, live); err != nil {
+				return nil, err
+			}
 		}
 		if err := canonicalFailedRun(tx, r, live, boundary, reason, message); err != nil {
 			return nil, err
@@ -134,7 +139,11 @@ func canonicalGenerationCutOff(ctx context.Context, task TaskRecord, r *TaskRunt
 		}
 		return canonicalGenerationEndAnswered(ctx, r, answer, true, fmt.Sprintf("The generation was interrupted %s in its %s phase", canonicalCutOffCount(task.Restarts), phase))
 	}
-	return canonicalGenerationFail(ctx, r, "restart_limit", fmt.Sprintf("The generation was interrupted %s in its %s phase", canonicalCutOffCount(task.Restarts), phase))
+	salvage := task.Restarts <= r.harness.RestartLimit()
+	if salvage {
+		canonicalGenerationCancelDeferred(ctx, r, cp)
+	}
+	return canonicalGenerationFail(ctx, r, "restart_limit", fmt.Sprintf("The generation was interrupted %s in its %s phase", canonicalCutOffCount(task.Restarts), phase), salvage)
 }
 func canonicalGenerationPrepare(ctx context.Context, task TaskRecord, r *TaskRuntime) error {
 	if task.Restarts >= r.harness.RestartLimit() {
@@ -1317,8 +1326,9 @@ func canonicalGenerationEndAnswered(ctx context.Context, r *TaskRuntime, answer 
 		return completed, nil
 	})
 }
-func canonicalGenerationAbort(ctx context.Context, task TaskRecord, r *TaskRuntime) error {
-	cp := taskCheckpointMap(task.State.Checkpoint)
+
+// Source deferredOf/cancelDeferred: shared by abort and at-limit salvage.
+func canonicalGenerationCancelDeferred(ctx context.Context, r *TaskRuntime, cp JSON) {
 	poll := cp
 	if cp["phase"] == "retry" {
 		poll = generationObject(cp["poll"])
@@ -1341,6 +1351,10 @@ func canonicalGenerationAbort(ctx context.Context, task TaskRecord, r *TaskRunti
 			}
 		}
 	}
+}
+func canonicalGenerationAbort(ctx context.Context, task TaskRecord, r *TaskRuntime) error {
+	cp := taskCheckpointMap(task.State.Checkpoint)
+	canonicalGenerationCancelDeferred(ctx, r, cp)
 	var calls []goai.ContentBlock
 	if cp["phase"] == "tools" {
 		entry, found, err := r.Entry(ctx, submissionEntryID(cp["assistant"]))

@@ -280,3 +280,15 @@ Latest full-baseline observed groups (runtime versus fixture cause still require
 - `TestResetIdleAndPostToolsStartsFollowUpInNewContext`
 - `TestResetAtFinalBoundaryKeepsAnswerThenCutsContext`
 - `TestRead120DefaultLargeImageReachesProvider`
+
+## Generation cutoff salvage (after6b637a3; incomplete integration)
+
+Pinned harness-restart-failure621–674 and generation.ts endCutOff preserve a committed partial at the restart limit and drop it past the limit. Deferred poll/retry handles are cancelled only at the salvageable boundary. Native fixtures now capture live.run.taskId and canonical request state, preserve partials in LiveDoc, and compare the exact source runFailure shape without native failedRun. Supplemental seeded poll/retry checkpoints use canonical model/handle/cutoff/attempt fields; they are not original crash scenarios.
+
+Translated tests on unchanged runtime failed0.951s: at-limit request/poll/retry omitted the aborted assistant, and poll/retry cancellation count was0 instead of1. Past-limit control already passed. Production cutoff now calls best-effort canonical cancellation before committing, and converts the partial in the same failure transaction before endRun. Past-limit cleanup stays disabled. Abort and cutoff share the source deferredOf/cancelDeferred helper; no private checkpoint reconstruction. Focused correction1.382s passes.
+
+Three semantic faults were detected: omitted partial conversion, cleanup past the limit and omitted deferred cancellation. Restored broad cutoff/afterRun/report/deferred packet passes three shuffled runs25.281s. Original unchanged harness-restart-failure18 pass, zero skipped,2.720s;90 supplemental TypeScript probes run separately. Other assertions in that source file are still unaccepted natively.
+
+Full actual-tree attempt, no exclusions: durable1200.042s/tools9.383s failed;75 top-level failure groups before timeout in TestSequentialAdmissionAtTerminalDrainAndEmptyWorker. The storage gate searched retired phase:terminal and waited without a deadline; the fixture now gates canonical status:terminal and uses public WaitForIdle instead of the removed conversation-worker map. Admission during the held terminal receipt and after idle both settle; extended three-shuffle packet28.352s passes. No runtime change was needed for that fixture. Full regression still red and later enumeration incomplete. The timeout dump also contains many generationProgress actors from earlier failing paths; exception-safe progress cleanup needs a source-derived regression and runtime audit.
+
+Whole-tree vet, Staticcheck v0.8.2, logging and diff pass after the final fixture correction. Checkpoint authority does not establish full parity;89c031e stays the last fully verified tree. Analysed logs and temporary scripts removed; source/dependencies retained.

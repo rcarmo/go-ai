@@ -127,6 +127,8 @@ func TestM1bManySequentialAdmissionsNoStrandedQueue(t *testing.T) {
 	}
 }
 
+// Supplemental writer-receipt barrier: admission during a canonical terminal
+// commit must settle, and fresh admission after public idle must start work.
 func TestSequentialAdmissionAtTerminalDrainAndEmptyWorker(t *testing.T) {
 	var calls atomic.Int64
 	ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
@@ -146,7 +148,7 @@ func TestSequentialAdmissionAtTerminalDrainAndEmptyWorker(t *testing.T) {
 	var gateOnce, releaseOnce sync.Once
 	t.Cleanup(func() { releaseOnce.Do(func() { close(release) }) })
 	store.appendFrame = func(typ byte, ordinal, high uint64, payload []byte) error {
-		if typ == 2 && bytes.Contains(payload, []byte(`"phase":"terminal"`)) {
+		if typ == 2 && bytes.Contains(payload, []byte(`"status":"terminal"`)) {
 			gateOnce.Do(func() { close(terminalEntered); <-release })
 		}
 		return nil
@@ -155,13 +157,7 @@ func TestSequentialAdmissionAtTerminalDrainAndEmptyWorker(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	<-terminalEntered
-	h.mu.Lock()
-	active := h.workers[r.ID()]
-	h.mu.Unlock()
-	if !active {
-		t.Fatal("worker exited before terminal settlement")
-	}
+	awaitTaskSignal(t, terminalEntered)
 	secondResult := make(chan *SubmissionHandle, 1)
 	secondError := make(chan error, 1)
 	go func() {
@@ -184,24 +180,12 @@ func TestSequentialAdmissionAtTerminalDrainAndEmptyWorker(t *testing.T) {
 	if waitSubmission(t, first).Submission.Status != "done" || waitSubmission(t, second).Submission.Status != "done" {
 		t.Fatal("late terminal admission stranded")
 	}
-	// Wait for the explicit worker exit signal under its same mutex; then admit a
-	// new request into a known empty-worker state. No arbitrary sleep or seam in
-	// the public Harness API is required.
+	// Canonical tasks use the shared scheduler, not a private conversation
+	// worker. Public idle is the source observation boundary for fresh work.
 	ctx, cancel := context.WithTimeout(bg, 3*time.Second)
 	defer cancel()
-	for {
-		h.mu.Lock()
-		active = h.workers[r.ID()]
-		signal := h.changed
-		h.mu.Unlock()
-		if !active {
-			break
-		}
-		select {
-		case <-signal:
-		case <-ctx.Done():
-			t.Fatal("worker never drained")
-		}
+	if err := r.WaitForIdle(ctx); err != nil {
+		t.Fatal("scheduler never drained", err)
 	}
 	third, e := r.Submit(bg, Input{Content: "after-empty"})
 	if e != nil {

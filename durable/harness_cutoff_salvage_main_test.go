@@ -50,9 +50,16 @@ func mainSalvageCrash(t *testing.T, b sqliteFixture, limit uint64) (*mainRecover
 	defer observation.detach()
 	f.partial(stream, strings.Repeat("partial ", 12))
 	awaitTaskSignal(t, storedPartial)
-	task, cp, ok, err := h.nextTask(c.ID())
-	if err != nil || !ok || cp.Phase != "intent" {
-		t.Fatal("stream fixture", task, cp, err)
+	view, err := c.View(bg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	live, _ := view.Docs.Get("pi.live")
+	run, _ := live.Get("run")
+	node, _ := run.Get("taskId")
+	task, ok, err := h.Task(bg, submissionEntryID(node.Copy()))
+	if err != nil || !ok || task.State.Status != "running" || taskCheckpointMap(task.State.Checkpoint)["phase"] != "request" {
+		t.Fatal("canonical stream fixture", task, err)
 	}
 	store := f.crash()
 	return f, options, ref, sub.ID(), task.ID, store, streams
@@ -120,10 +127,8 @@ func mainSalvageCheck(t *testing.T, h *Harness, c *ConversationHandle, sub, task
 			}
 		}
 	}
-	// Native failedRun is a documented extra compatibility flag, not a
-	// source field. Assert it explicitly; no other extra live keys are allowed.
-	if len(live) != 2 || live["failedRun"] != true {
-		t.Error("native live failure shape", live)
+	if len(live) != 1 || live["runFailure"] == nil {
+		t.Error("source live failure shape", live)
 	}
 	failure := generationObject(live["runFailure"])
 	if len(failure) != 5 || failure["reason"] != "restart_limit" || failure["detail"] != detail || submissionEntryID(failure["taskId"]) != task {
@@ -225,8 +230,8 @@ func TestMainCutoffBeforeRegistrySnapshotDerived(t *testing.T) {
 // Source-derived generation.ts endCutOff/deferredOf: poll and retry-of-poll
 // cancel only at the salvageable boundary. Phase/handle/restart seeds are native
 // codec controls after a real request owns a run, not translated crash scenarios.
-// Preserve its partial through the supported legacy checkpoint adapter; these
-// seeded phases do not establish modern poll/retry presentation persistence.
+// The committed partial remains in canonical LiveDoc; seeded poll/retry states
+// supplement real crash tests and do not establish complete provider recovery.
 func TestMainCutoffDeferredSalvagePhasesDerived(t *testing.T) {
 	for _, phase := range []string{"poll", "retry"} {
 		for _, past := range []bool{false, true} {
@@ -250,22 +255,21 @@ func TestMainCutoffDeferredSalvagePhasesDerived(t *testing.T) {
 						t.Fatal(err)
 					}
 					task := state.Tasks[id]
-					var cp generationCheckpoint
-					if err := fromObject(task.Checkpoint, &cp, DefaultLimits()); err != nil {
-						t.Fatal(err)
+					// Supplemental canonical poll/retry checkpoint seeds;
+					// the committed partial stays solely in stored LiveDoc.
+					cp := taskCheckpointMap(task.Execution.Native.State.Checkpoint)
+					polled := JSON{"model": cp["model"], "handle": JSON{"id": "job"}, "cutoff": cp["cutoff"]}
+					next := JSON{"phase": phase, "attempt": cp["attempt"]}
+					if phase == "poll" {
+						for key, value := range polled {
+							next[key] = value
+						}
+						next["pollAt"] = 0
+					} else {
+						next["until"] = 0
+						next["poll"] = polled
 					}
-					cp.Partial, err = generationPartial(state, task, cp, DefaultLimits())
-					if err != nil || cp.Partial == nil {
-						t.Fatal("legacy partial adapter", err)
-					}
-					cp.Phase = phase
-					cp.Deferred = &goai.DeferredHandle{ID: "job"}
-					cp.PollAt = 0
-					cp.RetryUntil = 0
-					task.Checkpoint, err = dtoObject(cp, DefaultLimits())
-					if err != nil {
-						t.Fatal(err)
-					}
+					task.Execution.Native.State.Checkpoint = next
 					if past {
 						task.Restarts = 1
 					}

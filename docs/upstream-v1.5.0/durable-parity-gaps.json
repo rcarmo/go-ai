@@ -1190,6 +1190,11 @@
           "seconds": 213.651,
           "result": "failed and panicked; final-reset fixture indexed string content as blocks",
           "topLevelFailureGroups": 75
+        },
+        {
+          "seconds": 1200.042,
+          "result": "failed and timed out; terminal admission fixture waits for retired phase:terminal",
+          "topLevelFailureGroups": 75
         }
       ],
       "focusedSeconds": 60.888,
@@ -1246,6 +1251,17 @@
         "originalGenerationRecoveryCases": 9,
         "originalInboxCases": 37,
         "originalSkipped": 0
+      },
+      "generationSalvage": {
+        "status": "bounded pass; full integration red",
+        "shuffledCount": 3,
+        "shuffledSeconds": 28.352,
+        "originalRestartFailureCases": 18,
+        "originalSkipped": 0,
+        "semanticFaults": 3,
+        "vet": "pass",
+        "staticcheck": "v0.8.2 pass",
+        "logging": "pass"
       }
     },
     "reference": {
