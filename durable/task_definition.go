@@ -5,6 +5,7 @@ import (
 	goai "github.com/rcarmo/go-ai"
 	"sort"
 	"sync"
+	"unicode/utf8"
 )
 
 // TaskPhase runs off the Session line. A handler must commit durable checkpoint
@@ -27,13 +28,18 @@ type TaskDefinition struct {
 	constructed bool
 }
 
+// Task kinds and phase names are source string-map keys, not identifiers.
+func validTaskKey(value string, limits Limits) bool {
+	return utf8.ValidString(value) && len(value) <= limits.MaxStringBytes
+}
+
 func DefineTask(options TaskDefinitionOptions) (*TaskDefinition, error) {
-	if !validKind(options.Kind) || options.Version == 0 || options.Version > MaxID || options.Initial == nil || options.Abort == nil || len(options.Phases) == 0 || len(options.Phases) > DefaultLimits().MaxMembers {
+	if !validTaskKey(options.Kind, DefaultLimits()) || options.Version == 0 || options.Version > MaxID || options.Initial == nil || options.Abort == nil || len(options.Phases) == 0 || len(options.Phases) > DefaultLimits().MaxMembers {
 		return nil, reject("invalid task definition")
 	}
 	phases := make(map[string]TaskPhase, len(options.Phases))
 	for name, handler := range options.Phases {
-		if !validKind(name) || handler == nil {
+		if !validTaskKey(name, DefaultLimits()) || handler == nil {
 			return nil, reject("invalid task phase")
 		}
 		phases[name] = handler

@@ -264,7 +264,7 @@ func validateTaskRecord(task Task, l Limits) error {
 	if task.AbortReason != "" && (task.AbortReason != "restart" || !taskAborted(task)) {
 		return reject("invalid task abort reason")
 	}
-	if task.Checkpoint == nil || !validKind(task.Kind) || !validStatus(task.Status) || uint64(task.Conversation) > MaxID || uint64(task.Owner) > MaxID || task.Owner == task.ID && task.ID != 0 {
+	if task.Checkpoint == nil || !validTaskKey(task.Kind, l) || !validStatus(task.Status) || uint64(task.Conversation) > MaxID || uint64(task.Owner) > MaxID || task.Owner == task.ID && task.ID != 0 {
 		return reject("invalid task record")
 	}
 	if privateBuiltinTask(task, "pi.generation") {

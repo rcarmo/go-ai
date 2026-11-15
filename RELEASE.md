@@ -2,7 +2,11 @@
 
 The sole acceptance target is official upstream **v1.5.0**, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Alignment is unverified. Older entries below are historical receipts, not compatibility requirements or v1.5.0 acceptance. Retained tests and active identity/schema/catalogue/regeneration pins must be reconciled with this release; obsolete behaviour must change.
 
-## Development continuation: canonical-runtime foundations
+## Development continuation: task kind and phase string keys
+
+[Source boundaries and verification](notes/internal-task-replacement.md#task-kind-and-phase-string-keys): Task kinds and phase names now follow source string-map lookup, without Go’s lowercase identifier/128-byte grammar. Empty, uppercase/spaces, Unicode, NUL and129-byte keys execute through real task creation, reservation, phase transition and terminal settlement. Strict UTF-8/string-budget and state/record checks remain. The new native packet first failed0.023s on all five cases; its independent original Harness probe passes. Ten shuffled repetitions2.313s, four independently compiled grammar-restoration faults and static/logging/register pass. The candidate passes26 tested packages (durable450.325s/tools20.319s/public12.032s); its compiler overlay excludes only the two previously uncommitted canonical builtin RED targets, retaining every accepted assertion. Selected original281 (200 unchanged plus81 probes) and table101 pass zero skipped. Canonical builtin execution and the current working tree are not accepted.
+
+## Previous development continuation: canonical-runtime foundations
 
 [Generic runtime replacement and registry construction](notes/internal-task-replacement.md#generic-runtime-integration-and-registry-construction): TaskRuntime.Commit now uses private source setTask, preserving source progress-count clearing; CompactionTask is installed at registry construction. The candidate passes26 tested packages durable891.676s/tools27.174s/public13.087s, two compiled faults and static/logging/register. A compiler overlay excluded only two new uncommitted canonical builtin RED targets; all previously accepted tests and the new registry control ran. This is not a full working-tree or canonical builtin acceptance receipt. Earlier candidate879.259s failed unchanged restart-count assertions, fixed from scheduler2437–2457. Actual Generation2/Tool3 definitions/handlers/migrations are incomplete; new native tests fail while their source probe passes.
 

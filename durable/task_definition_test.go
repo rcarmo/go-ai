@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	goai "github.com/rcarmo/go-ai"
 	"strings"
 	"testing"
@@ -83,7 +84,8 @@ func TestTaskDefinitionConstructorOwnsPhaseMapAndInput(t *testing.T) {
 		t.Fatal("builtin namespace token rejected", err)
 	}
 	for _, mutate := range []func(*TaskDefinitionOptions){
-		func(o *TaskDefinitionOptions) { o.Kind = "" },
+		func(o *TaskDefinitionOptions) { o.Kind = string([]byte{0xff}) },
+		func(o *TaskDefinitionOptions) { o.Phases = map[string]TaskPhase{string([]byte{0xff}): phase} },
 		func(o *TaskDefinitionOptions) { o.Version = 0 },
 		func(o *TaskDefinitionOptions) { o.Initial = nil },
 		func(o *TaskDefinitionOptions) { o.Abort = nil },
@@ -834,6 +836,38 @@ func TestTaskDefinitionBuiltinReceiptAbortMarksSurviveHeldAndFinalReplacement(t 
 					t.Fatal("receipt final lost mark/entry identity")
 				}
 			})
+		})
+	}
+}
+
+// Source tasks.ts defineTask and scheduler phase-map lookup use string keys,
+// without the native identifier grammar. Paired original Harness probe.
+func TestSourceTaskKindAndPhaseAreStringKeys(t *testing.T) {
+	for _, value := range []string{"", "UPPER name", "π task", "nul\x00key", strings.Repeat("k", 129)} {
+		t.Run(fmt.Sprintf("%q", value), func(t *testing.T) {
+			first, next := value, value+" next"
+			phase := func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+				return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) {
+					return &TaskState{Status: "running", Checkpoint: JSON{"phase": next}}, nil
+				})
+			}
+			done := func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+				return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone("ok"), nil })
+			}
+			definition, err := DefineTask(TaskDefinitionOptions{Kind: value, Version: 1, Initial: func(any) (JSON, error) { return JSON{"phase": first}, nil }, Phases: map[string]TaskPhase{first: phase, next: done}, Abort: done})
+			if err != nil {
+				t.Fatal("source string key rejected", err)
+			}
+			store, err := newTestSQLite(t)
+			if err != nil {
+				t.Fatal(err)
+			}
+			h := taskTestHarness(t, store, definition)
+			id := createPublicTask(t, h, definition, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
+			record := waitPublicTask(t, h, id)
+			if record.Kind != value || record.State.Outcome == nil || record.State.Outcome.Status != "completed" || record.State.Outcome.Result == nil || record.State.Outcome.Result.Value != "ok" {
+				t.Fatal(record)
+			}
 		})
 	}
 }

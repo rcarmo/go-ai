@@ -130,7 +130,7 @@ func (r *TaskRuntime) commit(ctx context.Context, change func(*Tx, TaskRecord) (
 		// retains older opaque checkpoint values until migration.
 		if state.Status == "running" || state.Status == "waiting" || state.Status == "sleeping" {
 			phase, ok := taskCheckpointMap(state.Checkpoint)["phase"].(string)
-			if !ok || !validKind(phase) {
+			if !ok || !validTaskKey(phase, r.harness.session.limits) {
 				return reject("runtime checkpoint phase")
 			}
 		}
