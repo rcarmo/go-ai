@@ -130,7 +130,11 @@ func canonicalToolHooks(ctx context.Context, r *TaskRuntime, agent agentState, c
 			continue
 		}
 		if next != nil {
+			// A copied hook result retains the omitted-output arm only while
+			// it keeps that output; replacing it must discard its truncation.
+			retained := result.usesRetainedOutput && next.usesRetainedOutput && next.Content == result.Content && next.Blocks == nil && result.Blocks == nil
 			result, err = detachToolResult(*next, r.harness.session.limits)
+			result.usesRetainedOutput = retained
 			if err != nil {
 				return ToolResult{}, err
 			}
@@ -157,7 +161,7 @@ func canonicalToolCallPhase(ctx context.Context, task TaskRecord, r *TaskRuntime
 			return err
 		}
 		result.harnessResult = true
-		return settleCanonicalTool(ctx, r, input, call, reg, result, "completed", "", 0)
+		return settleCanonicalTool(ctx, r, input, call, reg, result, "completed", "", nil)
 	}
 	if !found {
 		return rejectCall(canonicalToolError("tool_unavailable", fmt.Sprintf("Tool %s is not available", call.Name)))
@@ -264,7 +268,7 @@ func canonicalToolExecutePhase(ctx context.Context, task TaskRecord, r *TaskRunt
 	if err != nil {
 		return err
 	}
-	return settleCanonicalTool(ctx, r, input, call, reg, result, "failed", message, 0)
+	return settleCanonicalTool(ctx, r, input, call, reg, result, "failed", message, nil)
 }
 
 func canonicalToolAbort(ctx context.Context, task TaskRecord, r *TaskRuntime) error {
@@ -296,7 +300,7 @@ func canonicalToolAbort(ctx context.Context, task TaskRecord, r *TaskRuntime) er
 			}
 		}
 	}
-	return settleCanonicalTool(ctx, r, input, call, reg, result, "aborted", "", 0)
+	return settleCanonicalTool(ctx, r, input, call, reg, result, "aborted", "", nil)
 }
 func canonicalToolCutOff(ctx context.Context, task TaskRecord, r *TaskRuntime, input canonicalToolInput, call goai.ToolCall, agent agentState, reg registeredTool) error {
 	message := fmt.Sprintf("Tool %s was interrupted %s; it is not run again", call.Name, canonicalCutOffCount(task.Restarts))
@@ -310,7 +314,7 @@ func canonicalToolCutOff(ctx context.Context, task TaskRecord, r *TaskRuntime, i
 			return err
 		}
 	}
-	return settleCanonicalTool(ctx, r, input, call, reg, result, "failed", message, 0, "restart_limit")
+	return settleCanonicalTool(ctx, r, input, call, reg, result, "failed", message, nil, "restart_limit")
 }
 
 func canonicalToolSlot(value JSON, id ID) JSON {
@@ -385,7 +389,7 @@ func runCanonicalTool(ctx context.Context, r *TaskRuntime, input canonicalToolIn
 	api.environmentResolved = true
 	var result ToolResult
 	err := api.environmentErr
-	var duration int64
+	var duration *int64
 	if err == nil {
 		owned, copyErr := copyScopedToolArguments(args, call.HasStreamingArguments(), r.harness.session.limits)
 		err = copyErr
@@ -399,7 +403,8 @@ func runCanonicalTool(ctx context.Context, r *TaskRuntime, input canonicalToolIn
 				}()
 				result, err = reg.execute(ctx, owned, api)
 			}()
-			duration = time.Since(started).Round(time.Millisecond).Milliseconds()
+			elapsed := time.Since(started).Round(time.Millisecond).Milliseconds()
+			duration = &elapsed
 		}
 	}
 	if sealErr := api.seal(); err == nil {
@@ -411,7 +416,9 @@ func runCanonicalTool(ctx context.Context, r *TaskRuntime, input canonicalToolIn
 	api.mu.Lock()
 	if result.Content == "" && result.Blocks == nil {
 		result.Content = api.checkpoint.Output
+		result.usesRetainedOutput = true
 	}
+	droppedBytes, droppedLines := api.checkpoint.DroppedBytes, api.checkpoint.DroppedLines
 	if result.Details == nil && !result.HasDetails && api.checkpoint.HasDetails {
 		result.DetailsValue, result.HasDetails = api.checkpoint.Details, true
 	}
@@ -428,6 +435,11 @@ func runCanonicalTool(ctx context.Context, r *TaskRuntime, input canonicalToolIn
 	result, err = canonicalToolHooks(ctx, r, agent, call, result)
 	if err != nil {
 		return err
+	}
+	// Source finalResult adds retained-output truncation after afterTool, and
+	// only while the hook kept that output. Returned content replaces progress.
+	if result.usesRetainedOutput && droppedBytes > 0 {
+		result.Diagnostics = append(result.Diagnostics, truncatedToolOutput(droppedBytes, droppedLines, resolvedToolOutputLimits(reg.offer.OutputLimits).Retain))
 	}
 	return settleCanonicalTool(ctx, r, input, call, reg, result, ending, message, duration)
 }
@@ -476,7 +488,7 @@ func (a *ToolAPI) publishCanonicalProgress() (int, error) {
 	return written, err
 }
 
-func settleCanonicalTool(ctx context.Context, r *TaskRuntime, input canonicalToolInput, call goai.ToolCall, reg registeredTool, result ToolResult, ending, message string, duration int64, failureReason ...string) error {
+func settleCanonicalTool(ctx context.Context, r *TaskRuntime, input canonicalToolInput, call goai.ToolCall, reg registeredTool, result ToolResult, ending, message string, duration *int64, failureReason ...string) error {
 	l := r.harness.session.limits
 	owned, err := detachToolResult(result, l)
 	if err != nil {
@@ -569,7 +581,10 @@ func settleCanonicalTool(ctx context.Context, r *TaskRuntime, input canonicalToo
 			if items == nil {
 				items = []any{}
 			}
-			nested := JSON{"taskId": r.taskID, "isError": owned.IsError, "diagnostics": items, "durationMs": duration}
+			nested := JSON{"taskId": r.taskID, "isError": owned.IsError, "diagnostics": items}
+			if duration != nil {
+				nested["durationMs"] = *duration
+			}
 			if owned.HasStructuredOutput {
 				nested["structuredOutput"] = owned.StructuredOutput
 			}
@@ -603,7 +618,7 @@ func settleCanonicalTool(ctx context.Context, r *TaskRuntime, input canonicalToo
 			}
 			settled = JSON{"kind": "nested"}
 		} else {
-			receipt := MessageReceipt{ImageChunks: owned.imageChunks, Role: goai.RoleToolResult, ToolCallID: call.ID, ToolName: call.Name, Content: content, IsError: owned.IsError, Diagnostics: owned.Diagnostics, Timestamp: r.harness.session.now(), DurationMs: &duration, Details: owned.Details, DetailsValue: owned.DetailsValue, HasDetails: owned.HasDetails, Usage: owned.Usage}
+			receipt := MessageReceipt{ImageChunks: owned.imageChunks, Role: goai.RoleToolResult, ToolCallID: call.ID, ToolName: call.Name, Content: content, IsError: owned.IsError, Diagnostics: owned.Diagnostics, Timestamp: r.harness.session.now(), DurationMs: duration, Details: owned.Details, DetailsValue: owned.DetailsValue, HasDetails: owned.HasDetails, Usage: owned.Usage}
 			for _, diagnostic := range owned.Diagnostics {
 				if diagnostic.argumentError {
 					receipt.ErrorCode = "invalid_arguments"

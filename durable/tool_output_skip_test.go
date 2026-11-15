@@ -67,12 +67,9 @@ func TestToolOutput104SkippedTailCountersAndWindow(t *testing.T) {
 					}
 					for _, task := range state.Tasks {
 						if task.Kind == "pi.tool" {
-							var cp toolCheckpoint
-							if err := fromObject(task.Checkpoint, &cp, h.session.limits); err != nil {
-								t.Fatal(err)
-							}
-							if cp.Output != "tail" || cp.OutputBytes != 32 || cp.DroppedBytes != 28 || cp.DroppedLines != 3 {
-								t.Fatal("skipped tail counts", cp.Output, cp.OutputBytes, cp.DroppedBytes, cp.DroppedLines)
+							receipt := canonicalModelToolReceipt(t, h, task.ID)
+							if len(receipt.Content) != 2 || receipt.Content[0].Text != "tail" || len(receipt.Diagnostics) != 1 || receipt.Diagnostics[0].Message != "Output truncated to its end: 3 lines, 28 bytes dropped" {
+								t.Fatal("skipped tail counts", receipt)
 							}
 						}
 					}

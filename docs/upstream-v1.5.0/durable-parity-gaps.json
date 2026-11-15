@@ -1137,7 +1137,7 @@
     "historical": true
   },
   "currentCheckpoint": {
-    "scope": "Canonical migration checkpoints365f5b6/6b637a3/c988681 pushed; current focused recovery/reset/image packet passes, integration red.89c031e remains last fully verified tree.",
+    "scope": "Known-red migration through a5661b7 plus current timing/output packet; complete actual-tree baseline95 durable failures/25 other tested packages pass.89c031e remains last fully verified tree.",
     "baseRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
     "lastVerifiedPushed": {
       "revision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
@@ -1215,6 +1215,14 @@
           "seconds": 377.177,
           "result": "failed; obsolete tool-output policy fixture panic",
           "topLevelFailureGroups": 93
+        },
+        {
+          "seconds": 421.579,
+          "result": "complete full ./...; durable fails95 groups without panic/timeout,25 other tested packages pass",
+          "topLevelFailureGroups": 95,
+          "toolsSeconds": 9.322,
+          "consumerSeconds": 10.955,
+          "inventory": "notes/canonical-integration-baseline.md"
         }
       ],
       "focusedSeconds": 60.888,
@@ -1300,6 +1308,20 @@
         "logging": "pass",
         "assertionMappings": "notes/canonical-builtin-execution.md#progress-reset-and-tool-receipt-packet",
         "canonicalProgress": "details/null/window/sealed result and exact attribution pass; deferred-memory private operation fixtures remain red"
+      },
+      "toolTimingOutputPacket": {
+        "status": "bounded pass; complete integration baseline red",
+        "shuffledCount": 3,
+        "seconds": 30.237,
+        "semanticFaults": 5,
+        "originalToolsCases": 42,
+        "originalToolsRecoveryCases": 10,
+        "originalSkipped": 0,
+        "independentTypeScriptProbesPerRun": 90,
+        "vet": "pass",
+        "staticcheck": "v0.8.2 pass",
+        "logging": "pass",
+        "mapping": "notes/canonical-builtin-execution.md#tool-timing-retained-output-and-complete-baseline"
       }
     },
     "reference": {

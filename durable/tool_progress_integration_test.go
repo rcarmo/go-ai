@@ -6,7 +6,6 @@ import (
 	goai "github.com/rcarmo/go-ai"
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestToolProgressCoalescesFirehosePreservesMemoAndTerminalFlush(t *testing.T) {
@@ -14,6 +13,7 @@ func TestToolProgressCoalescesFirehosePreservesMemoAndTerminalFlush(t *testing.T
 		limits := ToolOutputLimits{64, 2, "tail"}
 		registry := NewRegistry()
 		visible, release := make(chan struct{}), make(chan struct{})
+		memoCommitted := make(chan ID, 1)
 		if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "firehose", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "firehose.test", Version: 1, OutputLimits: &limits, Execute: func(ctx context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
 			if err := api.Output("first\n"); err != nil {
 				return ToolResult{}, err
@@ -30,6 +30,7 @@ func TestToolProgressCoalescesFirehosePreservesMemoAndTerminalFlush(t *testing.T
 			if _, err := api.MemoCandidate(ctx, "progress.memo", JSON{"preserved": true}); err != nil {
 				return ToolResult{}, err
 			}
+			memoCommitted <- api.TaskID()
 			<-release
 			return ToolResult{}, nil
 		}}); err != nil {
@@ -44,7 +45,7 @@ func TestToolProgressCoalescesFirehosePreservesMemoAndTerminalFlush(t *testing.T
 			} else {
 				for _, m := range input.Messages {
 					if m.Role == goai.RoleToolResult {
-						if m.Content[0].Text != "line\nline\n" || !strings.Contains(m.Content[1].Text, "99 lines, 496 bytes dropped") {
+						if len(m.Content) != 2 || m.Content[0].Text != "line\nline\n" || !strings.Contains(m.Content[1].Text, "99 lines, 496 bytes dropped") {
 							t.Error("terminal firehose flush", m)
 						}
 					}
@@ -63,43 +64,13 @@ func TestToolProgressCoalescesFirehosePreservesMemoAndTerminalFlush(t *testing.T
 			t.Fatal(err)
 		}
 		awaitTaskSignal(t, visible)
-		// Details waits for logical progress publication. Pause the host until
-		// the live presentation and memo have both adopted; no timing sleeps.
-		ctx, cancel := context.WithTimeout(bg, 3*time.Second)
-		defer cancel()
-		var toolID ID
-		for {
-			snapshot, err := h.Snapshot(ctx)
-			if err != nil {
-				t.Fatal(err)
-			}
-			ready := false
-			for _, task := range snapshot.Tasks {
-				if task.Kind == "pi.tool" {
-					toolID = task.ID
-					var cp toolCheckpoint
-					if err := fromObject(task.Checkpoint, &cp, h.session.limits); err != nil {
-						t.Fatal(err)
-					}
-					// Progress is now a live-document value, not invocation state.
-					cp, err = toolPresentation(snapshot, task, cp, h.session.limits)
-					if err != nil {
-						t.Fatal(err)
-					}
-					if cp.HasDetails && task.Execution != nil && task.Execution.Builtin.Memos["progress.memo"] != nil {
-						ready = true
-					}
-				}
-			}
-			if ready {
-				break
-			}
-			select {
-			case <-ctx.Done():
-				t.Fatal("memo admission absent")
-			default:
-			}
+		// Memo completion is an adopted-publication signal, not a polling loop.
+		toolID := watchReceive(t, memoCommitted)
+		record, found, err := h.Task(bg, toolID)
+		if err != nil || !found || record.Memos["progress.memo"] == nil || !record.Memos["progress.memo"].Present || !equalJSONValue(record.Memos["progress.memo"].Value, JSON{"preserved": true}) {
+			t.Fatal("memo admission absent", record, err)
 		}
+
 		before, err := h.Snapshot(bg)
 		if err != nil {
 			t.Fatal(err)
@@ -110,14 +81,11 @@ func TestToolProgressCoalescesFirehosePreservesMemoAndTerminalFlush(t *testing.T
 		if err != nil {
 			t.Fatal(err)
 		}
-		task := after.Tasks[toolID]
-		var cp toolCheckpoint
-		if err := fromObject(task.Checkpoint, &cp, h.session.limits); err != nil {
-			t.Fatal(err)
+		receipt := canonicalModelToolReceipt(t, h, toolID)
+		if len(receipt.Content) != 2 || receipt.Content[0].Text != "line\nline\n" || !receipt.HasDetails || !equalJSONValue(receipt.DetailsValue, JSON{"committed": true}) || len(receipt.Diagnostics) != 1 || receipt.Diagnostics[0].Code != "truncated" || receipt.Diagnostics[0].Message != "Output truncated to its end: 99 lines, 496 bytes dropped" {
+			t.Fatal("retained terminal progress", receipt)
 		}
-		if cp.Output != "line\nline\n" || cp.DroppedBytes != 496 || cp.DroppedLines != 99 || !cp.HasDetails || cp.Diagnostics[len(cp.Diagnostics)-1].Code != "truncated" {
-			t.Fatal("retained terminal progress", cp)
-		}
+
 		if after.Seq-before.Seq >= 100 {
 			t.Fatal("output marks committed individually", after.Seq-before.Seq)
 		}

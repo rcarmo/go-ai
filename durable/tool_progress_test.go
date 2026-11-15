@@ -174,12 +174,19 @@ func TestSafeToolReplayClearsInterruptedOutputAndDetails(t *testing.T) {
 			t.Fatal(err)
 		}
 		calls := 0
-		ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
+		var observedDuration *int64
+		ref, options := setupFakeAPI(t, func(_ context.Context, _ *goai.Model, input *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
 			calls++
 			ch := make(chan goai.Event, 1)
 			if calls == 1 {
 				ch <- toolAnswer("safe-call", "safe", JSON{})
 			} else {
+				for _, message := range input.Messages {
+					if message.Role == goai.RoleToolResult && message.DurationMs != nil {
+						value := *message.DurationMs
+						observedDuration = &value
+					}
+				}
 				ch <- terminal("done")
 			}
 			close(ch)
@@ -227,12 +234,31 @@ func TestSafeToolReplayClearsInterruptedOutputAndDetails(t *testing.T) {
 		}
 		for _, task := range state.Tasks {
 			if task.Kind == "pi.tool" {
-				var cp toolCheckpoint
-				if err := fromObject(task.Checkpoint, &cp, second.session.limits); err != nil {
-					t.Fatal(err)
+				record, found, err := second.Task(bg, task.ID)
+				if err != nil || !found || generationObject(record.State.Checkpoint)["phase"] != "execute" {
+					t.Fatal("replay execution state", record, err)
 				}
-				if cp.Output != "" || cp.HasDetails || cp.Details != nil || cp.DurationMs != nil {
-					t.Fatal("replay retained stale UI/attempt timing", cp)
+				slotFound := false
+				for _, doc := range state.Documents {
+					if doc.Kind != "pi.live" || doc.Owner != task.Conversation {
+						continue
+					}
+					items, _ := doc.Value["tools"].([]any)
+					for _, raw := range items {
+						slot := generationObject(raw)
+						if submissionEntryID(slot["taskId"]) != task.ID {
+							continue
+						}
+						slotFound = true
+						for _, key := range []string{"output", "details", "diagnostics", "droppedBytes", "droppedLines", "durationMs"} {
+							if _, present := slot[key]; present {
+								t.Fatal("replay retained stale UI/attempt timing", key, slot)
+							}
+						}
+					}
+				}
+				if !slotFound {
+					t.Fatal("replay tool slot missing")
 				}
 			}
 		}
@@ -254,12 +280,9 @@ func TestSafeToolReplayClearsInterruptedOutputAndDetails(t *testing.T) {
 		}
 		for _, task := range state.Tasks {
 			if task.Kind == "pi.tool" {
-				var cp toolCheckpoint
-				if err := fromObject(task.Checkpoint, &cp, second.session.limits); err != nil {
-					t.Fatal(err)
-				}
-				if cp.Result.Content[0].Text != "fresh" || cp.Result.DurationMs == nil || cp.DurationMs == nil || *cp.DurationMs != *cp.Result.DurationMs {
-					t.Fatal("replay receipt reused prefix or lost attempt duration", cp)
+				receipt := canonicalModelToolReceipt(t, second, task.ID)
+				if len(receipt.Content) != 1 || receipt.Content[0].Text != "fresh" || receipt.DurationMs == nil || observedDuration == nil || *receipt.DurationMs != *observedDuration {
+					t.Fatal("replay receipt reused prefix or lost attempt duration", receipt, observedDuration)
 				}
 			}
 		}

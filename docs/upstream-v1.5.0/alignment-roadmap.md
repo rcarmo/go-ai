@@ -2,11 +2,15 @@
 
 **Alignment is incomplete. The current worktree fails full durable regression.** This review replaces the accumulated roadmap; historical receipts remain in the linked notes and Git history. It reviews all 29 gap groups and the broader AI/schema/codemode scope. The assertion-level audit is incomplete; the recovery/abort packet below has new runtime checks.
 
-Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Latest pushed migration checkpoint is c9886813b858db4304bc4561dd579a37f914c6b5;89c031e remains the last fully verified tree. Execution is authorised; current focused changes remain uncommitted until their bounded gates pass. No new integrated acceptance.
+Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Canonical migration checkpoints through a5661b7 and the timing/output packet in the containing commit remain integration-red;89c031e is the last fully verified tree. Execution continues under step2. No new integrated acceptance.
 
-## Current focused packet
+## Complete actual-tree baseline
 
-Progress cleanup, canonical ID/reset/terminal event fixes and large-image tool settlement have focused regression and semantic fault controls. Canonical progress details/window/attribution also passes. Combined three-shuffle tests32.984s; original inbox37/tools42 zero skipped, separately counted TypeScript probes. Latest full durable attempt377.177s reached93 failed groups then panicked in a now-corrected private tool-output fixture. See [packet mappings and exact failures](../../notes/canonical-builtin-execution.md#progress-reset-and-tool-receipt-packet). This does not complete step1.
+Plan step1 is complete as baseline establishment, not passing integration. Full ./... without overlays/exclusions finishes durable421.579s with95 failing groups and no panic/timeout;25 other tested packages pass (tools9.322s/public10.955s). [Full native failure inventory](../../notes/canonical-integration-baseline.md). Step2 is active. Timing/retained-output fixes pass expanded three-shuffle30.237s,5 semantic faults and static/source checks; exact mappings in the canonical execution note.
+
+## Previous focused packet
+
+Progress cleanup, canonical ID/reset/terminal event fixes and large-image tool settlement have focused regression and semantic fault controls. Canonical progress details/window/attribution also passes. Combined three-shuffle tests32.984s; original inbox37/tools42 zero skipped, separately counted TypeScript probes. Latest full durable attempt377.177s reached93 failed groups then panicked in a now-corrected private tool-output fixture. See [packet mappings and exact failures](../../notes/canonical-builtin-execution.md#progress-reset-and-tool-receipt-packet). That attempt did not complete step1; the subsequent complete baseline above does.
 
 ## Evidence baseline (historical review)
 
@@ -72,7 +76,7 @@ D04 is still a direct code gap: `session_writer_host.go` has an empty `hop`. D10
 
 ## Fresh execution sequence
 
-Execution is authorised. Step1 is in progress: canonical recovery/abort assertions and runtime refactors have focused/source/static passes, while the integrated baseline is red. Each packet starts with pinned source/tests and a before-fix run. Native APIs and tests are refactored to comply; no native backwards-compatibility requirement applies.
+Execution is authorised. Step1 baseline establishment is complete; step2 is in progress. Earlier packet: canonical recovery/abort assertions and runtime refactors have focused/source/static passes, while the integrated baseline is red. Each packet starts with pinned source/tests and a before-fix run. Native APIs and tests are refactored to comply; no native backwards-compatibility requirement applies.
 
 1. **Establish the complete red baseline.** Port panic-prone/private-state fixtures from source first, with canonical reads and signals; retain every behavioural assertion. Run the complete actual tree without exclusions to enumerate all failures. Record revision, test command and cause classification.
 2. **Finish the production canonical transition.** Resolve R1–R8, then all generation/tool/nested phase, control, queue, event and recovery consumers. Remove obsolete paths once their replacement assertions pass. Audit new Settlement conveniences rather than extending a second API.

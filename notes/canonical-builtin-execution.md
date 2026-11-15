@@ -313,7 +313,7 @@ Combined progress/reset/owned/fault/image/receipt tests pass three shuffled repe
 
 Actual-tree durable runs, no exclusions: baseline8=237.135s/92 top-level failed groups, baseline9=235.407s/92, baseline10=372.996s/94, baseline11=377.177s/93. Each stops at an obsolete private-state fixture panic, not a complete baseline. Earlier summary counts74 for8/9 were incorrect; these are exact anchored FAIL-line counts. Fault/byte-output/policy panic fixtures are now source-correct; the next full run remains required.
 
-Latest baseline11 failures before its panic:
+Historical baseline11 failures before its panic:
 
 - `TestAutomaticCompactionRetryDecisionFollowsCurrentSettingsAfterResponse`
 - `TestOverflowCompactionOneRecoveryAndNoOrdinaryRetry`
@@ -410,3 +410,21 @@ Latest baseline11 failures before its panic:
 - `TestToolOutputPolicyPinsCopiesFinalTextAndNonTextBlocks`
 
 Canonical progress follow-up: TestToolProgressDetailsWindowAndSealedWrites reproduced missing details/null/window events0.639s after moving its final receipt assertion to public result.entryId. Source LiveDoc uses run.taskId and model call identity from ToolTask input/slot, not private run.task or an empty terminal checkpoint. The presentation/event consumer now uses those canonical identities. Removing a settled slot is not reported as a new empty tool update. Exact detail12/null/retained, trimStart3/appendXYZ, call/task attribution, sealed writes and final receipt assertions pass. Three additional compiled semantic mutations (old owner key, lost call/name attribution, spurious final clear) fail unchanged assertions and restore. Total current packet controls:9. The final expanded three-shuffle packet passes32.984s, followed by whole-tree vet, Staticcheck v0.8.2, logging and diff checks. Original tools42 passed earlier with zero skipped, separately from90 independent probes. The deferred-memory timer/dependent fixture remains red on retired native operation paths; it is not included in the passing packet or accepted as parity.
+
+## Tool timing, retained output and complete baseline
+
+| Pinned source | Native translation |
+| --- | --- |
+| harness-tools.test.ts459–497; tool.ts554–582,817–858 | TestToolDuration110ExecutedErrorPanicAndUnexecuted:30ms execute,100ms before hook and75ms after hook; stored/public provider duration25≤ms<100; throw/panic flags, blocked field absence, exact model/entry duration equality and detached protocol pointer |
+| harness-tools.test.ts1058–1076; tool.ts674–736 | TestToolDefaultOutputLimitsTruncateAndReturnedContentReplacesProgress: byte/line counts and full diagnostic equality, explicit result override; supplemental kept/replaced/empty/equal-text-distinct-array hooks distinguish output identity rather than value equality |
+| harness-tools tail-window result assertion; finalResult retained diagnostic | TestToolOutput104SkippedTailCountersAndWindow: tail/head window/skip policy plus exact retained text and3 lines/28 bytes dropped diagnostic; terminal private counters replaced by source receipt assertions |
+| harness-tools-recovery.test.ts430+; tool.ts execute recovery | TestSafeToolReplayClearsInterruptedOutputAndDetails: public live slot has no stale fields before replay effect, public execute state, committed clear event, fresh receipt/duration equal to actual provider projection; no terminal private checkpoint |
+| source progress coalescing/memo/finalResult | TestToolProgressCoalescesFirehosePreservesMemoAndTerminalFlush: supplemental deterministic MemoCandidate completion channel replaces polling; public Task memo, full final receipt diagnostics/details, bounded publication count |
+
+Source timing translation first failed1.894s because blocked calls stored durationMs0. It now uses an optional measured duration: nil for rejected/abort/cutoff/recovery and environment-failed non-executions; present (including0) only for execute attempts. Hook time is excluded. Original terminal checkpoint timing was not source state; provider/entry equality checks replace it.
+
+Source-correct output fixtures exposed missing diagnostics: default/skipped red1.951s; firehose red0.292s after correcting its TaskValue memo fixture. Canonical execution now records omitted-output retention, carries it only when hooks keep that arm and appends exact dropped-byte/line diagnostics after hooks. Explicit replacement/empty/new array output discards retained truncation. The broader public ToolResult API/identity audit remains open.
+
+Five compiled semantic faults are detected and restored: blocked duration0, omitted measured duration, timing inflated by100ms, missing truncation and truncation incorrectly kept after output replacement. Restored expanded three-shuffle30.237s; whole-tree vet, Staticcheck v0.8.2, logging/diff pass. Original unchanged harness-tools42 and tools-recovery10 pass zero skipped, with90 independent TS probes counted separately per command. Other source assertions remain unaccepted natively.
+
+A targeted tool inventory first panicked15.116s in the old Builtin.Memos fixture; after porting it finishes24.598s with10 failed groups and no panic. The complete actual-tree run then finishes: durable421.579s/95 failed groups;25 other tested packages pass, tools9.322s/public10.955s. No overlays/exclusions. See [the full failure inventory](canonical-integration-baseline.md). Plan step1 baseline establishment is complete; integration remains red and step2 continues. Analysed scratch/logs removed; pinned source/dependencies preserved.

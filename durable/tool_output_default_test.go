@@ -9,7 +9,7 @@ import (
 )
 
 func TestToolDefaultOutputLimitsTruncateAndReturnedContentReplacesProgress(t *testing.T) {
-	for _, mode := range []string{"bytes", "lines", "returned"} {
+	for _, mode := range []string{"bytes", "lines", "returned", "hook-kept", "hook-replaced", "hook-empty", "hook-copy"} {
 		t.Run(mode, func(t *testing.T) {
 			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				registry := NewRegistry()
@@ -31,6 +31,23 @@ func TestToolDefaultOutputLimitsTruncateAndReturnedContentReplacesProgress(t *te
 					return ToolResult{}, nil
 				}
 				if err := registry.Register(reg); err != nil {
+					t.Fatal(err)
+				}
+				if err := registry.Install(&Extension{Name: "output-hooks", ToolHooks: ToolHooks{AfterTool: func(_ context.Context, _ goai.ToolCall, result ToolResult, _ *HookAPI) (*ToolResult, error) {
+					switch mode {
+					case "hook-kept":
+						return &result, nil
+					case "hook-replaced":
+						return &ToolResult{Blocks: []goai.ContentBlock{{Type: "text", Text: "replacement"}}}, nil
+					case "hook-empty":
+						return &ToolResult{Blocks: []goai.ContentBlock{}}, nil
+					case "hook-copy":
+						// Same text, a distinct explicit output array: source
+						// final.output !== retained output, so no retained warning.
+						return &ToolResult{Blocks: []goai.ContentBlock{{Type: "text", Text: result.Content}}}, nil
+					}
+					return nil, nil
+				}}}); err != nil {
 					t.Fatal(err)
 				}
 				calls := 0
@@ -62,30 +79,45 @@ func TestToolDefaultOutputLimitsTruncateAndReturnedContentReplacesProgress(t *te
 					if task.Kind != "pi.tool" {
 						continue
 					}
-					var cp toolCheckpoint
-					if err := fromObject(task.Checkpoint, &cp, h.session.limits); err != nil {
-						t.Fatal(err)
+					receipt := canonicalModelToolReceipt(t, h, task.ID)
+					if receipt.IsError || (len(receipt.Content) == 0 && mode != "hook-empty") {
+						t.Fatal("default truncation rejected tool", receipt)
 					}
-					if cp.Result == nil || cp.Result.IsError || cp.ErrorCode != "" {
-						t.Fatal("default truncation rejected tool", cp)
+					text := ""
+					if len(receipt.Content) > 0 {
+						text = receipt.Content[0].Text
 					}
-					text := cp.Result.Content[0].Text
+					want := ""
 					switch mode {
-					case "bytes":
-						if len(text) != 50*1024 || cp.DroppedBytes != 10*1024 {
-							t.Fatal("default byte retention", len(text), cp.DroppedBytes)
+					case "bytes", "hook-kept":
+						if len(text) != 50*1024 {
+							t.Fatal("default byte retention", len(text))
 						}
+						want = "Output truncated to its beginning: 0 lines, 10240 bytes dropped"
 					case "lines":
-						if outputLines(text) != 2000 || cp.DroppedLines != 100 {
-							t.Fatal("default line retention", outputLines(text), cp.DroppedLines)
+						if outputLines(text) != 2000 {
+							t.Fatal("default line retention", outputLines(text))
+						}
+						want = "Output truncated to its beginning: 100 lines, 500 bytes dropped"
+					case "hook-replaced":
+						if text != "replacement" || len(receipt.Diagnostics) != 0 {
+							t.Fatal("hook output did not replace retained truncation", receipt)
+						}
+					case "hook-empty":
+						if len(receipt.Content) != 0 || len(receipt.Diagnostics) != 0 {
+							t.Fatal("explicit empty hook output retained progress", receipt)
+						}
+					case "hook-copy":
+						if len(text) != 50*1024 || len(receipt.Diagnostics) != 0 {
+							t.Fatal("equal text in distinct output retained progress warning", receipt)
 						}
 					case "returned":
-						if text != "returned result" || len(cp.Diagnostics) != 0 {
-							t.Fatal("returned content did not replace progress", cp)
+						if text != "returned result" || len(receipt.Diagnostics) != 0 {
+							t.Fatal("returned content did not replace progress", receipt)
 						}
 					}
-					if mode != "returned" && (len(cp.Diagnostics) == 0 || cp.Diagnostics[len(cp.Diagnostics)-1].Code != "truncated") {
-						t.Fatal("truncation remark missing", cp.Diagnostics)
+					if want != "" && (len(receipt.Diagnostics) != 1 || receipt.Diagnostics[0].Code != "truncated" || receipt.Diagnostics[0].Message != want) {
+						t.Fatal("truncation remark/counts missing", receipt.Diagnostics, want)
 					}
 				}
 			})

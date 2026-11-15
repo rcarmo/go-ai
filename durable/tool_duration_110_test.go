@@ -19,7 +19,7 @@ func TestToolDuration110ExecutedErrorPanicAndUnexecuted(t *testing.T) {
 					reg := wrapRegistration("timed")
 					reg.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
 						executions.Add(1)
-						time.Sleep(8 * time.Millisecond)
+						time.Sleep(30 * time.Millisecond)
 						if mode == "panic" {
 							panic("timed panic")
 						}
@@ -34,6 +34,7 @@ func TestToolDuration110ExecutedErrorPanicAndUnexecuted(t *testing.T) {
 				}
 				// Hooks execute outside the measured executor attempt.
 				if e := registry.Install(&Extension{Name: "timing-hook", ToolHooks: ToolHooks{BeforeTool: func(context.Context, goai.ToolCall, *HookAPI) (*BeforeToolResult, error) {
+					time.Sleep(100 * time.Millisecond)
 					if mode == "blocked" {
 						return &BeforeToolResult{Block: "blocked"}, nil
 					}
@@ -45,11 +46,18 @@ func TestToolDuration110ExecutedErrorPanicAndUnexecuted(t *testing.T) {
 					t.Fatal(e)
 				}
 				var calls atomic.Int64
+				var observedDuration *int64
 				ref, options := setupFakeAPI(t, func(_ context.Context, _ *goai.Model, input *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
 					ch := make(chan goai.Event, 1)
 					if calls.Add(1) == 1 {
 						ch <- toolAnswer("timed-call", "timed", JSON{})
 					} else {
+						for _, message := range input.Messages {
+							if message.Role == goai.RoleToolResult && message.DurationMs != nil {
+								value := *message.DurationMs
+								observedDuration = &value
+							}
+						}
 						ch <- terminal("done")
 					}
 					close(ch)
@@ -74,34 +82,29 @@ func TestToolDuration110ExecutedErrorPanicAndUnexecuted(t *testing.T) {
 					if task.Kind != "pi.tool" {
 						continue
 					}
-					var cp toolCheckpoint
-					if e := fromObject(task.Checkpoint, &cp, h.session.limits); e != nil {
-						t.Fatal(e)
-					}
-					if cp.Result == nil {
-						t.Fatal("missing result")
-					}
+					receipt := canonicalModelToolReceipt(t, h, task.ID)
 					found = true
 					if mode == "blocked" {
-						if cp.Result.DurationMs != nil || executions.Load() != 0 {
-							t.Fatal("unexecuted call timed", cp.Result)
+						if receipt.DurationMs != nil || observedDuration != nil || executions.Load() != 0 {
+							t.Fatal("unexecuted call timed", receipt, observedDuration)
 						}
 					} else {
-						if cp.Result.DurationMs == nil || *cp.Result.DurationMs < 1 || executions.Load() != 1 {
-							t.Fatal("executor timing absent", cp.Result, executions.Load())
+						if receipt.DurationMs == nil || *receipt.DurationMs < 25 || *receipt.DurationMs >= 100 || executions.Load() != 1 {
+							t.Fatal("executor timing absent or includes hooks", receipt, executions.Load())
 						}
-						// Compare checkpoint and protocol fields without a scheduler-dependent
-						// absolute upper bound.
-						if cp.DurationMs == nil || *cp.Result.DurationMs != *cp.DurationMs {
-							t.Fatal("timing changed during hooks/settlement", cp)
+						if observedDuration == nil || *observedDuration != *receipt.DurationMs {
+							t.Fatal("timing changed during hooks/settlement", receipt, observedDuration)
 						}
-						message := receiptMessage(*cp.Result)
-						if message.DurationMs == nil || *message.DurationMs != *cp.Result.DurationMs {
+						message := receiptMessage(receipt)
+						if message.DurationMs == nil || *message.DurationMs != *receipt.DurationMs {
 							t.Fatal("projection lost duration", message)
 						}
 						*message.DurationMs = 999
-						if *cp.Result.DurationMs == 999 {
+						if *receipt.DurationMs == 999 {
 							t.Fatal("duration pointer alias")
+						}
+						if (mode == "error" || mode == "panic") && !receipt.IsError {
+							t.Fatal("executor failure lost", receipt)
 						}
 					}
 				}

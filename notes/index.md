@@ -7,7 +7,7 @@ Compact index. Read a linked note only when it is relevant to the current task.
 - [Upstream conformance completion report](upstream-conformance-report.md) — latest verified
   implementation checkpoints, exact evidence and remaining migration/release blockers.
 
-- [Canonical builtin execution](canonical-builtin-execution.md) — pushed executable records/migrations, uncommitted RED admission migration, exact passing packets and remaining producer/runtime contracts.
+- [Canonical builtin execution](canonical-builtin-execution.md) — pushed executable records/migrations, known-red admission checkpoints, exact passing packets and remaining producer/runtime contracts.
 
 - [Submission tool/trace/lifetime](submission-tool-lifetime.md) — literal held-tool boundary, steer links, ended child handles and remaining canonical runtime scope.
 
@@ -82,3 +82,5 @@ Compact index. Read a linked note only when it is relevant to the current task.
 - Deviation register: `docs/upstream-v1.5.0/` (`durable-deviations.md`, `durable-parity-gaps.json`,
   `durable-review-obligations.tsv`).
 - Audits: `docs/audits/prompt-caching-2026-11.md`, `docs/audits/kintsugi-runtime-prompt-caching-2026-11.md`.
+
+- [Canonical integration baseline](canonical-integration-baseline.md): complete non-panicking actual-tree run;95 durable failure groups,25 other tested packages pass. Not integration acceptance.
