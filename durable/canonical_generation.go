@@ -905,7 +905,7 @@ func canonicalGenerationAnswer(ctx context.Context, r *TaskRuntime, message Mess
 		}
 	}
 	return r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
-		boundary, err := prepareCanonicalBoundary(tx, r.conversation, agent.Settings)
+		boundary, err := prepareCanonicalBoundary(tx, r.conversation, r.harness.resolvedSettings(RequestSettings{}))
 		if err != nil {
 			return nil, err
 		}
@@ -1056,7 +1056,7 @@ func canonicalGenerationFinishTools(ctx context.Context, r *TaskRuntime, cp JSON
 		}
 	}
 	return r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
-		boundary, err := prepareCanonicalBoundary(tx, r.conversation, agent.Settings)
+		boundary, err := prepareCanonicalBoundary(tx, r.conversation, r.harness.resolvedSettings(RequestSettings{}))
 		if err != nil {
 			return nil, err
 		}

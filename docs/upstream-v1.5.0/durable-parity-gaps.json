@@ -1137,7 +1137,7 @@
     "historical": true
   },
   "currentCheckpoint": {
-    "scope": "Canonical migration through60186dd plus live tool-round mode/canonical round consumers. Complete verbose ./... observes64 durable failure groups/25 other tested packages pass; no panic/Go timeout/exclusions.89c031e remains last fully verified tree.",
+    "scope": "Canonical migration through588edd3 plus atomic boundary/lifetime consumers and live queue-mode packet. Complete ./... observes64 durable failures/25 other tested packages pass. Two queue/reporter fixture failures subsequently corrected; no post-correction full tree.89c031e remains last fully verified tree.",
     "baseRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
     "lastVerifiedPushed": {
       "revision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
@@ -1255,6 +1255,13 @@
           "topLevelFailureGroups": 64,
           "toolsSeconds": 15.265,
           "consumerSeconds": 13.233
+        },
+        {
+          "seconds": 940.62,
+          "result": "complete verbose ./...;64 durable failure groups;25 other tested packages pass;no panic/timeout/exclusions;two new queue/reporter host-configuration fixtures subsequently corrected",
+          "topLevelFailureGroups": 64,
+          "toolsSeconds": 15.619,
+          "consumerSeconds": 13.077
         }
       ],
       "focusedSeconds": 60.888,
@@ -1446,6 +1453,25 @@
         "staticcheck": "v0.8.2 pass",
         "logging": "pass",
         "mapping": "notes/canonical-builtin-execution.md#live-tool-round-mode-and-canonical-round-consumers"
+      },
+      "boundaryQueueModePacket": {
+        "status": "bounded pass; integration red; full baseline before final two fixture corrections",
+        "redSeconds": 2.105,
+        "translatedFixtureSeconds": 2.804,
+        "combinedShuffledSeconds": 29.235,
+        "expandedShuffledSeconds": 80.323,
+        "finalShuffledSeconds": 31.65,
+        "shuffledCount": 3,
+        "semanticFaults": 5,
+        "originalInboxCases": 37,
+        "originalSubmitInCommitCases": 23,
+        "originalStructuredCases": 58,
+        "originalSkipped": 0,
+        "independentProbesPerRun": 91,
+        "vet": "pass",
+        "staticcheck": "v0.8.2 pass",
+        "logging": "pass",
+        "mapping": "notes/canonical-builtin-execution.md#canonical-atomic-boundaries-and-live-queue-modes"
       }
     },
     "reference": {
@@ -1461,7 +1487,7 @@
     },
     "profiling": "Pre-release CPU/alloc_space/alloc_objects analysis, measured tuning and equivalent-workload remeasurement required.",
     "reviewOnly": "No runtime tests rerun by the planning review; structural register/hash checks are separate.",
-    "execution": "Resumed execution authorised; step1 baseline complete, step2 in progress. Live tool-round host-mode defect fixed with source-first regression; full verbose tree completes with64 durable failures. Full parity/release acceptance remains open."
+    "execution": "Resumed execution authorised; step1 baseline complete, step2 in progress. Final/postTools queue-mode decisions read host settings inside commits; source/public boundary consumers have bounded passes. Full parity/release acceptance remains open."
   },
   "review": {
     "basisRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",

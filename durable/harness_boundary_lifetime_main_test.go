@@ -3,10 +3,8 @@ package durable
 import (
 	"context"
 	"errors"
-	"runtime"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	goai "github.com/rcarmo/go-ai"
 )
@@ -15,9 +13,9 @@ import (
 // v1.5.0 f9a26365568127461c47a07a37dcb42c140a3ac5 submissions.ts
 // admitSubmission/startRun and generation.ts abort/live.ts endRun. Admission
 // owns the placed input before model resolution or attempt presentation. Native
-// adapters: numeric run.task, queued preparation checkpoint, initial Attempt=0.
+// run/task/input/checkpoint assertions use the canonical source records.
 func TestMainBoundaryLifetimeBeforeModelResolution(t *testing.T) {
-	for _, mode := range []string{"conversation-abort", "task-abort", "legacy-first-absent"} {
+	for _, mode := range []string{"conversation-abort", "task-abort", "first-absent"} {
 		t.Run(mode, func(t *testing.T) {
 			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				entered, release, returned := make(chan struct{}), make(chan struct{}), make(chan struct{})
@@ -57,14 +55,14 @@ func TestMainBoundaryLifetimeBeforeModelResolution(t *testing.T) {
 				}
 				live := mainAbortFailureLive(t, before, c.ID())
 				run := generationObject(live["run"])
-				owner := submissionEntryID(run["task"])
+				owner := submissionEntryID(run["taskId"])
 				status := publicSubmission(before.Submissions[sub.ID()])
 				first := status.Entry
-				task, exists := before.Tasks[owner]
-				if owner == 0 || !exists || task.Kind != "pi.generation" || task.Conversation != c.ID() || task.Status != "running" || status.Status != "placed" || first == 0 || status.Answer != 0 {
+				task, exists, err := h.Task(bg, owner)
+				if err != nil || owner == 0 || !exists || task.Kind != "pi.generation" || task.Version != 2 || task.Conversation != c.ID() || task.State.Status != "running" || status.Status != "placed" || first == 0 || status.Answer != 0 {
 					t.Fatal("idle admission must already own a real placed run before resolution", task, status, live)
 				}
-				wantRun, err := dtoObject(JSON{"task": owner, "inputs": []any{sub.ID()}, "first": first}, h.session.limits)
+				wantRun, err := dtoObject(JSON{"taskId": owner, "inputs": []any{sub.ID()}, "first": first, "turns": 0}, h.session.limits)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -86,17 +84,8 @@ func TestMainBoundaryLifetimeBeforeModelResolution(t *testing.T) {
 				if input.Role != goai.RoleUser || input.ContentText == nil || *input.ContentText != "admitted before model resolution" {
 					t.Fatal("admission lost its actual user contribution", input)
 				}
-				decode := func(task Task) generationCheckpoint {
-					t.Helper()
-					var cp generationCheckpoint
-					if err := fromObject(task.Checkpoint, &cp, h.session.limits); err != nil {
-						t.Fatal(err)
-					}
-					return cp
-				}
-				cp := decode(task)
-				if cp.Phase != "queued" || cp.Model != nil || cp.Attempt != 0 || cp.Submission != sub.ID() || cp.InputEntry != first || cp.Abort || len(cp.Steered) != 0 || calls.Load() != 0 || resolutions.Load() != 1 {
-					t.Fatal("gate must precede pinned model, intent, attempts and dispatch", cp, calls.Load(), resolutions.Load())
+				if task.Input == nil || !task.Input.Present || !equalJSONValue(task.Input.Value, JSON{}) || !equalJSONValue(task.State.Checkpoint, JSON{"phase": "prepare", "attempt": 1}) || task.AbortRequested || calls.Load() != 0 || resolutions.Load() != 1 {
+					t.Fatal("gate must precede request intent, presentation and dispatch", task, calls.Load(), resolutions.Load())
 				}
 				for _, doc := range before.Documents {
 					if !doc.Retired && doc.Owner == c.ID() && doc.Kind == "pi.inbox" {
@@ -117,10 +106,10 @@ func TestMainBoundaryLifetimeBeforeModelResolution(t *testing.T) {
 					t.Fatal("resolver must retain its actual ordinary invocation")
 				}
 
-				if mode == "legacy-first-absent" {
-					// Explicit legacy control only: remove first from THIS actual run.
+				if mode == "first-absent" {
+					// Source LiveRun.first is optional: remove it from THIS actual run.
 					// Do not fabricate a run, entry, checkpoint, inbox or settlement.
-					if _, err := h.session.Commit(bg, func(tx *Tx) (any, error) {
+					if _, err := h.Commit(bg, func(tx *Tx) (any, error) {
 						doc, err := builtin(tx, c.ID(), "pi.live")
 						if err != nil {
 							return nil, err
@@ -140,9 +129,13 @@ func TestMainBoundaryLifetimeBeforeModelResolution(t *testing.T) {
 						t.Fatal(err)
 					}
 					preparedRun := generationObject(mainAbortFailureLive(t, prepared, c.ID())["run"])
-					preparedCP := decode(prepared.Tasks[owner])
-					if !equalJSONValue(preparedRun, wantRun) || preparedCP.Phase != "intent" || preparedCP.Model == nil || preparedCP.Attempt != 1 || preparedCP.InputEntry != first {
-						t.Error("preparation must preserve own-run first absence, not backfill from InputEntry", preparedRun, preparedCP)
+					preparedTask, found, err := h.Task(bg, owner)
+					if err != nil || !found {
+						t.Fatal("prepared canonical task", preparedTask, err)
+					}
+					preparedCP := taskCheckpointMap(preparedTask.State.Checkpoint)
+					if !equalJSONValue(preparedRun, wantRun) || preparedCP["phase"] != "request" || submissionEntryID(preparedCP["attempt"]) != 1 || submissionEntryID(preparedCP["cutoff"]) != first || !equalJSONValue(preparedCP["model"], JSON{"provider": string(ref.Provider), "modelId": ref.ID}) {
+						t.Error("request must preserve optional first absence and its actual cutoff", preparedRun, preparedCP)
 					}
 					if err := c.Abort(bg); err != nil {
 						t.Fatal(err)
@@ -163,29 +156,17 @@ func TestMainBoundaryLifetimeBeforeModelResolution(t *testing.T) {
 						releaseTaskGate(release)
 						awaitTaskSignal(t, aborted)
 					})
-					ctx, cancel := context.WithTimeout(bg, 3*time.Second)
-					defer cancel()
-					for {
-						record, found, err := h.Task(ctx, owner)
-						if err != nil || !found {
-							t.Fatal("abort mark lookup", record, err)
-						}
-						if record.AbortRequested {
-							break
-						}
-						if ctx.Err() != nil {
-							t.Fatal("abort mark was not adopted", ctx.Err())
-						}
-						runtime.Gosched()
-					}
 					awaitTaskSignal(t, old.Context().Done())
 					marked, err := h.Snapshot(bg)
 					if err != nil {
 						t.Fatal(err)
 					}
-					markedCP := decode(marked.Tasks[owner])
+					markedTask, found, err := h.Task(bg, owner)
+					if err != nil || !found {
+						t.Fatal("marked canonical task", markedTask, err)
+					}
 					markedStatus := publicSubmission(marked.Submissions[sub.ID()])
-					if terminalStatus(marked.Tasks[owner].Status) || markedStatus.Status != "placed" || markedStatus.Entry != first || markedStatus.Answer != 0 || !equalJSONValue(mainAbortFailureLive(t, marked, c.ID()), wantLive) || markedCP.Phase != "queued" || markedCP.Model != nil || markedCP.Attempt != 0 || markedCP.InputEntry != first || !markedCP.Abort {
+					if terminalStatus(marked.Tasks[owner].Status) || markedStatus.Status != "placed" || markedStatus.Entry != first || markedStatus.Answer != 0 || !equalJSONValue(mainAbortFailureLive(t, marked, c.ID()), wantLive) || !equalJSONValue(markedTask.State.Checkpoint, JSON{"phase": "prepare", "attempt": 1}) || !markedTask.AbortRequested {
 						t.Error("abort must mark/join the admitted run, not withdraw placed input as queued", marked.Tasks[owner], markedStatus, mainAbortFailureLive(t, marked, c.ID()))
 					}
 					for label, signal := range map[string]<-chan struct{}{"resolver": returned, "invocation": old.done, "public abort": aborted} {
@@ -225,11 +206,11 @@ func TestMainBoundaryLifetimeBeforeModelResolution(t *testing.T) {
 					t.Fatal(err)
 				}
 				failure := JSON{"taskId": owner, "inputs": []any{sub.ID()}, "reason": "aborted"}
-				if mode != "legacy-first-absent" {
+				if mode != "first-absent" {
 					failure["first"] = first
-					finalCP := decode(state.Tasks[owner])
-					if finalCP.Phase != "terminal" || !finalCP.Abort || finalCP.Model != nil || finalCP.Attempt != 0 || finalCP.InputEntry != first || finalCP.Submission != sub.ID() {
-						t.Error("cancelled resolver resurrected request intent or lost its placement", finalCP)
+					finalTask, found, err := h.Task(bg, owner)
+					if err != nil || !found || finalTask.Input == nil || !finalTask.Input.Present || !equalJSONValue(finalTask.Input.Value, JSON{}) || !equalJSONValue(finalTask.State, TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "aborted"}}) {
+						t.Error("cancelled resolver resurrected request intent or lost its terminal state", finalTask, err)
 					}
 				}
 				want, err := dtoObject(JSON{"runFailure": failure}, h.session.limits)
@@ -248,7 +229,7 @@ func TestMainBoundaryLifetimeBeforeModelResolution(t *testing.T) {
 					}
 				}
 				wantCalls, wantResolutions := int64(0), int64(1)
-				if mode == "legacy-first-absent" {
+				if mode == "first-absent" {
 					wantCalls, wantResolutions = 1, 2
 				}
 				if calls.Load() != wantCalls || resolutions.Load() != wantResolutions {

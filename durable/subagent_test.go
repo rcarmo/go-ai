@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	goai "github.com/rcarmo/go-ai"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -209,14 +210,42 @@ func TestBackgroundReportersCoalescedSteersReportSharedAnswerOnce(t *testing.T) 
 			return ch
 		})
 		options.Registry = registry
+		options.Settings = &HarnessSettings{SteeringMode: "all"}
 		options.OnReport = func(err error) { t.Log("reporter error", err) }
 		h := openHarness(t, b.store, options)
 		cleanupTaskGates(t, release)
 		parent := root(t, h, ref)
-		child, err := parent.CreateBackgroundConversation(bg, "worker", &AgentChange{Model: ref, Settings: RequestSettings{SteeringMode: "all"}})
+		child, err := parent.CreateBackgroundConversation(bg, "worker", &AgentChange{Model: ref})
 		if err != nil {
 			t.Fatal(err)
 		}
+		admitted := make(chan struct{}, 3)
+		seen := map[ID]bool{}
+		var admissionsMu sync.Mutex
+		guard, err := h.ObserveCommits(CommitObserver{Advance: func(_ context.Context, publication CommitPublication) error {
+			admissionsMu.Lock()
+			defer admissionsMu.Unlock()
+			for i := range publication.Changes.Len() {
+				change, _ := publication.Changes.Index(i)
+				if immutableViewMember(t, change, "type").String() != "submission" {
+					continue
+				}
+				value := immutableViewMember(t, change, "value")
+				if submissionEntryID(immutableViewMember(t, value, "conversationId").Number()) != child.ID() {
+					continue
+				}
+				id := submissionEntryID(immutableViewMember(t, value, "id").Number())
+				if !seen[id] {
+					seen[id] = true
+					admitted <- struct{}{}
+				}
+			}
+			return nil
+		}, End: func(WatchEnd) error { return nil }})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer guard.Detach()
 		initial, err := child.Submit(bg, Input{Content: "first"})
 		if err != nil {
 			t.Fatal(err)
@@ -230,22 +259,8 @@ func TestBackgroundReportersCoalescedSteersReportSharedAnswerOnce(t *testing.T) 
 		if err != nil {
 			t.Fatal(err)
 		}
-		deadline, cancel := context.WithTimeout(bg, 3*time.Second)
-		defer cancel()
-		for {
-			state, err := h.Snapshot(deadline)
-			if err != nil {
-				t.Fatal(err)
-			}
-			count := 0
-			for _, sub := range state.Submissions {
-				if sub.Conversation == child.ID() {
-					count++
-				}
-			}
-			if count == 3 {
-				break
-			}
+		for range 3 {
+			awaitTaskSignal(t, admitted)
 		}
 		releaseTaskGate(release)
 		waitSubmission(t, initial)

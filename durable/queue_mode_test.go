@@ -36,9 +36,10 @@ func TestFollowUpQueueModeOneAndAllShareOnlySelectedAnswers(t *testing.T) {
 					close(ch)
 					return ch
 				})
+				options.Settings = &HarnessSettings{FollowUpMode: mode}
 				h := openHarness(t, b.store, options)
 				cleanupTaskGates(t, release)
-				conversation, err := h.Root(bg, AgentChange{Model: ref, Settings: RequestSettings{FollowUpMode: mode}})
+				conversation, err := h.Root(bg, AgentChange{Model: ref})
 				if err != nil {
 					t.Fatal(err)
 				}

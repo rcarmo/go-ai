@@ -4,6 +4,12 @@
 
 Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Canonical migration checkpoints through a5661b7 and the timing/output packet in the containing commit remain integration-red;89c031e is the last fully verified tree. Execution continues under step2. No new integrated acceptance.
 
+## Atomic boundaries and live queue modes
+
+Public deciding records replace private boundary/lifetime checkpoint expectations. New final/postTools bidirectional hook-barrier tests fail2.105s before the runtime queue-mode fix. Both commits now read current host modes; combined three-shuffle29.235s, expanded80.323s/final31.650s/static/5 semantic faults pass. Original inbox37/submit-in-commit23/structured58 plus separate91 probes zero skipped. Original occupied-Session-line ordering and broader assertion acceptance remain open. [Exact mappings/limits](../../notes/canonical-builtin-execution.md#canonical-atomic-boundaries-and-live-queue-modes).
+
+Complete verbose ./... durable940.620s/64 failed groups,25 other tested packages pass (tools15.619s/public13.077s), no panic/timeout/exclusions. Atomic/lifetime fixtures pass; two new queue/reporter failures were agent-scoped configuration, subsequently corrected and targeted-green. No full tree after those two edits; observed count stays64. [Inventory](../../notes/canonical-integration-baseline.md). Step2 stays active.
+
 ## Live tool-round mode and refreshed full baseline
 
 New bidirectional source-derived tests fail3.433s before the runtime fix: the round read stale host execution mode. It now reads live settings when the response starts its round, then preserves the pending-call decision. Canonical round/three-call abort fixtures retain public task/result/event assertions; static progression/trace/scheduler controls use host settings. Expanded three-shuffle23.105s, final13.470s/static/4 semantic faults; original tools42/structured58 plus separate91 probes zero skipped. [Mapping/limits](../../notes/canonical-builtin-execution.md#live-tool-round-mode-and-canonical-round-consumers).

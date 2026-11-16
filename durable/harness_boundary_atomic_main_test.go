@@ -2,6 +2,7 @@ package durable
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"strings"
 	"sync/atomic"
@@ -53,11 +54,43 @@ func mainAtomicLocalDecision(t *testing.T, s *Session, id ID) func() sessionObse
 	}
 }
 
+// Capture the canonical public record directly. Native stored/local taps below
+// remain supplemental publication-lane controls, not source wire conversions.
+func mainAtomicSourceDecision(t *testing.T, h *Harness, id ID) func() CommitPublication {
+	t.Helper()
+	frames := make(chan CommitPublication, 1)
+	guard, err := h.ObserveCommits(CommitObserver{Advance: func(_ context.Context, publication CommitPublication) error {
+		for i := range publication.Changes.Len() {
+			change, _ := publication.Changes.Index(i)
+			if immutableViewMember(t, change, "type").String() != "submission" {
+				continue
+			}
+			value := immutableViewMember(t, change, "value")
+			if submissionEntryID(immutableViewMember(t, value, "id").Number()) != id {
+				continue
+			}
+			status := immutableViewMember(t, value, "status").String()
+			if status == "done" || status == "unanswered" {
+				select {
+				case frames <- publication:
+				default:
+				}
+			}
+		}
+		return nil
+	}, End: func(WatchEnd) error { return nil }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(guard.Detach)
+	return func() CommitPublication { return watchReceive(t, frames) }
+}
+
 // Source-derived oracle, official v1.5.0 f9a26365 generation.ts
 // answer/endFailedRun/failNoModel/startRun and inbox.ts applyBoundary. A later
 // request-preparation commit must not repair an observable empty-run boundary:
 // A's deciding batch already places writes before users and starts B. Numeric
-// task IDs are the native run owner; checkpoint InputEntry still belongs to B.
+// task IDs are the run owners; placed submission entries identify B, not W.
 func TestMainBoundaryAtomicSuccessorPublication(t *testing.T) {
 	for _, scenario := range []struct{ ending, mode string }{
 		{"answer", "all"}, {"answer", "one-at-a-time"},
@@ -143,22 +176,55 @@ func TestMainBoundaryAtomicSuccessorPublication(t *testing.T) {
 						t.Fatal("B/C/W must be genuinely queued and unplaced while A is gated", status, err)
 					}
 				}
+				before, err := h.Snapshot(bg)
+				if err != nil {
+					t.Fatal(err)
+				}
+				liveBefore := mainEligibilityDoc(t, before, c.ID(), "pi.live").Value
+				aRun := generationObject(liveBefore["run"])
+				aTaskID := submissionEntryID(aRun["taskId"])
+				aStatus, err := a.Status(bg)
+				if err != nil || aTaskID == 0 || aStatus.Status != "placed" || aStatus.Entry == 0 || !equalJSONValue(aRun, JSON{"taskId": float64(aTaskID), "inputs": []any{float64(a.ID())}, "first": float64(aStatus.Entry), "turns": float64(0)}) {
+					t.Fatal("A must own only its original placed input before the decision", aRun, aStatus, err)
+				}
+				sourceDecision := mainAtomicSourceDecision(t, h, a.ID())
 				storedDecision := mainPreparationTerminalPublication(t, h, a.ID())
 				localDecision := mainAtomicLocalDecision(t, h.session, a.ID())
 				releaseTaskGate(aRelease)
 				ended := waitSubmission(t, a)
-				publication, local := storedDecision(), localDecision()
+				publication, local, source := storedDecision(), localDecision(), sourceDecision()
 				awaitTaskSignal(t, bEntered)
 				state, err := h.Snapshot(bg)
 				if err != nil {
 					t.Fatal(err)
 				}
-				var aCP generationCheckpoint
-				if err := fromObject(ended.Task.Checkpoint, &aCP, h.session.limits); err != nil {
-					t.Fatal(err)
+				aTask, found, err := h.Task(bg, aTaskID)
+				if err != nil || !found || aTask.Kind != "pi.generation" || aTask.Version != 2 || aTask.State.Status != "terminal" || aTask.State.Checkpoint != nil || aTask.State.Outcome == nil || aTask.Input == nil || !aTask.Input.Present || !equalJSONValue(aTask.Input.Value, JSON{}) || ended.Record.Entry != aStatus.Entry {
+					t.Fatal("A terminal canonical task and original placement", aTask, ended.Record, err)
 				}
-				if ended.Task.ID == 0 || ended.Record.Entry == 0 || aCP.Submission != a.ID() || aCP.InputEntry != ended.Record.Entry || len(aCP.Steered) != 0 {
-					t.Fatal("A must end alone at its own input, including no_model before request preparation", aCP, ended.Record)
+				if source.Seq != publication.Seq {
+					t.Fatal("public observer must expose the same deciding adoption", source.Seq, publication.Seq)
+				}
+				sourceTasks, sourceSubs := map[ID]ReadonlyValue{}, map[ID]ReadonlyValue{}
+				var sourceEntries []ID
+				sourceDocs := map[string]ReadonlyValue{}
+				for i := range source.Changes.Len() {
+					change, _ := source.Changes.Index(i)
+					value := immutableViewMember(t, change, "value")
+					switch immutableViewMember(t, change, "type").String() {
+					case "task":
+						sourceTasks[submissionEntryID(immutableViewMember(t, value, "id").Number())] = value
+					case "submission":
+						sourceSubs[submissionEntryID(immutableViewMember(t, value, "id").Number())] = value
+					case "entry":
+						sourceEntries = append(sourceEntries, submissionEntryID(immutableViewMember(t, value, "id").Number()))
+						if _, present := value.Get("seq"); present {
+							t.Error("source entry must not expose a private sequence field", value)
+						}
+					case "document":
+						metadata := immutableViewMember(t, change, "record")
+						sourceDocs[immutableViewMember(t, metadata, "kind").String()] = value
+					}
 				}
 				if scenario.ending == "answer" {
 					if ended.Record.Status != "done" || ended.Record.Answer == 0 {
@@ -169,6 +235,24 @@ func TestMainBoundaryAtomicSuccessorPublication(t *testing.T) {
 				}
 				if scenario.ending == "model_error" && (ended.Record.Detail == nil || !ended.Record.Detail.Present || ended.Record.Detail.Value != "A literal failure") {
 					t.Fatal("A settlement must retain its literal failure", ended.Record)
+				}
+				wantA := JSON{"id": float64(a.ID()), "conversationId": float64(c.ID()), "type": "input", "status": ended.Record.Status, "entry": float64(aStatus.Entry)}
+				var outcome JSON
+				if scenario.ending == "answer" {
+					wantA["answer"] = float64(ended.Record.Answer)
+					outcome = JSON{"status": "completed", "result": JSON{"entryId": float64(ended.Record.Answer)}}
+				} else {
+					wantA["reason"] = scenario.ending
+					detail := "A literal failure"
+					if scenario.ending == "no_model" {
+						detail = "Model openai/durable-test is not available"
+					} else {
+						wantA["detail"] = detail
+					}
+					outcome = JSON{"status": "failed", "error": JSON{"message": detail, "detail": JSON{"reason": scenario.ending}}}
+				}
+				if sourceSubs[a.ID()] == nil || !equalJSONValue(sourceSubs[a.ID()].Copy(), wantA) || sourceTasks[aTaskID] == nil || !equalJSONValue(immutableViewMember(t, sourceTasks[aTaskID], "state").Copy(), JSON{"status": "terminal", "outcome": outcome}) {
+					t.Fatal("exact source deciding settlement and task outcome", sourceSubs[a.ID()], sourceTasks[aTaskID], wantA, outcome)
 				}
 				group := queued[:1]
 				wantUsers := "A,W,B"
@@ -187,15 +271,12 @@ func TestMainBoundaryAtomicSuccessorPublication(t *testing.T) {
 				// use the later state above as evidence of atomic publication.
 				requireBatch := func(lane string, seq uint64, tables []Write, documents []DocumentChange) {
 					t.Helper()
-					subs, tasks := map[ID]Submission{}, map[ID]Task{}
+					subs := map[ID]Submission{}
 					var entries []ID
 					var live, inbox JSON
 					for _, write := range tables {
 						if write.Submission != nil {
 							subs[write.Submission.ID] = *write.Submission
-						}
-						if write.Task != nil {
-							tasks[write.Task.ID] = *write.Task
 						}
 						if write.Op == "append-entry" && write.Entry != nil && write.Entry.Conversation == c.ID() {
 							entries = append(entries, write.Entry.ID)
@@ -224,7 +305,10 @@ func TestMainBoundaryAtomicSuccessorPublication(t *testing.T) {
 						// A model error may persist its real assistant error receipt;
 						// no_model must never synthesize one.
 						for _, id := range entries {
-							if state.Entries[id].ByTask == ended.Task.ID {
+							if state.Entries[id].Kind == "pi.assistant" {
+								if state.Entries[id].ByTask != aTaskID {
+									t.Errorf("%s: assistant receipt must belong to A", lane)
+								}
 								if scenario.ending == "no_model" {
 									t.Errorf("%s: no_model invented an A transcript entry: %+v", lane, state.Entries[id])
 								}
@@ -232,38 +316,47 @@ func TestMainBoundaryAtomicSuccessorPublication(t *testing.T) {
 							}
 						}
 					}
+					if len(sourceTasks) != 2 || len(sourceSubs) != 2+len(group) {
+						t.Errorf("canonical deciding task/submission cardinality: %d/%d", len(sourceTasks), len(sourceSubs))
+					}
+					wantW := JSON{"id": float64(w.ID()), "conversationId": float64(c.ID()), "type": "write", "status": "done", "entry": float64(wStatus.Entry)}
+					if sourceSubs[w.ID()] == nil || !equalJSONValue(sourceSubs[w.ID()].Copy(), wantW) {
+						t.Error("exact canonical passive-write settlement", sourceSubs[w.ID()])
+					}
 					wantEntries = append(wantEntries, wStatus.Entry)
 					inputs := []any{}
 					for _, sub := range group {
 						status := publicSubmission(state.Submissions[sub.ID()])
 						wantEntries = append(wantEntries, status.Entry)
 						inputs = append(inputs, sub.ID())
+						wantB := JSON{"id": float64(sub.ID()), "conversationId": float64(c.ID()), "type": "input", "status": "placed", "entry": float64(status.Entry)}
+						if sourceSubs[sub.ID()] == nil || !equalJSONValue(sourceSubs[sub.ID()].Copy(), wantB) {
+							t.Error("exact same-batch canonical user placement", sourceSubs[sub.ID()], wantB)
+						}
 						if placed := publicSubmission(subs[sub.ID()]); placed.Status != "placed" || placed.Entry != status.Entry || placed.Answer != 0 {
 							t.Errorf("%s: A-end seq=%d lacks same-batch placement of %d (later entry seq=%d): %+v", lane, seq, sub.ID(), state.Entries[status.Entry].Seq, placed)
 						}
 					}
-					if !reflect.DeepEqual(entries, wantEntries) {
+					if !reflect.DeepEqual(entries, wantEntries) || !reflect.DeepEqual(sourceEntries, wantEntries) {
 						t.Errorf("%s: A-end must append answer/error then W then selected users: got %v; want %v", lane, entries, wantEntries)
 					}
 					if got := publicSubmission(subs[w.ID()]); got.Status != "done" || got.Entry != wStatus.Entry || got.Answer != 0 {
 						t.Errorf("%s: W must settle at its own entry in A-end: %+v", lane, got)
 					}
 					run := generationObject(live["run"])
-					owner := submissionEntryID(run["task"])
-					wantRun, err := dtoObject(JSON{"task": owner, "inputs": inputs, "first": wStatus.Entry}, h.session.limits)
+					owner := submissionEntryID(run["taskId"])
+					wantRun, err := dtoObject(JSON{"taskId": owner, "inputs": inputs, "first": wStatus.Entry, "turns": 0}, h.session.limits)
 					if err != nil {
 						t.Fatal(err)
 					}
-					if owner == 0 || owner == ended.Task.ID || !equalJSONValue(run, wantRun) {
+					if owner == 0 || owner == aTaskID || !equalJSONValue(run, wantRun) {
 						t.Errorf("%s: A-end must already start B with first=W and only selected user inputs: got %v; want %v", lane, run, wantRun)
 					} else {
-						var cp generationCheckpoint
-						task := tasks[owner]
-						if err := fromObject(task.Checkpoint, &cp, h.session.limits); err != nil {
-							t.Fatal(err)
-						}
-						if task.Kind != "pi.generation" || task.Conversation != c.ID() || terminalStatus(task.Status) || cp.Submission != queued[0].ID() || cp.InputEntry != bStatus.Entry || len(cp.Steered) != len(group)-1 || len(group) == 2 && cp.Steered[0] != queued[1].ID() {
-							t.Errorf("%s: same-batch B checkpoint must own B's entry, not W: %+v, %+v", lane, task, cp)
+						// Read the exact public publication record, not a normalized
+						// private task checkpoint or a later request-preparation image.
+						task := sourceTasks[owner]
+						if task == nil || immutableViewMember(t, task, "kind").String() != "pi.generation" || immutableViewMember(t, task, "version").Number().String() != "2" || immutableViewMember(t, task, "conversationId").Number().String() != fmt.Sprint(c.ID()) || !equalJSONValue(immutableViewMember(t, task, "input").Copy(), JSON{}) || !equalJSONValue(immutableViewMember(t, task, "state").Copy(), JSON{"status": "pending", "checkpoint": JSON{"phase": "prepare", "attempt": 1}}) {
+							t.Errorf("%s: same-batch B must be a fresh source generation: %v", lane, task)
 						}
 					}
 					var wantFailure any
@@ -272,7 +365,7 @@ func TestMainBoundaryAtomicSuccessorPublication(t *testing.T) {
 						if scenario.ending == "no_model" {
 							detail = "Model openai/durable-test is not available"
 						}
-						wire, err := dtoObject(JSON{"failure": JSON{"taskId": ended.Task.ID, "inputs": []any{a.ID()}, "first": ended.Record.Entry, "reason": scenario.ending, "detail": detail}}, h.session.limits)
+						wire, err := dtoObject(JSON{"failure": JSON{"taskId": aTaskID, "inputs": []any{a.ID()}, "first": ended.Record.Entry, "reason": scenario.ending, "detail": detail}}, h.session.limits)
 						if err != nil {
 							t.Fatal(err)
 						}
@@ -281,12 +374,15 @@ func TestMainBoundaryAtomicSuccessorPublication(t *testing.T) {
 					if !equalJSONValue(live["runFailure"], wantFailure) || live["failedRun"] != nil {
 						t.Errorf("%s: automatic successor must retain exactly A's failure without holding queue: %v", lane, live)
 					}
+					if sourceDocs["pi.live"] == nil || !equalJSONValue(sourceDocs["pi.live"].Copy(), live) || sourceDocs["pi.inbox"] == nil || !equalJSONValue(sourceDocs["pi.inbox"].Copy(), inbox) {
+						t.Error("canonical deciding document values differ from actual adoption", sourceDocs)
+					}
 					items, ok := inbox["items"].([]any)
 					if !ok || len(items) != len(queued)-len(group) || len(items) == 1 && submissionEntryID(generationObject(items[0])["id"]) != queued[1].ID() {
 						t.Errorf("%s: boundary must preserve all/one inbox selection: %v", lane, inbox)
 					}
 					if len(group) == 1 {
-						if _, touched := subs[queued[1].ID()]; touched || publicSubmission(state.Submissions[queued[1].ID()]).Entry != 0 {
+						if _, touched := subs[queued[1].ID()]; touched || sourceSubs[queued[1].ID()] != nil || publicSubmission(state.Submissions[queued[1].ID()]).Entry != 0 {
 							t.Errorf("%s: one-at-a-time must leave C queued/unplaced", lane)
 						}
 					}
@@ -309,5 +405,124 @@ func TestMainBoundaryAtomicSuccessorPublication(t *testing.T) {
 				}
 			})
 		})
+	}
+}
+
+// Source generation.ts reads queue modes inside the boundary commit, after
+// awaited onYield/afterTools hooks. This is narrower than the source inbox test
+// which additionally occupies the Session line with a separate waiting commit.
+func TestMainBoundaryReadsLiveQueueModesAfterHooks(t *testing.T) {
+	for _, boundary := range []string{"final", "postTools"} {
+		for _, mode := range []string{"all", "one-at-a-time"} {
+			t.Run(boundary+"/"+mode, func(t *testing.T) {
+				sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+					initial := "all"
+					if mode == "all" {
+						initial = "one-at-a-time"
+					}
+					entered, release, secondEntered, secondRelease := make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{})
+					var hooks, requests atomic.Int64
+					gate := func(ctx context.Context) error {
+						if hooks.Add(1) == 1 {
+							close(entered)
+							select {
+							case <-release:
+							case <-ctx.Done():
+								return ctx.Err()
+							}
+						}
+						return nil
+					}
+					registry := NewRegistry()
+					extension := &Extension{Name: "queue-boundary-gate"}
+					if boundary == "final" {
+						extension.Hooks.OnYield = func(ctx context.Context, _ MessageReceipt, _ *HookAPI) (*Input, error) { return nil, gate(ctx) }
+					} else {
+						extension.Hooks.AfterTools = func(ctx context.Context, _ []MessageReceipt, _ *HookAPI) error { return gate(ctx) }
+						reg := wrapRegistration("noop")
+						reg.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) { return ToolResult{Content: "ok"}, nil }
+						extension.Tools = []ToolRegistration{reg}
+					}
+					if err := registry.Install(extension); err != nil {
+						t.Fatal(err)
+					}
+					users := make(chan []string, 1)
+					ref, options := setupFakeAPI(t, func(ctx context.Context, _ *goai.Model, input *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
+						ch := make(chan goai.Event, 1)
+						if requests.Add(1) == 1 {
+							if boundary == "final" {
+								ch <- terminal("A answer")
+							} else {
+								ch <- toolAnswer("noop-call", "noop", JSON{})
+							}
+							close(ch)
+						} else {
+							var texts []string
+							for _, message := range input.Messages {
+								if message.Role == goai.RoleUser {
+									for _, block := range message.Content {
+										texts = append(texts, block.Text)
+									}
+								}
+							}
+							users <- texts
+							close(secondEntered)
+							go func() {
+								defer close(ch)
+								select {
+								case <-secondRelease:
+									ch <- terminal("B answer")
+								case <-ctx.Done():
+								}
+							}()
+						}
+						return ch
+					})
+					options.Registry = registry
+					options.Settings = &HarnessSettings{FollowUpMode: initial, SteeringMode: initial}
+					h := openHarness(t, b.store, options)
+					cleanupTaskGates(t, release, secondRelease)
+					c := root(t, h, ref)
+					if _, err := c.Submit(bg, Input{Content: "A"}); err != nil {
+						t.Fatal(err)
+					}
+					awaitTaskSignal(t, entered)
+					var queued []*SubmissionHandle
+					for _, text := range []string{"B", "C"} {
+						input := Input{Content: text}
+						if boundary == "postTools" {
+							input.WhenBusy = "steer"
+						}
+						sub, err := c.Submit(bg, input)
+						if err != nil {
+							t.Fatal(err)
+						}
+						statusFailed140(t, sub, "queued", "")
+						queued = append(queued, sub)
+					}
+					if err := h.SetSettings(bg, HarnessSettings{FollowUpMode: mode, SteeringMode: mode}); err != nil {
+						t.Fatal(err)
+					}
+					releaseTaskGate(release)
+					awaitTaskSignal(t, secondEntered)
+					want := "A,B"
+					cStatus := "queued"
+					if mode == "all" {
+						want, cStatus = "A,B,C", "placed"
+					}
+					if got := strings.Join(watchReceive(t, users), ","); got != want {
+						t.Error("boundary used pre-hook queue mode", got, want)
+					}
+					statusFailed140(t, queued[0], "placed", "")
+					statusFailed140(t, queued[1], cStatus, "")
+					if requests.Load() != 2 {
+						t.Error("unexpected provider dispatch", requests.Load())
+					}
+					if err := h.Close(bg); err != nil {
+						t.Fatal(err)
+					}
+				})
+			})
+		}
 	}
 }
