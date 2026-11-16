@@ -168,9 +168,10 @@ func TestMainBuiltinTraceToolMetadata(t *testing.T) {
 				})
 				options.Telemetry = backend.root
 				options.Registry = registry
+				options.Settings = &HarnessSettings{ToolExecution: mode}
 				h := openHarness(t, b.store, options)
 				backend.h = h
-				c, err := h.Root(bg, AgentChange{Model: ref, Settings: RequestSettings{ToolExecution: mode}})
+				c, err := h.Root(bg, AgentChange{Model: ref})
 				if err != nil {
 					t.Fatal(err)
 				}

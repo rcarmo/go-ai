@@ -783,7 +783,9 @@ func canonicalGenerationStartTools(ctx context.Context, r *TaskRuntime, cp JSON,
 	for _, tool := range ReplayToolDeclarations(messages) {
 		offered[tool.Name] = true
 	}
-	sequential := agent.Settings.ToolExecution == "sequential"
+	// Source reads the live host mode when the response starts its round;
+	// pending calls then retain that decision in the tools checkpoint.
+	sequential := r.harness.resolvedSettings(RequestSettings{}).ToolExecution == "sequential"
 	_, pins, _, _, err := r.phaseSelection().selectedGeneration(r.harness.selectionAgent(agent), r.harness.session.limits, r.reportError)
 	if err != nil {
 		return err

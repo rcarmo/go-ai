@@ -1137,7 +1137,7 @@
     "historical": true
   },
   "currentCheckpoint": {
-    "scope": "Canonical migration through cf5c723 plus public terminal tool fixture packet. Actual full ./...:67 durable failure groups/25 other tested packages pass; no panic/timeout/exclusions.89c031e remains last fully verified tree.",
+    "scope": "Canonical migration through60186dd plus live tool-round mode/canonical round consumers. Complete verbose ./... observes64 durable failure groups/25 other tested packages pass; no panic/Go timeout/exclusions.89c031e remains last fully verified tree.",
     "baseRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
     "lastVerifiedPushed": {
       "revision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
@@ -1149,7 +1149,7 @@
       "shuffledSeconds": 14.008
     },
     "workingTree": {
-      "status": "red-uncommitted",
+      "status": "red",
       "fullDurableAttempts": [
         {
           "seconds": 63.018,
@@ -1244,6 +1244,17 @@
           "topLevelFailureGroups": 67,
           "toolsSeconds": 9.086,
           "consumerSeconds": 11.809
+        },
+        {
+          "seconds": 900,
+          "result": "outer command deadline; durable result/diagnostic unavailable; processes ended; not a completed baseline"
+        },
+        {
+          "seconds": 853.852,
+          "result": "complete verbose ./...;64 durable failure groups;25 other tested packages pass;no panic/Go timeout/exclusions",
+          "topLevelFailureGroups": 64,
+          "toolsSeconds": 15.265,
+          "consumerSeconds": 13.233
         }
       ],
       "focusedSeconds": 60.888,
@@ -1418,6 +1429,23 @@
         "staticcheck": "v0.8.2 pass",
         "logging": "pass",
         "mapping": "notes/canonical-builtin-execution.md#canonical-terminal-tool-consumers"
+      },
+      "liveToolRoundPacket": {
+        "status": "bounded pass; full integration red",
+        "redSeconds": 3.433,
+        "preFixFixtureSeconds": 2.129,
+        "expandedShuffledCount": 3,
+        "expandedSeconds": 23.105,
+        "finalShuffledSeconds": 13.47,
+        "semanticFaults": 4,
+        "originalToolsCases": 42,
+        "originalStructuredCases": 58,
+        "originalSkipped": 0,
+        "independentProbesPerRun": 91,
+        "vet": "pass",
+        "staticcheck": "v0.8.2 pass",
+        "logging": "pass",
+        "mapping": "notes/canonical-builtin-execution.md#live-tool-round-mode-and-canonical-round-consumers"
       }
     },
     "reference": {
@@ -1433,7 +1461,7 @@
     },
     "profiling": "Pre-release CPU/alloc_space/alloc_objects analysis, measured tuning and equivalent-workload remeasurement required.",
     "reviewOnly": "No runtime tests rerun by the planning review; structural register/hash checks are separate.",
-    "execution": "Resumed execution authorised; step1 baseline complete, step2 in progress. Source-first tool consumers reconciled; integration remains red."
+    "execution": "Resumed execution authorised; step1 baseline complete, step2 in progress. Live tool-round host-mode defect fixed with source-first regression; full verbose tree completes with64 durable failures. Full parity/release acceptance remains open."
   },
   "review": {
     "basisRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",

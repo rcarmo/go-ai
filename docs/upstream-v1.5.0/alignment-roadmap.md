@@ -4,6 +4,12 @@
 
 Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Canonical migration checkpoints through a5661b7 and the timing/output packet in the containing commit remain integration-red;89c031e is the last fully verified tree. Execution continues under step2. No new integrated acceptance.
 
+## Live tool-round mode and refreshed full baseline
+
+New bidirectional source-derived tests fail3.433s before the runtime fix: the round read stale host execution mode. It now reads live settings when the response starts its round, then preserves the pending-call decision. Canonical round/three-call abort fixtures retain public task/result/event assertions; static progression/trace/scheduler controls use host settings. Expanded three-shuffle23.105s, final13.470s/static/4 semantic faults; original tools42/structured58 plus separate91 probes zero skipped. [Mapping/limits](../../notes/canonical-builtin-execution.md#live-tool-round-mode-and-canonical-round-consumers).
+
+An initial full command exceeded its outer900-second limit without a durable result. The verbose unchanged-tree repeat completes: durable853.852s/64 failed groups,25 other tested packages pass (tools15.265s/public13.233s), no panic/Go timeout/exclusions. The uncertain-intent fixture passes this run; its intermittent cause remains unverified. [Exact inventory](../../notes/canonical-integration-baseline.md). Step2 stays active; no integration acceptance.
+
 ## Public terminal tool consumers and refreshed baseline
 
 Four test-only translations retain source diagnostics/grammar/search results and nested call identity through public records. Expanded three-shuffle20.043s, three semantic faults restored, original tools42/search6/codemode-describe5 plus separate91 probes zero skipped; static gates pass. [Mapping/limits](../../notes/canonical-builtin-execution.md#canonical-terminal-tool-consumers).

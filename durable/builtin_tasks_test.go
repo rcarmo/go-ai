@@ -176,8 +176,9 @@ func TestBuiltinTaskPublicProgressionMatchesSourceV150(t *testing.T) {
 				return ch
 			})
 			options.Registry = registry
+			options.Settings = &HarnessSettings{ToolExecution: scenario.execution}
 			h := openHarness(t, store, options)
-			c, err := h.Root(bg, AgentChange{Model: ref, Settings: RequestSettings{ToolExecution: scenario.execution}})
+			c, err := h.Root(bg, AgentChange{Model: ref})
 			if err != nil {
 				t.Fatal(err)
 			}

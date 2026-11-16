@@ -592,9 +592,9 @@ func TestTaskSchedulerLegacyChildrenSequentialEligibility(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		h := openHarness(t, b.store, Options{Registry: registry, Models: func(goai.Provider, string) *goai.Model { return model }})
+		h := openHarness(t, b.store, Options{Registry: registry, Settings: &HarnessSettings{ToolExecution: "sequential"}, Models: func(goai.Provider, string) *goai.Model { return model }})
 		cleanupTaskGates(t, firstRelease, secondRelease, childRelease)
-		conv, err := h.Root(bg, AgentChange{Model: ModelRef{model.Provider, model.ID}, Settings: RequestSettings{ToolExecution: "sequential"}})
+		conv, err := h.Root(bg, AgentChange{Model: ModelRef{model.Provider, model.ID}})
 		if err != nil {
 			t.Fatal(err)
 		}
