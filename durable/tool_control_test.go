@@ -10,7 +10,7 @@ import (
 )
 
 func TestToolControlsPinnedUnanimousTerminationLastHandoffAndAddTools(t *testing.T) {
-	for _, mode := range []string{"terminate", "one-terminate", "handoff", "add-tools"} {
+	for _, mode := range []string{"terminate", "one-terminate", "handoff", "handoff-terminate", "add-tools"} {
 		t.Run(mode, func(t *testing.T) {
 			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				registry := NewRegistry()
@@ -25,7 +25,8 @@ func TestToolControlsPinnedUnanimousTerminationLastHandoffAndAddTools(t *testing
 							control.Terminate = true
 						case "one-terminate":
 							control.Terminate = index == 0
-						case "handoff":
+						case "handoff", "handoff-terminate":
+							control.Terminate = mode == "handoff-terminate"
 							value := fmt.Sprintf("handoff%d", index)
 							control.Handoff = &value
 						case "add-tools":
@@ -47,7 +48,7 @@ func TestToolControlsPinnedUnanimousTerminationLastHandoffAndAddTools(t *testing
 						answer.Reason = goai.StopReasonToolUse
 						ch <- answer
 					} else {
-						if mode == "terminate" || mode == "handoff" {
+						if mode == "terminate" || mode == "handoff-terminate" {
 							t.Error("terminal control generated again")
 						}
 						if mode == "add-tools" {
@@ -82,7 +83,7 @@ func TestToolControlsPinnedUnanimousTerminationLastHandoffAndAddTools(t *testing
 					t.Fatal("control settlement", settled, effects.Load())
 				}
 				wantCalls := int64(2)
-				if mode == "terminate" || mode == "handoff" {
+				if mode == "terminate" || mode == "handoff-terminate" {
 					wantCalls = 1
 				}
 				if calls.Load() != wantCalls {
@@ -92,9 +93,18 @@ func TestToolControlsPinnedUnanimousTerminationLastHandoffAndAddTools(t *testing
 				if err != nil {
 					t.Fatal(err)
 				}
-				if mode == "handoff" {
-					if view.Head == nil || len(view.Messages) != 1 || view.Messages[0].Content[0].Text != "handoff1" {
+				if mode == "handoff" || mode == "handoff-terminate" {
+					wantMessages, userIndex := 3, 1
+					if mode == "handoff-terminate" {
+						wantMessages, userIndex = 1, 0
+					}
+					if view.Head == nil || view.Head.Kind != "pi.reset" || view.Head.Head != view.Head.ID || len(view.Messages) != wantMessages || view.Messages[userIndex].Role != goai.RoleUser || view.Messages[userIndex].ContentText == nil || *view.Messages[userIndex].ContentText != "handoff1" {
 						t.Fatal("last handoff/reset", view)
+					}
+					// Source context.ts leadWithSystem rebases the tool baseline
+					// before the handoff's user when its next request prepares.
+					if mode == "handoff" && (view.Messages[0].Role != goai.RoleSystem || len(view.Messages[0].ToolsAdded) != 2 || view.Messages[0].ToolsAdded[0].Name != "first" || view.Messages[0].ToolsAdded[1].Name != "second" || view.Messages[2].Role != goai.RoleAssistant || len(view.Messages[2].Content) != 1 || view.Messages[2].Content[0].Text != "answer") {
+						t.Fatal("handoff continues with the rebased system and new answer", view)
 					}
 				}
 				if mode == "add-tools" {

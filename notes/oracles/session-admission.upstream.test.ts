@@ -832,3 +832,33 @@ it("executes and migrates canonical model tool tasks and fails a throwing execut
  for(const version of [1,2,3]){const setup=chatSetup();let calls=0;addTool(setup.registry,defineTool({name:"echo",description:"echo",parameters:{type:"object",properties:{text:{type:"string"}},required:["text"]}as any,execute:async(args:any)=>{calls++;return{output:[{type:"text",text:args.text}]}}}));const {harness,root}=await openChat(new ControlledStorage(),setup);const entry=await root.commit(tx=>tx.appendEntry(root.id,{kind:"pi.assistant",model:[fauxAssistantMessage([fauxToolCall("echo",{text:"owned"},{id:"c1"})],{stopReason:"toolUse"})]}),context);const input={...(version===1?{}:{kind:"model"}),assistant:entry.id,callId:"c1"};const id=await root.commit(tx=>tx.createTask({definition:{...ToolTask.definition,version}},input as any,{ownership:{kind:"conversation"}}),context);const task=await harness.waitForTask(id,context);expect(task.version).toBe(3);expect(calls).toBe(1);expect(task.state).toMatchObject({status:"terminal",outcome:{status:"completed",result:{kind:"model",entryId:expect.any(Number)}}});await harness.close(context)}
  const setup=chatSetup();addTool(setup.registry,defineTool({name:"thrower",description:"throws",parameters:{type:"object",properties:{}}as any,execute:async()=>{throw new Error("private failure")}}));const {harness,root}=await openChat(new ControlledStorage(),setup);const entry=await root.commit(tx=>tx.appendEntry(root.id,{kind:"pi.assistant",model:[fauxAssistantMessage([fauxToolCall("thrower",{},{id:"throw-1"})],{stopReason:"toolUse"})]}),context);const id=await root.commit(tx=>tx.createTask(ToolTask,{kind:"model",assistant:entry.id,callId:"throw-1"},{ownership:{kind:"conversation"}}),context);expect((await harness.waitForTask(id,context)).state).toMatchObject({status:"terminal",outcome:{status:"failed",error:{message:"Tool thrower threw"},result:{kind:"model",entryId:expect.any(Number)}}});await harness.close(context);
 });
+
+// Source-derived runtime probe, including strings outside the TypeScript
+// severity union. tool.ts copies strict JSON and renders the supplied value;
+// it does not run an enum validator on extension-returned diagnostics.
+it("preserves JSON diagnostic severities through reported progress and a returned result",async()=>{
+ const {MemoryStorage,defineTool,LiveDoc}=await import("@earendil-works/pi-durable");
+ const {chatSetup,openChat,allEntries}=await import("@pinned/chat");
+ const {addTool}=await import("@pinned/harness-support");
+ const {fauxAssistantMessage,fauxText,fauxToolCall}=await import("@reference/pi-ai");
+ for(const severity of ["invalid","","ERROR","🧪","error"]){
+  const setup=chatSetup();setup.settings.progress={outputIntervalMs:0,persistWithinMs:0};
+  const progress={severity,message:"progress"},returned={severity,message:"returned"};
+  addTool(setup.registry,defineTool({name:"diagnostic_json",description:"diagnostics",parameters:{type:"object"}as any,execute:async(_args,api,ctx)=>{
+   api.diagnostic(progress as any);await api.details(null,ctx);
+   const live=await api.snapshot(LiveDoc,api.conversationId,ctx);
+   expect(live?.tools?.[0]?.diagnostics).toEqual([progress]);
+   await api.commit(tx=>tx.appendEntry(api.conversationId,{kind:"probe.diagnostic-effect",data:{severity}}),ctx);
+   return{output:[{type:"text"as const,text:"result"}],diagnostics:[returned as any]};
+  }}));
+  setup.faux.setResponses([fauxAssistantMessage([fauxToolCall("diagnostic_json",{},{id:"diagnostic-json"})],{stopReason:"toolUse"}),fauxAssistantMessage([fauxText("done")])]);
+  const {harness,root}=await openChat(new MemoryStorage(),setup);
+  try{
+   expect((await(await root.submit({type:"input",content:"go"},context)).wait(context)).status).toBe("done");
+   const entries=await allEntries(root),results=entries.filter(entry=>entry.kind==="pi.tool-result");
+   expect(entries.filter(entry=>entry.kind==="probe.diagnostic-effect")).toHaveLength(1);
+   expect(results).toHaveLength(1);expect(results[0]!.data).toEqual({diagnostics:[progress,returned]});
+   expect(results[0]!.model?.[0]).toMatchObject({role:"toolResult",isError:false,content:[{type:"text",text:"result"},{type:"text",text:`<harness>\n[${severity}] progress\n[${severity}] returned\n</harness>`}]});
+  }finally{await harness.close(context)}
+ }
+});

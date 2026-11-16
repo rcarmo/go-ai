@@ -4,9 +4,15 @@
 
 Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Canonical migration checkpoints through a5661b7 and the timing/output packet in the containing commit remain integration-red;89c031e is the last fully verified tree. Execution continues under step2. No new integrated acceptance.
 
-## Live preparation settings packet
+## Diagnostic JSON/control packet and current baseline
 
-Fresh source-derived renderer-barrier tests exposed stale threshold policy and stream options. Both decisions now read current host settings. Retry/compaction fixtures configure the host; pacing joins terminal publication without polling. Three-shuffle11.788s, restored broad10.456s/static/4 semantic faults; original compaction110 zero skipped plus separate90 probes. [Mappings/limits](../../notes/canonical-builtin-execution.md#live-settings-after-rendering-and-pacing-signals). No complete actual-tree run after this packet.
+Source-runtime probe confirms JSON severity strings are preserved without enum validation. Native model/progress/canonical nested assertions now match; handoff/unavailable controls use original task and context semantics. Three-shuffle28.152s/static/3 semantic faults; original tools42 and separate91 probes pass zero skipped. [Mapping/limits](../../notes/canonical-builtin-execution.md#diagnostic-json-and-source-tool-controls).
+
+Full ./... observes72 durable failing groups416.189s, no panic/timeout/exclusions;25 other tested packages pass (tools9.459s/public11.201s). Two deferred fixtures were subsequently fixed to configure the host and targeted tests pass; no new full-tree count after those edits. [Failure inventory](../../notes/canonical-integration-baseline.md). Step2 stays active; all later workstreams remain unaccepted.
+
+## Previous live preparation settings packet
+
+Fresh source-derived renderer-barrier tests exposed stale threshold policy and stream options. Both decisions now read current host settings. Retry/compaction fixtures configure the host; pacing joins terminal publication without polling. Three-shuffle11.788s, restored broad10.456s/static/4 semantic faults; original compaction110 zero skipped plus separate90 probes. [Mappings/limits](../../notes/canonical-builtin-execution.md#live-settings-after-rendering-and-pacing-signals). That packet is included in the subsequent72-group run above.
 
 ## Resumed step2 and preceding baseline
 

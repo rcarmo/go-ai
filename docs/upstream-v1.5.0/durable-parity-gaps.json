@@ -1137,7 +1137,7 @@
     "historical": true
   },
   "currentCheckpoint": {
-    "scope": "Migration through8bd3d4f plus current live-settings/pacing packet. Focused/source/static/fault checks pass; full tree after settings packet unverified. Last complete tree had78 durable failures;89c031e remains last fully verified tree.",
+    "scope": "Canonical migration through2ffbb61 plus diagnostic/control packet. Complete ./... observed72 durable failure groups/25 other tested packages pass. Two deferred fixture failures subsequently targeted-green; no post-correction full run.89c031e remains last fully verified tree.",
     "baseRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
     "lastVerifiedPushed": {
       "revision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
@@ -1230,6 +1230,13 @@
           "topLevelFailureGroups": 78,
           "toolsSeconds": 9.332,
           "consumerSeconds": 11.215
+        },
+        {
+          "seconds": 416.189,
+          "result": "complete ./...;72 durable failure groups;25 other tested packages pass; no panic/timeout/exclusions;two deferred fixtures subsequently corrected",
+          "topLevelFailureGroups": 72,
+          "toolsSeconds": 9.459,
+          "consumerSeconds": 11.201
         }
       ],
       "focusedSeconds": 60.888,
@@ -1373,6 +1380,21 @@
         "logging": "pass",
         "fullActualTree": "not rerun;78-group receipt belongs to8bd3d4f",
         "mapping": "notes/canonical-builtin-execution.md#live-settings-after-rendering-and-pacing-signals"
+      },
+      "diagnosticControlPacket": {
+        "status": "bounded pass;integration red",
+        "shuffledCount": 3,
+        "seconds": 28.152,
+        "finalExactDataDeferredSeconds": 5.769,
+        "semanticFaults": 3,
+        "originalToolCases": 42,
+        "originalSkipped": 0,
+        "independentTypeScriptProbes": 91,
+        "newReferenceProbe": "diagnostic strict-JSON labels; includes out-of-TypeScript-union strings",
+        "vet": "pass",
+        "staticcheck": "v0.8.2 pass",
+        "logging": "pass",
+        "mapping": "notes/canonical-builtin-execution.md#diagnostic-json-and-source-tool-controls"
       }
     },
     "reference": {

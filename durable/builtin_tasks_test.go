@@ -698,7 +698,7 @@ func TestSourceCanonicalToolNestedUsesSameDefinition(t *testing.T) {
 	var leaf atomic.Int64
 	if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "leaf", Parameters: []byte(`{"type":"object","properties":{}}`)}, Implementation: "source.leaf", Version: 1, StructuredOutputSchema: JSON{"type": "object", "properties": JSON{"value": JSON{"type": "string"}}, "required": []any{"value"}}, Callers: []string{"tools"}, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
 		leaf.Add(1)
-		return ToolResult{StructuredOutput: JSON{"value": "owned"}, HasStructuredOutput: true}, nil
+		return ToolResult{StructuredOutput: JSON{"value": "owned"}, HasStructuredOutput: true, Diagnostics: []ToolDiagnostic{{Severity: "invalid", Message: "strict JSON severity"}}}, nil
 	}}); err != nil {
 		t.Fatal(err)
 	}
@@ -708,8 +708,8 @@ func TestSourceCanonicalToolNestedUsesSameDefinition(t *testing.T) {
 			t.Error("canonical nested call", err)
 			return ToolResult{}, err
 		}
-		if !value.HasStructuredOutput || !equalJSONValue(value.StructuredOutput, JSON{"value": "owned"}) {
-			return ToolResult{}, fmt.Errorf("nested structured output lost")
+		if !value.HasStructuredOutput || !equalJSONValue(value.StructuredOutput, JSON{"value": "owned"}) || value.IsError || !reflect.DeepEqual(value.Diagnostics, []ToolDiagnostic{{Severity: "invalid", Message: "strict JSON severity"}}) {
+			return ToolResult{}, fmt.Errorf("nested structured output or diagnostic lost")
 		}
 		return ToolResult{Content: "parent done"}, nil
 	}}); err != nil {

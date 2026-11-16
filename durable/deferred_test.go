@@ -126,9 +126,9 @@ func TestDeferredGenerationPollCheckpointReopenNoRedispatch(t *testing.T) {
 		goai.RegisterApi(provider)
 		t.Cleanup(func() { goai.UnregisterApi(api) })
 		wakes := make(chan Wake, 128)
-		options := Options{Now: clock.Load, OnWake: func(w Wake) { wakes <- copyWake(w) }, Models: func(goai.Provider, string) *goai.Model { return fakeModel(api) }}
+		options := Options{Settings: &HarnessSettings{Stream: RequestSettings{Deferred: &goai.DeferredOptions{PollAfterMs: 1000}}}, Now: clock.Load, OnWake: func(w Wake) { wakes <- copyWake(w) }, Models: func(goai.Provider, string) *goai.Model { return fakeModel(api) }}
 		first := openHarness(t, b.store, options)
-		conversation, err := first.Root(bg, AgentChange{Model: ModelRef{Provider: goai.ProviderOpenAI, ID: "durable-test"}, Settings: RequestSettings{Deferred: &goai.DeferredOptions{PollAfterMs: 1000}}})
+		conversation, err := first.Root(bg, AgentChange{Model: ModelRef{Provider: goai.ProviderOpenAI, ID: "durable-test"}})
 		if err != nil {
 			t.Fatal(err)
 		}

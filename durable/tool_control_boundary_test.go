@@ -27,7 +27,7 @@ func TestToolControlsUnavailableOrThrowingCallCannotTerminateRound(t *testing.T)
 				for i, id := range results {
 					entry, ok, err := api.Entry(ctx, id)
 					wantCall := []string{"first-call", "second-call"}[i]
-					if err != nil || !ok || entry.ID <= assistant || legacyEntryValue(entry)["toolCallId"] != wantCall {
+					if err != nil || !ok || entry.ID <= assistant || entry.Kind != "pi.tool-result" || len(entry.Model) != 1 || entry.Model[0].Role != goai.RoleToolResult || entry.Model[0].ToolCallID != wantCall {
 						t.Errorf("ordered committed result %d: %+v %v", i, entry, err)
 					}
 				}
@@ -81,10 +81,21 @@ func TestToolControlsUnavailableOrThrowingCallCannotTerminateRound(t *testing.T)
 				if err != nil {
 					t.Fatal(err)
 				}
-				tools, unavailable := 0, 0
+				tools, unavailable, flagged := 0, 0, 0
 				for _, task := range state.Tasks {
 					if task.Kind == "pi.tool" {
 						tools++
+						record, found, err := h.Task(bg, task.ID)
+						if err != nil || !found || record.Input == nil {
+							t.Fatal(record, err)
+						}
+						input := generationObject(record.Input.Value)
+						if input["callId"] == "second-call" {
+							if input["unoffered"] != true || input["kind"] != "model" || record.Version != 3 {
+								t.Fatal("unoffered canonical tool input", record)
+							}
+							flagged++
+						}
 					}
 				}
 				for _, entry := range state.Entries {
@@ -93,14 +104,14 @@ func TestToolControlsUnavailableOrThrowingCallCannotTerminateRound(t *testing.T)
 					}
 					var receipt MessageReceipt
 					if err := decodeEntryMessage(entry, h.session.limits, &receipt); err == nil && receipt.Role == goai.RoleToolResult && receipt.ToolCallID == "second-call" {
-						if !receipt.IsError || receipt.ErrorCode != "tool_unavailable" {
+						if !receipt.IsError || receipt.ErrorCode != "" || len(receipt.Diagnostics) != 1 || receipt.Diagnostics[0].Severity != "error" || receipt.Diagnostics[0].Code != "tool_unavailable" || receipt.Diagnostics[0].Message != "Tool second is not available" || len(receipt.Content) != 1 || receipt.Content[0].Text != "<harness>\n[error] Tool second is not available\n</harness>" {
 							t.Fatal("unoffered result", receipt)
 						}
 						unavailable++
 					}
 				}
-				if tools != 1 || unavailable != 1 {
-					t.Fatal("unoffered call created task or missing immediate result", tools, unavailable)
+				if tools != 2 || unavailable != 1 || flagged != 1 {
+					t.Fatal("unoffered call must own a flagged tool task and one result", tools, unavailable, flagged)
 				}
 			}
 			if calls.Load() != 2 || entryHooks.Load() != 1 {

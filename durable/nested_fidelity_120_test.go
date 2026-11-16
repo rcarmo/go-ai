@@ -2,7 +2,8 @@ package durable
 
 import (
 	"context"
-	"strings"
+	"errors"
+	"reflect"
 	"testing"
 
 	goai "github.com/rcarmo/go-ai"
@@ -51,13 +52,23 @@ func TestNestedTool120BlockDiagnosticAndArbitraryDetailsFidelity(t *testing.T) {
 		}
 	})
 }
-func TestNestedTool120InvalidDiagnosticsDiscardApplicationCallback(t *testing.T) {
+func TestNestedTool120DiagnosticJSONSeverityPreservesApplicationCommit(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		commits := 0
 		registry := NewRegistry()
 		reg := wrapRegistration("nested_bad_diagnostics")
-		reg.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
-			return ToolResult{Content: "text", Diagnostics: []ToolDiagnostic{{Severity: "invalid", Message: "bad"}}, Commit: func(*Tx) error { commits++; return nil }}, nil
+		reg.Execute = func(ctx context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+			task, found, err := api.Task(ctx, api.TaskID())
+			if err != nil || !found {
+				return ToolResult{}, errors.New("nested task missing")
+			}
+			if _, err := api.Commit(ctx, func(tx *Tx) (any, error) {
+				commits++
+				return tx.AppendEntry(task.Conversation, JSON{"kind": "probe.nested-diagnostic-effect", "data": JSON{"severity": "invalid"}})
+			}); err != nil {
+				return ToolResult{}, err
+			}
+			return ToolResult{Content: "text", Diagnostics: []ToolDiagnostic{{Severity: "invalid", Message: "bad"}}}, nil
 		}
 		if e := registry.Register(reg); e != nil {
 			t.Fatal(e)
@@ -67,8 +78,8 @@ func TestNestedTool120InvalidDiagnosticsDiscardApplicationCallback(t *testing.T)
 			if e != nil {
 				return e
 			}
-			if !result.IsError || !strings.Contains(result.Content, "Invalid tool diagnostics") {
-				t.Fatal(result)
+			if result.IsError || result.Content != "text" || !result.HasStructuredOutput || result.StructuredOutput != "text" || !reflect.DeepEqual(result.Diagnostics, []ToolDiagnostic{{Severity: "invalid", Message: "bad"}}) {
+				t.Error("nested JSON diagnostic changed", result)
 			}
 			return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone(nil), nil })
 		})
@@ -77,7 +88,7 @@ func TestNestedTool120InvalidDiagnosticsDiscardApplicationCallback(t *testing.T)
 		}
 		h := openHarness(t, b.store, Options{Registry: registry})
 		record := waitPublicTask(t, h, createPublicTask(t, h, def, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}}))
-		if record.State.Outcome.Status != "completed" || commits != 0 {
+		if record.State.Outcome.Status != "completed" || commits != 1 {
 			t.Fatal(record, commits)
 		}
 	})

@@ -102,7 +102,9 @@ func TestMainHarnessDeferredPollAfterCrash(t *testing.T) {
 		ref := ModelRef{Provider: goai.ProviderOpenAI, ID: "durable-test"}
 		options := Options{Models: func(goai.Provider, string) *goai.Model { return fakeModel(api) }}
 		f := mainOpenRecovery(t, b.store, ref, options, clock, math.Inf(1))
-		if err := f.c.Configure(bg, AgentChange{Model: ref, Settings: RequestSettings{Deferred: &goai.DeferredOptions{PollAfterMs: 60000}}}); err != nil {
+		zero, window := int64(0), math.Inf(1)
+		settings := HarnessSettings{Progress: &ProgressSettings{PartialIntervalMs: &zero, PersistWithinMs: &window}, Stream: RequestSettings{Deferred: &goai.DeferredOptions{PollAfterMs: 60000}}}
+		if err := f.h.SetSettings(bg, settings); err != nil {
 			t.Fatal(err)
 		}
 		publications := recordGenerationPublications(t, f.h)

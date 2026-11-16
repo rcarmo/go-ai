@@ -23,7 +23,9 @@ func validateToolDiagnostics(diagnostics []ToolDiagnostic, l Limits) error {
 		if d.argumentError && (d.Severity != "error" || d.Code != "invalid_arguments") {
 			return reject("argument diagnostic context")
 		}
-		if d.Severity != "info" && d.Severity != "warn" && d.Severity != "error" || !utf8.ValidString(d.Message) && !d.argumentError || !utf8.ValidString(d.Code) || len(d.Message) > l.MaxStringBytes || len(d.Code) > l.MaxStringBytes {
+		// Source diagnostic()/finalResult copy strict JSON; the TypeScript
+		// severity union is not an extension-return runtime enum validator.
+		if !utf8.ValidString(d.Severity) || len(d.Severity) > l.MaxStringBytes || !utf8.ValidString(d.Message) && !d.argumentError || !utf8.ValidString(d.Code) || len(d.Message) > l.MaxStringBytes || len(d.Code) > l.MaxStringBytes {
 			return reject("invalid tool diagnostic")
 		}
 	}
