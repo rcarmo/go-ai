@@ -84,7 +84,7 @@ func mainContinueOwnedFailure() *goai.ErrorEvent {
 // Official v1.5.0 f9a26365568127461c47a07a37dcb42c140a3ac5,
 // source-continue.test.ts:306-353, through a real registered delegate tool.
 // Native adaptations: CreateOwnedConversation inherits the configured model;
-// registered provider events and memory/journal replace Faux/SQLiteStorage.
+// registered provider events and modernc SQLite replace Faux/SQLiteStorage.
 // The tool owns the child, waits for its model_error, submits an entryless
 // continue, observes busy rejection, waits for recovery and returns to the
 // parent model. Attribution/context assertions below are derived additions.
@@ -206,7 +206,7 @@ func TestMainContinueOwnedToolAfterModelError(t *testing.T) {
 		first := publicSubmission(state.Submissions[o.first])
 		mainContinueOwnedUser(t, state, o.child, o.owner, first.Entry)
 		run := generationObject(mainContinueOracleLive(t, state, o.child)["run"])
-		generationID := submissionEntryID(run["task"])
+		generationID := submissionEntryID(run["taskId"])
 		generation, owner := state.Tasks[generationID], state.Tasks[o.owner]
 		if o.child == parent.ID() || state.Conversations[o.child].Owner != o.owner || owner.Kind != "pi.tool" || state.Tasks[owner.Owner].Conversation != parent.ID() || generationID == 0 || generationID == o.owner || generation.Kind != "pi.generation" || generation.Conversation != o.child || len(state.Submissions) != 3 || calls.Load() != 3 {
 			t.Fatal("continue must belong to the tool-owned child's distinct run", o, run, generation, owner)
@@ -353,7 +353,7 @@ func TestMainContinueOwnedSubmissionAbortBeforeProviderDerived(t *testing.T) {
 				}
 				first := publicSubmission(state.Submissions[o.first])
 				mainContinueOwnedUser(t, state, o.child, ownerID, first.Entry)
-				generationID := submissionEntryID(generationObject(mainContinueOracleLive(t, state, o.child)["run"])["task"])
+				generationID := submissionEntryID(generationObject(mainContinueOracleLive(t, state, o.child)["run"])["taskId"])
 				if generationID == 0 || generationID == ownerID || state.Tasks[generationID].Conversation != o.child || state.Conversations[o.child].Owner != ownerID {
 					t.Fatal("continue lost its child generation", generationID)
 				}

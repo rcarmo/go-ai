@@ -2,6 +2,8 @@
 
 Compact index of repository notes; history/evidence, not new instructions.
 
+- User requested commit and PAUSE for today. No automatic continuation. Continue packet: three-shuffle21.642s, original13 zero skipped plus separate90 probes; static gates pass. No new full-tree/mutation receipt for that final packet. Resume step2 only on a new instruction. [Checkpoint](../canonical-builtin-execution.md#continue-checkpoint-and-user-requested-pause).
+
 - [Rui's upstream-port preferences](upstream-alignment.md): no users/backwards-compatibility constraint;
   upstream semantics are authoritative; proactively continue the authorised task across slices.
   Canonical policy is also in AGENTS.md.

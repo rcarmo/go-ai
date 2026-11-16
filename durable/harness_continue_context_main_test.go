@@ -27,7 +27,7 @@ func TestMainContinueNothingToAnswerEmptyAndAnswered(t *testing.T) {
 			t.Fatal(err)
 		}
 		first := waitSubmission(t, empty)
-		if first.Record.Type != "continue" || first.Record.Status != "unanswered" || first.Record.Reason != "nothing_to_answer" || first.Record.Entry != 0 || first.Record.Answer != 0 || first.Message != nil {
+		if first.Record.Type != "continue" || first.Record.Status != "unanswered" || first.Record.Reason != "nothing_to_answer" || first.Record.Entry != 0 || first.Record.Answer != 0 || first.Message != nil || first.Record.Detail != nil {
 			t.Errorf("empty continue = %+v, message=%+v; want entryless unanswered/nothing_to_answer", first.Record, first.Message)
 		}
 		input, err := c.Submit(bg, Input{Content: "hi"})
@@ -53,8 +53,16 @@ func TestMainContinueNothingToAnswerEmptyAndAnswered(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if failure := generationObject(mainContinueOracleLive(t, state, c.ID())["runFailure"]); failure["reason"] != "nothing_to_answer" {
-			t.Error("missing exact failure", failure)
+		wantFailure, err := dtoObject(JSON{"taskId": got.Task.ID, "inputs": []any{after.ID()}, "reason": "nothing_to_answer"}, h.session.limits)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if failure := generationObject(mainContinueOracleLive(t, state, c.ID())["runFailure"]); !equalJSONValue(failure, wantFailure) {
+			t.Error("missing exact failure without detail", failure, wantFailure)
+		}
+		task, found, err := h.Task(bg, got.Task.ID)
+		if err != nil || !found || task.State.Outcome == nil || task.State.Outcome.Error == nil || task.State.Outcome.Error.Message != "The conversation has nothing to answer" || task.State.Outcome.Error.Detail == nil || !equalJSONValue(task.State.Outcome.Error.Detail.Value, JSON{"reason": "nothing_to_answer"}) {
+			t.Fatal("nothing-to-answer task error", task, err)
 		}
 		mainContinueOracleOneUser(t, state, c.ID())
 	})

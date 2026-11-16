@@ -1137,7 +1137,7 @@
     "historical": true
   },
   "currentCheckpoint": {
-    "scope": "Known-red migration through a5661b7 plus current timing/output packet; complete actual-tree baseline95 durable failures/25 other tested packages pass.89c031e remains last fully verified tree.",
+    "scope": "User-requested committed pause after5588001 and Continue packet in containing commit. Integration remains red;89c031e last fully verified tree.",
     "baseRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
     "lastVerifiedPushed": {
       "revision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
@@ -1322,6 +1322,20 @@
         "staticcheck": "v0.8.2 pass",
         "logging": "pass",
         "mapping": "notes/canonical-builtin-execution.md#tool-timing-retained-output-and-complete-baseline"
+      },
+      "continuePausePacket": {
+        "status": "bounded pass; committed pause requested; no full integration acceptance",
+        "shuffledCount": 3,
+        "seconds": 21.642,
+        "originalContinueCases": 13,
+        "originalSkipped": 0,
+        "independentTypeScriptProbes": 90,
+        "vet": "pass",
+        "staticcheck": "v0.8.2 pass",
+        "logging": "pass",
+        "semanticMutations": "not run for this final pause packet",
+        "fullActualTree": "not rerun after Continue changes; preceding timing/output baseline remains95 failed durable groups",
+        "mapping": "notes/canonical-builtin-execution.md#continue-checkpoint-and-user-requested-pause"
       }
     },
     "reference": {

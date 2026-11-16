@@ -4,6 +4,10 @@
 
 Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Canonical migration checkpoints through a5661b7 and the timing/output packet in the containing commit remain integration-red;89c031e is the last fully verified tree. Execution continues under step2. No new integrated acceptance.
 
+## User-requested pause
+
+Work is checkpointed and paused for today. No automatic continuation. Continue packet: all TestMainContinue targets pass three-shuffle21.642s; unchanged source13 zero skipped, separate90 probes; static gates pass. Full actual tree and new mutation controls were not rerun for the final packet. [Resume checkpoint](../../notes/canonical-builtin-execution.md#continue-checkpoint-and-user-requested-pause).
+
 ## Complete actual-tree baseline
 
 Plan step1 is complete as baseline establishment, not passing integration. Full ./... without overlays/exclusions finishes durable421.579s with95 failing groups and no panic/timeout;25 other tested packages pass (tools9.322s/public10.955s). [Full native failure inventory](../../notes/canonical-integration-baseline.md). Step2 is active. Timing/retained-output fixes pass expanded three-shuffle30.237s,5 semantic faults and static/source checks; exact mappings in the canonical execution note.

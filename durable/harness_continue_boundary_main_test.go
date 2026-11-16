@@ -15,7 +15,7 @@ import (
 // Additional source-derived assertions: source-submissions.ts:264-274 and
 // source-inbox.ts applyBoundary. A real model-contributing write W is submitted
 // AFTER B but must land BEFORE B; run.first inherits A's failed history, not W.
-// Native adaptations: numeric run.task, follow-up input mode, registered fake
+// Native adaptations: numeric run.taskId, follow-up input mode, registered fake
 // provider, and detached public Status/Wait/Snapshot/SubscribeCommits records.
 // No alternate Continue helper, empty user input, or checkpoint seeding is used.
 func TestMainContinueBoundaryKeptInputsAndWrite(t *testing.T) {
@@ -170,11 +170,11 @@ func mainContinueBoundaryCase(t *testing.T, legacyFirstAbsent bool) {
 		state := snapshot()
 		aStatus := publicSubmission(state.Submissions[a.ID()])
 		aRun := generationObject(mainContinueBoundaryDocument(t, state, c.ID(), "pi.live")["run"])
-		aOwner := submissionEntryID(aRun["task"])
+		aOwner := submissionEntryID(aRun["taskId"])
 		if aStatus.Type != "input" || aStatus.Status != "placed" || aStatus.Entry == 0 || aOwner == 0 || state.Tasks[aOwner].Kind != "pi.generation" {
 			t.Fatal("A must own a real placed generation while gated", aStatus, aRun)
 		}
-		requireJSON("A run", aRun, JSON{"task": aOwner, "inputs": []any{a.ID()}, "first": aStatus.Entry})
+		requireJSON("A run", aRun, JSON{"taskId": aOwner, "inputs": []any{a.ID()}, "first": aStatus.Entry, "turns": 0})
 		queued, err := c.Submit(bg, Input{Content: "second", WhenBusy: "follow-up"})
 		if err != nil {
 			t.Fatal(err)
@@ -194,7 +194,7 @@ func mainContinueBoundaryCase(t *testing.T, legacyFirstAbsent bool) {
 		requireQueued(state, queued, write)
 		live := mainContinueBoundaryDocument(t, state, c.ID(), "pi.live")
 		failure := JSON{"taskId": aOwner, "inputs": []any{a.ID()}, "first": aStatus.Entry, "reason": "model_error", "detail": "Invalid request"}
-		requireJSON("actual kept A failure", live, JSON{"runFailure": failure, "failedRun": true})
+		requireJSON("actual kept A failure", live, JSON{"runFailure": failure})
 		if calls.Load() != 1 {
 			t.Fatal("kept failure must not dispatch B or W", calls.Load())
 		}
@@ -217,7 +217,7 @@ func mainContinueBoundaryCase(t *testing.T, legacyFirstAbsent bool) {
 			delete(failure, "first")
 			state = snapshot()
 			requireQueued(state, queued, write)
-			requireJSON("legacy failure differs only by absent first", mainContinueBoundaryDocument(t, state, c.ID(), "pi.live"), JSON{"runFailure": failure, "failedRun": true})
+			requireJSON("legacy failure differs only by absent first", mainContinueBoundaryDocument(t, state, c.ID(), "pi.live"), JSON{"runFailure": failure})
 		}
 		before := state
 		admission := mainContinueBoundaryAdmission(t, h, c.ID(), "boundary-continue")
@@ -320,11 +320,11 @@ func mainContinueBoundaryCase(t *testing.T, legacyFirstAbsent bool) {
 			wantFirst = wEntry.ID // Actual append, not a seeded/fixed entry ID.
 		}
 		run := generationObject(admittedLive["run"])
-		owner := submissionEntryID(run["task"])
+		owner := submissionEntryID(run["taskId"])
 		if owner == 0 || owner == aOwner {
 			t.Fatal("continue must start a real new generation in its admission", admittedLive)
 		}
-		requireJSON("admission run inherits failure first, or actual W only if absent", run, JSON{"task": owner, "inputs": []any{queued.ID(), continued.ID()}, "first": wantFirst})
+		requireJSON("admission run inherits failure first, or actual W only if absent", run, JSON{"taskId": owner, "inputs": []any{queued.ID(), continued.ID()}, "first": wantFirst, "turns": 0})
 		task, exists := tasks[owner]
 		if !exists || task.Kind != "pi.generation" || task.Conversation != c.ID() || terminalStatus(task.Status) {
 			t.Error("same admission must create/start the actual B/K generation", task)
@@ -336,7 +336,7 @@ func mainContinueBoundaryCase(t *testing.T, legacyFirstAbsent bool) {
 			if _, exists := value["failedRun"]; exists {
 				t.Errorf("%s retained native kept-queue gate: %v", label, value)
 			}
-			requireJSON(label+" run", value["run"], JSON{"task": owner, "inputs": []any{queued.ID(), continued.ID()}, "first": wantFirst})
+			requireJSON(label+" run", value["run"], JSON{"taskId": owner, "inputs": []any{queued.ID(), continued.ID()}, "first": wantFirst, "turns": 0})
 		}
 		requireJSON("admission empties selected inbox", admittedInbox, JSON{"items": []any{}})
 		requireJSON("gated snapshot inbox", mainContinueBoundaryDocument(t, state, c.ID(), "pi.inbox"), JSON{"items": []any{}})

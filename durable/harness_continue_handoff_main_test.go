@@ -11,9 +11,8 @@ import (
 )
 
 // Native public-path regression for an explicit, entryless continue crossing a
-// real tool round. No checkpoint, live document or submission is seeded. This
-// deliberately fails at Submit while the main continue admission is unsupported;
-// it must not skip or substitute an empty user input for that missing baseline.
+// real tool round. No checkpoint, live document or submission is seeded. It
+// observes canonical task results and live input transfer across the tool boundary.
 func TestMainContinueToolHandoffOrderedInputs(t *testing.T) {
 	for _, queued := range []bool{false, true} {
 		for _, late := range []bool{false, true} {
@@ -112,14 +111,15 @@ func TestMainContinueToolHandoffOrderedInputs(t *testing.T) {
 								t.Fatalf("%s = %v; want %v", label, got, encoded)
 							}
 						}
-						checkpoint := func(task Task) generationCheckpoint {
+						record := func(id ID) TaskRecord {
 							t.Helper()
-							var cp generationCheckpoint
-							if err := fromObject(task.Checkpoint, &cp, h.session.limits); err != nil {
-								t.Fatal(err)
+							r, found, err := h.Task(bg, id)
+							if err != nil || !found || r.Kind != "pi.generation" || r.Version != 2 {
+								t.Fatal("canonical generation missing", r, err)
 							}
-							return cp
+							return r
 						}
+
 						requireUsers := func(messages []goai.Message, want []string) {
 							t.Helper()
 							var got []string
@@ -172,9 +172,9 @@ func TestMainContinueToolHandoffOrderedInputs(t *testing.T) {
 						requireUsers(<-requests, wantUsers)
 						state, live = snapshot()
 						run := generationObject(live["run"])
-						currentID := submissionEntryID(run["task"])
-						cp := checkpoint(state.Tasks[currentID])
-						inputs, steered := []any{}, []ID{}
+						currentID := submissionEntryID(run["taskId"])
+						prepared := record(currentID)
+						inputs := []any{}
 						placements := map[ID]ID{resumed.ID(): 0}
 						// admitSubmission inherits live.runFailure.first; handOver
 						// preserves it across tools, even with newly selected users.
@@ -185,17 +185,19 @@ func TestMainContinueToolHandoffOrderedInputs(t *testing.T) {
 								t.Fatal("continue must place selected queued users", status)
 							}
 							placements[sub.ID()] = status.Entry
-							inputs, steered = append(inputs, sub.ID()), append(steered, sub.ID())
+							inputs = append(inputs, sub.ID())
 						}
 						inputs = append(inputs, resumed.ID())
-						wantRun := JSON{"task": currentID, "inputs": inputs}
+						wantRun := JSON{"taskId": currentID, "inputs": inputs, "turns": 0}
 						if first != 0 {
 							wantRun["first"] = first
 						}
 						requireJSON("continue admission run", run, wantRun)
-						if cp.Submission != resumed.ID() || cp.InputEntry != 0 || cp.Input != "" || len(cp.InputBlocks) != 0 || !reflect.DeepEqual(append([]ID{}, cp.Steered...), steered) {
-							t.Fatal("entryless continue checkpoint must retain selected users, not replace the primary", cp)
+						request := generationObject(prepared.State.Checkpoint)
+						if prepared.Input == nil || !equalJSONValue(prepared.Input.Value, JSON{}) || request["phase"] != "request" || submissionEntryID(request["attempt"]) != 1 || prepared.Owner != 0 {
+							t.Fatal("entryless continue canonical request state", prepared)
 						}
+
 						if _, exists := live["runFailure"]; exists {
 							t.Fatal("explicit continue must clear A failure", live)
 						}
@@ -211,7 +213,7 @@ func TestMainContinueToolHandoffOrderedInputs(t *testing.T) {
 							if err != nil || status.Status != "queued" || status.Entry != 0 {
 								t.Fatal("late steer must queue behind the actual afterTools gate", status, err)
 							}
-							inputs, steered = append(inputs, lateSub.ID()), append(steered, lateSub.ID())
+							inputs = append(inputs, lateSub.ID())
 							wantUsers = append(wantUsers, "late")
 						}
 						releaseTaskGate(releaseTools)
@@ -233,19 +235,24 @@ func TestMainContinueToolHandoffOrderedInputs(t *testing.T) {
 							t.Fatal("handoff must use one actual tool round without replay", toolCalls, results, tools.Load(), hooks.Load(), calls.Load())
 						}
 						state, live = snapshot()
-						previous := checkpoint(state.Tasks[currentID])
-						successorID := previous.Successor
-						successor := state.Tasks[successorID]
-						next := checkpoint(successor)
-						assistant := state.Entries[previous.AssistantEntry]
-						if successorID == 0 || successorID == currentID || successor.Owner != 0 || successor.Conversation != c.ID() || state.Tasks[currentID].Status != "done" || assistant.ID == 0 || assistant.ByTask != currentID || assistant.Conversation != c.ID() || legacyEntryValue(assistant)["role"] != "assistant" || legacyEntryValue(assistant)["stopReason"] != string(goai.StopReasonToolUse) {
-							t.Fatal("handoff must transfer from the real tool-calling assistant", previous, successor, assistant)
+						previous := record(currentID)
+						successorID := submissionEntryID(generationObject(live["run"])["taskId"])
+						successor := record(successorID)
+						if previous.State.Outcome == nil || previous.State.Outcome.Result == nil {
+							t.Fatal("handoff assistant result missing", previous)
 						}
-						if next.Submission != resumed.ID() || next.InputEntry != 0 || !reflect.DeepEqual(append([]ID{}, next.Steered...), steered) {
-							t.Fatal("successor lost entryless continue or attached users", next)
+						assistantID := submissionEntryID(generationObject(previous.State.Outcome.Result.Value)["entryId"])
+						assistant, found, err := h.Entry(bg, assistantID)
+						if err != nil || !found || successorID == 0 || successorID == currentID || successor.Owner != 0 || successor.Conversation != c.ID() || previous.State.Status != "terminal" || previous.State.Outcome.Status != "completed" || assistant.ByTask != currentID || assistant.Conversation != c.ID() || assistant.Kind != "pi.assistant" || len(assistant.Model) != 1 || assistant.Model[0].Role != goai.RoleAssistant || assistant.Model[0].StopReason != goai.StopReasonToolUse {
+							t.Fatal("handoff must transfer from the real tool-calling assistant", previous, successor, assistant, err)
 						}
+						next := generationObject(successor.State.Checkpoint)
+						if successor.Input == nil || !equalJSONValue(successor.Input.Value, JSON{}) || next["phase"] != "request" || submissionEntryID(next["attempt"]) != 1 {
+							t.Fatal("successor canonical request state", successor)
+						}
+
 						// Exact order: selected users, continue, THEN the post-tools steer.
-						requireJSON("successor run", live["run"], JSON{"task": successorID, "inputs": inputs, "first": first})
+						requireJSON("successor run", live["run"], JSON{"taskId": successorID, "inputs": inputs, "first": first, "turns": 1})
 						if _, exists := live["tools"]; exists {
 							t.Fatal("handoff retained spent live tools", live)
 						}

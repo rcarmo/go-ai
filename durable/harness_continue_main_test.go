@@ -13,7 +13,7 @@ import (
 // Selected source assertions from official v1.5.0 f9a26365568127461c47a07a37dcb42c140a3ac5,
 // source-continue.test.ts: "answers a run that failed, without a new user
 // message" and "is rejected while busy, after request ID deduplication".
-// Go adaptations: registered fake provider, memory/journal storage, detached
+// Go adaptations: registered fake provider, SQLite storage, detached
 // Snapshot documents/entries and SubmissionRecord. No native Continue helper,
 // checkpoint seeding or fresh/empty user input substitutes for public Submit.
 // Cross-type rejection and final Status/Wait answer identity are derived checks.
@@ -142,8 +142,7 @@ func TestMainContinueFailedRunWithoutNewUserEntry(t *testing.T) {
 			t.Fatal(err)
 		}
 		answer, ok := state.Entries[settled.Record.Answer]
-		// Native v1.4 message entries store their receipt in Value; Model is
-		// the separate application-entry contribution field, not this format.
+		// Decode the canonical assistant entry's model contribution.
 		var receipt MessageReceipt
 		decodeErr := decodeEntryMessage(answer, f.h.session.limits, &receipt)
 		if !ok || answer.Conversation != c.ID() || decodeErr != nil || receipt.Role != goai.RoleAssistant || len(receipt.Content) != 1 || receipt.Content[0].Type != "text" || receipt.Content[0].Text != "recovered" {
@@ -187,9 +186,8 @@ func TestMainContinueBusyRejectAndRequestIDDedup(t *testing.T) {
 		// Native follow-up is the public input adaptation. Reusing the continue
 		// request ID as an input must reject, not dedup across types or report busy.
 		_, err = c.Submit(bg, Input{Content: "different type", RequestID: "resume-1", WhenBusy: "reject"})
-		var rejected *StorageRejected
-		if !errors.As(err, &rejected) || rejected.Reason != "request ID cross-type conflict" {
-			t.Fatalf("cross-type request ID = %v; want request ID cross-type conflict", err)
+		if err == nil || err.Error() != "Request resume-1 already identifies a submission of type continue" {
+			t.Fatalf("cross-type request ID = %v; want the exact source conflict before busy rejection", err)
 		}
 		if err := f.h.Close(bg); err != nil {
 			t.Fatal(err)

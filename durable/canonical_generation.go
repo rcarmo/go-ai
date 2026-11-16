@@ -70,7 +70,9 @@ func canonicalConvertPartial(tx *Tx, conversation ID, live JSON) error {
 }
 func canonicalFailedRun(tx *Tx, r *TaskRuntime, live JSON, boundary *canonicalBoundary, reason, message string) error {
 	var detail *string
-	if message != "" {
+	// failNothingToAnswer keeps the explanatory text only in the task error,
+	// not in either the submission settlement or LiveDoc runFailure.
+	if message != "" && reason != "nothing_to_answer" {
 		detail = &message
 	}
 	if err := canonicalEndRun(tx, live, r.taskID, 0, reason, detail); err != nil {
