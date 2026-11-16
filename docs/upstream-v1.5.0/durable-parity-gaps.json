@@ -1137,7 +1137,7 @@
     "historical": true
   },
   "currentCheckpoint": {
-    "scope": "Canonical migration through2ffbb61 plus diagnostic/control packet. Complete ./... observed72 durable failure groups/25 other tested packages pass. Two deferred fixture failures subsequently targeted-green; no post-correction full run.89c031e remains last fully verified tree.",
+    "scope": "Canonical migration through cf5c723 plus public terminal tool fixture packet. Actual full ./...:67 durable failure groups/25 other tested packages pass; no panic/timeout/exclusions.89c031e remains last fully verified tree.",
     "baseRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
     "lastVerifiedPushed": {
       "revision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
@@ -1237,6 +1237,13 @@
           "topLevelFailureGroups": 72,
           "toolsSeconds": 9.459,
           "consumerSeconds": 11.201
+        },
+        {
+          "seconds": 390.511,
+          "result": "complete ./...;67 durable failure groups;25 other tested packages pass;no panic/timeout/exclusions;new uncertain-intent fixture failure remains unverified",
+          "topLevelFailureGroups": 67,
+          "toolsSeconds": 9.086,
+          "consumerSeconds": 11.809
         }
       ],
       "focusedSeconds": 60.888,
@@ -1395,6 +1402,22 @@
         "staticcheck": "v0.8.2 pass",
         "logging": "pass",
         "mapping": "notes/canonical-builtin-execution.md#diagnostic-json-and-source-tool-controls"
+      },
+      "canonicalToolConsumerPacket": {
+        "status": "test-only source reconciliation pass; full integration red",
+        "expandedShuffledCount": 3,
+        "expandedSeconds": 20.043,
+        "restoredFocusedSeconds": 5.491,
+        "semanticFaults": 3,
+        "originalToolSearchCases": 6,
+        "originalCodemodeDescribeCases": 5,
+        "originalToolsCases": 42,
+        "originalSkipped": 0,
+        "independentProbesPerRun": 91,
+        "vet": "pass",
+        "staticcheck": "v0.8.2 pass",
+        "logging": "pass",
+        "mapping": "notes/canonical-builtin-execution.md#canonical-terminal-tool-consumers"
       }
     },
     "reference": {
@@ -1410,7 +1433,7 @@
     },
     "profiling": "Pre-release CPU/alloc_space/alloc_objects analysis, measured tuning and equivalent-workload remeasurement required.",
     "reviewOnly": "No runtime tests rerun by the planning review; structural register/hash checks are separate.",
-    "execution": "Plan145 execution authorised; step1 in progress. Recovery/abort translations and source-required native refactors verified in bounded packet; full regression remains red."
+    "execution": "Resumed execution authorised; step1 baseline complete, step2 in progress. Source-first tool consumers reconciled; integration remains red."
   },
   "review": {
     "basisRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",

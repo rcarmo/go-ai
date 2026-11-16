@@ -207,16 +207,18 @@ func TestToolSearch120LoadsPersistsAndDoesNotExecuteDiscoveredTool(t *testing.T)
 		default:
 		}
 		// Verify settled controls survive reopen; no discovered tool was dispatched.
+		searchTasks := 0
 		for _, task := range state.Tasks {
 			if task.Kind == "pi.tool" {
-				var cp toolCheckpoint
-				if e = fromObject(task.Checkpoint, &cp, h.session.limits); e != nil {
-					t.Fatal(e)
-				}
-				if cp.Offer.Name != ToolSearchName {
-					t.Fatal("search executed discovered tool", cp.Offer.Name)
+				searchTasks++
+				receipt := canonicalModelToolReceipt(t, h, task.ID)
+				if receipt.ToolName != ToolSearchName || receipt.ToolCallID != "search-call" || receipt.IsError {
+					t.Fatal("search executed discovered tool", receipt)
 				}
 			}
+		}
+		if searchTasks != 1 {
+			t.Fatal("search task cardinality", searchTasks)
 		}
 		if e = h.Close(bg); e != nil {
 			t.Fatal(e)

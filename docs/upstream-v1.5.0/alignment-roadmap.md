@@ -4,6 +4,12 @@
 
 Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Canonical migration checkpoints through a5661b7 and the timing/output packet in the containing commit remain integration-red;89c031e is the last fully verified tree. Execution continues under step2. No new integrated acceptance.
 
+## Public terminal tool consumers and refreshed baseline
+
+Four test-only translations retain source diagnostics/grammar/search results and nested call identity through public records. Expanded three-shuffle20.043s, three semantic faults restored, original tools42/search6/codemode-describe5 plus separate91 probes zero skipped; static gates pass. [Mapping/limits](../../notes/canonical-builtin-execution.md#canonical-terminal-tool-consumers).
+
+Complete actual-tree baseline15: durable390.511s/67 failed groups,25 other tested packages pass (tools9.086s/public11.809s), no panic/timeout/exclusions. Six previous names now pass; one newly observed uncertain-intent failure remains unverified. [Exact inventory](../../notes/canonical-integration-baseline.md). Step2 stays active; no integration acceptance.
+
 ## Diagnostic JSON/control packet and current baseline
 
 Source-runtime probe confirms JSON severity strings are preserved without enum validation. Native model/progress/canonical nested assertions now match; handoff/unavailable controls use original task and context semantics. Three-shuffle28.152s/static/3 semantic faults; original tools42 and separate91 probes pass zero skipped. [Mapping/limits](../../notes/canonical-builtin-execution.md#diagnostic-json-and-source-tool-controls).

@@ -85,20 +85,32 @@ func TestToolTruncationRemarksPinnedFallbackExplicitAndHookReplacement(t *testin
 				if err != nil {
 					t.Fatal(err)
 				}
+				tools := 0
 				for _, task := range snapshot.Tasks {
-					if task.Kind == "pi.tool" {
-						var cp toolCheckpoint
-						if err := fromObject(task.Checkpoint, &cp, h.session.limits); err != nil {
-							t.Fatal(err)
-						}
-						want := 3
-						if mode == "hook-replacement" {
-							want = 2
-						}
-						if len(cp.Diagnostics) != want {
-							t.Fatal("remarks checkpoint", cp.Diagnostics)
-						}
+					if task.Kind != "pi.tool" {
+						continue
 					}
+					tools++
+					receipt := canonicalModelToolReceipt(t, h, task.ID)
+					if receipt.ToolCallID != "truncate-call" || receipt.ToolName != "truncate" || !receipt.IsError {
+						t.Fatal("canonical truncation receipt", receipt)
+					}
+					record, _, err := h.Task(bg, task.ID)
+					if err != nil {
+						t.Fatal(err)
+					}
+					result := generationObject(record.State.Outcome.Result.Value)
+					entry, found, err := h.Entry(bg, submissionEntryID(result["entryId"]))
+					want := []any{JSON{"severity": "info", "message": "before"}, JSON{"severity": "info", "message": "after"}}
+					if mode != "hook-replacement" {
+						want = append(want, JSON{"severity": "warn", "code": "truncated", "message": "Output truncated to its end: 0 lines, 2 bytes dropped"})
+					}
+					if err != nil || !found || !entry.HasData || !equalJSONValue(entry.Data, JSON{"diagnostics": want}) {
+						t.Fatal("exact source truncation diagnostics", entry, err)
+					}
+				}
+				if tools != 1 || calls != 2 {
+					t.Fatal("truncation round cardinality", tools, calls)
 				}
 			})
 		})

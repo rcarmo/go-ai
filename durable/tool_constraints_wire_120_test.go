@@ -51,35 +51,43 @@ func TestTool120GrammarConstraintDurableHTTPAndIntent(t *testing.T) {
 		}
 		body := watchReceive(t, observed)
 		tools := body["tools"].([]any)
+		if len(tools) != 1 {
+			t.Fatal("grammar tool cardinality", tools)
+		}
 		tool := tools[0].(map[string]any)
 		format, ok := tool["format"].(map[string]any)
 		if !ok {
 			t.Fatal("grammar format missing", body)
 		}
-		if tool["type"] != "custom" || tool["name"] != "grammar_wire" || format["definition"] != "start: /.+/" {
+		if tool["type"] != "custom" || tool["name"] != "grammar_wire" || format["definition"] != "start: /.+/" || format["syntax"] != "lark" {
 			t.Fatal(body)
 		}
 		state, err := h.Snapshot(bg)
 		if err != nil {
 			t.Fatal(err)
 		}
-		found := false
-		for _, task := range state.Tasks {
-			if task.Kind == "pi.generation" {
-				var cp generationCheckpoint
-				if err = fromObject(task.Checkpoint, &cp, h.session.limits); err != nil {
-					t.Fatal(err)
-				}
-				if len(cp.Offered) == 1 && cp.Offered[0].ConstrainedSampling != nil {
-					found = true
-					if cp.Offered[0].ConstrainedSampling.Variants["openai_lark"] != "start: /.+/" {
-						t.Fatal(cp)
+		found := 0
+		for _, stored := range state.Entries {
+			entry, exists, err := h.Entry(bg, stored.ID)
+			if err != nil || !exists {
+				t.Fatal("entry lookup", stored.ID, err)
+			}
+			for _, message := range entry.Model {
+				for _, offered := range message.ToolsAdded {
+					if offered.Name == "grammar_wire" {
+						if entry.Kind != "pi.system" || message.Role != goai.RoleSystem {
+							t.Fatal("grammar declaration outside source system entry", entry)
+						}
+						found++
+						if !equalJSONValue(offered.ConstrainedSampling, reg.Definition.ConstrainedSampling) {
+							t.Fatal("canonical system grammar declaration", offered)
+						}
 					}
 				}
 			}
 		}
-		if !found {
-			t.Fatal("constraint missing from durable intent")
+		if found != 1 {
+			t.Fatal("grammar declaration cardinality", found)
 		}
 	})
 }

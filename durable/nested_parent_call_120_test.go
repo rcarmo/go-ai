@@ -134,8 +134,13 @@ func TestNestedTool120ModelParentCallAttribution(t *testing.T) {
 		if _, err := sub.Wait(bg); err != nil {
 			t.Fatal(err)
 		}
-		if identity.ParentCallID != "model-call-120" || identity.CallID != "child" || identity.ParentTask == 0 {
+		if identity.ParentCallID != "model-call-120" || identity.CallID != "model-call-120/child" || identity.Key != "child" || identity.Caller != "tools" || identity.Task == 0 || identity.ParentTask == 0 {
 			t.Fatal("model parent attribution lost", identity)
+		}
+		record, found, err := h.Task(bg, identity.Task)
+		wantInput := JSON{"kind": "nested", "parent": float64(identity.ParentTask), "parentCallId": "model-call-120", "key": "child", "call": JSON{"type": "toolCall", "id": "model-call-120/child", "name": "leaf", "arguments": JSON{}}}
+		if err != nil || !found || record.Owner != identity.ParentTask || record.Version != 3 || record.Input == nil || !record.Input.Present || !equalJSONValue(record.Input.Value, wantInput) {
+			t.Fatal("canonical nested input and ownership", record, record.Input, wantInput, err)
 		}
 	})
 }
