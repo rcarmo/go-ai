@@ -137,7 +137,11 @@ func TestAgentEventsActualPartialsAndToolEndAdjacentToResult(t *testing.T) {
 			t.Fatal("partial update missing")
 		}
 		matched := false
+		assistantStarts := 0
 		for i, event := range all {
+			if event.Type == "message_start" && event.Message != nil && event.Message.Role == goai.RoleAssistant {
+				assistantStarts++
+			}
 			if event.Type == "tool_execution_end" {
 				matched = true
 				if event.Entry == nil || event.Message == nil || event.Message.ToolCallID != "event-call" || i+2 >= len(all) || all[i+1].Type != "message_start" || all[i+1].Message.Role != goai.RoleToolResult || all[i+2].Type != "entry_appended" || all[i+2].Entry.ID != event.Entry.ID {
@@ -147,6 +151,9 @@ func TestAgentEventsActualPartialsAndToolEndAdjacentToResult(t *testing.T) {
 		}
 		if !matched {
 			t.Fatal("tool end missing")
+		}
+		if assistantStarts != 2 {
+			t.Fatal("streamed assistant was started again at its terminal entry", assistantStarts)
 		}
 	})
 }

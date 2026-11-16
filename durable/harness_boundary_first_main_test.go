@@ -13,8 +13,8 @@ import (
 // f9a26365568127461c47a07a37dcb42c140a3ac5: inbox.ts applyBoundary records
 // first for writes before users; generation.ts answer/startRun and submissions.ts
 // admitSubmission carry that first into the run, and live.ts endRun preserves it
-// in runFailure. Native adaptations: run.task names the generation, and its
-// checkpoint InputEntry/settlement Entry still identify B, not the boundary's W.
+// in runFailure. Canonical run.taskId owns the Generation2 request while B's
+// public submission placement remains its own entry, not the boundary's W.
 func TestMainBoundaryFirstIncludesPassiveWrite(t *testing.T) {
 	for _, scenario := range []string{"answerA", "keptfailureA"} {
 		t.Run(scenario, func(t *testing.T) {
@@ -143,11 +143,11 @@ func TestMainBoundaryFirstIncludesPassiveWrite(t *testing.T) {
 				state, live := snapshot()
 				aStatus := publicSubmission(state.Submissions[a.ID()])
 				aRun := generationObject(live["run"])
-				aOwner := submissionEntryID(aRun["task"])
+				aOwner := submissionEntryID(aRun["taskId"])
 				if aStatus.Status != "placed" || aStatus.Entry == 0 || aOwner == 0 || state.Tasks[aOwner].Kind != "pi.generation" {
 					t.Fatal("A must own a real placed run while gated", aStatus, aRun)
 				}
-				requireJSON("A active run", aRun, JSON{"task": aOwner, "inputs": []any{a.ID()}, "first": aStatus.Entry})
+				requireJSON("A active run", aRun, JSON{"taskId": aOwner, "inputs": []any{a.ID()}, "first": aStatus.Entry, "turns": 0})
 				bSub, err := c.Submit(bg, Input{Type: "follow-up", Content: "B"})
 				if err != nil {
 					t.Fatal(err)
@@ -216,19 +216,18 @@ func TestMainBoundaryFirstIncludesPassiveWrite(t *testing.T) {
 					t.Errorf("persisted boundary order must be W before B by (Seq,Position): W=(%d,%d), B=(%d,%d)", wEntry.Seq, wEntry.Position, bEntry.Seq, bEntry.Position)
 				}
 				run := generationObject(live["run"])
-				owner := submissionEntryID(run["task"])
+				owner := submissionEntryID(run["taskId"])
 				task, exists := state.Tasks[owner]
 				if !exists || owner == aOwner || task.Kind != "pi.generation" || task.Conversation != c.ID() || terminalStatus(task.Status) {
 					t.Fatal("B must own the real active generation", run, task)
 				}
-				var checkpoint generationCheckpoint
-				if err := fromObject(task.Checkpoint, &checkpoint, h.session.limits); err != nil {
-					t.Fatal(err)
+				record, found, err := h.Task(bg, owner)
+				checkpoint := generationObject(record.State.Checkpoint)
+				if err != nil || !found || record.Version != 2 || record.Input == nil || !equalJSONValue(record.Input.Value, JSON{}) || checkpoint["phase"] != "request" || submissionEntryID(checkpoint["attempt"]) != 1 {
+					t.Fatal("B must have a canonical request; its public placement stays B, not W", record, bStatus, err)
 				}
-				if checkpoint.Phase != "intent" || checkpoint.Submission != bSub.ID() || checkpoint.InputEntry != bEntry.ID || len(checkpoint.Steered) != 0 {
-					t.Fatalf("B checkpoint must keep B's InputEntry, not boundary W: %+v", checkpoint)
-				}
-				requireJSON("B active run must start at W while owning only B (W is not an input)", run, JSON{"task": owner, "inputs": []any{bSub.ID()}, "first": wEntry.ID})
+
+				requireJSON("B active run must start at W while owning only B (W is not an input)", run, JSON{"taskId": owner, "inputs": []any{bSub.ID()}, "first": wEntry.ID, "turns": 0})
 				if failure, exists := live["runFailure"]; exists {
 					t.Errorf("B starts in a later admission/answer commit and must not retain A failure: %v", failure)
 				}

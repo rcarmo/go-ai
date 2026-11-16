@@ -62,7 +62,8 @@ func TestConversationSettingsPartialOverridePresenceLiveDefaultsAndReopen(t *tes
 	})
 }
 
-func TestConversationPartialRetryDisabledKeepsDefaultsAtActualDispatch(t *testing.T) {
+// Source HarnessSettings owns retry policy; pi.agent has no retry override.
+func TestHarnessPartialRetryDisabledKeepsDefaultsAtActualDispatch(t *testing.T) {
 	calls := 0
 	ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
 		calls++
@@ -71,9 +72,10 @@ func TestConversationPartialRetryDisabledKeepsDefaultsAtActualDispatch(t *testin
 		close(ch)
 		return ch
 	})
-	h := openHarness(t, mustMemory(t), options)
 	disabled := false
-	root, err := h.Root(bg, AgentChange{Model: ref, Settings: RequestSettings{RetryOverrides: &RetrySettings{Enabled: &disabled}}})
+	options.Settings = &HarnessSettings{Retry: &RetrySettings{Enabled: &disabled}}
+	h := openHarness(t, mustMemory(t), options)
+	root, err := h.Root(bg, AgentChange{Model: ref})
 	if err != nil {
 		t.Fatal(err)
 	}

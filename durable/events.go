@@ -276,7 +276,11 @@ func (s *AgentEventStream) Start(listener func(context.Context, []AgentEvent) er
 				continue
 			}
 			run := generationObject(change.Value["run"])
-			id, ok := exactNumber(run["task"])
+			owner, canonical := run["taskId"]
+			if !canonical {
+				owner = run["task"]
+			}
+			id, ok := exactNumber(owner)
 			if !ok || !id.IsInt() {
 				continue
 			}
@@ -363,6 +367,37 @@ func (s *AgentEventStream) Start(listener func(context.Context, []AgentEvent) er
 					if err != nil {
 						return err
 					}
+					if canonicalToolRecord(task) {
+						record, err := CanonicalTask(task, s.limits)
+						if err != nil {
+							return err
+						}
+						checkpoint := generationObject(record.State.Checkpoint)
+						after.Started = checkpoint["phase"] == "execute"
+						after.Arguments = generationObject(checkpoint["arguments"])
+						if canonicalToolRecord(old) {
+							before.Started = generationObject(old.Execution.Native.State.Checkpoint)["phase"] == "execute"
+						}
+						var input canonicalToolInput
+						if record.Input != nil {
+							if err := fromObject(generationObject(record.Input.Value), &input, s.limits); err != nil {
+								return err
+							}
+						}
+						call := input.Call
+						if input.Kind == "model" {
+							if assistant, found := next.Entries[input.Assistant]; found && len(assistant.Model) == 1 {
+								for _, block := range assistant.Model[0].Content {
+									if block.Type == "toolCall" && block.ID == input.CallID {
+										call = block
+										break
+									}
+								}
+							}
+						}
+						after.CallID, after.Offer.Name = call.ID, call.Name
+						after.StreamingArguments = call.HasStreamingArguments()
+					}
 					base := AgentEvent{Seq: next.Seq, Task: task.ID, ToolCallID: after.CallID, ToolName: after.Offer.Name}
 					if after.Started && !before.Started {
 						event := base
@@ -404,6 +439,28 @@ func (s *AgentEventStream) Start(listener func(context.Context, []AgentEvent) er
 								return err
 							}
 							event.Message = &message
+						} else if canonicalToolRecord(task) {
+							outcome := task.Execution.Native.State.Outcome
+							if outcome != nil && outcome.Result != nil {
+								result := generationObject(outcome.Result.Value)
+								entryID := submissionEntryID(result["entryId"])
+								entry, found := next.Entries[entryID]
+								// Resolve from the full adopted publication even if
+								// the task's table write precedes its result entry.
+								for _, change := range frame.Publication.Tables {
+									if change.Entry != nil && change.Entry.ID == entryID {
+										entry, found = *change.Entry, true
+										break
+									}
+								}
+								if found && result["kind"] == "model" {
+									message, err := eventEntryMessage(entry, s.limits)
+									if err != nil {
+										return err
+									}
+									event.Message = message
+								}
+							}
 						}
 						events = append(events, event)
 					}
@@ -575,7 +632,11 @@ func (s *AgentEventStream) Start(listener func(context.Context, []AgentEvent) er
 				}
 				runTask := func(value any) ID {
 					if run, ok := value.(map[string]any); ok {
-						if number, ok := exactNumber(run["task"]); ok && number.IsInt() && number.Num().IsUint64() {
+						owner, canonical := run["taskId"]
+						if !canonical {
+							owner = run["task"]
+						}
+						if number, ok := exactNumber(owner); ok && number.IsInt() && number.Num().IsUint64() {
 							return ID(number.Num().Uint64())
 						}
 					}

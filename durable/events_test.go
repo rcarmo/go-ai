@@ -16,6 +16,11 @@ func TestAgentEventsCommittedToolLifecycleAndReentrantListener(t *testing.T) {
 			if err := api.Output("prefix"); err != nil {
 				return ToolResult{}, err
 			}
+			// The source coalesces fire-and-forget output marks. Details is a
+			// logical publication barrier, making this progress event observable.
+			if err := api.Details(nil); err != nil {
+				return ToolResult{}, err
+			}
 			return ToolResult{Content: "tail"}, nil
 		}}); err != nil {
 			t.Fatal(err)
@@ -60,6 +65,9 @@ func TestAgentEventsCommittedToolLifecycleAndReentrantListener(t *testing.T) {
 			defer mu.Unlock()
 			for _, event := range events {
 				seen[event.Type]++
+				if event.Type == "tool_execution_start" && (event.Task == 0 || event.ToolCallID != "event-call" || event.ToolName != "echo" || !equalJSONValue(event.Args, JSON{})) {
+					t.Error("canonical tool start attribution/arguments", event)
+				}
 				if event.Type == "run_start" || event.Type == "run_end" {
 					if len(event.Inputs) != 1 {
 						t.Error("run inputs missing", event)

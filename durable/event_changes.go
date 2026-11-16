@@ -164,7 +164,11 @@ func arrangeEntryEvents(events []AgentEvent, before Snapshot, conversation ID, l
 			if err := fromObject(task.Checkpoint, &cp, limits); err != nil {
 				return nil, err
 			}
-			if cp.Partial != nil {
+			partial, err := generationPartial(before, task, cp, limits)
+			if err != nil {
+				return nil, err
+			}
+			if partial != nil {
 				streamed = true
 			}
 		}

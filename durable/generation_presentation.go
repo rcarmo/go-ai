@@ -23,7 +23,11 @@ func generationPartial(state Snapshot, task Task, cp generationCheckpoint, limit
 			continue
 		}
 		run := generationObject(live.Value["run"])
-		id, ok := exactNumber(run["task"])
+		ownerKey := "task"
+		if task.Execution != nil && task.Execution.Native != nil {
+			ownerKey = "taskId"
+		}
+		id, ok := exactNumber(run[ownerKey])
 		if !ok || !id.IsInt() || id.Num().Uint64() != uint64(task.ID) {
 			continue
 		}

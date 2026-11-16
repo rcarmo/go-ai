@@ -13,9 +13,9 @@ import (
 // v1.5.0 f9a26365568127461c47a07a37dcb42c140a3ac5 inbox.ts applyBoundary:
 // first is the first actual append, even if a later reset cuts it from context;
 // stale numeric heads append nothing, and each write sees preceding head changes.
-// Queue fixtures use canonical write records/drafts and real minted IDs; native
-// Reset controls still exercise the separate historical reset path. These
-// controls do not simulate model completion or enable scheduling.
+// Queue fixtures use canonical write records/drafts and actual source reset
+// writes. Public SubmitIn admission applies the boundary; the scheduler is sealed
+// before admission to inspect that single commit without dispatching hosts.
 func TestMainBoundaryWritesFirstAndSequentialHeads(t *testing.T) {
 	type queuedWrite struct {
 		text, head   string
@@ -50,6 +50,9 @@ func TestMainBoundaryWritesFirstAndSequentialHeads(t *testing.T) {
 			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				h := openHarness(t, b.store, Options{})
 				c := root(t, h, ModelRef{})
+				// Supplemental admission control: SubmitIn resumes scheduling as
+				// source submit does, but no host may run before this inspection.
+				h.scheduler.sealed.Store(true)
 				entries, submissions := map[string]ID{}, map[string]ID{}
 				if _, err := h.session.Commit(bg, func(tx *Tx) (any, error) {
 					for _, text := range []string{"a", "b", "c"} {
@@ -71,12 +74,7 @@ func TestMainBoundaryWritesFirstAndSequentialHeads(t *testing.T) {
 					}
 					items := []any{}
 					for _, write := range tc.queue {
-						if write.reset {
-							// Native Reset is a separate inbox item, unlike upstream's
-							// head:"self" write; its entry ID is minted on placement.
-							items = append(items, JSON{"mode": "reset", "content": write.text})
-							continue
-						}
+
 						record, err := tx.CreateSubmission(SubmissionCreate{Conversation: c.ID(), Type: "write", Status: "queued"})
 						if err != nil {
 							return nil, err
@@ -85,6 +83,9 @@ func TestMainBoundaryWritesFirstAndSequentialHeads(t *testing.T) {
 						draft, err := inboxEntryDraft(Entry{Kind: "app.note", Head: entries[write.head], Model: []MessageReceipt{userReceipt(write.text)}}, tx.limits)
 						if err != nil {
 							return nil, err
+						}
+						if write.reset {
+							draft = JSON{"kind": "pi.reset", "head": "self", "model": []any{JSON{"role": "user", "content": write.text, "timestamp": 7}}}
 						}
 						items = append(items, JSON{"id": record.ID, "mode": "write", "entry": draft})
 					}
@@ -102,10 +103,8 @@ func TestMainBoundaryWritesFirstAndSequentialHeads(t *testing.T) {
 						t.Fatal("fixture must be queued and unplaced", text, sub)
 					}
 				}
-				var first ID
 				value, err := h.session.Commit(bg, func(tx *Tx) (any, error) {
-					var err error
-					first, err = h.placeFinalBoundaryWrites(tx, c.ID())
+					_, err := c.SubmitIn(tx, Input{Type: "continue"})
 					return nil, err
 				})
 				if err != nil || value != nil {
@@ -113,6 +112,12 @@ func TestMainBoundaryWritesFirstAndSequentialHeads(t *testing.T) {
 				}
 				after := snap(t, b.store)
 				seq := after.Seq
+				first := ID(0)
+				for _, doc := range after.Documents {
+					if doc.Owner == c.ID() && doc.Kind == "pi.live" && !doc.Retired {
+						first = submissionEntryID(generationObject(doc.Value["run"])["first"])
+					}
+				}
 				var appended []Entry
 				for id, entry := range after.Entries {
 					if _, existed := before.Entries[id]; !existed {
@@ -122,10 +127,15 @@ func TestMainBoundaryWritesFirstAndSequentialHeads(t *testing.T) {
 				slices.SortFunc(appended, func(a, b Entry) int { return cmp.Compare(a.Position, b.Position) })
 				var texts []string
 				for _, entry := range appended {
-					if entry.Conversation != c.ID() || entry.Seq != seq || len(entry.Model) != 1 || len(entry.Model[0].Content) != 1 {
+					if entry.Conversation != c.ID() || entry.Seq != seq || len(entry.Model) != 1 || (entry.Model[0].ContentText == nil && len(entry.Model[0].Content) != 1) {
 						t.Fatal("unexpected persisted boundary entry", entry)
 					}
-					text := entry.Model[0].Content[0].Text
+					text := ""
+					if entry.Model[0].ContentText != nil {
+						text = *entry.Model[0].ContentText
+					} else {
+						text = entry.Model[0].Content[0].Text
+					}
 					texts = append(texts, text)
 					entries[text] = entry.ID
 				}
@@ -138,7 +148,8 @@ func TestMainBoundaryWritesFirstAndSequentialHeads(t *testing.T) {
 				for _, write := range tc.queue {
 					if write.reset {
 						entry := after.Entries[entries[write.text]]
-						if entry.Kind != "pi.reset" || entry.Head != entry.ID {
+						status := publicSubmission(after.Submissions[submissions[write.text]])
+						if entry.Kind != "pi.reset" || entry.Head != entry.ID || status.Status != "done" || status.Entry != entry.ID {
 							t.Fatal("reset must place a real self-head marker", entry)
 						}
 						continue
@@ -169,6 +180,9 @@ func TestMainBoundaryWritesFirstAndSequentialHeads(t *testing.T) {
 				}
 				var contextTexts []string
 				for _, message := range view.Messages {
+					if message.ContentText != nil {
+						contextTexts = append(contextTexts, *message.ContentText)
+					}
 					for _, block := range message.Content {
 						contextTexts = append(contextTexts, block.Text)
 					}
@@ -176,8 +190,8 @@ func TestMainBoundaryWritesFirstAndSequentialHeads(t *testing.T) {
 				if view.Head == nil || view.Head.ID != entries[tc.head] || view.Head.Head != entries[tc.target] || !slices.Equal(contextTexts, tc.context) {
 					t.Errorf("active head/context = %+v / %v; want head %q targeting %q / %v", view.Head, contextTexts, tc.head, tc.target, tc.context)
 				}
-				if inboxes != 1 || after.Seq != before.Seq+1 || h.scheduler.enabled.Load() {
-					t.Error("control must adopt exactly one unscheduled boundary with one inbox", inboxes, before.Seq, after.Seq, seq)
+				if inboxes != 1 || after.Seq != before.Seq+1 || !h.scheduler.enabled.Load() || !h.scheduler.sealed.Load() {
+					t.Error("control must adopt exactly one sealed admission boundary with one inbox", inboxes, before.Seq, after.Seq, seq)
 				}
 			})
 		})

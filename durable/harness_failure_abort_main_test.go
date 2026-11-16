@@ -26,18 +26,17 @@ func mainAbortFailureLive(t *testing.T, state Snapshot, conversation ID) JSON {
 }
 
 // Require ownership created by the real generation request, never a fabricated
-// live.run. Numeric IDs, native run.task, and the request phase named intent
-// are the Go representation adapters.
-func mainAbortFailureOwner(t *testing.T, h *Harness, c *ConversationHandle, sub *SubmissionHandle) (Task, generationCheckpoint, ID) {
+// live.run. Read the source Generation2 request through the public task API.
+func mainAbortFailureOwner(t *testing.T, h *Harness, c *ConversationHandle, sub *SubmissionHandle) (TaskRecord, ID) {
 	t.Helper()
 	state, err := h.Snapshot(bg)
 	if err != nil {
 		t.Fatal(err)
 	}
 	run := generationObject(mainAbortFailureLive(t, state, c.ID())["run"])
-	id := submissionEntryID(run["task"])
-	task, exists := state.Tasks[id]
-	if !exists || id == 0 || task.Kind != "pi.generation" || task.Conversation != c.ID() || task.Status != "running" {
+	id := submissionEntryID(run["taskId"])
+	task, exists, err := h.Task(bg, id)
+	if err != nil || !exists || id == 0 || task.Kind != "pi.generation" || task.Conversation != c.ID() || task.State.Status != "running" {
 		t.Fatalf("run does not own an actual running generation: run=%v task=%+v", run, task)
 	}
 	status, err := sub.Status(bg)
@@ -56,14 +55,11 @@ func mainAbortFailureOwner(t *testing.T, h *Harness, c *ConversationHandle, sub 
 	if !equalJSONValue(run["inputs"], want["inputs"]) {
 		t.Fatalf("actual run inputs: got %v; want [%d]", run["inputs"], sub.ID())
 	}
-	var cp generationCheckpoint
-	if err := fromObject(task.Checkpoint, &cp, h.session.limits); err != nil {
-		t.Fatal(err)
+	cp := generationObject(task.State.Checkpoint)
+	if task.Version != 2 || task.Input == nil || !equalJSONValue(task.Input.Value, JSON{}) || cp["phase"] != "request" || generationObject(cp["model"])["modelId"] == nil || submissionEntryID(cp["attempt"]) != 1 {
+		t.Fatal("request ownership/checkpoint mismatch", task)
 	}
-	if cp.Submission != sub.ID() || cp.InputEntry != first || cp.Phase != "intent" || cp.Model == nil || cp.Attempt != 1 {
-		t.Fatalf("request ownership/checkpoint mismatch: %+v", cp)
-	}
-	return task, cp, first
+	return task, first
 }
 
 func mainRequireAbortFailure(t *testing.T, state Snapshot, conversation, task, input, first ID, detail *string) {
@@ -89,30 +85,39 @@ func mainRequireAbortFailure(t *testing.T, state Snapshot, conversation, task, i
 
 // Source-derived ordinary-abort regression: f9a26365568127461c47a07a37dcb42c140a3ac5
 // generation.ts abort/endRun and live.ts endRun. Exercise the real request and
-// public Conversation.Abort. The error-bearing partial is a native persisted-
-// progress control via production commitPartial (as in generation_abort_test),
-// not a claim that the stream adapter preserves provider error text in progress.
+// public Conversation.Abort. Error-bearing partials arrive through the real
+// provider stream and are joined at the stored-publication barrier.
 func TestMainRunFailureOrdinaryAbortProjection(t *testing.T) {
 	for _, partial := range []bool{false, true} {
 		t.Run(fmt.Sprintf("errorPartial=%v", partial), func(t *testing.T) {
 			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				entered := make(chan struct{})
-				ref, options := setupFakeAPI(t, func(ctx context.Context, _ *goai.Model, _ *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
-					events := make(chan goai.Event)
+				ref, options := setupFakeAPI(t, func(ctx context.Context, model *goai.Model, _ *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
+					events := make(chan goai.Event, 1)
+					if partial {
+						events <- &goai.TextDeltaEvent{Delta: "committed partial", Partial: &goai.Message{Role: goai.RoleAssistant, Content: []goai.ContentBlock{{Type: "text", Text: "committed partial"}}, Api: model.Api, Provider: model.Provider, Model: model.ID, ErrorMessage: "partial diagnostic is not an abort detail", Usage: &goai.Usage{Output: 2, TotalTokens: 2}}}
+					}
 					go func() { close(entered); <-ctx.Done(); close(events) }()
 					return events
 				})
+				zero := int64(0)
+				window := float64(0)
+				options.Settings = &HarnessSettings{Progress: &ProgressSettings{PartialIntervalMs: &zero, PersistWithinMs: &window}}
 				h := openHarness(t, b.store, options)
+				publications := recordGenerationPublications(t, h)
 				c := root(t, h, ref)
 				sub, err := c.Submit(bg, Input{Content: "abort this actual run"})
 				if err != nil {
 					t.Fatal(err)
 				}
 				awaitTaskSignal(t, entered)
-				task, cp, first := mainAbortFailureOwner(t, h, c, sub)
+				task, first := mainAbortFailureOwner(t, h, c, sub)
 				if partial {
-					if err := h.commitPartial(task.ID, MessageReceipt{Role: goai.RoleAssistant, Content: []goai.ContentBlock{{Type: "text", Text: "committed partial"}}, Api: cp.Model.Api, Provider: cp.Model.Provider, Model: cp.Model.ID, ErrorMessage: "partial diagnostic is not an abort detail", Usage: &goai.Usage{Output: 2, TotalTokens: 2}}); err != nil {
-						t.Fatal(err)
+					for {
+						live := watchReceive(t, publications.live)
+						if generationObject(generationObject(live["generation"])["message"]) != nil {
+							break
+						}
 					}
 				}
 				if err := c.Abort(bg); err != nil {
@@ -124,15 +129,23 @@ func TestMainRunFailureOrdinaryAbortProjection(t *testing.T) {
 				if settled.Record.Status != "unanswered" || settled.Record.Reason != "aborted" || settled.Record.Detail != nil || settled.Task.ID != task.ID || result.State.Outcome == nil || result.State.Outcome.Status != "aborted" {
 					t.Errorf("ordinary abort settlement/task mismatch: %+v task=%+v", settled.Record, settled.Task)
 				}
-				if (settled.Message != nil) != partial {
-					t.Fatal("abort lost or synthesized its partial", settled.Message)
-				}
-				if partial && (settled.Message.StopReason != goai.StopReasonAborted || settled.Message.ErrorMessage != "partial diagnostic is not an abort detail" || len(settled.Message.Content) != 1 || settled.Message.Content[0].Text != "committed partial") {
-					t.Errorf("error-bearing partial control was lost: %+v", settled.Message)
-				}
 				state, err := h.Snapshot(bg)
 				if err != nil {
 					t.Fatal(err)
+				}
+				assistants := 0
+				for _, entry := range state.Entries {
+					if entry.Conversation != c.ID() || entry.Kind != "pi.assistant" {
+						continue
+					}
+					assistants++
+					var message MessageReceipt
+					if err := decodeEntryMessage(entry, h.session.limits, &message); err != nil || entry.ByTask != task.ID || message.StopReason != goai.StopReasonAborted || message.ErrorMessage != "partial diagnostic is not an abort detail" || len(message.Content) != 1 || message.Content[0].Text != "committed partial" {
+						t.Errorf("error-bearing committed partial control was lost: %+v, %v", message, err)
+					}
+				}
+				if (assistants == 1) != partial || assistants > 1 || settled.Record.Answer != 0 {
+					t.Fatal("abort lost or synthesized its partial or an answer", assistants, settled.Record)
 				}
 				mainRequireAbortFailure(t, state, c.ID(), task.ID, sub.ID(), first, nil)
 			})
@@ -150,30 +163,37 @@ func TestMainRunFailureAbortHandlerCutoffProjectionDerived(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered := make(chan struct{})
 		var requests atomic.Int64
-		ref, options := setupFakeAPI(t, func(ctx context.Context, _ *goai.Model, _ *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
+		ref, options := setupFakeAPI(t, func(ctx context.Context, model *goai.Model, _ *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
 			if requests.Add(1) == 1 {
 				close(entered)
 			}
-			events := make(chan goai.Event)
+			events := make(chan goai.Event, 1)
+			events <- &goai.TextDeltaEvent{Delta: "must not salvage at abort cutoff", Partial: &goai.Message{Role: goai.RoleAssistant, Content: []goai.ContentBlock{{Type: "text", Text: "must not salvage at abort cutoff"}}, Api: model.Api, Provider: model.Provider, Model: model.ID, ErrorMessage: "partial diagnostic"}}
 			go func() { <-ctx.Done(); close(events) }()
 			return events
 		})
 		limit := uint64(2)
 		reports := make(chan observedReport140, 8)
-		options.Settings = &HarnessSettings{RestartLimit: &limit}
+		zero := int64(0)
+		window := float64(0)
+		options.Settings = &HarnessSettings{RestartLimit: &limit, Progress: &ProgressSettings{PartialIntervalMs: &zero, PersistWithinMs: &window}}
 		options.OnReportWithInfo = func(ctx context.Context, err error, info ReportInfo) {
 			reports <- observedReport140{ctx: ctx, err: err, info: info}
 		}
 		h := openHarness(t, b.store, options)
+		publications := recordGenerationPublications(t, h)
 		c := root(t, h, ref)
 		sub, err := c.Submit(bg, Input{Content: "cut off this actual run's abort handler"})
 		if err != nil {
 			t.Fatal(err)
 		}
 		awaitTaskSignal(t, entered)
-		task, cp, first := mainAbortFailureOwner(t, h, c, sub)
-		if err := h.commitPartial(task.ID, MessageReceipt{Role: goai.RoleAssistant, Content: []goai.ContentBlock{{Type: "text", Text: "must not salvage at abort cutoff"}}, Api: cp.Model.Api, Provider: cp.Model.Provider, Model: cp.Model.ID, ErrorMessage: "partial diagnostic"}); err != nil {
-			t.Fatal(err)
+		task, first := mainAbortFailureOwner(t, h, c, sub)
+		for {
+			live := watchReceive(t, publications.live)
+			if generationObject(generationObject(live["generation"])["message"]) != nil {
+				break
+			}
 		}
 		if err := h.Close(bg); err != nil {
 			t.Fatal(err)
@@ -188,7 +208,7 @@ func TestMainRunFailureAbortHandlerCutoffProjectionDerived(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if run := generationObject(mainAbortFailureLive(t, state, c.ID())["run"]); submissionEntryID(run["task"]) != task.ID || submissionEntryID(run["first"]) != first || !equalJSONValue(run["inputs"], wantInputs["inputs"]) {
+		if run := generationObject(mainAbortFailureLive(t, state, c.ID())["run"]); submissionEntryID(run["taskId"]) != task.ID || submissionEntryID(run["first"]) != first || !equalJSONValue(run["inputs"], wantInputs["inputs"]) {
 			t.Fatal("closing the actual host lost its live ownership", run)
 		}
 		partial := generationObject(generationObject(mainAbortFailureLive(t, state, c.ID())["generation"])["message"])
@@ -196,20 +216,7 @@ func TestMainRunFailureAbortHandlerCutoffProjectionDerived(t *testing.T) {
 			t.Fatal("cutoff fixture did not retain the actual committed partial", partial)
 		}
 		seed := markTask(state.Tasks[task.ID])
-		// Modern partials live only in pi.live. Seed that same real message in
-		// its old checkpoint slot to exercise legacy conversion at cutoff.
-		var legacy messageReceipt
-		if err := fromObject(partial, &legacy, h.session.limits); err != nil {
-			t.Fatal(err)
-		}
-		if err := fromObject(seed.Checkpoint, &cp, h.session.limits); err != nil {
-			t.Fatal(err)
-		}
-		cp.Partial = &legacy
-		seed.Checkpoint, err = dtoObject(cp, h.session.limits)
-		if err != nil {
-			t.Fatal(err)
-		}
+
 		seed.Restarts = limit - 1
 		if _, err := store.Apply(bg, Batch{Writes: []Write{{Op: "put-task", Task: &seed}}}); err != nil {
 			t.Fatal(err)

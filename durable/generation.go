@@ -1310,10 +1310,6 @@ func addModelUsage(state JSON, r messageReceipt, l Limits) error {
 	return nil
 }
 
-func (h *Harness) commitPartial(id ID, partial messageReceipt) error {
-	return h.commitGenerationPresentation(nil, id, &partial)
-}
-
 func (h *Harness) sessionCommitInterruptedPartial(task Task, cp generationCheckpoint) error {
 	_, e := h.session.invocationCommit(context.Background(), task.ID, func(tx *Tx) error {
 		current := tx.state.Tasks[task.ID]

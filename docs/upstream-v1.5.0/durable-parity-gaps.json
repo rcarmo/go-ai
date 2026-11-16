@@ -1137,7 +1137,7 @@
     "historical": true
   },
   "currentCheckpoint": {
-    "scope": "User-requested committed pause after5588001 and Continue packet in containing commit. Integration remains red;89c031e last fully verified tree.",
+    "scope": "Execution explicitly resumed after826f49e; current abort/boundary/event consumer packet has targeted/source/static/fault receipts. Complete tree remains red with78 durable groups;89c031e last fully verified tree.",
     "baseRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
     "lastVerifiedPushed": {
       "revision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
@@ -1223,6 +1223,13 @@
           "toolsSeconds": 9.322,
           "consumerSeconds": 10.955,
           "inventory": "notes/canonical-integration-baseline.md"
+        },
+        {
+          "seconds": 417.799,
+          "result": "complete ./...;78 durable failure groups;25 other tested packages pass; no panic/timeout or exclusions",
+          "topLevelFailureGroups": 78,
+          "toolsSeconds": 9.332,
+          "consumerSeconds": 11.215
         }
       ],
       "focusedSeconds": 60.888,
@@ -1336,6 +1343,21 @@
         "semanticMutations": "not run for this final pause packet",
         "fullActualTree": "not rerun after Continue changes; preceding timing/output baseline remains95 failed durable groups",
         "mapping": "notes/canonical-builtin-execution.md#continue-checkpoint-and-user-requested-pause"
+      },
+      "resumedConsumerPacket": {
+        "status": "bounded pass;integration red",
+        "shuffledCount": 3,
+        "seconds": 39.057,
+        "semanticFaults": 5,
+        "originalGenerationCases": 26,
+        "originalInboxCases": 37,
+        "originalRestartFailureCases": 18,
+        "originalSkipped": 0,
+        "independentTypeScriptProbesPerRun": 90,
+        "vet": "pass",
+        "staticcheck": "v0.8.2 pass",
+        "logging": "pass",
+        "mapping": "notes/canonical-builtin-execution.md#resumed-abort-boundary-and-event-consumers"
       }
     },
     "reference": {
