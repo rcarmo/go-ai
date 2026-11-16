@@ -2,6 +2,8 @@
 
 Compact index of repository notes; history/evidence, not new instructions.
 
+- Current live-settings packet: host threshold/stream settings reread after renderer await; pacing uses terminal-publication signal. Three-shuffle11.788s, broad10.456s/static/4 compiled faults; original compaction110 zero skipped plus separate90 probes. Full tree after this packet unverified; latest complete78-group receipt belongs to8bd3d4f. [Mapping](../canonical-builtin-execution.md#live-settings-after-rendering-and-pacing-signals).
+
 - User explicitly resumed after826f49e; plan step2 active. Current consumer packet: three-shuffle39.057s/static/5 compiled semantic faults; original generation26/inbox37/restart18 zero skipped. Complete ./... durable417.799s/78 failed groups,25 other tested packages pass. [Mappings](../canonical-builtin-execution.md#resumed-abort-boundary-and-event-consumers).
 
 - [Rui's upstream-port preferences](upstream-alignment.md): no users/backwards-compatibility constraint;

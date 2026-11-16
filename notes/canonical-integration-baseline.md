@@ -1,6 +1,6 @@
 # Canonical integration baseline
 
-Latest complete actual-tree run after826f49e plus the resumed consumer packet in the containing commit. Initial baseline in5588001 had95 failing durable groups.
+Latest complete actual-tree run for the consumer runtime in8bd3d4f. The subsequent live-settings/pacing packet is not included. Initial baseline in5588001 had95 failing durable groups.
 
 Command: `make test PACKAGES=./... TEST_FLAGS='-count=1 -p 1 -timeout 1200s'`, after sourcing scripts/project-env.sh. CGO disabled, sequential packages. No overlays or test exclusions.
 

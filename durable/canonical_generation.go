@@ -219,7 +219,9 @@ func canonicalGenerationPrepare(ctx context.Context, task TaskRecord, r *TaskRun
 	if err != nil {
 		return err
 	}
-	policy := compactionPolicy(state.Settings, state.Model)
+	// Rendering can await user code. Source settings are live getters at this
+	// decision, so the earlier agent snapshot must not freeze threshold policy.
+	policy := compactionPolicy(r.harness.resolvedSettings(RequestSettings{}), state.Model)
 	blocking, background := false, false
 	if compacted == 0 && policy.Enabled && model.ContextWindow > 0 && compactionCut(view, policy.KeepRecentTokens) > 0 {
 		tokens := estimateContextTokens(view)
@@ -261,7 +263,7 @@ func canonicalGenerationPrepare(ctx context.Context, task TaskRecord, r *TaskRun
 				return nil, err
 			}
 		}
-		checkpoint := JSON{"phase": "request", "attempt": attempt, "model": JSON{"provider": string(state.Model.Provider), "modelId": state.Model.ID}, "thinkingLevel": string(state.ThinkingLevel), "streamOptions": generationStreamOptions(state.Settings), "cutoff": cutoff}
+		checkpoint := JSON{"phase": "request", "attempt": attempt, "model": JSON{"provider": string(state.Model.Provider), "modelId": state.Model.ID}, "thinkingLevel": string(state.ThinkingLevel), "streamOptions": generationStreamOptions(r.harness.resolvedSettings(RequestSettings{})), "cutoff": cutoff}
 		if compacted != 0 {
 			checkpoint["compacted"] = compacted
 		}

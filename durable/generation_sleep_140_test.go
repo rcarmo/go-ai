@@ -39,7 +39,9 @@ func TestGeneration140PacingAlarmAloneResumesRetryAndPoll(t *testing.T) {
 				goai.RegisterApi(provider)
 				t.Cleanup(func() { goai.UnregisterApi(api) })
 				armed := make(chan *capturedTimer140, 8)
-				h := openHarness(t, b.store, Options{Now: clock.Load, Models: func(goai.Provider, string) *goai.Model { return fakeModel(api) }, SetTimer: func(callback func(), delay time.Duration, options TimerOptions) func() {
+				one := 1
+				delay := int64(1000)
+				h := openHarness(t, b.store, Options{Settings: &HarnessSettings{Retry: &RetrySettings{MaxRetries: &one, BaseDelayMs: &delay, MaxDelayMs: &delay}}, Now: clock.Load, Models: func(goai.Provider, string) *goai.Model { return fakeModel(api) }, SetTimer: func(callback func(), delay time.Duration, options TimerOptions) func() {
 					if options.Background {
 						return nil
 					}
@@ -52,8 +54,27 @@ func TestGeneration140PacingAlarmAloneResumesRetryAndPoll(t *testing.T) {
 					armed <- node
 					return func() { node.cancelled.Add(1) }
 				}})
-				conversation, err := h.Root(bg, AgentChange{Model: ModelRef{Provider: goai.ProviderOpenAI, ID: "durable-test"}, Settings: RequestSettings{Retry: RetryPolicy{Enabled: true, MaxRetries: 1, BaseDelayMs: 1000, MaxDelayMs: 1000}}})
+				conversation, err := h.Root(bg, AgentChange{Model: ModelRef{Provider: goai.ProviderOpenAI, ID: "durable-test"}})
 				if err != nil {
+					t.Fatal(err)
+				}
+				_, observer, err := h.SubscribeCommits(bg)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer observer.Stop()
+				settled := make(chan struct{}, 1)
+				if err := observer.Start(func(_ context.Context, frame PublicationFrame) error {
+					for _, write := range frame.Publication.Tables {
+						if write.Submission != nil && write.Submission.Conversation == conversation.ID() && terminalStatus(write.Submission.Status) {
+							select {
+							case settled <- struct{}{}:
+							default:
+							}
+						}
+					}
+					return nil
+				}); err != nil {
 					t.Fatal(err)
 				}
 				submitted, err := conversation.Submit(bg, Input{Content: "input", RequestID: "pacing"})
@@ -95,22 +116,12 @@ func TestGeneration140PacingAlarmAloneResumesRetryAndPoll(t *testing.T) {
 				}
 				clock.Store(2000)
 				second.fire()
-				ctx, cancel := context.WithTimeout(bg, 3*time.Second)
-				defer cancel()
-				// Observational polling only; a Wait/Resume would mask a lost alarm.
-				for {
-					state, err = h.Snapshot(ctx)
-					if err != nil {
-						t.Fatal(err)
-					}
-					if terminalStatus(state.Submissions[submitted.ID()].Status) {
-						break
-					}
-					select {
-					case <-ctx.Done():
-						t.Fatal(ctx.Err())
-					case <-time.After(time.Millisecond):
-					}
+				// Join the terminal publication without Wait/Resume or a polling
+				// loop that could hide the alarm's scheduling responsibility.
+				awaitTaskSignal(t, settled)
+				state, err = h.Snapshot(bg)
+				if err != nil {
+					t.Fatal(err)
 				}
 				if state.Submissions[submitted.ID()].Status != "done" {
 					t.Fatal(state.Submissions[submitted.ID()])

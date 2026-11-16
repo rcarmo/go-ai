@@ -1137,7 +1137,7 @@
     "historical": true
   },
   "currentCheckpoint": {
-    "scope": "Execution explicitly resumed after826f49e; current abort/boundary/event consumer packet has targeted/source/static/fault receipts. Complete tree remains red with78 durable groups;89c031e last fully verified tree.",
+    "scope": "Migration through8bd3d4f plus current live-settings/pacing packet. Focused/source/static/fault checks pass; full tree after settings packet unverified. Last complete tree had78 durable failures;89c031e remains last fully verified tree.",
     "baseRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
     "lastVerifiedPushed": {
       "revision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
@@ -1358,6 +1358,21 @@
         "staticcheck": "v0.8.2 pass",
         "logging": "pass",
         "mapping": "notes/canonical-builtin-execution.md#resumed-abort-boundary-and-event-consumers"
+      },
+      "livePreparationSettingsPacket": {
+        "status": "bounded pass;integration unaccepted",
+        "focusedShuffledCount": 3,
+        "focusedSeconds": 11.788,
+        "restoredBroadSeconds": 10.456,
+        "semanticFaults": 4,
+        "originalCompactionCases": 110,
+        "originalSkipped": 0,
+        "independentTypeScriptProbes": 90,
+        "vet": "pass",
+        "staticcheck": "v0.8.2 pass",
+        "logging": "pass",
+        "fullActualTree": "not rerun;78-group receipt belongs to8bd3d4f",
+        "mapping": "notes/canonical-builtin-execution.md#live-settings-after-rendering-and-pacing-signals"
       }
     },
     "reference": {

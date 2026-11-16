@@ -74,7 +74,7 @@ func TestAutomaticCompactionStrictBlockingAndBackgroundThresholds(t *testing.T) 
 					policy.BackgroundTokens = 100
 				}
 				window.Store(int64(trigger + policy.ReserveTokens))
-				if err := conversation.ConfigurePatch(bg, AgentPatch{Settings: &RequestSettings{Compaction: policy}}); err != nil {
+				if err := h.SetSettings(bg, HarnessSettings{Compaction: compactionTestHostPolicy(policy)}); err != nil {
 					t.Fatal(err)
 				}
 				sub, err := conversation.Submit(bg, Input{Content: "new"})
@@ -167,4 +167,9 @@ func compactionTestModelWindow(options *Options, window int) {
 		owned.ContextWindow = window
 		return &owned
 	}
+}
+
+// Express the four resolved source policy fields as explicit host overrides.
+func compactionTestHostPolicy(policy CompactionPolicy) *CompactionSettings {
+	return &CompactionSettings{Enabled: &policy.Enabled, ReserveTokens: &policy.ReserveTokens, KeepRecentTokens: &policy.KeepRecentTokens, BackgroundTokens: &policy.BackgroundTokens}
 }

@@ -43,7 +43,10 @@ func TestMainBuiltinTraceBackgroundCompaction(t *testing.T) {
 		options.Registry = registry
 		h := openHarness(t, b.store, options)
 		backend.h = h
-		c, err := h.Root(bg, AgentChange{Model: ref, Settings: RequestSettings{Compaction: CompactionPolicy{Enabled: true, ReserveTokens: 300, KeepRecentTokens: 150, BackgroundTokens: 1000}}})
+		if err := h.SetSettings(bg, HarnessSettings{Compaction: compactionTestHostPolicy(CompactionPolicy{Enabled: true, ReserveTokens: 300, KeepRecentTokens: 150, BackgroundTokens: 1000})}); err != nil {
+			t.Fatal(err)
+		}
+		c, err := h.Root(bg, AgentChange{Model: ref})
 		if err != nil {
 			t.Fatal(err)
 		}

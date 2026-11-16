@@ -39,7 +39,11 @@ func TestAutomaticOwnedCompactionRetriesThenGenerationUsesSummary(t *testing.T) 
 		})
 		compactionTestModelWindow(&options, 64)
 		h := openHarness(t, b.store, options)
-		conversation, err := h.Root(bg, AgentChange{Model: ref, Settings: RequestSettings{Retry: RetryPolicy{Enabled: true, MaxRetries: 1, BaseDelayMs: 1}, Compaction: CompactionPolicy{Enabled: true, ReserveTokens: 63, KeepRecentTokens: goai.EstimateMessageTokens(receiptMessage(userReceipt("recent")))}}})
+		delay := int64(1)
+		if err := h.SetSettings(bg, HarnessSettings{Retry: &RetrySettings{MaxRetries: compactionTestInt(1), BaseDelayMs: &delay, MaxDelayMs: &delay}, Compaction: compactionTestHostPolicy(CompactionPolicy{Enabled: true, ReserveTokens: 63, KeepRecentTokens: goai.EstimateMessageTokens(receiptMessage(userReceipt("recent")))})}); err != nil {
+			t.Fatal(err)
+		}
+		conversation, err := h.Root(bg, AgentChange{Model: ref})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -126,7 +130,11 @@ func TestOverflowCompactionOneRecoveryAndNoOrdinaryRetry(t *testing.T) {
 					return ch
 				})
 				h := openHarness(t, b.store, options)
-				conversation, err := h.Root(bg, AgentChange{Model: ref, Settings: RequestSettings{Compaction: CompactionPolicy{Enabled: true, ReserveTokens: 28000, KeepRecentTokens: goai.EstimateMessageTokens(receiptMessage(userReceipt("new question")))}, Retry: RetryPolicy{Enabled: true, MaxRetries: 3, BaseDelayMs: 1}}})
+				delay := int64(1)
+				if err := h.SetSettings(bg, HarnessSettings{Retry: &RetrySettings{MaxRetries: compactionTestInt(3), BaseDelayMs: &delay, MaxDelayMs: &delay}, Compaction: compactionTestHostPolicy(CompactionPolicy{Enabled: true, ReserveTokens: 28000, KeepRecentTokens: goai.EstimateMessageTokens(receiptMessage(userReceipt("new question")))})}); err != nil {
+					t.Fatal(err)
+				}
+				conversation, err := h.Root(bg, AgentChange{Model: ref})
 				if err != nil {
 					t.Fatal(err)
 				}

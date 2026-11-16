@@ -4,7 +4,11 @@
 
 Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Canonical migration checkpoints through a5661b7 and the timing/output packet in the containing commit remain integration-red;89c031e is the last fully verified tree. Execution continues under step2. No new integrated acceptance.
 
-## Resumed step2 and current baseline
+## Live preparation settings packet
+
+Fresh source-derived renderer-barrier tests exposed stale threshold policy and stream options. Both decisions now read current host settings. Retry/compaction fixtures configure the host; pacing joins terminal publication without polling. Three-shuffle11.788s, restored broad10.456s/static/4 semantic faults; original compaction110 zero skipped plus separate90 probes. [Mappings/limits](../../notes/canonical-builtin-execution.md#live-settings-after-rendering-and-pacing-signals). No complete actual-tree run after this packet.
+
+## Resumed step2 and preceding baseline
 
 User explicitly resumed from826f49e. Canonical abort/first-write fixtures and event consumers have targeted production-path checks; three shuffled39.057s,5 semantic controls and static checks pass. Original generation26/inbox37/restart18 pass zero skipped, separate90 probes per command. [Mappings/limits](../../notes/canonical-builtin-execution.md#resumed-abort-boundary-and-event-consumers).
 
