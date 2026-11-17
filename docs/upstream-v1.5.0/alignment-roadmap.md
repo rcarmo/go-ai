@@ -4,6 +4,12 @@
 
 Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Canonical migration checkpoints through a5661b7 and the timing/output packet in the containing commit remain integration-red;89c031e is the last fully verified tree. Execution continues under step2. No new integrated acceptance.
 
+## Canonical submission abort and current baseline
+
+Source abort authority now follows the canonical submission record and deferred settlement, without private generation scans. The first matching inbox position is removed with the exact splice; duplicate-removal test red0.370s and independent original-runtime probe agree. Partial/queued abort consumer uses public records. Three-shuffle37.265s/static/4 controls; original submissions11 zero skipped and now92 separate probes. [Mappings/limits](../../notes/canonical-builtin-execution.md#canonical-submission-abort-and-positional-inbox-removal).
+
+Complete actual-tree verbose ./...: durable835.670s/61 failed groups,25 other tested packages pass (tools15.780s/public11.737s), no panic/timeout/exclusions. No new failing names. [Inventory](../../notes/canonical-integration-baseline.md). Extra Withdraw/four legacy callers, private eligibility/recovery and broader workstreams remain open; step2 stays active.
+
 ## Atomic boundaries and live queue modes
 
 Public deciding records replace private boundary/lifetime checkpoint expectations. New final/postTools bidirectional hook-barrier tests fail2.105s before the runtime queue-mode fix. Both commits now read current host modes; combined three-shuffle29.235s, expanded80.323s/final31.650s/static/5 semantic faults pass. Original inbox37/submit-in-commit23/structured58 plus separate91 probes zero skipped. Original occupied-Session-line ordering and broader assertion acceptance remain open. [Exact mappings/limits](../../notes/canonical-builtin-execution.md#canonical-atomic-boundaries-and-live-queue-modes).

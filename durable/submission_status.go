@@ -2,8 +2,6 @@ package durable
 
 import (
 	"context"
-	"fmt"
-	"strconv"
 
 	goai "github.com/rcarmo/go-ai"
 )
@@ -124,58 +122,24 @@ func (h *Harness) abortSubmission(ctx context.Context, id ID, scope *ID, binding
 				return nil, ErrSealed
 			}
 		}
-		sub, ok := tx.state.Submissions[id]
-		if !ok || scope != nil && sub.Conversation != *scope {
+		record, found, err := tx.submissionRecord(id)
+		if err != nil {
+			return nil, err
+		}
+		if !found || scope != nil && record.Conversation != *scope {
 			return nil, nil
 		}
-		if terminalStatus(sub.Status) {
+		if record.Status != "queued" {
 			result = "settled"
-			return nil, nil
-		}
-		if sub.Type == "continue" || submissionEntryID(sub.Value["placedEntry"]) != 0 {
-			result = "already_placed"
-			return nil, nil
-		}
-		var queued *Task
-		for _, taskID := range ids(tx.state.Tasks) {
-			task := tx.state.Tasks[taskID]
-			if task.Kind != "pi.generation" {
-				continue
-			}
-			var cp generationCheckpoint
-			if err := fromObject(task.Checkpoint, &cp, tx.limits); err != nil {
-				return nil, err
-			}
-			if !generationIncludesSubmission(cp, id) {
-				continue
-			}
-			if cp.Phase != "queued" || cp.InputEntry != 0 {
-				// Terminal queued placeholders may name inputs adopted by a
-				// successor; only a live/final owning run proves placement.
-				if terminalStatus(task.Status) {
-					continue
-				}
+			if record.Status == "placed" {
 				result = "already_placed"
-				return nil, nil
 			}
-			if len(h.scheduler.ownedLive(tx.state, task.ID)) > 0 {
-				return nil, reject("queued submission owns live work; abort its conversation")
-			}
-			owned, err := copyTask(task, tx.limits)
-			if err != nil {
-				return nil, err
-			}
-			cp.Phase = "terminal"
-			cp.Abort = true
-			owned.Checkpoint, err = dtoObject(cp, tx.limits)
-			if err != nil {
-				return nil, err
-			}
-			owned.Status = "aborted"
-			queued = &owned
+			return nil, nil
 		}
-		// Inbox membership is authoritative for queued writes and queued inputs.
-		inbox, err := builtin(tx, sub.Conversation, "pi.inbox")
+		if err := tx.SettleSubmission(id, SubmissionSettlement{Status: "unanswered", Reason: "aborted"}); err != nil {
+			return nil, err
+		}
+		inbox, err := builtin(tx, record.Conversation, "pi.inbox")
 		if err != nil {
 			return nil, err
 		}
@@ -187,36 +151,19 @@ func (h *Harness) abortSubmission(ctx context.Context, id ID, scope *ID, binding
 		if !ok {
 			return nil, reject("inbox shape")
 		}
-		keep := make([]any, 0, len(items))
-		for _, item := range items {
+		// Source removeInboxItem uses findIndex/splice: remove one position,
+		// not every matching ID, and never mutate an unrelated task.
+		for index, item := range items {
 			object, ok := item.(map[string]any)
 			if !ok {
 				return nil, reject("inbox item")
 			}
-			if fmt.Sprint(object["id"]) == strconv.FormatUint(uint64(id), 10) {
-				continue
+			if submissionEntryID(object["id"]) == id {
+				if err := inbox.ApplyOperations([]Operation{{"p", []any{"items"}, index, 1, []any{}}}); err != nil {
+					return nil, err
+				}
+				break
 			}
-			keep = append(keep, item)
-		}
-		// Raw queued submissions created by application commits need not
-		// have an inbox item. Absence alone cannot prove placement.
-		if queued != nil {
-			if tx.taskTerminals == nil {
-				tx.taskTerminals = map[ID]bool{}
-			}
-			tx.taskTerminals[queued.ID] = true
-			if err := tx.stage(Write{Op: "put-task", Task: queued}); err != nil {
-				return nil, err
-			}
-		}
-		sub.Status = "aborted"
-		sub.Value = JSON{"errorCode": "aborted"}
-		if err := tx.putSubmissionRecord(sub); err != nil {
-			return nil, err
-		}
-		value["items"] = keep
-		if err := inbox.Set(value); err != nil {
-			return nil, err
 		}
 		result = "aborted"
 		return nil, nil

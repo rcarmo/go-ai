@@ -124,3 +124,145 @@ func TestSubmissionReferenceStatusAndAbortDispositionScopeQueuedWrites(t *testin
 		}
 	})
 }
+
+// Source submissions.ts abort settles the queued record and removes only its
+// inbox item. Unrelated canonical tasks remain untouched and are not dispatched.
+func TestSubmissionAbortOwnsOnlyItsCanonicalRecordAndInboxItem(t *testing.T) {
+	for _, kind := range []string{"input", "write"} {
+		t.Run(kind, func(t *testing.T) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+				h := openHarness(t, b.store, Options{})
+				c := root(t, h, ModelRef{})
+				var target, other SubmissionRecord
+				var generation ID
+				trace := goai.TelemetryCarrier{"probe": "kept"}
+				_, err := h.Commit(bg, func(tx *Tx) (any, error) {
+					var err error
+					target, err = tx.CreateSubmission(SubmissionCreate{Conversation: c.ID(), Type: kind, Status: "queued", RequestIDPresent: true, Trace: &trace})
+					if err != nil {
+						return nil, err
+					}
+					other, err = tx.CreateSubmission(SubmissionCreate{Conversation: c.ID(), Type: "input", Status: "queued"})
+					if err != nil {
+						return nil, err
+					}
+					generation, err = tx.CreateTask(GenerationTask(), JSON{}, TaskOptions{Conversation: c.ID(), Ownership: TaskOwnership{Kind: "conversation"}})
+					if err != nil {
+						return nil, err
+					}
+					inbox, err := builtin(tx, c.ID(), "pi.inbox")
+					if err != nil {
+						return nil, err
+					}
+					item := JSON{"id": target.ID, "mode": "followUp", "content": "target"}
+					if kind == "write" {
+						item = JSON{"id": target.ID, "mode": "write", "entry": JSON{"kind": "note"}}
+					}
+					return nil, inbox.Set(JSON{"items": []any{item, JSON{"id": other.ID, "mode": "followUp", "content": "other"}}})
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				before, found, err := h.Task(bg, generation)
+				if err != nil || !found || h.scheduler.enabled.Load() {
+					t.Fatal("canonical task must remain undispatched", before, err)
+				}
+				decision := mainAtomicSourceDecision(t, h, target.ID)
+				if result, err := h.AbortSubmission(bg, target.ID, c.ID()); err != nil || result != "aborted" {
+					t.Fatal(result, err)
+				}
+				publication := decision()
+				submissions, documents := 0, 0
+				for i := range publication.Changes.Len() {
+					change, _ := publication.Changes.Index(i)
+					value := immutableViewMember(t, change, "value")
+					switch immutableViewMember(t, change, "type").String() {
+					case "submission":
+						submissions++
+						want := JSON{"id": float64(target.ID), "conversationId": float64(c.ID()), "type": kind, "status": "unanswered", "reason": "aborted", "requestId": "", "trace": JSON{"probe": "kept"}}
+						if !equalJSONValue(value.Copy(), want) {
+							t.Fatal("exact canonical aborted record", value.Copy(), want)
+						}
+					case "document":
+						documents++
+						metadata := immutableViewMember(t, change, "record")
+						if immutableViewMember(t, metadata, "kind").String() != "pi.inbox" || !equalJSONValue(value.Copy(), JSON{"items": []any{JSON{"id": float64(other.ID), "mode": "followUp", "content": "other"}}}) {
+							t.Fatal("abort must remove only its inbox item", change.Copy())
+						}
+					default:
+						t.Fatal("abort wrote unrelated state", change.Copy())
+					}
+				}
+				if submissions != 1 || documents != 1 {
+					t.Fatal("abort publication cardinality", submissions, documents)
+				}
+				after, found, err := h.Task(bg, generation)
+				if err != nil || !found || !equalJSONValue(before, after) || h.scheduler.enabled.Load() {
+					t.Fatal("abort changed or dispatched unrelated canonical task", after, err)
+				}
+				untouched, found, err := h.session.Submission(bg, other.ID)
+				if err != nil || !found || !equalJSONValue(untouched, other) {
+					t.Fatal("abort changed another queued record", untouched, err)
+				}
+				if result, err := h.AbortSubmission(bg, target.ID); err != nil || result != "settled" {
+					t.Fatal("repeated abort disposition", result, err)
+				}
+			})
+		})
+	}
+}
+
+func TestSubmissionAbortRemovesOnlyFirstMatchingInboxItem(t *testing.T) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+		h := openHarness(t, b.store, Options{})
+		c := root(t, h, ModelRef{})
+		var target, other SubmissionRecord
+		_, err := h.Commit(bg, func(tx *Tx) (any, error) {
+			var err error
+			target, err = tx.CreateSubmission(SubmissionCreate{Conversation: c.ID(), Type: "input", Status: "queued"})
+			if err != nil {
+				return nil, err
+			}
+			other, err = tx.CreateSubmission(SubmissionCreate{Conversation: c.ID(), Type: "input", Status: "queued"})
+			if err != nil {
+				return nil, err
+			}
+			inbox, err := builtin(tx, c.ID(), "pi.inbox")
+			if err != nil {
+				return nil, err
+			}
+			return nil, inbox.Set(JSON{"items": []any{JSON{"id": target.ID, "mode": "followUp", "content": "first"}, JSON{"id": other.ID, "mode": "followUp", "content": "other"}, JSON{"id": target.ID, "mode": "followUp", "content": "duplicate"}}})
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		decision := mainAtomicSourceDecision(t, h, target.ID)
+		if disposition, err := h.AbortSubmission(bg, target.ID); err != nil || disposition != "aborted" {
+			t.Fatal(disposition, err)
+		}
+		publication := decision()
+		found := false
+		for i := range publication.Changes.Len() {
+			change, _ := publication.Changes.Index(i)
+			if immutableViewMember(t, change, "type").String() != "document" {
+				continue
+			}
+			metadata := immutableViewMember(t, change, "record")
+			if immutableViewMember(t, metadata, "kind").String() != "pi.inbox" {
+				continue
+			}
+			found = true
+			value := immutableViewMember(t, change, "value")
+			want := JSON{"items": []any{JSON{"id": float64(other.ID), "mode": "followUp", "content": "other"}, JSON{"id": float64(target.ID), "mode": "followUp", "content": "duplicate"}}}
+			if !equalJSONValue(value.Copy(), want) {
+				t.Fatal("source findIndex/splice removes one position only", value.Copy(), want)
+			}
+			if !equalJSONValue(immutableViewMember(t, change, "ops").Copy(), []any{[]any{"p", []any{"items"}, 0, 1, []any{}}}) {
+				t.Fatal("source positional inbox splice operation", change.Copy())
+			}
+		}
+		if !found {
+			t.Fatal("missing canonical inbox publication")
+		}
+	})
+}

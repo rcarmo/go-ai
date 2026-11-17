@@ -862,3 +862,29 @@ it("preserves JSON diagnostic severities through reported progress and a returne
   }finally{await harness.close(context)}
  }
 });
+
+it("aborts the queued record and removes only the first matching inbox position",async()=>{
+ const {InboxDoc}=await import("@earendil-works/pi-durable"),{chatSetup,openChat}=await import("@pinned/chat");
+ const {harness,root}=await openChat(new ControlledStorage(),chatSetup());
+ try{
+  const {target,other}=await root.commit(async tx=>{
+   const target=await tx.createSubmission({conversationId:root.id,type:"input",status:"queued"});
+   const other=await tx.createSubmission({conversationId:root.id,type:"input",status:"queued"});
+   (await tx.doc(InboxDoc,root.id)).items.push({id:target.id,mode:"followUp",content:"first"},{id:other.id,mode:"followUp",content:"other"},{id:target.id,mode:"followUp",content:"duplicate"});
+   return{target,other};
+  },context);
+  const decided=Promise.withResolvers<any>();
+  const guard=harness.observeCommits({advance:p=>{if(p.changes.some(change=>change.type==="submission"&&change.value.id===target.id&&change.value.status==="unanswered"))decided.resolve(p)},end:()=>{}});
+  try{
+   expect(await harness.abortSubmission(target.id,context)).toBe("aborted");
+   const publication=await decided.promise;
+   expect(publication.changes.filter((change:any)=>change.type==="submission").map((change:any)=>change.value)).toEqual([{...target,status:"unanswered",reason:"aborted"}]);
+   const inbox=publication.changes.find((change:any)=>change.type==="document"&&change.record.kind==="pi.inbox");
+   expect(inbox.value).toEqual({items:[{id:other.id,mode:"followUp",content:"other"},{id:target.id,mode:"followUp",content:"duplicate"}]});
+   expect(inbox.ops).toEqual([["p",["items"],0,1,[]]]);
+   expect(await harness.snapshot(InboxDoc,root.id,context)).toEqual(inbox.value);
+   expect(await(await harness.submission(other.id,context))!.status(context)).toEqual(other);
+   expect(await harness.abortSubmission(target.id,context)).toBe("settled");
+  }finally{guard.detach()}
+ }finally{await harness.close(context)}
+});

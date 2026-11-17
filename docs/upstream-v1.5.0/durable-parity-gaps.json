@@ -1137,7 +1137,7 @@
     "historical": true
   },
   "currentCheckpoint": {
-    "scope": "Canonical migration through588edd3 plus atomic boundary/lifetime consumers and live queue-mode packet. Complete ./... observes64 durable failures/25 other tested packages pass. Two queue/reporter fixture failures subsequently corrected; no post-correction full tree.89c031e remains last fully verified tree.",
+    "scope": "Canonical migration through5224c05 plus canonical record-only submission abort/positional splice packet. Complete verbose ./... observes61 durable failures/25 other tested packages pass; no panic/timeout/exclusions.89c031e remains last fully verified tree.",
     "baseRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
     "lastVerifiedPushed": {
       "revision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
@@ -1262,6 +1262,13 @@
           "topLevelFailureGroups": 64,
           "toolsSeconds": 15.619,
           "consumerSeconds": 13.077
+        },
+        {
+          "seconds": 835.67,
+          "result": "complete verbose ./...;61 durable failure groups;25 other tested packages pass;no panic/timeout/exclusions",
+          "topLevelFailureGroups": 61,
+          "toolsSeconds": 15.78,
+          "consumerSeconds": 11.737
         }
       ],
       "focusedSeconds": 60.888,
@@ -1472,11 +1479,29 @@
         "staticcheck": "v0.8.2 pass",
         "logging": "pass",
         "mapping": "notes/canonical-builtin-execution.md#canonical-atomic-boundaries-and-live-queue-modes"
+      },
+      "submissionAbortPacket": {
+        "status": "bounded pass; full integration red",
+        "redSeconds": 0.37,
+        "preRefactorControlSeconds": 0.85,
+        "shuffledCount": 3,
+        "abortSubsetSeconds": 13.939,
+        "partialAbortSubsetSeconds": 15.08,
+        "expandedShuffledSeconds": 37.265,
+        "semanticFaults": 4,
+        "originalSubmissionsCases": 11,
+        "originalSkipped": 0,
+        "independentProbesPerRun": 92,
+        "vet": "pass",
+        "staticcheck": "v0.8.2 pass",
+        "logging": "pass",
+        "mapping": "notes/canonical-builtin-execution.md#canonical-submission-abort-and-positional-inbox-removal",
+        "remainingExtraAPI": "SubmissionHandle.Withdraw plus four legacy consumers; unaccepted D13"
       }
     },
     "reference": {
       "selectedUnchangedCases": 200,
-      "independentProbes": 82,
+      "independentProbes": 92,
       "separateNestedCases": 125,
       "fullCorpus": "not accepted",
       "currentBlockers": [
@@ -1487,7 +1512,7 @@
     },
     "profiling": "Pre-release CPU/alloc_space/alloc_objects analysis, measured tuning and equivalent-workload remeasurement required.",
     "reviewOnly": "No runtime tests rerun by the planning review; structural register/hash checks are separate.",
-    "execution": "Resumed execution authorised; step1 baseline complete, step2 in progress. Final/postTools queue-mode decisions read host settings inside commits; source/public boundary consumers have bounded passes. Full parity/release acceptance remains open."
+    "execution": "Resumed execution authorised; step1 baseline complete, step2 in progress. AbortSubmission uses canonical record/settlement and one positional inbox splice.61 durable failure groups remain; full parity/release acceptance open."
   },
   "review": {
     "basisRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",

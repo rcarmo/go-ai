@@ -580,7 +580,7 @@ func TestM1cRegistryPhasePinOutputCapAndAtomicAppFailure(t *testing.T) {
 	}
 }
 
-func TestM1cCommittedPartialAndQueuedWithdrawal(t *testing.T) {
+func TestM1cCommittedPartialAndQueuedAbort(t *testing.T) {
 	entered, release := make(chan struct{}), make(chan struct{})
 	committed := make(chan struct{})
 	var acknowledge, releaseOnce sync.Once
@@ -589,12 +589,23 @@ func TestM1cCommittedPartialAndQueuedWithdrawal(t *testing.T) {
 		calls.Add(1)
 		ch := make(chan goai.Event)
 		go func() {
+			defer close(ch)
 			m := terminal("bounded prefix").Message
-			ch <- &goai.TextDeltaEvent{Partial: m, Delta: "bounded prefix"}
+			select {
+			case ch <- &goai.TextDeltaEvent{Partial: m, Delta: "bounded prefix"}:
+			case <-ctx.Done():
+				return
+			}
 			close(entered)
-			<-release
-			ch <- terminal("answer")
-			close(ch)
+			select {
+			case <-release:
+			case <-ctx.Done():
+				return
+			}
+			select {
+			case ch <- terminal("answer"):
+			case <-ctx.Done():
+			}
 		}()
 		return ch
 	})
@@ -607,6 +618,8 @@ func TestM1cCommittedPartialAndQueuedWithdrawal(t *testing.T) {
 		}
 		return nil
 	}
+	zero, within := int64(0), float64(0)
+	options.Settings = &HarnessSettings{Progress: &ProgressSettings{PartialIntervalMs: &zero, PersistWithinMs: &within}}
 	h := openHarness(t, s, options)
 	t.Cleanup(func() { releaseOnce.Do(func() { close(release) }) })
 	r := root(t, h, ref)
@@ -614,42 +627,33 @@ func TestM1cCommittedPartialAndQueuedWithdrawal(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	<-entered
-	<-committed
+	awaitTaskSignal(t, entered)
+	awaitTaskSignal(t, committed)
 	queued, e := r.Submit(bg, Input{Content: "withdraw", RequestID: "withdraw"})
 	if e != nil {
 		t.Fatal(e)
 	}
-	if e = queued.Withdraw(bg); e != nil {
-		t.Fatal(e)
+	if result, err := queued.Abort(bg); err != nil || result != "aborted" {
+		t.Fatal("queued abort", result, err)
 	}
-	if e = first.Withdraw(bg); e == nil {
-		t.Fatal("activeinputwithdrawn")
+	if result, err := first.Abort(bg); err != nil || result != "already_placed" {
+		t.Fatal("active input must remain placed", result, err)
 	}
 	state, e := h.Snapshot(bg)
 	if e != nil {
 		t.Fatal(e)
 	}
-	partialFound := false
-	for _, task := range state.Tasks {
-		var cp generationCheckpoint
-		_ = fromObject(task.Checkpoint, &cp, h.session.limits)
-		if cp.Submission == first.ID() {
-			partial, err := generationPartial(state, task, cp, h.session.limits)
-			if err != nil {
-				t.Fatal(err)
-			}
-			partialFound = partial != nil && partial.Content[0].Text == "bounded prefix"
-		}
+	partial := generationObject(generationObject(mainAbortFailureLive(t, state, r.ID())["generation"])["message"])
+	wantContent := []any{JSON{"type": "text", "text": "bounded prefix"}}
+	if partial["role"] != "assistant" || !equalJSONValue(partial["content"], wantContent) {
+		t.Fatal("canonical partial not committed", partial)
 	}
-	if !partialFound {
-		t.Fatal("partial notcommitted")
-	}
-	if state.Submissions[queued.ID()].Status != "aborted" {
-		t.Fatal("withdrawnotdurable")
+	status, err := queued.Status(bg)
+	if err != nil || status.Status != "unanswered" || status.Reason != "aborted" || status.Entry != 0 || status.Answer != 0 {
+		t.Fatal("queued abort not durable", status, err)
 	}
 	releaseOnce.Do(func() { close(release) })
-	if waitSubmission(t, first).Submission.Status != "done" || waitSubmission(t, queued).Submission.Status != "aborted" || calls.Load() != 1 {
+	if waitSubmission(t, first).Submission.Status != "done" || waitSubmission(t, queued).Record.Reason != "aborted" || calls.Load() != 1 {
 		t.Fatal("withdrawstartedmodel")
 	}
 }
