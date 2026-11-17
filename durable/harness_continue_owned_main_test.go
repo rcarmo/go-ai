@@ -96,7 +96,7 @@ func TestMainContinueOwnedToolAfterModelError(t *testing.T) {
 		if err := registry.Register(ToolRegistration{
 			Definition:     goai.Tool{Name: "delegate", Parameters: json.RawMessage(`{"type":"object"}`)},
 			Implementation: "continue.owned.delegate", Version: 1, ReplaySafe: true,
-			Execute: func(ctx context.Context, _ JSON, api *ToolAPI) (result ToolResult, err error) {
+			Execute: func(ctx context.Context, _ any, api *ToolAPI) (result ToolResult, err error) {
 				ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 				defer cancel()
 				defer func() {

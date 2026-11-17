@@ -20,7 +20,7 @@ func TestNestedTool120StructuredSchemaPresenceValidationAndIsolation(t *testing.
 				} else if mode == "null" {
 					reg.StructuredOutputSchema = JSON{"type": "null"}
 				}
-				reg.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+				reg.Execute = func(context.Context, any, *ToolAPI) (ToolResult, error) {
 					result := ToolResult{Content: "bounded text", Commit: func(*Tx) error { callbacks.Add(1); return nil }}
 					switch mode {
 					case "valid":

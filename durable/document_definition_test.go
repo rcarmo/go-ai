@@ -373,7 +373,7 @@ func TestDocumentDefinitionToolCommitProductionAndReopen(t *testing.T) {
 		return &goai.StreamOptions{APIKey: "LOCAL_TEST"}, nil
 	}}
 	definition := mustDefinition(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "app.typed", Version: 1, Scope: "conversation", History: "rewindable", Fork: "asOf", Initial: func(JSON) (JSON, error) { return JSON{"value": "empty"}, nil }})
-	if e := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "typed", Description: "save typed document", Parameters: json.RawMessage(`{"type":"object","additionalProperties":false}`)}, Implementation: "typed.native", Version: 1, ReplaySafe: true, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+	if e := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "typed", Description: "save typed document", Parameters: json.RawMessage(`{"type":"object","additionalProperties":false}`)}, Implementation: "typed.native", Version: 1, ReplaySafe: true, Execute: func(context.Context, any, *ToolAPI) (ToolResult, error) {
 		effects.Add(1)
 		return ToolResult{Content: "typed saved", Commit: func(tx *Tx) error {
 			h, e := tx.AcquireDocument(definition, 1, nil, nil)

@@ -12,7 +12,7 @@ func TestCommittedLiveGenerationPartialAndToolProgressSlots(t *testing.T) {
 		cleanupTaskGates(t, providerRelease, toolRelease)
 		registry := NewRegistry()
 		registration := wrapRegistration("live-tool")
-		registration.Execute = func(ctx context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+		registration.Execute = func(ctx context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 			if err := api.Output("committed tool output"); err != nil {
 				return ToolResult{}, err
 			}

@@ -12,9 +12,44 @@ import (
 // sourceToolArguments is minted only by the builtin model-tool projection.
 // Its scope permits JavaScript strings in arguments without granting arbitrary
 // task input/checkpoints or caller marshalers UTF-16 encoding authority.
-type sourceToolArguments map[string]any
+type sourceToolArguments struct{ value any }
+
+// A public checkpoint value keeps its JSON shape even when marshalled without
+// the surrounding TaskRecord. The sealed marker grants no caller marshal hooks.
+func (value sourceToolArguments) MarshalJSON() ([]byte, error) {
+	limits := maximumDurableLimits()
+	return encodeBounded(value, limits, limits.MaxRecordBytes)
+}
 
 var sourceToolArgumentsType = reflect.TypeFor[sourceToolArguments]()
+
+func reflectedToolArgumentValue(value reflect.Value) (sourceToolArguments, bool) {
+	for value.IsValid() && value.Kind() == reflect.Interface {
+		if value.IsNil() {
+			return sourceToolArguments{}, false
+		}
+		value = value.Elem()
+	}
+	if value.IsValid() && value.Type() == sourceToolArgumentsType {
+		return value.Interface().(sourceToolArguments), true
+	}
+	return sourceToolArguments{}, false
+}
+
+func unwrapToolArgumentValue(value any) any {
+	if value, ok := value.(sourceToolArguments); ok {
+		return unwrapToolArgumentValue(value.value)
+	}
+	return value
+}
+
+func toolCallArgumentValue(value any) any {
+	value = unwrapToolArgumentValue(value)
+	if object, ok := value.(JSON); ok {
+		return map[string]any(object)
+	}
+	return value
+}
 
 var nativeToolCallType = reflect.TypeFor[goai.ToolCall]()
 var nativeContentBlockType = reflect.TypeFor[goai.ContentBlock]()
@@ -77,6 +112,9 @@ func nativeJSONField(v reflect.Value, field jsonStructField) (reflect.Value, err
 	}
 	switch field.name {
 	case "arguments":
+		if v.Type() == nativeToolCallType {
+			return reflect.ValueOf(sourceToolArguments{value.Interface()}), nil
+		}
 		if nativeArgumentDTO(v.Type()) {
 			return reflect.ValueOf(goai.StreamingArgumentsJSON(value.Interface().(JSON))), nil
 		}

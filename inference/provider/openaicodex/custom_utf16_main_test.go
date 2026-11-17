@@ -35,10 +35,10 @@ func TestCustomUTF16IndexedInputMain(t *testing.T) {
 			if final == nil || len(final.Content) != 2 || len(calls) != 2 {
 				t.Fatal("missing custom calls", final, calls)
 			}
-			if calls[0].Arguments["input"] != "a𐀀\x00" {
+			if calls[0].Arguments.(map[string]any)["input"] != "a𐀀\x00" {
 				t.Fatal("initial/split input lost", calls[0])
 			}
-			low, ok := calls[1].Arguments["input"].(goai.UTF16String)
+			low, ok := calls[1].Arguments.(map[string]any)["input"].(goai.UTF16String)
 			if !ok || !reflect.DeepEqual(low.CodeUnits(), []uint16{0xdfff}) {
 				t.Fatal("isolated input lost", calls[1])
 			}

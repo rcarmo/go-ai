@@ -62,9 +62,12 @@ func Bash(env durable.FileSystem, options ...BashOptions) durable.ToolRegistrati
 		Version:        1,
 		ReplaySafe:     false,
 		OutputLimits:   &durable.ToolOutputLimits{MaxBytes: MaxReadBytes, MaxLines: MaxReadLines, Retain: "tail"},
-		Execute: func(ctx context.Context, args durable.JSON, api *durable.ToolAPI) (durable.ToolResult, error) {
-			// Reference validation runs before acquiring an environment or calling
-			// Prepare; invalid arguments must cause neither host effect.
+		Execute: func(ctx context.Context, rawToolArguments any, api *durable.ToolAPI) (durable.ToolResult, error) {
+			args :=
+				// Reference validation runs before acquiring an environment or calling
+				// Prepare; invalid arguments must cause neither host effect.
+				rawToolArguments.(durable.JSON)
+
 			if _, _, err := bashTimeoutArg(args, "timeout", DefaultBashTimeout); err != nil {
 				return durable.ToolResult{}, err
 			}

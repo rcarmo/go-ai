@@ -134,7 +134,7 @@ func TestCodexArgumentCodeUnitsBothTransportsMain(t *testing.T) {
 			if final.Content[0].Arguments["k"] != "𐀀" {
 				t.Fatal("split pair lost", final.Content[0].Arguments)
 			}
-			low, ok := call.Arguments["low"].(goai.UTF16String)
+			low, ok := call.Arguments.(map[string]any)["low"].(goai.UTF16String)
 			if !ok || !reflect.DeepEqual(low.CodeUnits(), []uint16{0xdfff}) {
 				t.Fatal("isolated final unit lost", call.Arguments)
 			}
@@ -194,7 +194,7 @@ func TestCodexAuthoritativeArgumentReplacementBothTransportsMain(t *testing.T) {
 					t.Fatal("replacement emitted false continuation/lost ownership", deltas, call)
 				}
 				if mode == "invalid" {
-					if !strings.Contains(call.ArgumentsError, low) || len(call.Arguments) != 0 {
+					if !strings.Contains(call.ArgumentsError, low) || len(call.Arguments.(map[string]any)) != 0 {
 						t.Fatal("invalid-call diagnostic lost units", call)
 					}
 					return
@@ -203,7 +203,7 @@ func TestCodexAuthoritativeArgumentReplacementBothTransportsMain(t *testing.T) {
 					t.Fatal(call.ArgumentsError)
 				}
 				if mode == "empty" {
-					if len(call.Arguments) != 0 {
+					if len(call.Arguments.(map[string]any)) != 0 {
 						t.Fatal("empty replacement retained stale values", call.Arguments)
 					}
 					return
@@ -212,8 +212,8 @@ func TestCodexAuthoritativeArgumentReplacementBothTransportsMain(t *testing.T) {
 				if mode == "item_done" {
 					key = "final"
 				}
-				value, ok := call.Arguments[key].(goai.UTF16String)
-				if len(call.Arguments) != 1 || !ok || !reflect.DeepEqual(value.CodeUnits(), []uint16{0xdfff}) {
+				value, ok := call.Arguments.(map[string]any)[key].(goai.UTF16String)
+				if len(call.Arguments.(map[string]any)) != 1 || !ok || !reflect.DeepEqual(value.CodeUnits(), []uint16{0xdfff}) {
 					t.Fatal("authoritative replacement lost units", call.Arguments)
 				}
 			})

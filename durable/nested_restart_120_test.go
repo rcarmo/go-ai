@@ -23,7 +23,7 @@ func TestNestedTool120RestartKeyAndReplayPolicy(t *testing.T) {
 				reg := wrapRegistration("nested_restart")
 				reg.ReplaySafe = safe
 				reg.Callers = []string{"tools"}
-				reg.Execute = func(ctx context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+				reg.Execute = func(ctx context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 					if effects.Add(1) == 1 {
 						if e := api.Output("persisted-prefix"); e != nil {
 							return ToolResult{}, e
@@ -116,7 +116,7 @@ func TestNestedTool120InvalidArgumentsDoNotExecute(t *testing.T) {
 		reg := wrapRegistration("nested_invalid")
 		reg.Definition.Parameters = json.RawMessage(`{"type":"object","properties":{"n":{"type":"integer"}},"required":["n"]}`)
 		var runs atomic.Int64
-		reg.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) { runs.Add(1); return ToolResult{}, nil }
+		reg.Execute = func(context.Context, any, *ToolAPI) (ToolResult, error) { runs.Add(1); return ToolResult{}, nil }
 		if e := registry.Register(reg); e != nil {
 			t.Fatal(e)
 		}

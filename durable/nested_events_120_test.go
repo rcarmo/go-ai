@@ -14,7 +14,8 @@ func testNestedLifecycle120(t *testing.T, blocked, rewrite bool) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		leaf := wrapRegistration("event_leaf")
-		leaf.Execute = func(ctx context.Context, arguments JSON, api *ToolAPI) (ToolResult, error) {
+		leaf.Execute = func(ctx context.Context, rawToolArguments any, api *ToolAPI) (ToolResult, error) {
+			arguments := rawToolArguments.(JSON)
 			if rewrite && !equalJSONValue(arguments, JSON{"n": 2}) {
 				t.Error("executor rewrite missing", arguments)
 			}
@@ -31,7 +32,7 @@ func testNestedLifecycle120(t *testing.T, blocked, rewrite bool) {
 			}
 		}
 		if blocked {
-			leaf.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+			leaf.Execute = func(context.Context, any, *ToolAPI) (ToolResult, error) {
 				t.Error("blocked executor ran")
 				return ToolResult{}, nil
 			}

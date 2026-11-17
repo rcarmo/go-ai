@@ -10,7 +10,7 @@ import (
 func TestTool120ConstraintsPersistAndDetach(t *testing.T) {
 	registry := NewRegistry()
 	constraint := &goai.ToolConstrainedSampling{Type: "grammar", Variants: map[string]string{"openai_lark": "start: /.+/"}}
-	reg := ToolRegistration{Definition: goai.Tool{Name: "grammar_tool", Parameters: json.RawMessage(`{"type":"object"}`), ConstrainedSampling: constraint}, Implementation: "grammar", Version: 1, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) { return ToolResult{}, nil }}
+	reg := ToolRegistration{Definition: goai.Tool{Name: "grammar_tool", Parameters: json.RawMessage(`{"type":"object"}`), ConstrainedSampling: constraint}, Implementation: "grammar", Version: 1, Execute: func(context.Context, any, *ToolAPI) (ToolResult, error) { return ToolResult{}, nil }}
 	if err := registry.Register(reg); err != nil {
 		t.Fatal(err)
 	}

@@ -63,7 +63,7 @@ func TestMainContinueToolHandoffOrderedInputs(t *testing.T) {
 						})
 						registry := NewRegistry()
 						registration := wrapRegistration("continue-tool")
-						registration.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+						registration.Execute = func(context.Context, any, *ToolAPI) (ToolResult, error) {
 							tools.Add(1)
 							return ToolResult{Content: "actual tool result"}, nil
 						}

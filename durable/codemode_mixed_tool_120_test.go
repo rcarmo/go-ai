@@ -31,7 +31,7 @@ func TestCodemode120MixedToolTextProjectionAndReplay(t *testing.T) {
 				var effects atomic.Int64
 				tool := wrapRegistration("mixed")
 				tool.OutputLimits = tc.limits
-				tool.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+				tool.Execute = func(context.Context, any, *ToolAPI) (ToolResult, error) {
 					effects.Add(1)
 					return ToolResult{Blocks: tc.blocks}, nil
 				}

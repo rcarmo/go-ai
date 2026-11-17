@@ -13,7 +13,7 @@ func TestNestedTool120DeepCancellationJoinsLeafBeforeParentSettlement(t *testing
 		cleanupTaskGates(t, release)
 		var leafReturns atomic.Int64
 		leaf := wrapRegistration("abort_leaf")
-		leaf.Execute = func(ctx context.Context, _ JSON, _ *ToolAPI) (ToolResult, error) {
+		leaf.Execute = func(ctx context.Context, _ any, _ *ToolAPI) (ToolResult, error) {
 			close(entered)
 			<-ctx.Done()
 			close(cancelled)
@@ -25,7 +25,7 @@ func TestNestedTool120DeepCancellationJoinsLeafBeforeParentSettlement(t *testing
 			t.Fatal(e)
 		}
 		middle := wrapRegistration("abort_middle")
-		middle.Execute = func(ctx context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+		middle.Execute = func(ctx context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 			return api.CallToolAuto(ctx, "abort_leaf", JSON{})
 		}
 		if e := registry.Register(middle); e != nil {

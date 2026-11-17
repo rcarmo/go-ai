@@ -14,7 +14,7 @@ func TestInboxSteerAfterToolsSharesAnswerAndFollowUpStartsNextRun(t *testing.T) 
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered, release := make(chan struct{}), make(chan struct{})
 		registry := NewRegistry()
-		if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "hold", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "steer.hold", Version: 1, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+		if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "hold", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "steer.hold", Version: 1, Execute: func(context.Context, any, *ToolAPI) (ToolResult, error) {
 			close(entered)
 			<-release
 			return ToolResult{Content: "tool result"}, nil

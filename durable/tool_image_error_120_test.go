@@ -43,7 +43,7 @@ func checkTool120ErrorImage(t *testing.T, reconnect bool) {
 		data := base64.StdEncoding.EncodeToString([]byte(strings.Repeat("hello", 40000)))
 		var effects, seen, requests atomic.Int64
 		tool := wrapRegistration("failed_image")
-		tool.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+		tool.Execute = func(context.Context, any, *ToolAPI) (ToolResult, error) {
 			effects.Add(1)
 			return ToolResult{IsError: true, Blocks: []goai.ContentBlock{{Type: "text", Text: "partial"}, {Type: "image", MimeType: "image/png", Data: data}}}, nil
 		}

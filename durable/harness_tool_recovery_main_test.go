@@ -41,7 +41,7 @@ func mainToolRecoverySetup(t *testing.T, safe bool) mainToolRecovery {
 	f := mainToolRecovery{ref: ref, options: options, runs: make(chan *mainToolRun, 8), count: new(atomic.Int64), clock: new(atomic.Int64)}
 	f.clock.Store(1000)
 	registry := NewRegistry()
-	if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "work", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "main.recovery.work", Version: 1, ReplaySafe: safe, Execute: func(ctx context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+	if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "work", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "main.recovery.work", Version: 1, ReplaySafe: safe, Execute: func(ctx context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 		run := &mainToolRun{number: f.count.Add(1), output: make(chan string, 1), finish: make(chan struct{})}
 		f.runs <- run
 		if !safe && run.number > 1 {

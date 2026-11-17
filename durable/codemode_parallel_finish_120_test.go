@@ -21,7 +21,7 @@ func TestCodemode120ParallelFinishAbortsNestedCalls(t *testing.T) {
 				entered := make(chan struct{})
 				var effects atomic.Int64
 				slow := wrapRegistration("codemode_slow")
-				slow.Execute = func(ctx context.Context, _ JSON, _ *ToolAPI) (ToolResult, error) {
+				slow.Execute = func(ctx context.Context, _ any, _ *ToolAPI) (ToolResult, error) {
 					effects.Add(1)
 					close(entered)
 					<-ctx.Done()
@@ -31,7 +31,7 @@ func TestCodemode120ParallelFinishAbortsNestedCalls(t *testing.T) {
 					t.Fatal(err)
 				}
 				fast := wrapRegistration("codemode_fast")
-				fast.Execute = func(ctx context.Context, _ JSON, _ *ToolAPI) (ToolResult, error) {
+				fast.Execute = func(ctx context.Context, _ any, _ *ToolAPI) (ToolResult, error) {
 					select {
 					case <-entered:
 						return ToolResult{Content: "ok"}, nil

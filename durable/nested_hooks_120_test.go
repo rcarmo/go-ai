@@ -21,7 +21,8 @@ func TestNestedTool120HooksRewriteBlockAndReplaceDetachedResults(t *testing.T) {
 				var before, after, runs atomic.Int64
 				reg := wrapRegistration("nested_hook")
 				reg.Definition.Parameters = json.RawMessage(`{"type":"object","properties":{"n":{"type":"integer"}},"required":["n"]}`)
-				reg.Execute = func(_ context.Context, args JSON, _ *ToolAPI) (ToolResult, error) {
+				reg.Execute = func(_ context.Context, rawToolArguments any, _ *ToolAPI) (ToolResult, error) {
+					args := rawToolArguments.(JSON)
 					runs.Add(1)
 					if args["n"] != json.Number("2") {
 						t.Fatal("hook rewrite missing", args)

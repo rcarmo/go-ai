@@ -16,7 +16,7 @@ func TestCodemode120QuickJSAliasesAndHiddenTools(t *testing.T) {
 		registry := NewRegistry()
 		var effects atomic.Int64
 		leaf := wrapRegistration("mcp.leaf")
-		leaf.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+		leaf.Execute = func(context.Context, any, *ToolAPI) (ToolResult, error) {
 			effects.Add(1)
 			return ToolResult{Content: "leaf"}, nil
 		}
@@ -24,7 +24,7 @@ func TestCodemode120QuickJSAliasesAndHiddenTools(t *testing.T) {
 			t.Fatal(err)
 		}
 		hidden := wrapRegistration("pi.codemode.secret")
-		hidden.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+		hidden.Execute = func(context.Context, any, *ToolAPI) (ToolResult, error) {
 			t.Error("reserved tool exposed")
 			return ToolResult{}, nil
 		}

@@ -24,7 +24,7 @@ func testQuickJSUnsupportedParallel120(t *testing.T, drains bool) {
 		registry := NewRegistry()
 		var effects atomic.Int64
 		leaf := wrapRegistration("codemode_leaf")
-		leaf.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+		leaf.Execute = func(context.Context, any, *ToolAPI) (ToolResult, error) {
 			effects.Add(1)
 			return ToolResult{Content: "leaf"}, nil
 		}

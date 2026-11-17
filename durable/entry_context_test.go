@@ -179,7 +179,7 @@ func testEntryContextActualHTTP(t *testing.T, configured bool) {
 	}}
 	if configured {
 		registry := NewRegistry()
-		err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "keep", Description: "kept", Parameters: json.RawMessage(`{"type":"object","properties":{}}`)}, Implementation: "keep", Version: 1, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+		err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "keep", Description: "kept", Parameters: json.RawMessage(`{"type":"object","properties":{}}`)}, Implementation: "keep", Version: 1, Execute: func(context.Context, any, *ToolAPI) (ToolResult, error) {
 			t.Error("declaration-only fixture executed a tool")
 			return ToolResult{}, nil
 		}})

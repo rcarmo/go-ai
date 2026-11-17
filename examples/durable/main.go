@@ -47,7 +47,8 @@ func run() error {
 	}))
 	defer server.Close()
 	registry := durable.NewRegistry()
-	if err := registry.Register(durable.ToolRegistration{Definition: goai.Tool{Name: "sum", Description: "Add two bounded integers", Parameters: json.RawMessage(`{"type":"object","properties":{"a":{"type":"integer","minimum":0,"maximum":100},"b":{"type":"integer","minimum":0,"maximum":100}},"required":["a","b"],"additionalProperties":false}`)}, Implementation: "example.sum", Version: 1, ReplaySafe: true, Execute: func(ctx context.Context, args durable.JSON, api *durable.ToolAPI) (durable.ToolResult, error) {
+	if err := registry.Register(durable.ToolRegistration{Definition: goai.Tool{Name: "sum", Description: "Add two bounded integers", Parameters: json.RawMessage(`{"type":"object","properties":{"a":{"type":"integer","minimum":0,"maximum":100},"b":{"type":"integer","minimum":0,"maximum":100}},"required":["a","b"],"additionalProperties":false}`)}, Implementation: "example.sum", Version: 1, ReplaySafe: true, Execute: func(ctx context.Context, rawToolArguments any, api *durable.ToolAPI) (durable.ToolResult, error) {
+		args := rawToolArguments.(durable.JSON)
 		a, err := args["a"].(json.Number).Int64()
 		if err != nil {
 			return durable.ToolResult{}, err

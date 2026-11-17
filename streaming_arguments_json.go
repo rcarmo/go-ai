@@ -17,10 +17,7 @@ type StreamingArgumentsJSON = jsonparse.ArgumentsObject
 
 // SetStreamingArguments installs parser-produced JSON values and a diagnostic.
 // Raw parser state is never attached to the tool call.
-func (t *ToolCall) SetStreamingArguments(args map[string]any, diagnostic string) {
-	if args == nil {
-		args = map[string]any{}
-	}
+func (t *ToolCall) SetStreamingArguments(args any, diagnostic string) {
 	t.Arguments = args
 	t.ArgumentsError = diagnostic
 	t.streamingArguments = true
@@ -38,14 +35,25 @@ func (b *ContentBlock) SetStreamingArguments(args map[string]any, diagnostic str
 func (t ToolCall) HasStreamingArguments() bool     { return t.streamingArguments }
 func (b ContentBlock) HasStreamingArguments() bool { return b.streamingArguments }
 
-func streamingArgumentsFields(args map[string]any, diagnostic string, native bool) (any, any, error) {
+// Coerced schema values may be arrays or scalars as well as model-call objects.
+type streamingArgumentValue struct{ value any }
+
+func (v streamingArgumentValue) MarshalJSON() ([]byte, error) {
+	return jsonparse.MarshalParsedJSONValue(v.value)
+}
+
+func streamingArgumentsFields(args any, diagnostic string, native bool) (any, any, error) {
 	var arguments any = args
 	var message any
 	if diagnostic != "" {
 		message = diagnostic
 	}
 	if native {
-		arguments = StreamingArgumentsJSON(args)
+		if object, ok := args.(map[string]any); ok {
+			arguments = StreamingArgumentsJSON(object)
+		} else {
+			arguments = streamingArgumentValue{args}
+		}
 		if diagnostic != "" {
 			var err error
 			message, err = jsonparse.UTF16Text(diagnostic)

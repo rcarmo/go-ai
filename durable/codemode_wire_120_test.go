@@ -134,7 +134,7 @@ func testCodemodeRawGrammarHTTP(t *testing.T, api goai.Api, interrupted ...bool)
 		defer server.Close()
 		registry := NewRegistry()
 		leaf := wrapRegistration("wire_leaf")
-		leaf.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+		leaf.Execute = func(context.Context, any, *ToolAPI) (ToolResult, error) {
 			effects.Add(1)
 			return ToolResult{Content: "wire-leaf"}, nil
 		}

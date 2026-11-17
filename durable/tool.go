@@ -37,14 +37,15 @@ type ToolRegistration struct {
 	ExecutionMode          string
 	// PrepareArguments repairs detached model arguments before validation. Its
 	// result is persisted as intent; it never reruns for a started recovery.
-	PrepareArguments func(context.Context, JSON) (JSON, error)
+	PrepareArguments func(context.Context, any) (any, error)
 	// Nil uses 50KiB/2000-line head retention. Configured limits select a
 	// bounded head/tail window and report discarded progress counts.
 	OutputLimits *ToolOutputLimits
-	// Validator is required for schemas outside the enforced native subset. It
-	// returns final rewritten arguments before intent and is NOT rerun on recovery.
-	Validator func(context.Context, JSON) (JSON, error)
-	Execute   func(context.Context, JSON, *ToolAPI) (ToolResult, error)
+	// Validator is a legacy native callback without a pinned source export.
+	// Shared schema validation still runs after it. Source callers use
+	// PrepareArguments; removal of this extra native API remains open.
+	Validator func(context.Context, any) (any, error)
+	Execute   func(context.Context, any, *ToolAPI) (ToolResult, error)
 }
 type toolOffer struct {
 	ConstrainedSampling    *goai.ToolConstrainedSampling `json:"constrainedSampling,omitempty"`
@@ -66,9 +67,9 @@ type registeredTool struct {
 	extension string // process-local installer, never an intent field
 	paidModel bool
 	offer     toolOffer
-	execute   func(context.Context, JSON, *ToolAPI) (ToolResult, error)
-	validator func(context.Context, JSON) (JSON, error)
-	prepare   func(context.Context, JSON) (JSON, error)
+	execute   func(context.Context, any, *ToolAPI) (ToolResult, error)
+	validator func(context.Context, any) (any, error)
+	prepare   func(context.Context, any) (any, error)
 }
 type Registry struct {
 	mu                   sync.RWMutex
@@ -894,7 +895,7 @@ func sameImplementation(a, b toolOffer) bool {
 
 // Recover only application validation code; argument detachment, schema checks
 // and durable admissions execute outside this host callback fence.
-func callToolValidator(validate func(context.Context, JSON) (JSON, error), ctx context.Context, args JSON) (owned JSON, err error) {
+func callToolValidator(validate func(context.Context, any) (any, error), ctx context.Context, args any) (owned any, err error) {
 	defer func() {
 		if recover() != nil {
 			owned = nil
@@ -905,10 +906,24 @@ func callToolValidator(validate func(context.Context, JSON) (JSON, error), ctx c
 }
 
 func validateArguments(ctx context.Context, reg registeredTool, args JSON, l Limits) (JSON, error) {
-	return validateScopedArguments(ctx, reg, args, l, false)
+	return validateObjectScopedArguments(ctx, reg, args, l, false)
 }
-func validateScopedArguments(ctx context.Context, reg registeredTool, args JSON, l Limits, native bool) (JSON, error) {
-	owned, e := copyScopedToolArguments(args, native, l)
+
+// Retired object-only execution DTOs cannot carry a source value union. Public
+// canonical Tool3 execution calls validateScopedArguments directly.
+func validateObjectScopedArguments(ctx context.Context, reg registeredTool, args any, l Limits, native bool) (JSON, error) {
+	value, err := validateScopedArguments(ctx, reg, args, l, native)
+	if err != nil {
+		return nil, err
+	}
+	object, ok := value.(JSON)
+	if !ok {
+		return nil, reject("object arguments required by object DTO")
+	}
+	return object, nil
+}
+func validateScopedArguments(ctx context.Context, reg registeredTool, args any, l Limits, native bool) (any, error) {
+	owned, e := copyScopedToolValue(args, native, l)
 	if e != nil {
 		return nil, e
 	}
@@ -917,7 +932,7 @@ func validateScopedArguments(ctx context.Context, reg registeredTool, args JSON,
 		if e != nil {
 			return nil, reject("tool argument preparation failed")
 		}
-		owned, e = copyScopedToolArguments(owned, native, l)
+		owned, e = copyScopedToolValue(owned, native, l)
 		if e != nil {
 			return nil, e
 		}
@@ -927,7 +942,7 @@ func validateScopedArguments(ctx context.Context, reg registeredTool, args JSON,
 		if e != nil {
 			return nil, reject("tool validation failed")
 		}
-		owned, e = copyScopedToolArguments(owned, native, l)
+		owned, e = copyScopedToolValue(owned, native, l)
 		if e != nil {
 			return nil, e
 		}
@@ -936,7 +951,7 @@ func validateScopedArguments(ctx context.Context, reg registeredTool, args JSON,
 	if e != nil {
 		return nil, e
 	}
-	call := goai.ToolCall{Name: reg.offer.Name, Arguments: map[string]any(owned)}
+	call := goai.ToolCall{Name: reg.offer.Name, Arguments: toolCallArgumentValue(owned)}
 	if native {
 		call.SetStreamingArguments(call.Arguments, "")
 	}
@@ -944,7 +959,7 @@ func validateScopedArguments(ctx context.Context, reg registeredTool, args JSON,
 	if e != nil {
 		return nil, e
 	}
-	return copyScopedToolArguments(JSON(validated), native, l)
+	return copyScopedToolValue(validated, native, l)
 }
 
 func (h *Harness) acceptTools(parent Task, cp generationCheckpoint, message messageReceipt) error {
@@ -1358,7 +1373,7 @@ func (h *Harness) executeTool(task Task, runtime *TaskRuntime) (finalErr error) 
 		if cp.ArgumentsError != "" {
 			return h.finishTool(task, cp, ToolResult{IsError: true, Diagnostics: []ToolDiagnostic{{Severity: "error", Code: "invalid_arguments", Message: fmt.Sprintf(`Invalid arguments for tool "%s": %s`, cp.Offer.Name, cp.ArgumentsError), argumentError: true}}}, "invalid_arguments")
 		}
-		cp.Arguments, err = validateScopedArguments(runtime.context, reg, cp.Arguments, h.session.limits, cp.StreamingArguments)
+		cp.Arguments, err = validateObjectScopedArguments(runtime.context, reg, cp.Arguments, h.session.limits, cp.StreamingArguments)
 		if err != nil {
 			return h.finishTool(task, cp, ToolResult{}, "invalid_arguments")
 		}
@@ -1401,7 +1416,7 @@ func (h *Harness) executeTool(task Task, runtime *TaskRuntime) (finalErr error) 
 			// Revalidate hook-rewritten arguments, without rerunning prepare.
 			checked := reg
 			checked.prepare = nil
-			cp.Arguments, err = validateScopedArguments(runtime.context, checked, cp.Arguments, h.session.limits, cp.StreamingArguments)
+			cp.Arguments, err = validateObjectScopedArguments(runtime.context, checked, cp.Arguments, h.session.limits, cp.StreamingArguments)
 			if err != nil {
 				code = "invalid_arguments"
 			}

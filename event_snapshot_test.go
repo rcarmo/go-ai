@@ -24,8 +24,8 @@ func TestSnapshotEventOwnsMutableProviderPartial(t *testing.T) {
 	}
 	call := ToolCall{ID: "call", Arguments: map[string]any{"value": "original"}}
 	ended := SnapshotEvent(&ToolCallEndEvent{Partial: partial, ToolCall: call}).(*ToolCallEndEvent)
-	call.Arguments["value"] = "mutated"
-	if ended.ToolCall.Arguments["value"] != "original" {
+	call.Arguments.(map[string]any)["value"] = "mutated"
+	if ended.ToolCall.Arguments.(map[string]any)["value"] != "original" {
 		t.Fatal("ended tool args alias")
 	}
 }

@@ -22,7 +22,8 @@ func ToolSearchRegistration(limit int) (ToolRegistration, error) {
 	if limit < 1 || limit > MaxTools {
 		return ToolRegistration{}, reject("invalid tool search limit")
 	}
-	return ToolRegistration{Definition: goai.Tool{Name: ToolSearchName, Description: "Find deferred tools by name or description and load them for the next call.", Parameters: json.RawMessage(`{"type":"object","properties":{"query":{"type":"string","description":"Keywords for a tool name, description or parameters."}},"required":["query"]}`)}, Implementation: "pi.tool_search", Version: 1, ReplaySafe: true, Callers: []string{"model"}, Execute: func(ctx context.Context, args JSON, api *ToolAPI) (ToolResult, error) {
+	return ToolRegistration{Definition: goai.Tool{Name: ToolSearchName, Description: "Find deferred tools by name or description and load them for the next call.", Parameters: json.RawMessage(`{"type":"object","properties":{"query":{"type":"string","description":"Keywords for a tool name, description or parameters."}},"required":["query"]}`)}, Implementation: "pi.tool_search", Version: 1, ReplaySafe: true, Callers: []string{"model"}, Execute: func(ctx context.Context, rawToolArguments any, api *ToolAPI) (ToolResult, error) {
+		args := rawToolArguments.(JSON)
 		query, ok := args["query"].(string)
 		if !ok || strings.TrimSpace(query) == "" {
 			return ToolResult{}, reject("query must be a non-empty string")

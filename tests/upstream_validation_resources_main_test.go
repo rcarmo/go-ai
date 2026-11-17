@@ -64,7 +64,7 @@ func TestUpstreamMainValidationResourcesOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got["tree"].(map[string]interface{})["children"].([]interface{})[0].(map[string]interface{})["name"] = "changed"
+	got.(map[string]any)["tree"].(map[string]interface{})["children"].([]interface{})[0].(map[string]interface{})["name"] = "changed"
 	if child["name"] != 1 || !bytes.Equal(parameters, before) {
 		t.Fatal("caller arguments/schema changed")
 	}
@@ -81,7 +81,7 @@ func TestUpstreamMainValidationResourcesFreshCalls(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got["v"] != tc.want {
+		if got.(map[string]any)["v"] != tc.want {
 			t.Fatalf("cross-call resource cache: %#v", got)
 		}
 	}

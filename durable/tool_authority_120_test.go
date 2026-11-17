@@ -64,7 +64,7 @@ func TestTool120ModelCannotInvokeInternalOrDeferredTools(t *testing.T) {
 				} else {
 					reg.Callers = []string{}
 				}
-				reg.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+				reg.Execute = func(context.Context, any, *ToolAPI) (ToolResult, error) {
 					runs++
 					return ToolResult{Content: "forbidden"}, nil
 				}

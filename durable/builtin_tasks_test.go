@@ -23,7 +23,7 @@ func TestMainBuiltinCanonicalPublicationsV150(t *testing.T) {
 		t.Fatal(err)
 	}
 	registry := NewRegistry()
-	if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "tool-c1", Description: "tool-c1 tool", Parameters: []byte(`{"type":"object","properties":{}}`)}, Implementation: "oracle.c1", Version: 1, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) { return ToolResult{}, nil }}); err != nil {
+	if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "tool-c1", Description: "tool-c1 tool", Parameters: []byte(`{"type":"object","properties":{}}`)}, Implementation: "oracle.c1", Version: 1, Execute: func(context.Context, any, *ToolAPI) (ToolResult, error) { return ToolResult{}, nil }}); err != nil {
 		t.Fatal(err)
 	}
 	var requests atomic.Int64
@@ -149,7 +149,7 @@ func TestBuiltinTaskPublicProgressionMatchesSourceV150(t *testing.T) {
 			firstStored := make(chan struct{})
 			var firstOnce sync.Once
 			for _, name := range []string{"tool-c1", "tool-c2"} {
-				if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: name, Description: name + " tool", Parameters: []byte(`{"type":"object","properties":{}}`)}, Implementation: "oracle." + name, Version: 1, Execute: func(ctx context.Context, _ JSON, _ *ToolAPI) (ToolResult, error) {
+				if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: name, Description: name + " tool", Parameters: []byte(`{"type":"object","properties":{}}`)}, Implementation: "oracle." + name, Version: 1, Execute: func(ctx context.Context, _ any, _ *ToolAPI) (ToolResult, error) {
 					if name != "tool-"+scenario.firstCall {
 						select {
 						case <-firstStored:
@@ -316,7 +316,7 @@ func TestBuiltinTaskPublicProgressionMatchesSourceV150(t *testing.T) {
 func TestBuiltinToolUTF16ReadonlySubtrees(t *testing.T) {
 	scalar := toolUTF16Scalar(t, `"\ud800"`)
 	key := scalar.WTF8()
-	arguments, err := NewImmutableValue(sourceToolArguments{"nested": JSON{key: scalar}, "array": []any{scalar}}, DefaultLimits())
+	arguments, err := NewImmutableValue(sourceToolArguments{JSON{"nested": JSON{key: scalar}, "array": []any{scalar}}}, DefaultLimits())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -446,7 +446,8 @@ func TestSourceCanonicalToolModelExecutionAndMigration(t *testing.T) {
 			}
 			registry := NewRegistry()
 			var calls atomic.Int64
-			if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "echo", Parameters: []byte(`{"type":"object","properties":{"text":{"type":"string"}},"required":["text"]}`)}, Implementation: "canonical.echo", Version: 1, Execute: func(_ context.Context, args JSON, _ *ToolAPI) (ToolResult, error) {
+			if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "echo", Parameters: []byte(`{"type":"object","properties":{"text":{"type":"string"}},"required":["text"]}`)}, Implementation: "canonical.echo", Version: 1, Execute: func(_ context.Context, rawToolArguments any, _ *ToolAPI) (ToolResult, error) {
+				args := rawToolArguments.(JSON)
 				calls.Add(1)
 				return ToolResult{Content: args["text"].(string)}, nil
 			}}); err != nil {
@@ -513,7 +514,7 @@ func TestSourceCanonicalGenerationModelAndToolExecution(t *testing.T) {
 				t.Fatal(err)
 			}
 			registry := NewRegistry()
-			if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "echo", Parameters: []byte(`{"type":"object","properties":{}}`)}, Implementation: "source.echo", Version: 1, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) { return ToolResult{Content: "echoed"}, nil }}); err != nil {
+			if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "echo", Parameters: []byte(`{"type":"object","properties":{}}`)}, Implementation: "source.echo", Version: 1, Execute: func(context.Context, any, *ToolAPI) (ToolResult, error) { return ToolResult{Content: "echoed"}, nil }}); err != nil {
 				t.Fatal(err)
 			}
 			var requests atomic.Int64
@@ -593,7 +594,7 @@ func TestSourceCanonicalToolThrownExecutionFails(t *testing.T) {
 		t.Fatal(err)
 	}
 	registry := NewRegistry()
-	if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "thrower", Parameters: []byte(`{"type":"object","properties":{}}`)}, Implementation: "source.thrower", Version: 1, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+	if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "thrower", Parameters: []byte(`{"type":"object","properties":{}}`)}, Implementation: "source.thrower", Version: 1, Execute: func(context.Context, any, *ToolAPI) (ToolResult, error) {
 		return ToolResult{}, fmt.Errorf("private failure")
 	}}); err != nil {
 		t.Fatal(err)
@@ -638,7 +639,7 @@ func TestSourceCanonicalToolRecoveryReplayPolicy(t *testing.T) {
 			}
 			registry := NewRegistry()
 			var calls atomic.Int64
-			if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "recover", Parameters: []byte(`{"type":"object","properties":{}}`)}, Implementation: "source.recover", Version: 1, ReplaySafe: safe, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+			if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "recover", Parameters: []byte(`{"type":"object","properties":{}}`)}, Implementation: "source.recover", Version: 1, ReplaySafe: safe, Execute: func(context.Context, any, *ToolAPI) (ToolResult, error) {
 				calls.Add(1)
 				return ToolResult{Content: "replayed"}, nil
 			}}); err != nil {
@@ -697,13 +698,13 @@ func TestSourceCanonicalToolNestedUsesSameDefinition(t *testing.T) {
 	}
 	registry := NewRegistry()
 	var leaf atomic.Int64
-	if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "leaf", Parameters: []byte(`{"type":"object","properties":{}}`)}, Implementation: "source.leaf", Version: 1, StructuredOutputSchema: JSON{"type": "object", "properties": JSON{"value": JSON{"type": "string"}}, "required": []any{"value"}}, Callers: []string{"tools"}, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+	if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "leaf", Parameters: []byte(`{"type":"object","properties":{}}`)}, Implementation: "source.leaf", Version: 1, StructuredOutputSchema: JSON{"type": "object", "properties": JSON{"value": JSON{"type": "string"}}, "required": []any{"value"}}, Callers: []string{"tools"}, Execute: func(context.Context, any, *ToolAPI) (ToolResult, error) {
 		leaf.Add(1)
 		return ToolResult{StructuredOutput: JSON{"value": "owned"}, HasStructuredOutput: true, Diagnostics: []ToolDiagnostic{{Severity: "invalid", Message: "strict JSON severity"}}}, nil
 	}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "parent", Parameters: []byte(`{"type":"object","properties":{}}`)}, Implementation: "source.parent", Version: 1, Execute: func(ctx context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+	if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "parent", Parameters: []byte(`{"type":"object","properties":{}}`)}, Implementation: "source.parent", Version: 1, Execute: func(ctx context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 		value, err := api.CallTool(ctx, "stable", "leaf", JSON{})
 		if err != nil {
 			t.Error("canonical nested call", err)
@@ -771,7 +772,7 @@ func TestSourceCanonicalToolNestedUnavailableSettles(t *testing.T) {
 	}
 	registry := NewRegistry()
 	var leaf atomic.Int64
-	if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "parent", Parameters: []byte(`{"type":"object","properties":{}}`)}, Implementation: "source.parent", Version: 1, Execute: func(ctx context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+	if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "parent", Parameters: []byte(`{"type":"object","properties":{}}`)}, Implementation: "source.parent", Version: 1, Execute: func(ctx context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 		value, err := api.CallTool(ctx, "stable", "leaf", JSON{})
 		if err != nil {
 			t.Error("canonical nested call", err)

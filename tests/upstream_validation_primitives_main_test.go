@@ -94,8 +94,8 @@ func TestUpstreamMainValidationPrimitivesNativePrecision(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got["v"] != tc.expected {
-				t.Fatalf("got %T %v, want %T %v", got["v"], got["v"], tc.expected, tc.expected)
+			if got.(map[string]any)["v"] != tc.expected {
+				t.Fatalf("got %T %v, want %T %v", got.(map[string]any)["v"], got.(map[string]any)["v"], tc.expected, tc.expected)
 			}
 			if args["v"] != tc.value {
 				t.Fatal("input changed")
@@ -112,9 +112,9 @@ func TestUpstreamMainValidationPrimitivesSignedZero(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			value, ok := got["v"].(float64)
+			value, ok := got.(map[string]any)["v"].(float64)
 			if !ok || value != 0 || !math.Signbit(value) {
-				t.Fatalf("negative zero lost: %T %v", got["v"], got["v"])
+				t.Fatalf("negative zero lost: %T %v", got.(map[string]any)["v"], got.(map[string]any)["v"])
 			}
 		})
 	}

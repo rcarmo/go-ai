@@ -33,7 +33,7 @@ func TestCodemode120HostPanicContainmentAndAdmissionRelease(t *testing.T) {
 			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				registry := NewRegistry()
 				reg := wrapRegistration("codemode_leaf")
-				reg.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) { return ToolResult{Content: "leaf"}, nil }
+				reg.Execute = func(context.Context, any, *ToolAPI) (ToolResult, error) { return ToolResult{Content: "leaf"}, nil }
 				if e := registry.Register(reg); e != nil {
 					t.Fatal(e)
 				}

@@ -21,7 +21,8 @@ func TestCodemodeUTF16MainQuickJSExecutionReopen(t *testing.T) {
 				reg := wrapRegistration("unicode_leaf")
 				reg.ReplaySafe = true
 				reg.Definition.Parameters = json.RawMessage(`{"type":"object"}`)
-				reg.Execute = func(ctx context.Context, args JSON, _ *ToolAPI) (ToolResult, error) {
+				reg.Execute = func(ctx context.Context, rawToolArguments any, _ *ToolAPI) (ToolResult, error) {
+					args := rawToolArguments.(JSON)
 					requireToolUTF16(t, args[key], 0xdfff)
 					args[key] = "host mutation"
 					if effects.Add(1) == 1 {

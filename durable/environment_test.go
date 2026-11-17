@@ -26,7 +26,7 @@ func TestEnvironmentFactoryAbortAndFailureFenceEffects(t *testing.T) {
 			reported := make(chan error, 16)
 			var effects, calls atomic.Int64
 			var toolIssued, factoryEntered atomic.Bool
-			if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "env", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "env.test", Version: 1, Execute: func(ctx context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+			if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "env", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "env.test", Version: 1, Execute: func(ctx context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 				env, err := api.Environment(ctx)
 				if err != nil {
 					return ToolResult{}, err

@@ -1575,7 +1575,7 @@ func TestSubmitInModelVisibleWriteQueueAndPlacement(t *testing.T) {
 	}
 	entered, gate := make(chan struct{}), make(chan struct{})
 	registry := NewRegistry()
-	if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "hold", Parameters: []byte(`{"type":"object","properties":{}}`)}, Implementation: "source.hold", Version: 1, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+	if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "hold", Parameters: []byte(`{"type":"object","properties":{}}`)}, Implementation: "source.hold", Version: 1, Execute: func(context.Context, any, *ToolAPI) (ToolResult, error) {
 		close(entered)
 		<-gate
 		return ToolResult{}, nil

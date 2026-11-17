@@ -44,7 +44,7 @@ func mainCutoffHooksSetup(t *testing.T, after func(context.Context, goai.ToolCal
 	window := float64(0)
 	f.options.Settings = &HarnessSettings{RestartLimit: &limit, Progress: &ProgressSettings{OutputIntervalMs: &zero, PersistWithinMs: &window}}
 	f.options.Registry = NewRegistry()
-	err := f.options.Registry.Install(&Extension{Name: "cutoff-result", Tools: []ToolRegistration{{Definition: goai.Tool{Name: "work", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "cutoff.result", Version: 1, OutputLimits: limits, Execute: func(ctx context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+	err := f.options.Registry.Install(&Extension{Name: "cutoff-result", Tools: []ToolRegistration{{Definition: goai.Tool{Name: "work", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "cutoff.result", Version: 1, OutputLimits: limits, Execute: func(ctx context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 		n := f.runs.Add(1)
 		if err := api.Output("work " + strings.Repeat("o", 40) + "\n"); err != nil {
 			return ToolResult{}, err
@@ -223,7 +223,7 @@ func TestMainCutoffHooksNormalizeReplacement(t *testing.T) {
 		store := mainAfterRecoveryCrash(t, h, b.store)
 		// A newly installed registration supplies current limits, not the
 		// old intent's defaults. The tool itself must never be redispatched.
-		if err := f.options.Registry.Install(&Extension{Name: "current-limits", Tools: []ToolRegistration{{Definition: goai.Tool{Name: "work", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "cutoff.result", Version: 1, OutputLimits: &ToolOutputLimits{MaxBytes: 4, MaxLines: 2000, Retain: "head"}, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+		if err := f.options.Registry.Install(&Extension{Name: "current-limits", Tools: []ToolRegistration{{Definition: goai.Tool{Name: "work", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "cutoff.result", Version: 1, OutputLimits: &ToolOutputLimits{MaxBytes: 4, MaxLines: 2000, Retain: "head"}, Execute: func(context.Context, any, *ToolAPI) (ToolResult, error) {
 			t.Error("cutoff redispatched new tool")
 			return ToolResult{}, nil
 		}}}}); err != nil {

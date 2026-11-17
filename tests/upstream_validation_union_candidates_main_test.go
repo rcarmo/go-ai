@@ -19,8 +19,8 @@ func TestUpstreamMainValidationAlreadyTypedNumbers(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !reflect.DeepEqual(got["n"], input) {
-				t.Errorf("%s converted already-valid %T(%v) to %T(%v)", typ, input, input, got["n"], got["n"])
+			if !reflect.DeepEqual(got.(map[string]any)["n"], input) {
+				t.Errorf("%s converted already-valid %T(%v) to %T(%v)", typ, input, input, got.(map[string]any)["n"], got.(map[string]any)["n"])
 			}
 		}
 	}

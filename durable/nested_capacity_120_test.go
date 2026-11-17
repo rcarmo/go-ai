@@ -14,7 +14,7 @@ func TestNestedTool120BoundCapacityRejectsJoinWithoutDispatch(t *testing.T) {
 		registry := NewRegistry()
 		var effects atomic.Int64
 		reg := wrapRegistration("capacity_leaf")
-		reg.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+		reg.Execute = func(context.Context, any, *ToolAPI) (ToolResult, error) {
 			effects.Add(1)
 			return ToolResult{Content: "leaf"}, nil
 		}
@@ -74,7 +74,7 @@ func TestNestedTool120DeepCallsUseBoundedPermitsAndStableKeys(t *testing.T) {
 		var leaves atomic.Int64
 		leaf := wrapRegistration("deep_leaf")
 		leaf.Callers = []string{"tools"}
-		leaf.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+		leaf.Execute = func(context.Context, any, *ToolAPI) (ToolResult, error) {
 			leaves.Add(1)
 			return ToolResult{Content: "leaf"}, nil
 		}
@@ -83,7 +83,7 @@ func TestNestedTool120DeepCallsUseBoundedPermitsAndStableKeys(t *testing.T) {
 		}
 		middle := wrapRegistration("deep_middle")
 		middle.Callers = []string{"tools"}
-		middle.Execute = func(ctx context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+		middle.Execute = func(ctx context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 			first, e := api.CallTool(ctx, "leaf", "deep_leaf", JSON{})
 			if e != nil {
 				return ToolResult{}, e

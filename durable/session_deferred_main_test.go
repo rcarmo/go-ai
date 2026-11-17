@@ -676,7 +676,7 @@ func TestSourceInvocationCommitPersistenceOptions(t *testing.T) {
 				return nil
 			}
 			reg := wrapRegistration("source_options_probe")
-			reg.Execute = func(ctx context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+			reg.Execute = func(ctx context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 				committer, ok := any(api).(toolCommitter)
 				if !ok {
 					t.Error("source tool commit options missing")

@@ -110,19 +110,22 @@ func TestToolUTF16MainExecutionReopenHooks(t *testing.T) {
 		var prepares, validates, before, after, effects, requests atomic.Int64
 		entered := make(chan struct{})
 		err := registry.Install(&Extension{Name: "unicode", Tools: []ToolRegistration{{Definition: goai.Tool{Name: "effect", Parameters: json.RawMessage(`{"type":"object","properties":{"text":{"type":"string","minLength":1,"maxLength":1,"pattern":"^.$"}},"required":["text"]}`)}, Implementation: "unicode.effect", Version: 1, ReplaySafe: true,
-			PrepareArguments: func(_ context.Context, args JSON) (JSON, error) {
+			PrepareArguments: func(_ context.Context, rawToolArguments any) (any, error) {
+				args := rawToolArguments.(JSON)
 				prepares.Add(1)
 				requireToolUTF16(t, args["text"], 0xd800)
 				return JSON{"text": prepared}, nil
 			},
-			Validator: func(_ context.Context, args JSON) (JSON, error) {
+			Validator: func(_ context.Context, rawToolArguments any) (any, error) {
+				args := rawToolArguments.(JSON)
 				validates.Add(1)
 				if _, ok := args["text"].(goai.UTF16String); !ok {
 					t.Error("validator lost string")
 				}
 				return args, nil
 			},
-			Execute: func(ctx context.Context, args JSON, _ *ToolAPI) (ToolResult, error) {
+			Execute: func(ctx context.Context, rawToolArguments any, _ *ToolAPI) (ToolResult, error) {
+				args := rawToolArguments.(JSON)
 				requireToolUTF16(t, args["text"], 0xd801)
 				args["text"] = "mutated host copy"
 				if effects.Add(1) == 1 {
@@ -137,14 +140,14 @@ func TestToolUTF16MainExecutionReopenHooks(t *testing.T) {
 			if !call.HasStreamingArguments() {
 				t.Error("beforeTool lost ownership")
 			}
-			requireToolUTF16(t, call.Arguments["text"], 0xdfff)
+			requireToolUTF16(t, call.Arguments.(map[string]any)["text"], 0xdfff)
 			return &BeforeToolResult{Arguments: JSON{"text": rewritten}}, nil
 		}, AfterTool: func(_ context.Context, call goai.ToolCall, result ToolResult, _ *HookAPI) (*ToolResult, error) {
 			after.Add(1)
 			if !call.HasStreamingArguments() {
 				t.Error("afterTool lost ownership")
 			}
-			requireToolUTF16(t, call.Arguments["text"], 0xd800)
+			requireToolUTF16(t, call.Arguments.(map[string]any)["text"], 0xd800)
 			return &result, nil
 		}}})
 		if err != nil {

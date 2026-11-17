@@ -24,18 +24,46 @@ type checkpointArgumentWire struct {
 	chunks      []string
 }
 
-func copyScopedToolArguments(args JSON, native bool, l Limits) (JSON, error) {
-	if !native {
-		return copyObject(args, l)
+// Legacy object DTOs retain their object boundary. Canonical Tool3 execution
+// uses copyScopedToolValue and never narrows the schema result to this shape.
+func copyScopedToolArguments(args any, native bool, l Limits) (JSON, error) {
+	value, err := copyScopedToolValue(args, native, l)
+	if err != nil {
+		return nil, err
 	}
-	block := goai.ContentBlock{Type: "toolCall"}
-	block.SetStreamingArguments(map[string]any(args), "")
-	return copyToolArguments(block, l)
+	if value == nil {
+		return nil, nil
+	}
+	object, ok := value.(JSON)
+	if !ok {
+		return nil, reject("object arguments required by object DTO")
+	}
+	return object, nil
 }
-func (cp toolCheckpoint) argumentCall(args JSON) goai.ToolCall {
-	call := goai.ToolCall{Type: "toolCall", ID: cp.CallID, Name: cp.Offer.Name, Arguments: map[string]any(args), ArgumentsError: cp.ArgumentsError}
+
+func copyScopedToolValue(args any, native bool, l Limits) (any, error) {
+	args = unwrapToolArgumentValue(args)
+	var scoped any = args
+	if native {
+		scoped = sourceToolArguments{args}
+	}
+	data, err := encodeBounded(scoped, l, l.MaxDocumentBytes)
+	if err != nil {
+		return nil, err
+	}
+	owned, err := jsonparse.ParseJSONValue(string(data), true)
+	if err != nil {
+		return nil, err
+	}
+	if object, ok := owned.(map[string]any); ok {
+		return JSON(object), nil
+	}
+	return owned, nil
+}
+func (cp toolCheckpoint) argumentCall(args any) goai.ToolCall {
+	call := goai.ToolCall{Type: "toolCall", ID: cp.CallID, Name: cp.Offer.Name, Arguments: toolCallArgumentValue(args), ArgumentsError: cp.ArgumentsError}
 	if cp.StreamingArguments {
-		call.SetStreamingArguments(map[string]any(args), cp.ArgumentsError)
+		call.SetStreamingArguments(toolCallArgumentValue(args), cp.ArgumentsError)
 	}
 	return call
 }
@@ -111,7 +139,7 @@ func restoreArgumentDTO(v reflect.Value, l Limits) error {
 			return err
 		}
 		call := v.Interface().(CodemodeCall)
-		if !call.StreamingArguments || call.Global || carrier.ArgumentsError != "" || !equalJSONValue(call.Arguments, JSON(carrier.Arguments)) {
+		if !call.StreamingArguments || call.Global || carrier.ArgumentsError != "" || !equalJSONValue(call.Arguments, JSON(carrier.Arguments.(map[string]any))) {
 			return reject("inconsistent decoded codemode arguments")
 		}
 		return nil
@@ -128,7 +156,7 @@ func restoreArgumentDTO(v reflect.Value, l Limits) error {
 	if !diagnostic.IsValid() && carrier.ArgumentsError != "" {
 		return reject("diagnostic in argument-only owner")
 	}
-	args.Set(reflect.ValueOf(JSON(carrier.Arguments)))
+	args.Set(reflect.ValueOf(JSON(carrier.Arguments.(map[string]any))))
 	if diagnostic.IsValid() {
 		diagnostic.SetString(carrier.ArgumentsError)
 	}

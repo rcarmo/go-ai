@@ -59,7 +59,7 @@ func TestCloneContextDeepCopiesNestedFields(t *testing.T) {
 func TestGetToolCallsReturnsArgumentCopies(t *testing.T) {
 	msg := &goai.Message{Content: []goai.ContentBlock{{Type: "toolCall", ID: "tc", Name: "tool", Arguments: map[string]interface{}{"nested": map[string]interface{}{"value": "original"}}}}}
 	calls := goai.GetToolCalls(msg)
-	calls[0].Arguments["nested"].(map[string]interface{})["value"] = "changed"
+	calls[0].Arguments.(map[string]any)["nested"].(map[string]interface{})["value"] = "changed"
 	if got := msg.Content[0].Arguments["nested"].(map[string]interface{})["value"]; got != "original" {
 		t.Fatalf("tool call arguments aliased: %v", got)
 	}

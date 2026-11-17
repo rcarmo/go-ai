@@ -25,7 +25,7 @@ func TestMainRunFailureAttachedInputsWithoutQueuedSuccessor(t *testing.T) {
 				var calls, tools atomic.Int64
 				registry := NewRegistry()
 				reg := wrapRegistration("hold")
-				reg.Execute = func(ctx context.Context, _ JSON, _ *ToolAPI) (ToolResult, error) {
+				reg.Execute = func(ctx context.Context, _ any, _ *ToolAPI) (ToolResult, error) {
 					n := tools.Add(1)
 					if n > 2 {
 						t.Errorf("unexpected tool call %d", n)

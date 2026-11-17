@@ -443,7 +443,7 @@ func TestTaskSchedulerCapacityToolChildHoldOne(t *testing.T) {
 			if _, err := registry.RegisterTask(child); err != nil {
 				t.Fatal(err)
 			}
-			err = registry.Register(ToolRegistration{Definition: goai.Tool{Name: "delegate", Description: "owned child", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "task.delegate", Version: 1, ReplaySafe: true, Execute: func(ctx context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+			err = registry.Register(ToolRegistration{Definition: goai.Tool{Name: "delegate", Description: "owned child", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "task.delegate", Version: 1, ReplaySafe: true, Execute: func(ctx context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 				effects.Add(1)
 				toolID = api.TaskID()
 				id, err := api.CreateTask(ctx, child, nil, TaskOptions{Ownership: TaskOwnership{Kind: "task", Task: toolID}})
@@ -563,7 +563,7 @@ func TestTaskSchedulerLegacyChildrenSequentialEligibility(t *testing.T) {
 		calls := []string{}
 		for _, name := range []string{"first", "second", "third"} {
 			name := name
-			if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: name, Description: name, Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "sequence." + name, Version: 1, ReplaySafe: true, Execute: func(ctx context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+			if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: name, Description: name, Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "sequence." + name, Version: 1, ReplaySafe: true, Execute: func(ctx context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 				value := active.Add(1)
 				for {
 					old := peak.Load()
@@ -949,7 +949,7 @@ func TestTaskSchedulerCompletedGenerationsReleasePinnedRegistrations(t *testing.
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { requests.Add(1); taskHTTPRound(w, nil) }))
 		defer server.Close()
 		registry := NewRegistry()
-		if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "unused", Description: "pin", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "unused.pin", Version: 1, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+		if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "unused", Description: "pin", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "unused.pin", Version: 1, Execute: func(context.Context, any, *ToolAPI) (ToolResult, error) {
 			return ToolResult{}, errors.New("unused tool dispatched")
 		}}); err != nil {
 			t.Fatal(err)
@@ -3632,7 +3632,7 @@ func TestTaskSchedulerPhaseRegistryToolsCapturedPersistedLimits(t *testing.T) {
 				if err != nil || schemaSize == "fits-record-only" && len(wire) <= l.MaxDocumentBytes {
 					t.Fatal("schema does not distinguish record/document policy", err)
 				}
-				registration := ToolRegistration{Definition: goai.Tool{Name: "policy_tool", Parameters: json.RawMessage(wire)}, Implementation: "policy.tool", Version: 1, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+				registration := ToolRegistration{Definition: goai.Tool{Name: "policy_tool", Parameters: json.RawMessage(wire)}, Implementation: "policy.tool", Version: 1, Execute: func(context.Context, any, *ToolAPI) (ToolResult, error) {
 					return ToolResult{}, errors.New("registry inspection dispatched tool")
 				}}
 				if err := registry.Register(registration); err != nil {

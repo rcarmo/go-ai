@@ -86,7 +86,8 @@ func NewCodemodeExtension(sandbox CodemodeSandbox, options ...CodemodeExtensionO
 	if parallel {
 		callGuidance = "Independent tool/global calls may run concurrently with Promise.all; await required results before returning."
 	}
-	tool := ToolRegistration{Definition: goai.Tool{Name: "codemode", Description: "Run an async JavaScript function body in an isolated QuickJS sandbox. Use tools, text, image, console, store/load and discovery globals. No ambient filesystem, network or timers. " + callGuidance, Parameters: json.RawMessage(`{"type":"object","properties":{"code":{"type":"string"}},"required":["code"],"additionalProperties":false}`), ConstrainedSampling: &goai.ToolConstrainedSampling{Type: "grammar", Variants: map[string]string{"openai_lark": CodemodeSourceGrammar}}}, Implementation: "pi.codemode", Version: 1, ReplaySafe: true, Callers: []string{"model"}, Execute: func(ctx context.Context, args JSON, api *ToolAPI) (ToolResult, error) {
+	tool := ToolRegistration{Definition: goai.Tool{Name: "codemode", Description: "Run an async JavaScript function body in an isolated QuickJS sandbox. Use tools, text, image, console, store/load and discovery globals. No ambient filesystem, network or timers. " + callGuidance, Parameters: json.RawMessage(`{"type":"object","properties":{"code":{"type":"string"}},"required":["code"],"additionalProperties":false}`), ConstrainedSampling: &goai.ToolConstrainedSampling{Type: "grammar", Variants: map[string]string{"openai_lark": CodemodeSourceGrammar}}}, Implementation: "pi.codemode", Version: 1, ReplaySafe: true, Callers: []string{"model"}, Execute: func(ctx context.Context, rawToolArguments any, api *ToolAPI) (ToolResult, error) {
+		args := rawToolArguments.(JSON)
 		code, ok := args["code"].(string)
 		if !ok {
 			return ToolResult{}, reject("codemode source missing")

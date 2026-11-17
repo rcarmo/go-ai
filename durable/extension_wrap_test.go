@@ -11,7 +11,7 @@ import (
 )
 
 func wrapRegistration(name string) ToolRegistration {
-	return ToolRegistration{Definition: goai.Tool{Name: name, Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "wrap." + name, Version: 1, ReplaySafe: true, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) { return ToolResult{Content: "base"}, nil }}
+	return ToolRegistration{Definition: goai.Tool{Name: name, Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "wrap." + name, Version: 1, ReplaySafe: true, Execute: func(context.Context, any, *ToolAPI) (ToolResult, error) { return ToolResult{Content: "base"}, nil }}
 }
 func TestExtensionWrappersPinnedWinnerOrderingDropReportAndDetachment(t *testing.T) {
 	registry := NewRegistry()
@@ -106,7 +106,7 @@ func TestExtensionWrapperExecuteAndRecoveryIdentity(t *testing.T) {
 			entered, release := make(chan struct{}), make(chan struct{})
 			first := true
 			reg := wrapRegistration("compute")
-			reg.Execute = func(ctx context.Context, _ JSON, _ *ToolAPI) (ToolResult, error) {
+			reg.Execute = func(ctx context.Context, _ any, _ *ToolAPI) (ToolResult, error) {
 				effects.Add(1)
 				if first {
 					first = false
@@ -126,7 +126,8 @@ func TestExtensionWrapperExecuteAndRecoveryIdentity(t *testing.T) {
 				if err := registry.Install(&Extension{Name: "decorator", Wraps: []ExtensionWrap{{Tool: "compute", WrapTool: func(reg ToolRegistration) (ToolRegistration, error) {
 					reg.Version = version
 					execute := reg.Execute
-					reg.Execute = func(ctx context.Context, args JSON, api *ToolAPI) (ToolResult, error) {
+					reg.Execute = func(ctx context.Context, rawToolArguments any, api *ToolAPI) (ToolResult, error) {
+						args := rawToolArguments.(JSON)
 						value, err := execute(ctx, args, api)
 						value.Content = "wrapped:" + value.Content
 						return value, err
@@ -230,7 +231,7 @@ func TestSourceToolNamesAreStringsAcrossRegistrationWrappingAndNestedCalls(t *te
 	wraps := make([]ExtensionWrap, 0, len(names))
 	for _, name := range names {
 		reg := wrapRegistration(name)
-		reg.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+		reg.Execute = func(context.Context, any, *ToolAPI) (ToolResult, error) {
 			effects.Add(1)
 			return ToolResult{Content: name}, nil
 		}

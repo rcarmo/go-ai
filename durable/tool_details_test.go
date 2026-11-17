@@ -12,7 +12,7 @@ func TestToolStrictJSONDetailsScalarArrayNullFallbackHooksAndReopen(t *testing.T
 		sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 			registry := NewRegistry()
 			reg := wrapRegistration("json-details")
-			reg.Execute = func(_ context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+			reg.Execute = func(_ context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 				if err := api.Details(details); err != nil {
 					return ToolResult{}, err
 				}

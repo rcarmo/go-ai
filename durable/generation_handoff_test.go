@@ -13,7 +13,7 @@ func TestGenerationToolHandoffCommittedReopenNoToolReplayAndTerminalSubmissionTa
 		registry := NewRegistry()
 		var tools, calls atomic.Int64
 		registration := wrapRegistration("handoff")
-		registration.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+		registration.Execute = func(context.Context, any, *ToolAPI) (ToolResult, error) {
 			tools.Add(1)
 			return ToolResult{Content: "spent tool"}, nil
 		}

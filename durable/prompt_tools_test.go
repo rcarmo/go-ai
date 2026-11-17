@@ -40,7 +40,7 @@ func TestToolLoadoutHistoryPersistsSelectedChangesAndReopens(t *testing.T) {
 		registry := NewRegistry()
 		register := func(description string) {
 			t.Helper()
-			if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "echo", Description: description, Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "prompt.echo", Version: 1, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) { return ToolResult{Content: "echo"}, nil }}); err != nil {
+			if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "echo", Description: description, Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "prompt.echo", Version: 1, Execute: func(context.Context, any, *ToolAPI) (ToolResult, error) { return ToolResult{Content: "echo"}, nil }}); err != nil {
 				t.Fatal(err)
 			}
 		}

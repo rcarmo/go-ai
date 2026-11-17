@@ -19,7 +19,7 @@ func registerSearchFixture120(t *testing.T, r *Registry) {
 		deferred          bool
 		callers           []string
 	}{{"alpha", "baseline", false, nil}, {"github_get_issue", "Fetch a GitHub issue", true, nil}, {"github_list_repos", "List GitHub repositories", true, nil}, {"hidden_internal", "GitHub issue internal", true, []string{"tools"}}, {"omega", "baseline", false, nil}} {
-		if e := r.Register(ToolRegistration{Definition: goai.Tool{Name: item.name, Description: item.description, Parameters: json.RawMessage(`{"type":"object","properties":{"issueNumber":{"type":"integer","description":"Issue identifier"}}}`)}, Implementation: item.name, Version: 1, ReplaySafe: true, Deferred: item.deferred, Callers: item.callers, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) { return ToolResult{Content: "ok"}, nil }}); e != nil {
+		if e := r.Register(ToolRegistration{Definition: goai.Tool{Name: item.name, Description: item.description, Parameters: json.RawMessage(`{"type":"object","properties":{"issueNumber":{"type":"integer","description":"Issue identifier"}}}`)}, Implementation: item.name, Version: 1, ReplaySafe: true, Deferred: item.deferred, Callers: item.callers, Execute: func(context.Context, any, *ToolAPI) (ToolResult, error) { return ToolResult{Content: "ok"}, nil }}); e != nil {
 			t.Fatal(e)
 		}
 	}

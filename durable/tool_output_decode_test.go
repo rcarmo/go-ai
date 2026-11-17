@@ -14,7 +14,7 @@ func TestToolOutputBytesProductionFlushAndSealedReceipt(t *testing.T) {
 		limits := ToolOutputLimits{100, 10, "head"}
 		registry := NewRegistry()
 		var escaped *ToolAPI
-		if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "bytes", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "bytes.test", Version: 1, OutputLimits: &limits, Execute: func(_ context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+		if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "bytes", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "bytes.test", Version: 1, OutputLimits: &limits, Execute: func(_ context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 			escaped = api
 			for _, chunk := range [][]byte{{0xf0, 0x9f}, {0x98, 0x80, 10}, {0xe2}} {
 				if err := api.OutputBytes(chunk); err != nil {

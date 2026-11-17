@@ -199,7 +199,7 @@ func restoreReceiptUTF16(r *MessageReceipt, l Limits) error {
 		}
 		// A stored JSON decimal remains exact, while actual float infinities are
 		// rejected on the logical write path before a witness can be generated.
-		values = append(values, restored{witness.Index, carrier.Arguments, carrier.ArgumentsError})
+		values = append(values, restored{witness.Index, carrier.Arguments.(map[string]any), carrier.ArgumentsError})
 	}
 	for _, value := range diagnosticValues {
 		if value.w.Kind == "text" {
@@ -305,7 +305,8 @@ func decodeArgumentCarrier(chunks []string, l Limits) (goai.ToolCall, error) {
 	if err = decodeStrict(payload, l, l.MaxDocumentBytes, &carrier); err != nil {
 		return goai.ToolCall{}, err
 	}
-	if carrier.Type != "toolCall" || carrier.ID != "" || carrier.Name != "" || carrier.Arguments == nil || carrier.ThoughtSignature != "" || carrier.Namespace != "" || !containsUTF16(reflect.ValueOf(carrier.Arguments)) && utf8.ValidString(carrier.ArgumentsError) {
+	_, objectArguments := carrier.Arguments.(map[string]any)
+	if !objectArguments || carrier.Type != "toolCall" || carrier.ID != "" || carrier.Name != "" || carrier.Arguments == nil || carrier.ThoughtSignature != "" || carrier.Namespace != "" || !containsUTF16(reflect.ValueOf(carrier.Arguments)) && utf8.ValidString(carrier.ArgumentsError) {
 		return goai.ToolCall{}, reject("invalid UTF-16 argument carrier")
 	}
 

@@ -14,7 +14,7 @@ func TestInvalidToolResultWithAfterToolStillFaultsWithoutReceipt(t *testing.T) {
 				registration := wrapRegistration("invalid-return")
 				cycle := JSON{}
 				cycle["self"] = cycle
-				registration.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+				registration.Execute = func(context.Context, any, *ToolAPI) (ToolResult, error) {
 					if where == "executor" {
 						return ToolResult{Details: cycle}, nil
 					}

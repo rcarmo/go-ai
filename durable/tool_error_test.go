@@ -13,7 +13,7 @@ func TestThrownToolErrorRetainsPartialAndOriginalDiagnosticAndFailedOutcome(t *t
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		reg := wrapRegistration("throws")
-		reg.Execute = func(_ context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+		reg.Execute = func(_ context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 			if err := api.Output("partial"); err != nil {
 				return ToolResult{}, err
 			}

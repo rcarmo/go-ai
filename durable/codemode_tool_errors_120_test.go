@@ -38,7 +38,7 @@ func TestCodemode120ToolErrorOutcomeAndSettledReplay(t *testing.T) {
 				if tc.name == "null" {
 					leaf.StructuredOutputSchema = JSON{"type": "null"}
 				}
-				leaf.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) { effects.Add(1); return tc.result, nil }
+				leaf.Execute = func(context.Context, any, *ToolAPI) (ToolResult, error) { effects.Add(1); return tc.result, nil }
 				if err := registry.Register(leaf); err != nil {
 					t.Fatal(err)
 				}

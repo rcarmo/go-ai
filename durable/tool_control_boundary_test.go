@@ -40,7 +40,7 @@ func TestToolControlsUnavailableOrThrowingCallCannotTerminateRound(t *testing.T)
 				if mode == "unavailable" && name == "second" {
 					continue
 				}
-				if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: name, Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "negative." + name, Version: 1, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+				if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: name, Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "negative." + name, Version: 1, Execute: func(context.Context, any, *ToolAPI) (ToolResult, error) {
 					if name == "second" && mode == "throwing" {
 						return ToolResult{Control: &ToolControl{Terminate: true}}, errors.New("private")
 					}
@@ -124,7 +124,7 @@ func TestToolTerminateFinalBoundaryQueuesFollowUpAndPreservesHookControl(t *test
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		entered, release := make(chan struct{}), make(chan struct{})
-		ext := &Extension{Name: "hook-control", Tools: []ToolRegistration{{Definition: goai.Tool{Name: "end", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "end.test", Version: 1, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+		ext := &Extension{Name: "hook-control", Tools: []ToolRegistration{{Definition: goai.Tool{Name: "end", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "end.test", Version: 1, Execute: func(context.Context, any, *ToolAPI) (ToolResult, error) {
 			close(entered)
 			<-release
 			return ToolResult{Content: "ended"}, nil

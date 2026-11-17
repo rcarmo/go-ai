@@ -94,7 +94,7 @@ func testParallelMidflight120(t *testing.T, acknowledged bool, mode string) {
 		entered := make(chan struct{}, 1)
 		var slowEffects, fastEffects atomic.Int64
 		slow := wrapRegistration("codemode_slow")
-		slow.Execute = func(ctx context.Context, _ JSON, _ *ToolAPI) (ToolResult, error) {
+		slow.Execute = func(ctx context.Context, _ any, _ *ToolAPI) (ToolResult, error) {
 			select {
 			case entered <- struct{}{}:
 			default:
@@ -108,7 +108,7 @@ func testParallelMidflight120(t *testing.T, acknowledged bool, mode string) {
 			}
 		}
 		fast := wrapRegistration("codemode_fast")
-		fast.Execute = func(ctx context.Context, _ JSON, _ *ToolAPI) (ToolResult, error) {
+		fast.Execute = func(ctx context.Context, _ any, _ *ToolAPI) (ToolResult, error) {
 			select {
 			case <-entered:
 				fastEffects.Add(1)

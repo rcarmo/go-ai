@@ -25,7 +25,7 @@ func TestGenerationAfterToolsHookOwnsWorkAndLateEventsDoNotRepeatTurnEnd(t *test
 					t.Fatal(err)
 				}
 				tool := wrapRegistration("noop")
-				tool.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+				tool.Execute = func(context.Context, any, *ToolAPI) (ToolResult, error) {
 					return ToolResult{Content: "done", Control: &ToolControl{Terminate: terminate}}, nil
 				}
 				if err := registry.Register(tool); err != nil {

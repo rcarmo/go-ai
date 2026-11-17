@@ -10,13 +10,13 @@ func TestNestedTool120ParentCallAttribution(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		leaf := wrapRegistration("leaf")
-		leaf.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) { return ToolResult{Content: "leaf"}, nil }
+		leaf.Execute = func(context.Context, any, *ToolAPI) (ToolResult, error) { return ToolResult{Content: "leaf"}, nil }
 		middle := wrapRegistration("middle")
-		middle.Execute = func(ctx context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+		middle.Execute = func(ctx context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 			return api.CallTool(ctx, "inner", "leaf", JSON{})
 		}
 		outer := wrapRegistration("outer")
-		outer.Execute = func(ctx context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+		outer.Execute = func(ctx context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 			return api.CallTool(ctx, "middle-key", "middle", JSON{})
 		}
 		for _, reg := range []ToolRegistration{leaf, middle, outer} {
@@ -95,9 +95,9 @@ func TestNestedTool120ModelParentCallAttribution(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		leaf := wrapRegistration("leaf")
-		leaf.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) { return ToolResult{Content: "leaf"}, nil }
+		leaf.Execute = func(context.Context, any, *ToolAPI) (ToolResult, error) { return ToolResult{Content: "leaf"}, nil }
 		outer := wrapRegistration("outer")
-		outer.Execute = func(ctx context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+		outer.Execute = func(ctx context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 			return api.CallTool(ctx, "child", "leaf", JSON{})
 		}
 		var identity ToolInvocation

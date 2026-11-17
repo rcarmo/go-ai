@@ -15,11 +15,11 @@ func TestToolProgressDetailsWindowAndSealedWrites(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		var escaped *ToolAPI
-		if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "progress", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "progress.test", Version: 1, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) { return ToolResult{}, nil }}); err != nil {
+		if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "progress", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "progress.test", Version: 1, Execute: func(context.Context, any, *ToolAPI) (ToolResult, error) { return ToolResult{}, nil }}); err != nil {
 			t.Fatal(err)
 		}
 		// Replace the same implementation with the real callback before dispatch.
-		if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "progress", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "progress.test", Version: 1, Execute: func(_ context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+		if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "progress", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "progress.test", Version: 1, Execute: func(_ context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 			escaped = api
 			details := JSON{"child": JSON{"id": 12}}
 			if err := api.Details(details); err != nil {
@@ -151,7 +151,7 @@ func TestSafeToolReplayClearsInterruptedOutputAndDetails(t *testing.T) {
 		entered, replayed, release := make(chan struct{}), make(chan struct{}), make(chan struct{})
 		registry := NewRegistry()
 		var effects atomic.Int64
-		if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "safe", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "safe.progress", Version: 1, ReplaySafe: true, Execute: func(ctx context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+		if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "safe", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "safe.progress", Version: 1, ReplaySafe: true, Execute: func(ctx context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 			if effects.Add(1) == 1 {
 				if err := api.Output("stale prefix"); err != nil {
 					return ToolResult{}, err

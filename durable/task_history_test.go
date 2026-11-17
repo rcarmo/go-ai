@@ -210,7 +210,7 @@ func TestV150AfterRunHookHistoryKeepsRunStartHiddenByMidRunCompaction(t *testing
 		registry := NewRegistry()
 		err := registry.Install(&Extension{
 			Name: "after-run-compaction-history",
-			Tools: []ToolRegistration{{Definition: goai.Tool{Name: "edit", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "test.edit", Version: 1, ReplaySafe: true, Execute: func(ctx context.Context, _ JSON, _ *ToolAPI) (ToolResult, error) {
+			Tools: []ToolRegistration{{Definition: goai.Tool{Name: "edit", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "test.edit", Version: 1, ReplaySafe: true, Execute: func(ctx context.Context, _ any, _ *ToolAPI) (ToolResult, error) {
 				close(started)
 				select {
 				case <-release:

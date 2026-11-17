@@ -46,7 +46,7 @@ func TestOpenAIResponsesPartialJSONCleanupRemovesPartialJSONFromPersistedToolCal
 	if toolCallEnd == nil {
 		t.Fatal("expected toolcall_end event")
 	}
-	if toolCallEnd.ToolCall.Arguments["path"] != "README.md" || toolCallEnd.ToolCall.Arguments["content"] != "updated" {
+	if toolCallEnd.ToolCall.Arguments.(map[string]any)["path"] != "README.md" || toolCallEnd.ToolCall.Arguments.(map[string]any)["content"] != "updated" {
 		t.Fatalf("toolcall_end arguments=%#v", toolCallEnd.ToolCall.Arguments)
 	}
 }

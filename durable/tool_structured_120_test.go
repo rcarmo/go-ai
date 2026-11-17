@@ -16,7 +16,7 @@ func TestTool120ModelStructuredValidationReportsWithoutTranscriptField(t *testin
 		registry := NewRegistry()
 		reg := wrapRegistration("model_structured")
 		reg.StructuredOutputSchema = JSON{"type": "integer"}
-		reg.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+		reg.Execute = func(context.Context, any, *ToolAPI) (ToolResult, error) {
 			return ToolResult{Content: "model-visible", StructuredOutput: "invalid", Commit: func(*Tx) error { commits.Add(1); return nil }}, nil
 		}
 		if e := registry.Register(reg); e != nil {

@@ -18,7 +18,7 @@ func TestNestedTool120EnvironmentResolvedBeforeExecutionOnce(t *testing.T) {
 				var environments, runs atomic.Int64
 				registry := NewRegistry()
 				reg := wrapRegistration("env_nested")
-				reg.Execute = func(ctx context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+				reg.Execute = func(ctx context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 					runs.Add(1)
 					first, e := api.Environment(ctx)
 					if e != nil {

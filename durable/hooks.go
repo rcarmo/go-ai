@@ -83,7 +83,7 @@ type CompactionDecision struct {
 }
 
 type BeforeToolResult struct {
-	Arguments JSON
+	Arguments any
 	Block     string
 }
 

@@ -1089,17 +1089,33 @@ it("defers parameter schema failures to an own invalid-arguments tool result",as
  }
 });
 
-// Reference blocker: native Execute/ToolCall argument types are currently maps.
-// Record the source array arm explicitly; no native assertion acceptance claimed.
+// Public source value-union assertions; native execution was red before refactor.
 it("coerces an object call to an array parameter value",async()=>{
- const {MemoryStorage,defineTool}=await import("@earendil-works/pi-durable");
- const {chatSetup,openChat}=await import("@pinned/chat"),{addTool}=await import("@pinned/harness-support");
- const {fauxAssistantMessage,fauxText}=await import("@reference/pi-ai");
- const setup=chatSetup();let effects=0;
- addTool(setup.registry,defineTool({name:"array_schema",description:"array",parameters:{type:"array"}as any,execute:async(args)=>{effects++;expect(args).toEqual([{}]);return{output:[]}}}));
+ const {MemoryStorage,defineTool,ToolTask}=await import("@earendil-works/pi-durable");
+ const {chatSetup,openChat,allEntries}=await import("@pinned/chat"),{addTool,addHooks}=await import("@pinned/harness-support");
+ const {fauxAssistantMessage,fauxText,validateToolArguments}=await import("@reference/pi-ai");
+ const original={n:"2"};
+ const parsed=validateToolArguments({name:"array",description:"array",parameters:{type:"array",items:{type:"object",properties:{n:{type:"integer"}},required:["n"]}}}as any,{type:"toolCall",id:"direct",name:"array",arguments:original});
+ expect(parsed).toEqual([{n:2}]);(parsed as any)[0]["host-mutation"]=true;expect(original).toEqual({n:"2"});
+ for(const parameters of [{},{type:"array"}]){
+  const input={free:{value:"original"}},result=validateToolArguments({name:"clone",description:"clone",parameters}as any,{type:"toolCall",id:"clone",name:"clone",arguments:input});
+  (Array.isArray(result)?result[0]:result).free.value="host mutation";expect(input).toEqual({free:{value:"original"}});
+ }
+ const setup=chatSetup();let effects=0,before=0,after=0;
+ addTool(setup.registry,defineTool({name:"array_schema",description:"array",parameters:{type:"array"}as any,execute:async(args,api,ctx)=>{
+  effects++;expect(args).toEqual([{}]);const record=await api.commit(tx=>tx.task(api.taskId),ctx);
+  expect((record!.state as any).checkpoint).toEqual({phase:"execute",arguments:[{}],replay:"unsafe"});
+  (args as any)[0]="host mutation";return{output:[]}
+ }}));
+ addHooks(setup.registry,ToolTask,{beforeTool:call=>{before++;expect(call.arguments).toEqual([{}])},afterTool:call=>{after++;expect(call.arguments).toEqual({})}});
  setup.faux.setResponses([fauxAssistantMessage([{type:"toolCall",id:"array",name:"array_schema",arguments:{}}],{stopReason:"toolUse"}),fauxAssistantMessage([fauxText("answer")])]);
  const {harness,root}=await openChat(new MemoryStorage(),setup);
- try{expect((await(await root.submit({type:"input",content:"go"},context)).wait(context)).status).toBe("done");expect(effects).toBe(1)}finally{await harness.close(context)}
+ try{
+  expect((await(await root.submit({type:"input",content:"go"},context)).wait(context)).status).toBe("done");expect(effects).toBe(1);expect(before).toBe(1);expect(after).toBe(1);expect(setup.faux.state.callCount).toBe(2);
+  const entries=await allEntries(root),assistant=entries.find(entry=>entry.kind==="pi.assistant")!;
+  expect(assistant.model?.[0].content).toEqual([{type:"toolCall",id:"array",name:"array_schema",arguments:{}}]);
+  expect(entries.filter(entry=>entry.kind==="pi.tool-result")).toHaveLength(1);
+ }finally{await harness.close(context)}
 });
 
 it("checks string formats without replacing isolated UTF-16 values",async()=>{
@@ -1113,4 +1129,38 @@ it("checks string formats without replacing isolated UTF-16 values",async()=>{
   const {harness,root}=await openChat(new MemoryStorage(),setup);
   try{expect((await(await root.submit({type:"input",content:"go"},context)).wait(context)).status).toBe("done");expect(effects).toBe(valid?1:0)}finally{await harness.close(context)}
  }
+});
+
+it.each([false,true])("replays a coerced UTF-16 array checkpoint without repeating preparation or hooks (throwing=%s)",async(throwing)=>{
+ const {defineTool,ToolTask}=await import("@earendil-works/pi-durable");
+ const {openNodeSqliteStorage}=await import("@earendil-works/pi-durable/storage/sqlite/node");
+ const {mkdtemp,rm}=await import("node:fs/promises"),{tmpdir}=await import("node:os"),{join}=await import("node:path");
+ const directory=await mkdtemp(join(tmpdir(),"array-replay-")),path=join(directory,"state.sqlite");
+ const {chatSetup,openChat,allEntries}=await import("@pinned/chat"),{addTool,addHooks}=await import("@pinned/harness-support");
+ const {fauxAssistantMessage,fauxText}=await import("@reference/pi-ai");
+ const key="\ud800",original="\ud800",prepared="\udfff",rewritten="\ud801",entered=Promise.withResolvers<void>();
+ const setup=chatSetup();let effects=0,prepares=0,before=0,after=0,taskId:any;
+ addTool(setup.registry,defineTool({name:"array_replay",description:"array",replay:"safe",parameters:{type:"array",items:{type:"object",additionalProperties:{type:"string",minLength:1,maxLength:1,pattern:"^.$"}}}as any,
+  prepareArguments:args=>{prepares++;expect(args).toEqual({[key]:original});return{[key]:prepared}},
+  execute:async(args,api,ctx)=>{
+   effects++;taskId=api.taskId;expect(args).toEqual([{[key]:rewritten}]);expect(JSON.stringify(args)).toBe('[{"\\ud800":"\\ud801"}]');
+   const record=await api.commit(tx=>tx.task(api.taskId),ctx);expect((record!.state as any).checkpoint).toEqual({phase:"execute",arguments:[{[key]:rewritten}],replay:"safe"});expect(JSON.stringify((record!.state as any).checkpoint.arguments)).toBe('[{"\\ud800":"\\ud801"}]');
+   (args as any)[0]="host mutation";
+   if(effects===1){entered.resolve();await new Promise<void>(resolve=>{const signal=ctx.abortSignal!;if(signal.aborted)resolve();else signal.addEventListener("abort",()=>resolve(),{once:true})});if(throwing)throw new Error("aborted tool")}
+   return{output:[]}
+  }
+ }));
+ addHooks(setup.registry,ToolTask,{beforeTool:call=>{before++;expect(call.arguments).toEqual([{[key]:prepared}]);return{arguments:[{[key]:rewritten}]as any}},afterTool:call=>{after++;expect(call.arguments).toEqual({[key]:original})}});
+ setup.faux.setResponses([fauxAssistantMessage([{type:"toolCall",id:"array-replay",name:"array_replay",arguments:{[key]:original}}],{stopReason:"toolUse"}),fauxAssistantMessage([fauxText("answer")])]);
+ let opened=await openChat(await openNodeSqliteStorage(path),setup);
+ const submission=await opened.root.submit({type:"input",content:"go"},context);
+ try{
+  await entered.promise;
+  const record=await opened.harness.getTask(taskId,context);expect((record!.state as any).checkpoint).toEqual({phase:"execute",arguments:[{[key]:rewritten}],replay:"safe"});
+  await opened.harness.close(context);opened=await openChat(await openNodeSqliteStorage(path),setup);
+  expect((await(await opened.harness.submission(submission.id,context))!.wait(context)).status).toBe("done");
+  expect({effects,prepares,before,after,requests:setup.faux.state.callCount}).toEqual({effects:2,prepares:1,before:1,after:throwing?1:2,requests:2});
+  const assistant=(await allEntries(opened.root)).find(entry=>entry.kind==="pi.assistant")!;
+  expect(assistant.model?.[0].content).toEqual([{type:"toolCall",id:"array-replay",name:"array_replay",arguments:{[key]:original}}]);
+ }finally{await opened.harness.close(context);await rm(directory,{recursive:true,force:true})}
 });

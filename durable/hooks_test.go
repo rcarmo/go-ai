@@ -17,7 +17,8 @@ func TestAgentSelectionAndHooksAreDetachedRequestLocalAndOrdered(t *testing.T) {
 		var before, after, afterTools, afterEntries, beforeTool, afterTool atomic.Int64
 		var escaped *HookAPI
 		extension := &Extension{Name: "delegate", Sections: []PromptSection{{Key: "worker", Render: func(context.Context, PromptInput) (*string, error) { return promptString("worker section"), nil }}}}
-		extension.Tools = []ToolRegistration{{Definition: goai.Tool{Name: "echo", Parameters: json.RawMessage(`{"type":"object","properties":{"text":{"type":"string"}},"required":["text"]}`)}, Implementation: "hooks.echo", Version: 1, Execute: func(_ context.Context, args JSON, _ *ToolAPI) (ToolResult, error) {
+		extension.Tools = []ToolRegistration{{Definition: goai.Tool{Name: "echo", Parameters: json.RawMessage(`{"type":"object","properties":{"text":{"type":"string"}},"required":["text"]}`)}, Implementation: "hooks.echo", Version: 1, Execute: func(_ context.Context, rawToolArguments any, _ *ToolAPI) (ToolResult, error) {
+			args := rawToolArguments.(JSON)
 			if args["text"] != "rewritten" {
 				t.Error("beforeTool replacement lost", args)
 			}
@@ -189,7 +190,7 @@ func TestBeforeToolBlockOrThrowPreventsEffectAndRevalidatesReplacement(t *testin
 		t.Run(mode, func(t *testing.T) {
 			var executed atomic.Int64
 			registry := NewRegistry()
-			tool := ToolRegistration{Definition: goai.Tool{Name: "guarded", Parameters: json.RawMessage(`{"type":"object","properties":{"n":{"type":"integer"}},"required":["n"]}`)}, Implementation: "hooks.guard", Version: 1, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+			tool := ToolRegistration{Definition: goai.Tool{Name: "guarded", Parameters: json.RawMessage(`{"type":"object","properties":{"n":{"type":"integer"}},"required":["n"]}`)}, Implementation: "hooks.guard", Version: 1, Execute: func(context.Context, any, *ToolAPI) (ToolResult, error) {
 				executed.Add(1)
 				return ToolResult{Content: "effect"}, nil
 			}}
@@ -479,7 +480,8 @@ func TestBeforeToolIntentSurvivesReopenWithoutHookReplay(t *testing.T) {
 		registry := NewRegistry()
 		var before, effects atomic.Int64
 		entered := make(chan struct{})
-		if err := registry.Install(&Extension{Name: "replay", Tools: []ToolRegistration{{Definition: goai.Tool{Name: "effect", Parameters: json.RawMessage(`{"type":"object","properties":{"text":{"type":"string"}},"required":["text"]}`)}, Implementation: "hook.replay", Version: 1, ReplaySafe: true, Execute: func(ctx context.Context, args JSON, _ *ToolAPI) (ToolResult, error) {
+		if err := registry.Install(&Extension{Name: "replay", Tools: []ToolRegistration{{Definition: goai.Tool{Name: "effect", Parameters: json.RawMessage(`{"type":"object","properties":{"text":{"type":"string"}},"required":["text"]}`)}, Implementation: "hook.replay", Version: 1, ReplaySafe: true, Execute: func(ctx context.Context, rawToolArguments any, _ *ToolAPI) (ToolResult, error) {
+			args := rawToolArguments.(JSON)
 			if args["text"] != "intent" {
 				t.Error("recovered rewritten args", args)
 			}
@@ -619,7 +621,7 @@ func TestPostToolsRefreshesAgentLoadoutAndPromptWithoutDuplicatingInput(t *testi
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		entered, release := make(chan struct{}), make(chan struct{})
-		tool := ToolRegistration{Definition: goai.Tool{Name: "held", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "hooks.refresh", Version: 1, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+		tool := ToolRegistration{Definition: goai.Tool{Name: "held", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "hooks.refresh", Version: 1, Execute: func(context.Context, any, *ToolAPI) (ToolResult, error) {
 			close(entered)
 			<-release
 			return ToolResult{Content: "finished"}, nil

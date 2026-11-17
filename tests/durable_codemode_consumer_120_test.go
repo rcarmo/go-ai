@@ -25,7 +25,7 @@ func testPublicCodemodeConsumer120(t *testing.T, large bool) {
 	defer sandbox.Close(context.Background())
 	registry := durable.NewRegistry()
 	var effects, requests atomic.Int64
-	if err = registry.Register(durable.ToolRegistration{Definition: goai.Tool{Name: "echo", Parameters: json.RawMessage(`{"type":"object","properties":{}}`)}, Implementation: "consumer.echo", Version: 1, ReplaySafe: true, Execute: func(context.Context, durable.JSON, *durable.ToolAPI) (durable.ToolResult, error) {
+	if err = registry.Register(durable.ToolRegistration{Definition: goai.Tool{Name: "echo", Parameters: json.RawMessage(`{"type":"object","properties":{}}`)}, Implementation: "consumer.echo", Version: 1, ReplaySafe: true, Execute: func(context.Context, any, *durable.ToolAPI) (durable.ToolResult, error) {
 		effects.Add(1)
 		return durable.ToolResult{Content: "public API"}, nil
 	}}); err != nil {

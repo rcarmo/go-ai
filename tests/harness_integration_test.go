@@ -65,8 +65,8 @@ func TestAgentLoopHarness(t *testing.T) {
 	if err != nil {
 		t.Fatalf("turn 1: validation failed: %v", err)
 	}
-	if args["path"] != "/tmp/test.txt" {
-		t.Fatalf("turn 1: expected path=/tmp/test.txt, got %v", args["path"])
+	if args.(map[string]any)["path"] != "/tmp/test.txt" {
+		t.Fatalf("turn 1: expected path=/tmp/test.txt, got %v", args.(map[string]any)["path"])
 	}
 
 	goai.AppendToolResult(convCtx, calls[0].ID, calls[0].Name, "file contents here", false)

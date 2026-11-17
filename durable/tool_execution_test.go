@@ -20,7 +20,7 @@ func TestToolExecutionParallelAndSequentialRounds(t *testing.T) {
 				var firstReturned atomic.Bool
 				var secondPrepared atomic.Int64
 				schema := json.RawMessage(`{"type":"object"}`)
-				if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "first", Parameters: schema}, Implementation: "round.first", Version: 1, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+				if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "first", Parameters: schema}, Implementation: "round.first", Version: 1, Execute: func(context.Context, any, *ToolAPI) (ToolResult, error) {
 					close(firstEntered)
 					<-releaseFirst
 					firstReturned.Store(true)
@@ -32,13 +32,14 @@ func TestToolExecutionParallelAndSequentialRounds(t *testing.T) {
 				if mode == "tool-sequential" {
 					toolMode = "sequential"
 				}
-				if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "second", Parameters: schema}, Implementation: "round.second", Version: 1, ExecutionMode: toolMode, PrepareArguments: func(_ context.Context, args JSON) (JSON, error) {
+				if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "second", Parameters: schema}, Implementation: "round.second", Version: 1, ExecutionMode: toolMode, PrepareArguments: func(_ context.Context, rawToolArguments any) (any, error) {
+					args := rawToolArguments.(JSON)
 					secondPrepared.Add(1)
 					if (mode == "sequential" || mode == "tool-sequential") && !firstReturned.Load() {
 						t.Error("sequential pending call prepared before predecessor returned")
 					}
 					return args, nil
-				}, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+				}, Execute: func(context.Context, any, *ToolAPI) (ToolResult, error) {
 					if mode != "parallel" && mode != "v1-import" && !firstReturned.Load() {
 						t.Error("sequential tool overlapped")
 					}
@@ -307,7 +308,8 @@ func TestToolRoundReadsLiveHostModeAndKeepsRoundDecision(t *testing.T) {
 				for _, name := range []string{"first", "second"} {
 					name := name
 					reg := wrapRegistration(name)
-					reg.PrepareArguments = func(_ context.Context, args JSON) (JSON, error) {
+					reg.PrepareArguments = func(_ context.Context, rawToolArguments any) (any, error) {
+						args := rawToolArguments.(JSON)
 						if name == "second" {
 							prepared.Add(1)
 							if round == "sequential" && !firstReturned.Load() {
@@ -316,7 +318,7 @@ func TestToolRoundReadsLiveHostModeAndKeepsRoundDecision(t *testing.T) {
 						}
 						return args, nil
 					}
-					reg.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+					reg.Execute = func(context.Context, any, *ToolAPI) (ToolResult, error) {
 						if name == "first" {
 							if err := h.SetSettings(bg, HarnessSettings{ToolExecution: before}); err != nil {
 								return ToolResult{}, err

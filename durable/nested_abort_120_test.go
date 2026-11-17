@@ -14,7 +14,7 @@ func TestNestedTool120AbortJoinsHostAndStoresCallerResult(t *testing.T) {
 		var childID atomic.Uint64
 		registry := NewRegistry()
 		reg := wrapRegistration("nested_abort")
-		reg.Execute = func(ctx context.Context, _ JSON, _ *ToolAPI) (ToolResult, error) {
+		reg.Execute = func(ctx context.Context, _ any, _ *ToolAPI) (ToolResult, error) {
 			close(entered)
 			<-ctx.Done()
 			close(cancelled)
@@ -70,7 +70,7 @@ func TestNestedTool120OutcomeCallbackAndUsageSettleOnce(t *testing.T) {
 		var commits atomic.Int64
 		registry := NewRegistry()
 		reg := wrapRegistration("nested_usage")
-		reg.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+		reg.Execute = func(context.Context, any, *ToolAPI) (ToolResult, error) {
 			return ToolResult{Content: "result", Commit: func(*Tx) error { commits.Add(1); return nil }}, nil
 		}
 		if e := registry.Register(reg); e != nil {

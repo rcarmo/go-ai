@@ -12,7 +12,7 @@ func TestNestedTool120SequentialModeDoesNotSerializeNestedCalls(t *testing.T) {
 		registry := NewRegistry()
 		reg := wrapRegistration("sequential_nested")
 		reg.ExecutionMode = "sequential"
-		reg.Execute = func(ctx context.Context, _ JSON, _ *ToolAPI) (ToolResult, error) {
+		reg.Execute = func(ctx context.Context, _ any, _ *ToolAPI) (ToolResult, error) {
 			entered <- struct{}{}
 			select {
 			case <-release:
@@ -64,7 +64,7 @@ func TestNestedTool120InvalidControlSuppressesCallbackAndHarnessErrorsOmitStruct
 		registry := NewRegistry()
 		callbacks := 0
 		reg := wrapRegistration("invalid_control_nested")
-		reg.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+		reg.Execute = func(context.Context, any, *ToolAPI) (ToolResult, error) {
 			return ToolResult{Content: "text", Control: &ToolControl{AddTools: make([]string, DefaultLimits().MaxPage+1)}, Commit: func(*Tx) error { callbacks++; return nil }}, nil
 		}
 		if e := registry.Register(reg); e != nil {

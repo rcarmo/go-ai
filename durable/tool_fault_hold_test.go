@@ -32,7 +32,7 @@ func TestToolSchedulerFaultHoldsEndAndFailureUntilOwnedHostDrains(t *testing.T) 
 		t.Fatal(err)
 	}
 	reg := wrapRegistration("work")
-	reg.Execute = func(ctx context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+	reg.Execute = func(ctx context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 		id, err := api.CreateTask(ctx, child, nil, TaskOptions{Ownership: TaskOwnership{Kind: "task", Task: api.TaskID()}})
 		if err != nil {
 			return ToolResult{}, err

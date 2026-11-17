@@ -36,7 +36,7 @@ func TestSchemaToolArgumentsPreserveIsolatedUTF16Strings(t *testing.T) {
 			t.Error("UTF-16 schema result", tc.pattern, err)
 		}
 		if tc.valid {
-			value, ok := got["text"].(UTF16String)
+			value, ok := got.(map[string]any)["text"].(UTF16String)
 			if !ok || !reflect.DeepEqual(value.CodeUnits(), tc.units) {
 				t.Error("UTF-16 schema identity", got)
 			}

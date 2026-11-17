@@ -45,7 +45,11 @@ func freezeImmutableScoped(input any, arguments bool) (*ImmutableValue, error) {
 	case goai.UTF16String:
 		return &ImmutableValue{kind: "string", string: value.WTF8(), utf16: &value, arguments: true}, nil
 	case sourceToolArguments:
-		return freezeImmutableScoped(map[string]any(value), true)
+		node, err := freezeImmutableScoped(value.value, true)
+		if err == nil {
+			node.arguments = true
+		}
+		return node, err
 	case json.Number:
 		return &ImmutableValue{kind: "number", number: value}, nil
 	case map[string]any:
@@ -153,6 +157,11 @@ func (v *ImmutableValue) copy(preserveScopes bool) any {
 	if v == nil {
 		return nil
 	}
+	if preserveScopes && v.arguments {
+		copy := *v
+		copy.arguments = false
+		return sourceToolArguments{copy.copy(true)}
+	}
 	switch v.kind {
 	case "null":
 		return nil
@@ -169,9 +178,6 @@ func (v *ImmutableValue) copy(preserveScopes bool) any {
 		out := make(map[string]any, len(v.mapValue))
 		for key, child := range v.mapValue {
 			out[key] = child.copy(preserveScopes)
-		}
-		if preserveScopes && v.arguments {
-			return sourceToolArguments(out)
 		}
 		return out
 	case "array":

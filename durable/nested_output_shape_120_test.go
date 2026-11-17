@@ -24,7 +24,7 @@ func TestNestedTool120SchemalessOutputShapeReplayAndIsolation(t *testing.T) {
 			registry := NewRegistry()
 			calls := 0
 			reg := wrapRegistration("shape")
-			reg.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+			reg.Execute = func(context.Context, any, *ToolAPI) (ToolResult, error) {
 				calls++
 				return ToolResult{Blocks: tc.blocks, Diagnostics: []ToolDiagnostic{{Severity: "info", Message: "not output"}}}, nil
 			}

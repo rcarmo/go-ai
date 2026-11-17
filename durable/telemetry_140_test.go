@@ -801,7 +801,7 @@ func TestTelemetry140NestedReplayAndToolAttributes(t *testing.T) {
 		}
 		registry := NewRegistry()
 		leaf := wrapRegistration("telemetry_leaf")
-		leaf.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+		leaf.Execute = func(context.Context, any, *ToolAPI) (ToolResult, error) {
 			calls.Add(1)
 			return ToolResult{Content: "private result"}, nil
 		}

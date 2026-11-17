@@ -21,7 +21,8 @@ import (
 
 func registerSum(t *testing.T, registry *Registry, effects *atomic.Int64, document ID) {
 	t.Helper()
-	e := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "sum", Description: "Add two bounded integers", Parameters: json.RawMessage(`{"type":"object","properties":{"a":{"type":"integer","minimum":0,"maximum":100},"b":{"type":"integer","minimum":0,"maximum":100}},"required":["a","b"],"additionalProperties":false}`)}, Implementation: "sum.native", Version: 1, ReplaySafe: true, Execute: func(ctx context.Context, args JSON, api *ToolAPI) (ToolResult, error) {
+	e := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "sum", Description: "Add two bounded integers", Parameters: json.RawMessage(`{"type":"object","properties":{"a":{"type":"integer","minimum":0,"maximum":100},"b":{"type":"integer","minimum":0,"maximum":100}},"required":["a","b"],"additionalProperties":false}`)}, Implementation: "sum.native", Version: 1, ReplaySafe: true, Execute: func(ctx context.Context, rawToolArguments any, api *ToolAPI) (ToolResult, error) {
+		args := rawToolArguments.(JSON)
 		effects.Add(1)
 		a, _ := asNumber(args["a"])
 		b, _ := asNumber(args["b"])
@@ -178,7 +179,8 @@ func TestM1cSourceRepairBeforeIntent(t *testing.T) {
 	var effects, repairs atomic.Int64
 	var executeRecord TaskRecord
 	registry := NewRegistry()
-	e := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "repair", Parameters: json.RawMessage(`{"type":"object","properties":{"n":{"type":"integer","minimum":1,"maximum":9}},"required":["n"],"additionalProperties":false}`)}, Implementation: "repair.impl", Version: 1, ReplaySafe: true, PrepareArguments: func(context.Context, JSON) (JSON, error) { repairs.Add(1); return JSON{"n": 3}, nil }, Execute: func(ctx context.Context, args JSON, api *ToolAPI) (ToolResult, error) {
+	e := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "repair", Parameters: json.RawMessage(`{"type":"object","properties":{"n":{"type":"integer","minimum":1,"maximum":9}},"required":["n"],"additionalProperties":false}`)}, Implementation: "repair.impl", Version: 1, ReplaySafe: true, PrepareArguments: func(context.Context, any) (any, error) { repairs.Add(1); return JSON{"n": 3}, nil }, Execute: func(ctx context.Context, rawToolArguments any, api *ToolAPI) (ToolResult, error) {
+		args := rawToolArguments.(JSON)
 		effects.Add(1)
 		if args["n"] != json.Number("3") {
 			t.Error("rewritten args not stored")
@@ -330,7 +332,7 @@ func TestM1cAbortDrainsChildBeforeParentAndFencesEscapedAPI(t *testing.T) {
 	entered, release := make(chan struct{}), make(chan struct{})
 	var escaped *ToolAPI
 	registry := NewRegistry()
-	if e := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "block", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "block.impl", Version: 1, Execute: func(ctx context.Context, args JSON, api *ToolAPI) (ToolResult, error) {
+	if e := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "block", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "block.impl", Version: 1, Execute: func(ctx context.Context, args any, api *ToolAPI) (ToolResult, error) {
 		effects.Add(1)
 		escaped = api
 		if e := api.Output("retained prefix"); e != nil {
@@ -482,7 +484,7 @@ func TestM1cCloseNoncooperativeToolKeepsOwnershipAndRecoveryOutcome(t *testing.T
 	var escaped *ToolAPI
 	var effects atomic.Int64
 	registry := NewRegistry()
-	if e := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "block", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "block.impl", Version: 1, Execute: func(ctx context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+	if e := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "block", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "block.impl", Version: 1, Execute: func(ctx context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 		effects.Add(1)
 		escaped = api
 		close(entered)
@@ -566,7 +568,7 @@ func TestM1cRegistryPhasePinOutputCapAndAtomicAppFailure(t *testing.T) {
 	entered, release := make(chan struct{}), make(chan struct{})
 	var oldCalls, newCalls atomic.Int64
 	registry := NewRegistry()
-	reg := ToolRegistration{Definition: goai.Tool{Name: "pin", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "pin.impl", Version: 1, Execute: func(ctx context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+	reg := ToolRegistration{Definition: goai.Tool{Name: "pin", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "pin.impl", Version: 1, Execute: func(ctx context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 		oldCalls.Add(1)
 		if e := api.Output(strings.Repeat("x", MaxToolOutputBytes+1)); e != nil {
 			return ToolResult{}, e
@@ -600,7 +602,7 @@ func TestM1cRegistryPhasePinOutputCapAndAtomicAppFailure(t *testing.T) {
 		t.Fatal(e)
 	}
 	<-entered
-	reg.Execute = func(_ context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+	reg.Execute = func(_ context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 		newCalls.Add(1)
 		if err := api.Output(strings.Repeat("x", MaxToolOutputBytes+1)); err != nil {
 			return ToolResult{}, err
@@ -730,7 +732,7 @@ func TestM1cSupportedSchemaConstraintsAndHostValidator(t *testing.T) {
 	}
 	registry := NewRegistry()
 	calls := 0
-	if e := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "host", Parameters: json.RawMessage(`{"type":"object","oneOf":[{"required":["x"]}]}`)}, Implementation: "host.impl", Version: 1, Validator: func(context.Context, JSON) (JSON, error) { calls++; return nil, errors.New("strict host reject") }, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+	if e := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "host", Parameters: json.RawMessage(`{"type":"object","oneOf":[{"required":["x"]}]}`)}, Implementation: "host.impl", Version: 1, Validator: func(context.Context, any) (any, error) { calls++; return nil, errors.New("strict host reject") }, Execute: func(context.Context, any, *ToolAPI) (ToolResult, error) {
 		t.Error("hostrejecteffect")
 		return ToolResult{}, nil
 	}}); e != nil {
@@ -764,7 +766,7 @@ func TestM1cNativeExactNumericProbeAndSourceDeclarationTiming(t *testing.T) {
 		t.Fatal("lastvalidinteger")
 	}
 	malformed := NewRegistry()
-	if e = malformed.Register(ToolRegistration{Definition: goai.Tool{Name: "malformed", Parameters: json.RawMessage(`{"type":"object","required":true,"unknown":true}`)}, Implementation: "malformed.impl", Version: 1, Validator: func(context.Context, JSON) (JSON, error) { return JSON{}, nil }, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) { return ToolResult{}, nil }}); e != nil {
+	if e = malformed.Register(ToolRegistration{Definition: goai.Tool{Name: "malformed", Parameters: json.RawMessage(`{"type":"object","required":true,"unknown":true}`)}, Implementation: "malformed.impl", Version: 1, Validator: func(context.Context, any) (any, error) { return JSON{}, nil }, Execute: func(context.Context, any, *ToolAPI) (ToolResult, error) { return ToolResult{}, nil }}); e != nil {
 		t.Fatal("source declaration rejected before use", e)
 	}
 }
@@ -774,7 +776,7 @@ func TestM1cInvalidToolUsageSettlesOnceNoAppOrReplay(t *testing.T) {
 		t.Run(mode, func(t *testing.T) {
 			var effects, apps, requests atomic.Int64
 			registry := NewRegistry()
-			if e := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "usage", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "usage.impl", Version: 1, ReplaySafe: true, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+			if e := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "usage", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "usage.impl", Version: 1, ReplaySafe: true, Execute: func(context.Context, any, *ToolAPI) (ToolResult, error) {
 				effects.Add(1)
 				usage := &goai.Usage{Input: 2, Output: 1, TotalTokens: 3}
 				switch mode {
@@ -945,7 +947,7 @@ func TestM1cRetryConfigRejectBeforeIntentAndRecovery(t *testing.T) {
 func TestM1cRepeatedProviderCallIDUsesDistinctDurableTasks(t *testing.T) {
 	var effects, requests atomic.Int64
 	registry := NewRegistry()
-	if e := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "repeat", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "repeat.impl", Version: 1, ReplaySafe: true, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+	if e := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "repeat", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "repeat.impl", Version: 1, ReplaySafe: true, Execute: func(context.Context, any, *ToolAPI) (ToolResult, error) {
 		effects.Add(1)
 		return ToolResult{Content: "ok"}, nil
 	}}); e != nil {
@@ -1093,7 +1095,7 @@ func TestM1cProviderPartialPointersObservedDetachedAtBoundary(t *testing.T) {
 func TestM1cAbortAtOfferedCallBoundaryStartsNoTool(t *testing.T) {
 	var effects atomic.Int64
 	registry := NewRegistry()
-	if e := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "effect", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "effect.impl", Version: 1, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) { effects.Add(1); return ToolResult{}, nil }}); e != nil {
+	if e := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "effect", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "effect.impl", Version: 1, Execute: func(context.Context, any, *ToolAPI) (ToolResult, error) { effects.Add(1); return ToolResult{}, nil }}); e != nil {
 		t.Fatal(e)
 	}
 	entered, release := make(chan struct{}), make(chan struct{})
@@ -1309,7 +1311,7 @@ func TestSourceToolAPICommitReturnsValuesAndAttributedEntry(t *testing.T) {
 			var committed ID
 			registry := NewRegistry()
 			reg := wrapRegistration("commit_value_probe")
-			reg.Execute = func(ctx context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+			reg.Execute = func(ctx context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 				effects.Add(1)
 				escaped = api
 				values, ok := any(api).(committer)

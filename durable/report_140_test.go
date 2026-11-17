@@ -430,7 +430,7 @@ func TestReport140StructuredOutputUsesCapturedProducer(t *testing.T) {
 				registration := wrapRegistration("structured_origin")
 				registration.StructuredOutputSchema = JSON{"type": "integer"}
 				producer := &Extension{Name: "producer"}
-				registration.Execute = func(_ context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+				registration.Execute = func(_ context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 					expected = api.runtime.Context()
 					registry.Uninstall(producer)
 					producer.Name = "changed"

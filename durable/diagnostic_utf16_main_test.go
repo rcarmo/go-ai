@@ -17,7 +17,7 @@ func TestDiagnosticUTF16MainInvalidArgumentsLifecycle(t *testing.T) {
 		var effects, requests atomic.Int64
 		registry := NewRegistry()
 		reg := wrapRegistration("invalid_leaf")
-		reg.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+		reg.Execute = func(context.Context, any, *ToolAPI) (ToolResult, error) {
 			effects.Add(1)
 			return ToolResult{Content: "unexpected"}, nil
 		}

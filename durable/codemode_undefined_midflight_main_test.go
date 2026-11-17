@@ -25,7 +25,7 @@ func TestMainCodemodeGlobalUndefinedAcrossBlockedToolReopen(t *testing.T) {
 	blocked.Store(true)
 	var globals, holds atomic.Int64
 	hold := wrapRegistration("codemode_hold")
-	hold.Execute = func(ctx context.Context, _ JSON, _ *ToolAPI) (ToolResult, error) {
+	hold.Execute = func(ctx context.Context, _ any, _ *ToolAPI) (ToolResult, error) {
 		holds.Add(1)
 		if blocked.Load() {
 			select {

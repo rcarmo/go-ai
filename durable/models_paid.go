@@ -17,7 +17,8 @@ func paidModelRegistration(name string, kind goai.ModelType) ToolRegistration {
 	if kind == goai.ModelTypeImage {
 		global = "models.generateImages"
 	}
-	return ToolRegistration{paidModel: true, Definition: goai.Tool{Name: name, Description: global + "() of code mode scripts.", Parameters: json.RawMessage(`{"type":"object","properties":{"model":{},"context":{}},"required":["model","context"]}`)}, Implementation: name, Version: 1, Callers: []string{"tools"}, ReplaySafe: false, StructuredOutputSchema: JSON{}, Execute: func(ctx context.Context, args JSON, api *ToolAPI) (ToolResult, error) {
+	return ToolRegistration{paidModel: true, Definition: goai.Tool{Name: name, Description: global + "() of code mode scripts.", Parameters: json.RawMessage(`{"type":"object","properties":{"model":{},"context":{}},"required":["model","context"]}`)}, Implementation: name, Version: 1, Callers: []string{"tools"}, ReplaySafe: false, StructuredOutputSchema: JSON{}, Execute: func(ctx context.Context, rawToolArguments any, api *ToolAPI) (ToolResult, error) {
+		args := rawToolArguments.(JSON)
 		model, _ := args["model"].(map[string]any)
 		provider, _ := model["provider"].(string)
 		id, _ := model["id"].(string)

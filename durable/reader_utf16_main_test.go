@@ -19,7 +19,8 @@ func TestReaderUTF16MainCommittedEventsAndSnapshot(t *testing.T) {
 		release := make(chan struct{})
 		defer close(release)
 		registry := NewRegistry()
-		if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "unicode", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "unicode.reader", Version: 1, Execute: func(ctx context.Context, args JSON, _ *ToolAPI) (ToolResult, error) {
+		if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "unicode", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "unicode.reader", Version: 1, Execute: func(ctx context.Context, rawToolArguments any, _ *ToolAPI) (ToolResult, error) {
+			args := rawToolArguments.(JSON)
 			requireToolUTF16(t, args[key], 0xd800)
 			close(entered)
 			select {

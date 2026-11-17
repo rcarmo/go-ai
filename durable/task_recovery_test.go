@@ -499,7 +499,7 @@ func TestTaskRecoveryBuiltinHoldFinalFailureAndReopen(t *testing.T) {
 				if _, err := registry.RegisterTask(child); err != nil {
 					t.Fatal(err)
 				}
-				err = registry.Register(ToolRegistration{Definition: goai.Tool{Name: "hold-recovery", Description: "held result", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "hold.recovery", Version: 1, ReplaySafe: false, Execute: func(ctx context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+				err = registry.Register(ToolRegistration{Definition: goai.Tool{Name: "hold-recovery", Description: "held result", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "hold.recovery", Version: 1, ReplaySafe: false, Execute: func(ctx context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 					effects.Add(1)
 					toolID = api.TaskID()
 					// Raw authority forgery is rejected even BEFORE Memo adds Execution.
@@ -855,7 +855,7 @@ func TestTaskRecoveryToolOutcomePanicRollbackFallbackAndReopen(t *testing.T) {
 		model.Headers = map[string]string{"Authorization": "Bearer durable-test"}
 		registry := NewRegistry()
 		var docID, toolID ID
-		if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "panic-result", Description: "outcome fence", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "panic.result", Version: 1, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+		if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "panic-result", Description: "outcome fence", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "panic.result", Version: 1, Execute: func(context.Context, any, *ToolAPI) (ToolResult, error) {
 			effects.Add(1)
 			return ToolResult{Content: "success must rollback", Usage: &goai.Usage{Output: 2, TotalTokens: 2}, Commit: func(tx *Tx) error {
 				callbacks.Add(1)
@@ -2208,7 +2208,7 @@ func TestTaskRecoveryToolDecidingHoldRejectedUncertainAndReopen(t *testing.T) {
 				if _, err := registry.RegisterTask(child); err != nil {
 					t.Fatal(err)
 				}
-				if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "deciding-hold", Description: "atomic hold", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "deciding.hold", Version: 1, ReplaySafe: false, Execute: func(ctx context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+				if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "deciding-hold", Description: "atomic hold", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "deciding.hold", Version: 1, ReplaySafe: false, Execute: func(ctx context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 					effects.Add(1)
 					toolID = api.TaskID()
 					if err := api.Output("known-prefix"); err != nil {
@@ -2745,7 +2745,7 @@ func TestTaskRecoveryCloseSealRejectsFreshMemoAndToolPrefix(t *testing.T) {
 					model.BaseURL = server.URL
 					model.Headers = map[string]string{"Authorization": "Bearer durable-test"}
 					registry := NewRegistry()
-					if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "close-prefix", Description: "close seal", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "close.prefix", Version: 1, Execute: func(_ context.Context, _ JSON, current *ToolAPI) (ToolResult, error) {
+					if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "close-prefix", Description: "close seal", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "close.prefix", Version: 1, Execute: func(_ context.Context, _ any, current *ToolAPI) (ToolResult, error) {
 						api = current
 						captured = current.runtime
 						close(entered)
@@ -3429,7 +3429,7 @@ func TestTaskRecoveryBuiltinPredispatchAncestorCancellation(t *testing.T) {
 				model.BaseURL = server.URL
 				model.Headers = map[string]string{"Authorization": "Bearer durable-test"}
 				registry := NewRegistry()
-				if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "predispatch", Description: "cancel gate", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "predispatch", Version: 1, ReplaySafe: true, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+				if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "predispatch", Description: "cancel gate", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "predispatch", Version: 1, ReplaySafe: true, Execute: func(context.Context, any, *ToolAPI) (ToolResult, error) {
 					executes.Add(1)
 					return ToolResult{Content: "forbidden effect"}, nil
 				}}); err != nil {
@@ -5488,7 +5488,8 @@ func TestTaskRecoveryToolValidatorHostFailureBeforeIntentAndDecidingReopen(t *te
 					model.BaseURL = server.URL
 					model.Headers = map[string]string{"Authorization": "Bearer durable-test"}
 					registry := NewRegistry()
-					if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "repair_failure", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "repair.failure", Version: 1, ReplaySafe: false, Validator: func(_ context.Context, args JSON) (JSON, error) {
+					if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "repair_failure", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "repair.failure", Version: 1, ReplaySafe: false, Validator: func(_ context.Context, rawToolArguments any) (any, error) {
+						args := rawToolArguments.(JSON)
 						first := repairs.Add(1) == 1
 						args["private_repair"] = "credential must not persist"
 						if first {
@@ -5499,7 +5500,7 @@ func TestTaskRecoveryToolValidatorHostFailureBeforeIntentAndDecidingReopen(t *te
 							panic("private repair credential")
 						}
 						return nil, errors.New("private repair credential")
-					}, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+					}, Execute: func(context.Context, any, *ToolAPI) (ToolResult, error) {
 						effects.Add(1)
 						return ToolResult{}, errors.New("invalid repair dispatched executor")
 					}}); err != nil {
@@ -5729,7 +5730,7 @@ func TestTaskRecoveryHostCallbackFencesPreserveNormalErrorIdentity(t *testing.T)
 	if options != nil || !errors.Is(err, cause) {
 		t.Fatal("options normal error identity changed", err)
 	}
-	value, err := callToolValidator(func(context.Context, JSON) (JSON, error) { return nil, cause }, bg, JSON{})
+	value, err := callToolValidator(func(context.Context, any) (any, error) { return nil, cause }, bg, JSON{})
 	if value != nil || !errors.Is(err, cause) {
 		t.Fatal("validator normal error identity changed", err)
 	}
@@ -5746,7 +5747,7 @@ func TestTaskRecoveryHostCallbackFencesPreserveNormalErrorIdentity(t *testing.T)
 			case "options":
 				_, err = callRequestOptions(func(context.Context, ModelRef) (*goai.StreamOptions, error) { panic("credential") }, bg, ref)
 			case "validator":
-				_, err = callToolValidator(func(context.Context, JSON) (JSON, error) { panic("credential") }, bg, JSON{})
+				_, err = callToolValidator(func(context.Context, any) (any, error) { panic("credential") }, bg, JSON{})
 			}
 			var rejected *StorageRejected
 			if !errors.As(err, &rejected) || strings.Contains(err.Error(), "credential") {
@@ -5783,7 +5784,7 @@ func TestTaskRecoverySelectedAncestorBuiltinDispatchGuards(t *testing.T) {
 				model.BaseURL = server.URL
 				model.Headers = map[string]string{"Authorization": "Bearer durable-test"}
 				registry := NewRegistry()
-				if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "inherited_guard", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "inherited.guard", Version: 1, ReplaySafe: true, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+				if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "inherited_guard", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "inherited.guard", Version: 1, ReplaySafe: true, Execute: func(context.Context, any, *ToolAPI) (ToolResult, error) {
 					executions.Add(1)
 					return ToolResult{Content: "forbidden"}, nil
 				}}); err != nil {
@@ -6106,7 +6107,8 @@ func TestTaskRecoverySuccessfulValidatorIntentStoragePrefixAndReopen(t *testing.
 				var first *Harness
 				var document ID
 				if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "successful_repair", Parameters: json.RawMessage(`{"type":"object","properties":{"repaired":{"type":"string"}}}`)}, Implementation: "successful.repair", Version: 1, ReplaySafe: true,
-					Validator: func(_ context.Context, args JSON) (JSON, error) {
+					Validator: func(_ context.Context, rawToolArguments any) (any, error) {
+						args := rawToolArguments.(JSON)
 						n := repairs.Add(1)
 						if len(args) != 0 && args["repaired"] != "accepted host repair" {
 							return nil, errors.New("original model arguments were overwritten")
@@ -6124,7 +6126,8 @@ func TestTaskRecoverySuccessfulValidatorIntentStoragePrefixAndReopen(t *testing.
 							<-releaseValidator
 						}
 						return args, nil
-					}, Execute: func(ctx context.Context, args JSON, api *ToolAPI) (ToolResult, error) {
+					}, Execute: func(ctx context.Context, rawToolArguments any, api *ToolAPI) (ToolResult, error) {
+						args := rawToolArguments.(JSON)
 						executions.Add(1)
 						if len(args) != 1 || args["repaired"] != "accepted host repair" {
 							return ToolResult{}, errors.New("executor did not use confirmed repaired intent")
@@ -6469,7 +6472,7 @@ func TestTaskRecoveryOrderedToolContinuationAdmissionCloseAndLateOwnedWork(t *te
 					t.Fatal(err)
 				}
 				var parent, ownedConversation ID
-				if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "continuation_guard", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "continuation.guard", Version: 1, Execute: func(_ context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+				if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "continuation_guard", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "continuation.guard", Version: 1, Execute: func(_ context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 					executions.Add(1)
 					first.session.taskBookkeeping(func() {
 						r := first.scheduler.invocations[api.TaskID()]

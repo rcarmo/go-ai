@@ -14,7 +14,7 @@ func TestToolProgressCoalescesFirehosePreservesMemoAndTerminalFlush(t *testing.T
 		registry := NewRegistry()
 		visible, release := make(chan struct{}), make(chan struct{})
 		memoCommitted := make(chan ID, 1)
-		if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "firehose", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "firehose.test", Version: 1, OutputLimits: &limits, Execute: func(ctx context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+		if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "firehose", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "firehose.test", Version: 1, OutputLimits: &limits, Execute: func(ctx context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 			if err := api.Output("first\n"); err != nil {
 				return ToolResult{}, err
 			}

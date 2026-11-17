@@ -85,8 +85,8 @@ func mainAssertStringConversion(t *testing.T, value interface{}, want string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got["h"] != want {
-		t.Fatalf("got %#v, want %q", got["h"], want)
+	if got.(map[string]any)["h"] != want {
+		t.Fatalf("got %#v, want %q", got.(map[string]any)["h"], want)
 	}
 	if number, ok := value.(float64); ok {
 		if current, ok := args["h"].(float64); !ok || math.Float64bits(current) != math.Float64bits(number) {

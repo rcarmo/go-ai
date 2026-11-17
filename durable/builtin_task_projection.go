@@ -170,7 +170,7 @@ func toolPublicState(owned Task, cp toolCheckpoint) TaskState {
 	}
 	var publicArguments any = arguments
 	if cp.StreamingArguments {
-		publicArguments = sourceToolArguments(arguments)
+		publicArguments = sourceToolArguments{arguments}
 	}
 	return TaskState{Status: owned.Status, Checkpoint: JSON{"phase": "execute", "arguments": publicArguments, "replay": replay}}
 }

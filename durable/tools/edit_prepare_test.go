@@ -15,7 +15,8 @@ func TestEditArgumentPreparationRepairsLegacyShapesWithoutMutatingProvenance(t *
 			registry := durable.NewRegistry()
 			effects := atomic.Int64{}
 			registration := Edit(LocalEnv(t.TempDir()))
-			registration.Execute = func(_ context.Context, args durable.JSON, _ *durable.ToolAPI) (durable.ToolResult, error) {
+			registration.Execute = func(_ context.Context, rawToolArguments any, _ *durable.ToolAPI) (durable.ToolResult, error) {
+				args := rawToolArguments.(durable.JSON)
 				effects.Add(1)
 				edits, ok := args["edits"].([]any)
 				want := 1

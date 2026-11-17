@@ -16,7 +16,7 @@ func TestTool130ArgumentErrorRejectsEvenWithoutSchema(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	block := goai.ContentBlock{Type: "toolCall", ID: call.ID, Name: call.Name, Arguments: call.Arguments, ArgumentsError: call.ArgumentsError}
+	block := goai.ContentBlock{Type: "toolCall", ID: call.ID, Name: call.Name, Arguments: call.Arguments.(map[string]any), ArgumentsError: call.ArgumentsError}
 	encoded, err := json.Marshal(block)
 	if err != nil {
 		t.Fatal(err)

@@ -22,7 +22,7 @@ func TestMainRunFailurePostToolsResetRetainsOnlyImmediateSuccessor(t *testing.T)
 		release := []chan struct{}{make(chan struct{}), make(chan struct{})}
 		registry := NewRegistry()
 		reg := wrapRegistration("hold")
-		reg.Execute = func(ctx context.Context, _ JSON, _ *ToolAPI) (ToolResult, error) {
+		reg.Execute = func(ctx context.Context, _ any, _ *ToolAPI) (ToolResult, error) {
 			close(toolEntered)
 			select {
 			case <-toolRelease:

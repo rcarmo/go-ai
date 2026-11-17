@@ -1,12 +1,12 @@
 # Canonical integration baseline
 
-Latest complete run:e9c0f61 plus the selected schema/UTF-16 packet and source-reconciled registration consumers. Prior complete groups:40 (28),41 (29). Baseline27 was interrupted without a durable result. Baseline30 compiled before the final full-checkpoint assertion strengthening; that stronger assertion and expanded selection subsequently pass three-shuffle60.371s. No runtime changes followed baseline30.
+Latest complete run: a4612c0 plus the public tool argument value union, including separate cancellation paths for returns and throws. Baseline31 exposed three cutoff failures (42 groups); baseline32 restores the baseline30 failure inventory (39 groups).
 
-Command: `make test PACKAGES=./... TEST_FLAGS='-v -count=1 -p 1 -timeout 1200s'`, after sourcing scripts/project-env.sh. CGO disabled, sequential packages. Baseline30 ran in a separate tmux session with a saved exit code. No overlays or test exclusions.
+Command: `make test PACKAGES=./... TEST_FLAGS='-v -count=1 -p 1 -timeout 1200s'`, after sourcing scripts/project-env.sh. CGO disabled, sequential packages. Baseline32 ran in a separate tmux session with a saved exit code. No overlays or test exclusions.
 
-**Integration is red.** Complete baseline30: durable866.370s with39 failed top-level groups;25 other tested packages pass (tools14.832s/public11.887s). No panic, timeout, overlay or exclusions. Integration remains red;89c031e is still the last fully verified tree.
+**Integration is red.** Complete baseline32: durable 854.664s with 39 failed top-level groups; 25 other tested packages pass (tools 15.980s, public 11.773s). No panic, timeout, overlay or exclusions. 89c031e remains the last fully verified tree.
 
-Selected schema, repair and registration/wrapper consumers pass. [Mapping](canonical-builtin-execution.md#selected-tool-parameter-schemas-and-utf-16-validation).
+The argument union and cutoff tests pass. [Mapping](canonical-builtin-execution.md#public-tool-argument-value-union).
 
 This is an observed failure inventory, not an assertion crosswalk or root-cause verdict. Names come from the complete run; links resolve source declarations.
 

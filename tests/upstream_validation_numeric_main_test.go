@@ -96,8 +96,8 @@ func TestUpstreamMainValidationNumericNativePrecision(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got["n"] != tc.value {
-				t.Fatalf("bound check rounded %T %v to %T %v", tc.value, tc.value, got["n"], got["n"])
+			if got.(map[string]any)["n"] != tc.value {
+				t.Fatalf("bound check rounded %T %v to %T %v", tc.value, tc.value, got.(map[string]any)["n"], got.(map[string]any)["n"])
 			}
 		})
 	}
@@ -123,7 +123,7 @@ func TestUpstreamMainValidationNumericBoundNonfinite(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got["n"] != value {
+	if got.(map[string]any)["n"] != value {
 		t.Fatalf("decimal bound rewrote value: %#v", got)
 	}
 }

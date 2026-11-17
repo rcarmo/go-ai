@@ -173,7 +173,7 @@ func TestSubmissionToolBoundConversationLifetime(t *testing.T) {
 	var submission *InvocationSubmission
 	var ref ModelRef
 	registry := NewRegistry()
-	err = registry.Register(ToolRegistration{Definition: goai.Tool{Name: "delegate", Description: "Delegates", Parameters: []byte(`{"type":"object","properties":{}}`)}, Implementation: "source.delegate", Version: 1, Execute: func(ctx context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+	err = registry.Register(ToolRegistration{Definition: goai.Tool{Name: "delegate", Description: "Delegates", Parameters: []byte(`{"type":"object","properties":{}}`)}, Implementation: "source.delegate", Version: 1, Execute: func(ctx context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 		value, err := api.Commit(ctx, func(tx *Tx) (any, error) {
 			child, err := tx.CreateConversation(JSON{"ownership": JSON{"kind": "task", "taskId": api.TaskID()}})
 			if err != nil {

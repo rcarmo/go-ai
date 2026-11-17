@@ -37,7 +37,7 @@ func TestCodemode120ModelToolUnsettledReopen(t *testing.T) {
 		registry := NewRegistry()
 		var effects, requests atomic.Int64
 		leaf := wrapRegistration("recovery_leaf")
-		leaf.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+		leaf.Execute = func(context.Context, any, *ToolAPI) (ToolResult, error) {
 			effects.Add(1)
 			return ToolResult{Content: "recovered-leaf"}, nil
 		}

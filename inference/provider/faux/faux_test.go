@@ -125,7 +125,7 @@ func TestFauxToolCall(t *testing.T) {
 	if gotToolCall.Name != "get_time" {
 		t.Fatalf("expected tool name 'get_time', got %q", gotToolCall.Name)
 	}
-	if gotToolCall.Arguments["timezone"] != "UTC" {
+	if gotToolCall.Arguments.(map[string]any)["timezone"] != "UTC" {
 		t.Fatalf("expected timezone=UTC, got %v", gotToolCall.Arguments)
 	}
 }

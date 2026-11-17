@@ -14,7 +14,7 @@ func TestNestedTool120BlockDiagnosticAndArbitraryDetailsFidelity(t *testing.T) {
 		registry := NewRegistry()
 		reg := wrapRegistration("nested_blocks")
 		reg.OutputLimits = &ToolOutputLimits{MaxBytes: 8, MaxLines: 10, Retain: "head"}
-		reg.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+		reg.Execute = func(context.Context, any, *ToolAPI) (ToolResult, error) {
 			return ToolResult{Blocks: []goai.ContentBlock{{Type: "text", Text: "abcdefghijkl"}, {Type: "image", Data: "aGVsbG8=", MimeType: "image/png"}}, Diagnostics: []ToolDiagnostic{{Severity: "warn", Message: "warning", Code: "test"}}, HasDetails: true, DetailsValue: []any{"array", nil}}, nil
 		}
 		if e := registry.Register(reg); e != nil {
@@ -57,7 +57,7 @@ func TestNestedTool120DiagnosticJSONSeverityPreservesApplicationCommit(t *testin
 		commits := 0
 		registry := NewRegistry()
 		reg := wrapRegistration("nested_bad_diagnostics")
-		reg.Execute = func(ctx context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+		reg.Execute = func(ctx context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 			task, found, err := api.Task(ctx, api.TaskID())
 			if err != nil || !found {
 				return ToolResult{}, errors.New("nested task missing")

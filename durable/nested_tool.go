@@ -367,7 +367,7 @@ func runNestedTool(ctx context.Context, record TaskRecord, r *TaskRuntime) error
 			return err
 		}
 	} else {
-		args, err = validateScopedArguments(ctx, reg, args, l, input.StreamingArguments)
+		args, err = validateObjectScopedArguments(ctx, reg, args, l, input.StreamingArguments)
 		if err != nil {
 			return settleNestedTool(ctx, record, r, ToolResult{Content: "Invalid tool arguments", IsError: true}, "invalid_arguments", 0)
 		}
@@ -392,7 +392,7 @@ func runNestedTool(ctx context.Context, record TaskRecord, r *TaskRuntime) error
 			if decision != nil && decision.Arguments != nil {
 				trial := reg
 				trial.prepare = nil
-				args, e = validateScopedArguments(ctx, trial, decision.Arguments, l, input.StreamingArguments)
+				args, e = validateObjectScopedArguments(ctx, trial, decision.Arguments, l, input.StreamingArguments)
 				if e != nil {
 					return settleNestedTool(ctx, record, r, ToolResult{Content: "Invalid tool arguments", IsError: true}, "invalid_arguments", 0)
 				}

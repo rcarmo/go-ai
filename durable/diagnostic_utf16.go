@@ -94,7 +94,7 @@ func validateDiagnosticWitness(r *MessageReceipt, w ReceiptUTF16Arguments, l Lim
 	if err != nil {
 		return "", err
 	}
-	if len(carrier.Arguments) != 0 || utf8.ValidString(carrier.ArgumentsError) {
+	if len(carrier.Arguments.(map[string]any)) != 0 || utf8.ValidString(carrier.ArgumentsError) {
 		return "", reject("invalid diagnostic-only carrier")
 	}
 	return carrier.ArgumentsError, nil

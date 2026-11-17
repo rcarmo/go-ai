@@ -18,7 +18,7 @@ func TestCodemode120ParallelInitialErrorSettlesWithoutEffects(t *testing.T) {
 		var effects atomic.Int64
 		registry := NewRegistry()
 		leaf := wrapRegistration("codemode_leaf")
-		leaf.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+		leaf.Execute = func(context.Context, any, *ToolAPI) (ToolResult, error) {
 			effects.Add(1)
 			return ToolResult{Content: "unsafe"}, nil
 		}

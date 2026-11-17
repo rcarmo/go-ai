@@ -54,7 +54,8 @@ func TestCodemodeUTF16MainLegacyUTF8Reopen(t *testing.T) {
 		registry := NewRegistry()
 		reg := wrapRegistration("ordinary_leaf")
 		reg.ReplaySafe = true
-		reg.Execute = func(ctx context.Context, args JSON, _ *ToolAPI) (ToolResult, error) {
+		reg.Execute = func(ctx context.Context, rawToolArguments any, _ *ToolAPI) (ToolResult, error) {
+			args := rawToolArguments.(JSON)
 			if args["text"] != "ordinary" {
 				t.Error("old arguments changed", args)
 			}

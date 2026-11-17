@@ -17,7 +17,7 @@ func TestToolDuration110ExecutedErrorPanicAndUnexecuted(t *testing.T) {
 				var executions atomic.Int64
 				{
 					reg := wrapRegistration("timed")
-					reg.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+					reg.Execute = func(context.Context, any, *ToolAPI) (ToolResult, error) {
 						executions.Add(1)
 						time.Sleep(30 * time.Millisecond)
 						if mode == "panic" {

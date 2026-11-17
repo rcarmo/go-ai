@@ -22,7 +22,7 @@ func TestCodemode120ParallelCallerAbortJoinsChildren(t *testing.T) {
 		var effects atomic.Int64
 		registry := NewRegistry()
 		leaf := wrapRegistration("codemode_leaf")
-		leaf.Execute = func(ctx context.Context, _ JSON, _ *ToolAPI) (ToolResult, error) {
+		leaf.Execute = func(ctx context.Context, _ any, _ *ToolAPI) (ToolResult, error) {
 			effects.Add(1)
 			entered <- struct{}{}
 			<-ctx.Done()

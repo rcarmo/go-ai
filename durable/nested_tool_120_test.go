@@ -17,7 +17,8 @@ func TestNestedTool120KeyReuseResultOwnershipAndAuthority(t *testing.T) {
 		reg.Callers = []string{"tools"}
 		reg.Deferred = true
 		reg.Definition.Parameters = json.RawMessage(`{"type":"object","properties":{"value":{"type":"integer"}},"required":["value"]}`)
-		reg.Execute = func(ctx context.Context, args JSON, api *ToolAPI) (ToolResult, error) {
+		reg.Execute = func(ctx context.Context, rawToolArguments any, api *ToolAPI) (ToolResult, error) {
+			args := rawToolArguments.(JSON)
 			runs.Add(1)
 			apiEscaped = api
 			if err := api.Output("prefix"); err != nil {

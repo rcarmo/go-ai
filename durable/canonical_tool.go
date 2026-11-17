@@ -169,7 +169,7 @@ func canonicalToolCallPhase(ctx context.Context, task TaskRecord, r *TaskRuntime
 	if call.ArgumentsError != "" {
 		return rejectCall(ToolResult{IsError: true, harnessResult: true, Blocks: []goai.ContentBlock{}, Diagnostics: []ToolDiagnostic{{Severity: "error", Code: "invalid_arguments", Message: fmt.Sprintf(`Invalid arguments for tool "%s": %s`, call.Name, call.ArgumentsError), argumentError: true}}})
 	}
-	args, err := validateScopedArguments(ctx, reg, JSON(call.Arguments), r.harness.session.limits, call.HasStreamingArguments())
+	args, err := validateScopedArguments(ctx, reg, call.Arguments, r.harness.session.limits, call.HasStreamingArguments())
 	if err != nil {
 		return rejectCall(canonicalToolError("invalid_arguments", err.Error()))
 	}
@@ -177,12 +177,12 @@ func canonicalToolCallPhase(ctx context.Context, task TaskRecord, r *TaskRuntime
 		if hook.BeforeTool == nil {
 			continue
 		}
-		copy, err := copyScopedToolArguments(args, call.HasStreamingArguments(), r.harness.session.limits)
+		copy, err := copyScopedToolValue(args, call.HasStreamingArguments(), r.harness.session.limits)
 		if err != nil {
 			return err
 		}
 		checked := call
-		checked.Arguments = copy
+		checked.Arguments = toolCallArgumentValue(copy)
 		decision, err := callBeforeTool(ctx, hook.BeforeTool, checked, r)
 		if err != nil {
 			if ctx.Err() != nil {
@@ -221,7 +221,7 @@ func canonicalToolCallPhase(ctx context.Context, task TaskRecord, r *TaskRuntime
 	}
 	var checkpointArguments any = args
 	if call.HasStreamingArguments() {
-		checkpointArguments = sourceToolArguments(args)
+		checkpointArguments = sourceToolArguments{args}
 	}
 	if err := r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) {
 		return &TaskState{Status: "running", Checkpoint: JSON{"phase": "execute", "arguments": checkpointArguments, "replay": replay}}, nil
@@ -245,7 +245,7 @@ func canonicalToolExecutePhase(ctx context.Context, task TaskRecord, r *TaskRunt
 	}
 	cp := taskCheckpointMap(task.State.Checkpoint)
 	if cp["replay"] == "safe" && found && reg.offer.ReplaySafe {
-		args := taskCheckpointMap(cp["arguments"])
+		args := unwrapToolArgumentValue(cp["arguments"])
 		// Recovery removes stale output durably before another effect. This
 		// source Runtime.commit is immediate, not a progress publication.
 		if err := r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
@@ -377,7 +377,7 @@ func canonicalToolFromSlot(ctx context.Context, r *TaskRuntime, code, message st
 	return result, err
 }
 
-func runCanonicalTool(ctx context.Context, r *TaskRuntime, input canonicalToolInput, call goai.ToolCall, agent agentState, reg registeredTool, args JSON) (finalErr error) {
+func runCanonicalTool(ctx context.Context, r *TaskRuntime, input canonicalToolInput, call goai.ToolCall, agent agentState, reg registeredTool, args any) (finalErr error) {
 	api := &ToolAPI{h: r.harness, task: Task{ID: r.taskID, Conversation: r.conversation}, checkpoint: toolCheckpoint{Offer: reg.offer, CallID: call.ID}, active: true, ctx: ctx, runtime: r, canonicalInput: input}
 	interval := int64(100)
 	if p := r.harness.resolvedSettings(RequestSettings{}).Progress; p.OutputIntervalMs != nil {
@@ -395,7 +395,7 @@ func runCanonicalTool(ctx context.Context, r *TaskRuntime, input canonicalToolIn
 	err := api.environmentErr
 	var duration *int64
 	if err == nil {
-		owned, copyErr := copyScopedToolArguments(args, call.HasStreamingArguments(), r.harness.session.limits)
+		owned, copyErr := copyScopedToolValue(args, call.HasStreamingArguments(), r.harness.session.limits)
 		err = copyErr
 		if err == nil {
 			started := time.Now()
@@ -411,10 +411,13 @@ func runCanonicalTool(ctx context.Context, r *TaskRuntime, input canonicalToolIn
 			duration = &elapsed
 		}
 	}
+	executionFailed := err != nil
 	if sealErr := api.seal(); err == nil {
 		err = sealErr
 	}
-	if ctx.Err() != nil {
+	// Source aborts immediately when execute/env throws after its signal was
+	// cancelled. Only a normal late return proceeds through finalResult hooks.
+	if executionFailed && ctx.Err() != nil {
 		return ctx.Err()
 	}
 	api.mu.Lock()
@@ -439,6 +442,11 @@ func runCanonicalTool(ctx context.Context, r *TaskRuntime, input canonicalToolIn
 	result, err = canonicalToolHooks(ctx, r, agent, call, result)
 	if err != nil {
 		return err
+	}
+	// Source finalResult still runs afterTool for a tool returning after abort.
+	// The cancellation fence prevents its result from being committed afterwards.
+	if ctx.Err() != nil {
+		return ctx.Err()
 	}
 	// Source finalResult adds retained-output truncation after afterTool, and
 	// only while the hook kept that output. Returned content replaces progress.

@@ -57,7 +57,7 @@ func SnapshotEvent(event Event) Event {
 	case *ToolCallEndEvent:
 		copy := *value
 		copy.Partial = snapshot(value.Partial)
-		copy.ToolCall.Arguments = deepCopyStringAnyMap(value.ToolCall.Arguments)
+		copy.ToolCall.Arguments = deepCopyAny(value.ToolCall.Arguments)
 		return &copy
 	default:
 		return event

@@ -15,7 +15,7 @@ func TestToolDiagnosticsCommittedDetachedAndRenderedOutsideDetails(t *testing.T)
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		var escaped *ToolAPI
-		if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "diagnostic", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "diagnostic.test", Version: 1, Execute: func(_ context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+		if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "diagnostic", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "diagnostic.test", Version: 1, Execute: func(_ context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 			escaped = api
 			if err := api.Diagnostic(ToolDiagnostic{Severity: "warn", Code: "remark", Message: "partial remark"}); err != nil {
 				return ToolResult{}, err
@@ -128,7 +128,7 @@ func TestToolDiagnosticJSONSeveritiesPreserveProgressAndResult(t *testing.T) {
 			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				var h *Harness
 				registry := NewRegistry()
-				if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "diagnostic_json", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "diagnostic.json", Version: 1, Execute: func(ctx context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+				if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "diagnostic_json", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "diagnostic.json", Version: 1, Execute: func(ctx context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 					if err := api.Diagnostic(ToolDiagnostic{Severity: severity, Message: "progress"}); err != nil {
 						return ToolResult{}, err
 					}

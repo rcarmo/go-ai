@@ -18,7 +18,7 @@ func TestNestedTool120RejectedProgressFailsSessionWithoutAdoption(t *testing.T) 
 		var attempts atomic.Int64
 		var leaked atomic.Bool
 		reg := wrapRegistration("nested_progress_fault")
-		reg.Execute = func(ctx context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+		reg.Execute = func(ctx context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 			id := api.TaskID()
 			childID.Store(uint64(id))
 			core := h.session.core

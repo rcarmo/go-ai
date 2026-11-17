@@ -10,7 +10,7 @@ import (
 
 func TestExtensionAtomicReplacementTaskAndToolSnapshots(t *testing.T) {
 	registry := NewRegistry()
-	tool := ToolRegistration{Definition: goai.Tool{Name: "extension_tool", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "extension.tool", Version: 1, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) { return ToolResult{Content: "ok"}, nil }}
+	tool := ToolRegistration{Definition: goai.Tool{Name: "extension_tool", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "extension.tool", Version: 1, Execute: func(context.Context, any, *ToolAPI) (ToolResult, error) { return ToolResult{Content: "ok"}, nil }}
 	task := taskDefinition(t, "task.extension", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
 		return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone("extension"), nil })
 	})

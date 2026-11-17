@@ -67,10 +67,10 @@ func TestOutputSlotInterleavingMain(t *testing.T) {
 			if final == nil || len(final.Content) != 4 || len(ends) != 2 {
 				t.Fatal("missing routed blocks", final, ends)
 			}
-			if ends[0].Name != "a" || ends[0].Arguments["x"] != float64(2) || ends[1].Name != "b" {
+			if ends[0].Name != "a" || ends[0].Arguments.(map[string]any)["x"] != float64(2) || ends[1].Name != "b" {
 				t.Fatal("tool slots crossed", ends)
 			}
-			low, ok := ends[1].Arguments["low"].(goai.UTF16String)
+			low, ok := ends[1].Arguments.(map[string]any)["low"].(goai.UTF16String)
 			if !ok || !reflect.DeepEqual(low.CodeUnits(), []uint16{0xdfff}) {
 				t.Fatal("second argument stream lost units", ends[1])
 			}

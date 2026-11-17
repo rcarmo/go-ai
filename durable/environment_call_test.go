@@ -12,7 +12,7 @@ func TestToolEnvironmentConstructedOnceBeforeExecuteAndNoUnavailableCall(t *test
 		var factories, effects atomic.Int64
 		registry := NewRegistry()
 		registration := wrapRegistration("environment-call")
-		registration.Execute = func(ctx context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+		registration.Execute = func(ctx context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 			if factories.Load() != 2 { // Prompt preparation then execution environment.
 				t.Error("environment was not prepared before Execute", factories.Load())
 			}

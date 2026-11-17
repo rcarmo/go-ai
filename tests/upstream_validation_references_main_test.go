@@ -62,7 +62,7 @@ func TestUpstreamMainValidationReferenceOwnershipAndCalls(t *testing.T) {
 	}
 	mainAssertValidationJSON(t, first, `{"s":{"n":7}}`)
 	mainAssertValidationJSON(t, args, `{"s":{"n":"7"}}`)
-	first["s"].(map[string]interface{})["n"] = 9
+	first.(map[string]any)["s"].(map[string]interface{})["n"] = 9
 	nested["n"] = "8"
 	second, err := goai.ValidateToolArguments(&tool, call)
 	if err != nil {
@@ -80,8 +80,8 @@ func TestUpstreamMainValidationReferenceWideNumbers(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got["n"] != number {
-			t.Fatalf("reference conversion rounded %T %v to %T %v", number, number, got["n"], got["n"])
+		if got.(map[string]any)["n"] != number {
+			t.Fatalf("reference conversion rounded %T %v to %T %v", number, number, got.(map[string]any)["n"], got.(map[string]any)["n"])
 		}
 	}
 }

@@ -85,7 +85,7 @@ func TestMainToolProgressSiblingCompletionKeepsHeldOutput(t *testing.T) {
 		runs := make(chan namedRun, 2)
 		registry := NewRegistry()
 		for _, name := range []string{"a", "b"} {
-			if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: name, Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "test.sibling." + name, Version: 1, ReplaySafe: true, Execute: func(ctx context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+			if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: name, Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "test.sibling." + name, Version: 1, ReplaySafe: true, Execute: func(ctx context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 				run := &mainToolRun{output: make(chan string, 1), finish: make(chan struct{})}
 				runs <- namedRun{name, run}
 				for {

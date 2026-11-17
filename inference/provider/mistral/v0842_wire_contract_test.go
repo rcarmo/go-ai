@@ -101,7 +101,7 @@ func TestV0842MistralWireContractHeadersReplayUsageAndUTF8(t *testing.T) {
 		t.Fatalf("usage cache-read mapping wrong: %#v", done.Usage)
 	}
 	calls := goai.GetToolCalls(done)
-	if len(calls) != 1 || calls[0].ID != "tool12345" || calls[0].Name != "lookup" || calls[0].Arguments["q"] != "pi" {
+	if len(calls) != 1 || calls[0].ID != "tool12345" || calls[0].Name != "lookup" || calls[0].Arguments.(map[string]any)["q"] != "pi" {
 		t.Fatalf("streamed tool call wrong: %#v", calls)
 	}
 }

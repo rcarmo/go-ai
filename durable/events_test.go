@@ -12,7 +12,7 @@ import (
 func TestAgentEventsCommittedToolLifecycleAndReentrantListener(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
-		if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "echo", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "events.echo", Version: 1, Execute: func(_ context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+		if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "echo", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "events.echo", Version: 1, Execute: func(_ context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 			if err := api.Output("prefix"); err != nil {
 				return ToolResult{}, err
 			}

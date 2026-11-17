@@ -12,7 +12,7 @@ func TestAgentFiltersPinnedLiveDefaultsAddRemoveAndToolControl(t *testing.T) {
 	registry := NewRegistry()
 	register := func(name string) {
 		t.Helper()
-		if err := registry.Install(&Extension{Name: name, Tools: []ToolRegistration{{Definition: goai.Tool{Name: name, Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "filter." + name, Version: 1, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+		if err := registry.Install(&Extension{Name: name, Tools: []ToolRegistration{{Definition: goai.Tool{Name: name, Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "filter." + name, Version: 1, Execute: func(context.Context, any, *ToolAPI) (ToolResult, error) {
 			return ToolResult{Content: name, Control: &ToolControl{AddTools: []string{"hidden"}}}, nil
 		}}}}); err != nil {
 			t.Fatal(err)

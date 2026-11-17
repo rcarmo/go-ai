@@ -34,7 +34,8 @@ func PowerShell(env durable.FileSystem, options ...PowerShellOptions) durable.To
 		Definition:     goai.Tool{Name: "powershell", Description: "Execute a PowerShell command. Returns combined stdout and stderr, retaining the last 2000 lines or 50KB. Optionally provide a timeout in seconds.", Parameters: powershellSchema},
 		Implementation: "durable.tools.powershell", Version: 1, ReplaySafe: false,
 		OutputLimits: &durable.ToolOutputLimits{MaxBytes: MaxReadBytes, MaxLines: MaxReadLines, Retain: "tail"},
-		Execute: func(ctx context.Context, args durable.JSON, api *durable.ToolAPI) (durable.ToolResult, error) {
+		Execute: func(ctx context.Context, rawToolArguments any, api *durable.ToolAPI) (durable.ToolResult, error) {
+			args := rawToolArguments.(durable.JSON)
 			if _, _, err := bashTimeoutArg(args, "timeout", DefaultBashTimeout); err != nil {
 				return durable.ToolResult{}, err
 			}

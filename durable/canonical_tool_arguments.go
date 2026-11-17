@@ -100,17 +100,13 @@ func restoreCanonicalToolArguments(raw []byte, target any) error {
 			if err != nil {
 				return err
 			}
-			object, ok := parsed.(map[string]any)
-			if !ok {
-				return reject("tool execute arguments must be object")
-			}
 			switch value.Type() {
 			case reflect.TypeFor[Task]():
 				task := value.Interface().(Task)
-				taskCheckpointMap(task.Execution.Native.State.Checkpoint)["arguments"] = sourceToolArguments(object)
+				taskCheckpointMap(task.Execution.Native.State.Checkpoint)["arguments"] = sourceToolArguments{parsed}
 			case reflect.TypeFor[TaskRecord]():
 				task := value.Interface().(TaskRecord)
-				taskCheckpointMap(task.State.Checkpoint)["arguments"] = sourceToolArguments(object)
+				taskCheckpointMap(task.State.Checkpoint)["arguments"] = sourceToolArguments{parsed}
 			}
 		}
 		switch value.Kind() {

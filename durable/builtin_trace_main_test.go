@@ -146,10 +146,10 @@ func TestMainBuiltinTraceToolMetadata(t *testing.T) {
 				backend := newMainTaskTraceBackend(t)
 				registry := NewRegistry()
 				var calls atomic.Int64
-				if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "trace_leaf", Parameters: []byte(`{"type":"object"}`)}, Implementation: "trace.leaf", Version: 1, Callers: []string{"tools"}, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) { return ToolResult{Content: "leaf"}, nil }}); err != nil {
+				if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "trace_leaf", Parameters: []byte(`{"type":"object"}`)}, Implementation: "trace.leaf", Version: 1, Callers: []string{"tools"}, Execute: func(context.Context, any, *ToolAPI) (ToolResult, error) { return ToolResult{Content: "leaf"}, nil }}); err != nil {
 					t.Fatal(err)
 				}
-				if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "trace_outer", Parameters: []byte(`{"type":"object"}`)}, Implementation: "trace.outer", Version: 1, Execute: func(ctx context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+				if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "trace_outer", Parameters: []byte(`{"type":"object"}`)}, Implementation: "trace.outer", Version: 1, Execute: func(ctx context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 					return api.CallTool(ctx, "leaf", "trace_leaf", JSON{})
 				}}); err != nil {
 					t.Fatal(err)

@@ -52,7 +52,7 @@ var tools = []goai.Tool{
 func executeTool(tc goai.ToolCall) (string, bool) {
 	switch tc.Name {
 	case "get_time":
-		tz, _ := tc.Arguments["timezone"].(string)
+		tz, _ := tc.Arguments.(map[string]any)["timezone"].(string)
 		loc, err := time.LoadLocation(tz)
 		if err != nil {
 			return fmt.Sprintf("Error: unknown timezone %q", tz), true
@@ -60,7 +60,7 @@ func executeTool(tc goai.ToolCall) (string, bool) {
 		return time.Now().In(loc).Format(time.RFC3339), false
 
 	case "calculate":
-		expr, _ := tc.Arguments["expression"].(string)
+		expr, _ := tc.Arguments.(map[string]any)["expression"].(string)
 		return fmt.Sprintf("Result of %s = (not implemented)", expr), false
 
 	default:

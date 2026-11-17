@@ -12,7 +12,7 @@ func mainBranchSiblingSchema(keyword string) string {
 	return `{"type":"object","` + keyword + `":[{"type":"object","properties":{"a":{"type":"array","items":{"type":"integer"}}},"required":["a"]},{"type":"object","properties":{"b":{"type":"boolean"}},"required":["b"]}],"properties":{"c":{"type":"integer"}},"required":["c"]}`
 }
 
-func mainValidateJSON(t *testing.T, schema, input string) (map[string]interface{}, map[string]interface{}, error) {
+func mainValidateJSON(t *testing.T, schema, input string) (any, map[string]interface{}, error) {
 	t.Helper()
 	var args map[string]interface{}
 	if err := json.Unmarshal([]byte(input), &args); err != nil {

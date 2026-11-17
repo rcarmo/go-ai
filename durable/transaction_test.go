@@ -358,7 +358,9 @@ func TestPublicTransactionStagedReferencesAtomic(t *testing.T) {
 		// Final unresolved references reject the whole batch, but intermediate schema
 		// failures remain immediate and leave the previous Set candidate intact.
 		next, _ := s.MintID(bg)
-		_, e = s.Commit(bg, func(tx *Tx) (any, error) { return nil, tx.createConversationRecord(Conversation{ID: next, Owner: next + 1}) })
+		_, e = s.Commit(bg, func(tx *Tx) (any, error) {
+			return nil, tx.createConversationRecord(Conversation{ID: next, Owner: next + 1})
+		})
 		rejected(t, e)
 		after, e := s.Snapshot(bg)
 		if e != nil || after.Seq != v.Seq || len(after.Conversations) != len(v.Conversations) {

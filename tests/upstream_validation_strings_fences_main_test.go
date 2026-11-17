@@ -41,7 +41,7 @@ func TestUpstreamMainValidationStringsOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 	mainAssertValidationJSON(t, got, `{"h":["12","null","true"]}`)
-	got["h"].([]interface{})[0] = "changed"
+	got.(map[string]any)["h"].([]interface{})[0] = "changed"
 	mainAssertValidationJSON(t, args, `{"h":[12,null,true]}`)
 }
 
@@ -56,8 +56,8 @@ func TestUpstreamMainValidationStringsMatchingNumber(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got["h"] != value {
-				t.Fatalf("matching native number rewritten: %T %v -> %T %v", value, value, got["h"], got["h"])
+			if got.(map[string]any)["h"] != value {
+				t.Fatalf("matching native number rewritten: %T %v -> %T %v", value, value, got.(map[string]any)["h"], got.(map[string]any)["h"])
 			}
 		}
 	}

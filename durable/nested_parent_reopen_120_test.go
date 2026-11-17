@@ -13,7 +13,7 @@ func TestNestedTool120ParentAttributionSurvivesActiveRestart(t *testing.T) {
 		var leafRuns, outerRuns atomic.Int64
 		leaf := wrapRegistration("restart_leaf")
 		leaf.ReplaySafe = true
-		leaf.Execute = func(ctx context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+		leaf.Execute = func(ctx context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 			if leafRuns.Add(1) == 1 {
 				if err := api.Output("retained progress"); err != nil {
 					return ToolResult{}, err
@@ -29,7 +29,7 @@ func TestNestedTool120ParentAttributionSurvivesActiveRestart(t *testing.T) {
 		}
 		outer := wrapRegistration("restart_outer")
 		outer.ReplaySafe = true
-		outer.Execute = func(ctx context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+		outer.Execute = func(ctx context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 			outerRuns.Add(1)
 			child, err := api.CallTool(ctx, "child", "restart_leaf", JSON{})
 			if err != nil {

@@ -18,15 +18,15 @@ func TestUpstreamValidationTreatsNullAsOmissionForOptionalNonNullableProperties(
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := got["offset"]; ok {
+	if _, ok := got.(map[string]any)["offset"]; ok {
 		t.Fatalf("optional non-nullable offset should be omitted, got %#v", got)
 	}
-	if got["nullable"] != nil {
-		t.Fatalf("nullable optional should preserve null, got %#v", got["nullable"])
+	if got.(map[string]any)["nullable"] != nil {
+		t.Fatalf("nullable optional should preserve null, got %#v", got.(map[string]any)["nullable"])
 	}
-	metadata, ok := got["metadata"].(map[string]interface{})
+	metadata, ok := got.(map[string]any)["metadata"].(map[string]interface{})
 	if !ok || len(metadata) != 0 {
-		t.Fatalf("nested optional non-nullable should be omitted, got %#v", got["metadata"])
+		t.Fatalf("nested optional non-nullable should be omitted, got %#v", got.(map[string]any)["metadata"])
 	}
 }
 
@@ -41,7 +41,7 @@ func TestUpstreamValidationPreservesOptionalNullsWithRefSchema(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := got["value"]; !ok || got["value"] != nil {
+	if _, ok := got.(map[string]any)["value"]; !ok || got.(map[string]any)["value"] != nil {
 		t.Fatalf("referenced nullable null should be preserved, got %#v", got)
 	}
 }

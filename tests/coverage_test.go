@@ -241,9 +241,9 @@ func TestValidateTypeChecks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	array, ok := coerced["a"].([]interface{})
+	array, ok := coerced.(map[string]any)["a"].([]interface{})
 	if !ok || len(array) != 1 || array[0] != "not array" {
-		t.Fatalf("expected wrapped scalar, got %#v", coerced["a"])
+		t.Fatalf("expected wrapped scalar, got %#v", coerced.(map[string]any)["a"])
 	}
 
 	// Wrong object

@@ -16,7 +16,7 @@ func TestSequentialRoundAbortHasNoLaterTasksAndOrderedUnstartedResults(t *testin
 		for _, name := range []string{"first", "second"} {
 			name := name
 			reg := wrapRegistration(name)
-			reg.Execute = func(ctx context.Context, _ JSON, _ *ToolAPI) (ToolResult, error) {
+			reg.Execute = func(ctx context.Context, _ any, _ *ToolAPI) (ToolResult, error) {
 				effects.Add(1)
 				if name == "first" {
 					close(entered)

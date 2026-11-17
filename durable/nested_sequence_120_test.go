@@ -12,7 +12,7 @@ func TestNestedTool120AutoKeysReplayOrder(t *testing.T) {
 		registry := NewRegistry()
 		var effects atomic.Int64
 		reg := wrapRegistration("auto_leaf")
-		reg.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+		reg.Execute = func(context.Context, any, *ToolAPI) (ToolResult, error) {
 			effects.Add(1)
 			return ToolResult{Content: "done"}, nil
 		}
@@ -71,7 +71,7 @@ func TestNestedTool120ConcurrentAutoAdmissionUniqueAndKeyedCoalescence(t *testin
 		registry := NewRegistry()
 		var effects atomic.Int64
 		reg := wrapRegistration("concurrent_leaf")
-		reg.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+		reg.Execute = func(context.Context, any, *ToolAPI) (ToolResult, error) {
 			effects.Add(1)
 			return ToolResult{Content: "done"}, nil
 		}

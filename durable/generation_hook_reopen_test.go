@@ -28,7 +28,7 @@ func TestGenerationHookHeldHandoffReopenDoesNotReplayHooksOrRequests(t *testing.
 			t.Fatal(err)
 		}
 		tool := wrapRegistration("noop")
-		tool.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) { return ToolResult{Content: "done"}, nil }
+		tool.Execute = func(context.Context, any, *ToolAPI) (ToolResult, error) { return ToolResult{Content: "done"}, nil }
 		if err := registry.Register(tool); err != nil {
 			t.Fatal(err)
 		}

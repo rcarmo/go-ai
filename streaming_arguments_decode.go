@@ -12,6 +12,18 @@ import (
 	"github.com/rcarmo/go-ai/internal/jsonparse"
 )
 
+// ToolCall also carries schema-coerced values in hooks. Preserve their actual
+// JSON shape and UTF-16 units when a public call is decoded independently.
+func (call *ToolCall) UnmarshalJSON(data []byte) error {
+	type plain ToolCall
+	var value plain
+	if err := json.Unmarshal(data, &value); err != nil {
+		return err
+	}
+	*call = ToolCall(value)
+	return RestoreStreamingArgumentsJSON(data, call, false)
+}
+
 type streamingRawField struct {
 	name  string
 	value json.RawMessage
@@ -65,7 +77,7 @@ func RestoreStreamingArgumentsJSON(data []byte, target any, preserveNumbers bool
 	}
 	seen := map[visit]bool{}
 	var walk func(reflect.Value, []byte) error
-	restore := func(args *map[string]any, diagnostic *string, mode *bool, raw []byte) error {
+	restore := func(args *any, diagnostic *string, mode *bool, raw []byte, objectOnly bool) error {
 		if lossless && len(raw) > 0 {
 			fields, err := streamingRawFields(raw)
 			if err != nil {
@@ -76,15 +88,12 @@ func RestoreStreamingArgumentsJSON(data []byte, target any, preserveNumbers bool
 				if err != nil {
 					return err
 				}
-				if parsed == nil {
-					*args = nil
-				} else {
-					object, ok := parsed.(map[string]any)
-					if !ok {
+				if objectOnly && parsed != nil {
+					if _, ok := parsed.(map[string]any); !ok {
 						return fmt.Errorf("tool call arguments must be an object")
 					}
-					*args = object
 				}
+				*args = parsed
 			}
 			if value := streamingRawLookup(fields, "argumentsError"); len(value) > 0 && !bytes.Equal(value, []byte("null")) {
 				parsed, err := jsonparse.ParseJSONValue(string(value), preserveNumbers)
@@ -129,7 +138,7 @@ func RestoreStreamingArgumentsJSON(data []byte, target any, preserveNumbers bool
 			switch v.Type() {
 			case reflect.TypeFor[ToolCall]():
 				t := v.Addr().Interface().(*ToolCall)
-				return restore(&t.Arguments, &t.ArgumentsError, &t.streamingArguments, raw)
+				return restore(&t.Arguments, &t.ArgumentsError, &t.streamingArguments, raw, false)
 			case reflect.TypeFor[ContentBlock]():
 				b := v.Addr().Interface().(*ContentBlock)
 				if b.Type == "text" && (b.HasToolArgumentDiagnostic() || b.HasToolArgumentTranscript()) {
@@ -159,7 +168,15 @@ func RestoreStreamingArgumentsJSON(data []byte, target any, preserveNumbers bool
 					return nil
 				}
 				if b.Type == "toolCall" {
-					return restore(&b.Arguments, &b.ArgumentsError, &b.streamingArguments, raw)
+					var arguments any = b.Arguments
+					err := restore(&arguments, &b.ArgumentsError, &b.streamingArguments, raw, true)
+					if err == nil {
+						b.Arguments = nil
+						if arguments != nil {
+							b.Arguments = arguments.(map[string]any)
+						}
+					}
+					return err
 				}
 				return nil
 			}

@@ -21,7 +21,8 @@ func Write(env durable.FileSystem) durable.ToolRegistration {
 		Implementation: "durable.tools.write",
 		Version:        1,
 		ReplaySafe:     false,
-		Execute: func(ctx context.Context, args durable.JSON, api *durable.ToolAPI) (durable.ToolResult, error) {
+		Execute: func(ctx context.Context, rawToolArguments any, api *durable.ToolAPI) (durable.ToolResult, error) {
+			args := rawToolArguments.(durable.JSON)
 			env, err := resolveToolEnv(ctx, env, api)
 			if err != nil {
 				return durable.ToolResult{}, err

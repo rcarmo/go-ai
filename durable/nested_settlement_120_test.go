@@ -18,7 +18,7 @@ func TestNestedTool120SettlementFailurePrefixAndSafeReplay(t *testing.T) {
 				var childID atomic.Uint64
 				reg := wrapRegistration("settlement_fault")
 				reg.ReplaySafe = true
-				reg.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+				reg.Execute = func(context.Context, any, *ToolAPI) (ToolResult, error) {
 					runs.Add(1)
 					return ToolResult{Content: "settled"}, nil
 				}

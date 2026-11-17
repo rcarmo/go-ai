@@ -14,7 +14,7 @@ func TestAgentPatchPinnedPartialClearOrderingHistoricalForkAndReopen(t *testing.
 		order := []string{}
 		for _, name := range []string{"first", "second"} {
 			name := name
-			ext := &Extension{Name: name, Tools: []ToolRegistration{{Definition: goai.Tool{Name: name, Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "patch." + name, Version: 1, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) { return ToolResult{Content: "unused"}, nil }}}, Sections: []PromptSection{{Key: name, Render: func(context.Context, PromptInput) (*string, error) { value := name; return &value, nil }}}, Hooks: GenerationHooks{BeforeRequest: func(_ context.Context, messages []MessageReceipt, _ *HookAPI) ([]MessageReceipt, error) {
+			ext := &Extension{Name: name, Tools: []ToolRegistration{{Definition: goai.Tool{Name: name, Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "patch." + name, Version: 1, Execute: func(context.Context, any, *ToolAPI) (ToolResult, error) { return ToolResult{Content: "unused"}, nil }}}, Sections: []PromptSection{{Key: name, Render: func(context.Context, PromptInput) (*string, error) { value := name; return &value, nil }}}, Hooks: GenerationHooks{BeforeRequest: func(_ context.Context, messages []MessageReceipt, _ *HookAPI) ([]MessageReceipt, error) {
 				order = append(order, name)
 				return messages, nil
 			}}}

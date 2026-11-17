@@ -440,7 +440,7 @@ func TestMainBoundaryReadsLiveQueueModesAfterHooks(t *testing.T) {
 					} else {
 						extension.Hooks.AfterTools = func(ctx context.Context, _ []MessageReceipt, _ *HookAPI) error { return gate(ctx) }
 						reg := wrapRegistration("noop")
-						reg.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) { return ToolResult{Content: "ok"}, nil }
+						reg.Execute = func(context.Context, any, *ToolAPI) (ToolResult, error) { return ToolResult{Content: "ok"}, nil }
 						extension.Tools = []ToolRegistration{reg}
 					}
 					if err := registry.Install(extension); err != nil {

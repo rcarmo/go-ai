@@ -27,7 +27,7 @@ func TestMainHarnessRetrySleepAndToolWaitDoNotChargeGenerationRestarts(t *testin
 			Implementation: "main.retry-tool-wait.hold",
 			Version:        1,
 			ReplaySafe:     true,
-			Execute: func(ctx context.Context, _ JSON, _ *ToolAPI) (ToolResult, error) {
+			Execute: func(ctx context.Context, _ any, _ *ToolAPI) (ToolResult, error) {
 				executions.Add(1)
 				started <- struct{}{}
 				select {

@@ -171,15 +171,15 @@ type ImageContent struct {
 
 // ToolCall represents a function call request from the model.
 type ToolCall struct {
-	Type                    string                 `json:"type"` // always "toolCall"
-	ID                      string                 `json:"id"`
-	Name                    string                 `json:"name"`
-	Arguments               map[string]interface{} `json:"arguments"`
-	ArgumentsError          string                 `json:"argumentsError,omitempty"`
-	ThoughtSignature        string                 `json:"thoughtSignature,omitempty"`
-	ThoughtSignaturePresent bool                   `json:"-"`
-	Namespace               string                 `json:"namespace,omitempty"`
-	NamespacePresent        bool                   `json:"-"`
+	Type                    string `json:"type"` // always "toolCall"
+	ID                      string `json:"id"`
+	Name                    string `json:"name"`
+	Arguments               any    `json:"arguments"`
+	ArgumentsError          string `json:"argumentsError,omitempty"`
+	ThoughtSignature        string `json:"thoughtSignature,omitempty"`
+	ThoughtSignaturePresent bool   `json:"-"`
+	Namespace               string `json:"namespace,omitempty"`
+	NamespacePresent        bool   `json:"-"`
 	streamingArguments      bool
 }
 

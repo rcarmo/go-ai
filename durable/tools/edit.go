@@ -27,7 +27,8 @@ func Edit(env durable.FileSystem) durable.ToolRegistration {
 		Version:          1,
 		ReplaySafe:       false,
 		PrepareArguments: prepareEditArguments,
-		Execute: func(ctx context.Context, args durable.JSON, api *durable.ToolAPI) (durable.ToolResult, error) {
+		Execute: func(ctx context.Context, rawToolArguments any, api *durable.ToolAPI) (durable.ToolResult, error) {
+			args := rawToolArguments.(durable.JSON)
 			env, err := resolveToolEnv(ctx, env, api)
 			if err != nil {
 				return durable.ToolResult{}, err
@@ -228,7 +229,8 @@ func applyEdits(content string, edits []replaceEdit, path string) (string, durab
 
 // Repair common legacy edit shapes on the harness's detached argument copy.
 // Schema validation remains authoritative after preparation.
-func prepareEditArguments(ctx context.Context, args durable.JSON) (durable.JSON, error) {
+func prepareEditArguments(ctx context.Context, value any) (any, error) {
+	args := value.(durable.JSON)
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

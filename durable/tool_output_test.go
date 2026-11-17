@@ -154,7 +154,7 @@ func TestToolOutputStreamingCountsMatchWholeStream(t *testing.T) {
 func TestToolOutputFinalHeadBoundsCombinedTextOnce(t *testing.T) {
 	registry := NewRegistry()
 	limits := ToolOutputLimits{7, 10, "head"}
-	if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "combined", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "combined.output", Version: 1, OutputLimits: &limits, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+	if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "combined", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "combined.output", Version: 1, OutputLimits: &limits, Execute: func(context.Context, any, *ToolAPI) (ToolResult, error) {
 		return ToolResult{Blocks: []goai.ContentBlock{{Type: "text", Text: "aa\nbbbbb\n"}, {Type: "text", Text: "Z"}}}, nil
 	}}); err != nil {
 		t.Fatal(err)
@@ -193,7 +193,7 @@ func TestToolOutputPolicyPinsCopiesFinalTextAndNonTextBlocks(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		limits := ToolOutputLimits{12, 2, "tail"}
 		registry := NewRegistry()
-		reg := ToolRegistration{Definition: goai.Tool{Name: "bounded", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "bounded.test", Version: 1, OutputLimits: &limits, Execute: func(_ context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+		reg := ToolRegistration{Definition: goai.Tool{Name: "bounded", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "bounded.test", Version: 1, OutputLimits: &limits, Execute: func(_ context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 			if err := api.Output("old line\nrecent\n"); err != nil {
 				return ToolResult{}, err
 			}

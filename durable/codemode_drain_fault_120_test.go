@@ -23,7 +23,7 @@ func testRejectedDrainCommit120(t *testing.T, initial, parallel bool) {
 		registry := NewRegistry()
 		var effects atomic.Int64
 		reg := wrapRegistration("codemode_leaf")
-		reg.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+		reg.Execute = func(context.Context, any, *ToolAPI) (ToolResult, error) {
 			effects.Add(1)
 			return ToolResult{Content: "leaf"}, nil
 		}

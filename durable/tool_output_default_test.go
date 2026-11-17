@@ -14,7 +14,7 @@ func TestToolDefaultOutputLimitsTruncateAndReturnedContentReplacesProgress(t *te
 			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				registry := NewRegistry()
 				reg := wrapRegistration("default-output")
-				reg.Execute = func(_ context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+				reg.Execute = func(_ context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 					if mode == "returned" {
 						if err := api.Output("transient progress"); err != nil {
 							return ToolResult{}, err

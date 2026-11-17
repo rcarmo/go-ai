@@ -110,7 +110,7 @@ func overflowCandidateTexts(msg *Message) []string {
 // --- Tool call validation ---
 
 // ValidateToolCall finds a tool by name and validates the arguments.
-func ValidateToolCall(tools []Tool, tc ToolCall) (map[string]interface{}, error) {
+func ValidateToolCall(tools []Tool, tc ToolCall) (any, error) {
 	var tool *Tool
 	for i := range tools {
 		if tools[i].Name == tc.Name {
@@ -125,28 +125,29 @@ func ValidateToolCall(tools []Tool, tc ToolCall) (map[string]interface{}, error)
 }
 
 // ValidateToolArguments validates tool call arguments against the tool's JSON Schema.
-func ValidateToolArguments(tool *Tool, tc ToolCall) (map[string]interface{}, error) {
+func ValidateToolArguments(tool *Tool, tc ToolCall) (any, error) {
 	if tc.ArgumentsError != "" {
 		return nil, fmt.Errorf("invalid tool call arguments for tool %q: %s", tc.Name, tc.ArgumentsError)
 	}
+	owned, err := cloneToolArgumentValue(tc.Arguments)
+	if err != nil {
+		return nil, err
+	}
 	if len(tool.Parameters) == 0 {
-		return tc.Arguments, nil
+		return owned, nil
 	}
 	var schema map[string]interface{}
 	if err := json.Unmarshal(tool.Parameters, &schema); err != nil {
-		return tc.Arguments, nil
+		return owned, nil
 	}
 	v := newToolSchemaValidator(schema, tool.Parameters)
-	out := v.normalizeOptionalNulls(tc.Arguments, schema).(map[string]interface{})
+	out := v.normalizeOptionalNulls(owned, schema)
 	if v.patternFailure != nil {
 		var syntaxErr *toolSchemaPatternSyntaxError
 		if errors.As(v.patternFailure, &syntaxErr) {
 			return nil, errors.New(syntaxErr.publicMessage())
 		}
 		return nil, fmt.Errorf("pattern checker unavailable: %w", v.patternFailure)
-	}
-	if out == nil {
-		out = make(map[string]interface{})
 	}
 	coerced, err := v.coerceWithJSONSchema(out, schema)
 	if err != nil {
@@ -164,11 +165,7 @@ func ValidateToolArguments(tool *Tool, tc ToolCall) (map[string]interface{}, err
 		}
 		return nil, fmt.Errorf("validation failed for tool %q: %w", tool.Name, err)
 	}
-	result, ok := coerced.(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("validation failed for tool %q: arguments must be an object", tool.Name)
-	}
-	return result, nil
+	return coerced, nil
 }
 
 // Return owned containers along traversed schema paths: removing a nested null

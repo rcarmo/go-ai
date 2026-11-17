@@ -83,4 +83,4 @@ Compact index. Read a linked note only when it is relevant to the current task.
   `durable-review-obligations.tsv`).
 - Audits: `docs/audits/prompt-caching-2026-11.md`, `docs/audits/kintsugi-runtime-prompt-caching-2026-11.md`.
 
-- [Canonical integration baseline](canonical-integration-baseline.md): complete non-panicking actual-tree run;95 durable failure groups,25 other tested packages pass. Not integration acceptance.
+- [Canonical integration baseline](canonical-integration-baseline.md): latest complete observed failure inventory and source-declaration links; integration remains red, with no excluded failures.

@@ -19,7 +19,7 @@ func TestMainContinueAfterAbortedToolRound(t *testing.T) {
 		if err := registry.Register(ToolRegistration{
 			Definition:     goai.Tool{Name: "wait", Parameters: json.RawMessage(`{"type":"object"}`)},
 			Implementation: "continue.abort.wait", Version: 1,
-			Execute: func(ctx context.Context, _ JSON, _ *ToolAPI) (ToolResult, error) {
+			Execute: func(ctx context.Context, _ any, _ *ToolAPI) (ToolResult, error) {
 				close(started)
 				<-ctx.Done()
 				return ToolResult{}, ctx.Err()

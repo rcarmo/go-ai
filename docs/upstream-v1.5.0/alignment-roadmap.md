@@ -4,7 +4,11 @@
 
 Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Canonical migration checkpoints through a5661b7 and the timing/output packet in the containing commit remain integration-red;89c031e is the last fully verified tree. Execution continues under step2. No new integrated acceptance.
 
-## Current selected schema packet
+## Current argument value union packet
+
+Public root and durable callbacks carry parsed values; canonical array execution, hook rewrites, checkpoints, readonly/raw JSON and UTF-16 safe replay pass. Root ownership and late-return afterTool order were fixed after source-first failures. Ten compiled controls and focused/static gates pass; original42/10/10/18 plus105 probes pass zero skipped. Baseline31:42 durable failure groups,25 other packages pass; three new cutoff failures are source-corrected with distinct late-return/aborted-throw hook paths. Complete baseline32: durable 854.664s with 39 failed top-level groups; 25 other tested packages pass (tools 15.980s, public 11.773s). No panic, timeout, overlay or exclusions. Retired object DTOs, extra Validator/Withdraw and broader API/Storage/compiler/release obligations remain open. [Mapping](../../notes/canonical-builtin-execution.md#public-tool-argument-value-union).
+
+## Earlier selected schema packet
 
 Shared at-use parameter validation/coercion replaces durable registration/subset gates. UTF-16 type/length/pattern/format regression is fixed; six compiled controls and focused/static checks pass. Original tools42/registry10 plus103 separate probes pass. Array-valued Execute/checkpoint/hooks need a true public value union; full compiler acceptance remains open. Complete baseline30: durable866.370s with39 failed top-level groups;25 other tested packages pass (tools14.832s/public11.887s). No panic, timeout, overlay or exclusions. Integration remains red;89c031e is still the last fully verified tree. Baseline30 preceded only final full-checkpoint assertion strengthening, subsequently verified in expanded three-shuffle60.371s. [Mapping](../../notes/canonical-builtin-execution.md#selected-tool-parameter-schemas-and-utf-16-validation).
 

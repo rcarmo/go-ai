@@ -23,7 +23,8 @@ func TestCodemode120QuickJSNumericArgumentsExactThroughJournalReopen(t *testing.
 		}
 		registry := NewRegistry()
 		leaf := wrapRegistration("numeric_leaf")
-		leaf.Execute = func(_ context.Context, args JSON, _ *ToolAPI) (ToolResult, error) {
+		leaf.Execute = func(_ context.Context, rawToolArguments any, _ *ToolAPI) (ToolResult, error) {
+			args := rawToolArguments.(JSON)
 			tools.Add(1)
 			check(args["n"])
 			return ToolResult{Content: "ok"}, nil

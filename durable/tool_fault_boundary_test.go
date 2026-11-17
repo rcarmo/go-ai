@@ -18,7 +18,7 @@ func TestToolSchedulerFaultOrphanMissingResultContinuationAndReopen(t *testing.T
 			entered, release := make(chan struct{}), make(chan struct{})
 			registry := NewRegistry()
 			reg := wrapRegistration("work")
-			reg.Execute = func(ctx context.Context, _ JSON, _ *ToolAPI) (ToolResult, error) {
+			reg.Execute = func(ctx context.Context, _ any, _ *ToolAPI) (ToolResult, error) {
 				effects.Add(1)
 				close(entered)
 				<-release

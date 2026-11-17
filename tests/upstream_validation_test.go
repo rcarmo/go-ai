@@ -37,7 +37,7 @@ func TestUpstreamValidationStillValidatesWhenFunctionConstructorUnavailable(t *t
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got["count"] != float64(42) {
+	if got.(map[string]any)["count"] != float64(42) {
 		t.Fatalf("expected coerced count 42, got %#v", got)
 	}
 }
@@ -79,8 +79,8 @@ func TestUpstreamValidationCoercesSerializedPlainJSONSchemas(t *testing.T) {
 		if err != nil {
 			t.Fatalf("schema=%#v input=%#v: %v", tt.schema, tt.input, err)
 		}
-		if !reflect.DeepEqual(got["value"], tt.expected) {
-			t.Fatalf("schema=%#v input=%#v: expected %#v, got %#v", tt.schema, tt.input, tt.expected, got["value"])
+		if !reflect.DeepEqual(got.(map[string]any)["value"], tt.expected) {
+			t.Fatalf("schema=%#v input=%#v: expected %#v, got %#v", tt.schema, tt.input, tt.expected, got.(map[string]any)["value"])
 		}
 	}
 }
@@ -149,8 +149,8 @@ func TestUpstreamValidationNullableUnionMatchBeforeCoerce(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got["value"] != tt.expected {
-				t.Fatalf("expected %#v, got %#v", tt.expected, got["value"])
+			if got.(map[string]any)["value"] != tt.expected {
+				t.Fatalf("expected %#v, got %#v", tt.expected, got.(map[string]any)["value"])
 			}
 		})
 	}

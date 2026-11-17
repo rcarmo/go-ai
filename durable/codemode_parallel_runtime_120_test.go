@@ -38,7 +38,8 @@ func testParallelRuntime120(t *testing.T, reopen, remote bool) {
 		third := make(chan struct{})
 		var effects atomic.Int64
 		leaf := wrapRegistration("codemode_leaf")
-		leaf.Execute = func(ctx context.Context, args JSON, _ *ToolAPI) (ToolResult, error) {
+		leaf.Execute = func(ctx context.Context, rawToolArguments any, _ *ToolAPI) (ToolResult, error) {
+			args := rawToolArguments.(JSON)
 			effects.Add(1)
 			if fmt.Sprint(args["n"]) == "1" {
 				select {

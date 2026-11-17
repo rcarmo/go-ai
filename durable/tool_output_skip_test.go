@@ -14,7 +14,7 @@ func TestToolOutput104SkippedTailCountersAndWindow(t *testing.T) {
 				registry := NewRegistry()
 				reg := wrapRegistration("skip")
 				reg.OutputLimits = &ToolOutputLimits{MaxBytes: 100, MaxLines: 10, Retain: retention}
-				reg.Execute = func(_ context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+				reg.Execute = func(_ context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 					window := api.OutputWindow()
 					if retention == "head" {
 						if window != nil {

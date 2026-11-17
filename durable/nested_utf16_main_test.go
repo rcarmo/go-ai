@@ -20,12 +20,14 @@ func TestNestedUTF16MainReopenHooksAndReaders(t *testing.T) {
 		var prepares, before, after, effects atomic.Int64
 		registry := NewRegistry()
 		err := registry.Install(&Extension{Name: "nested-unicode", Tools: []ToolRegistration{{Definition: goai.Tool{Name: "effect", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "nested.unicode", Version: 1, ReplaySafe: true,
-			PrepareArguments: func(_ context.Context, args JSON) (JSON, error) {
+			PrepareArguments: func(_ context.Context, rawToolArguments any) (any, error) {
+				args := rawToolArguments.(JSON)
 				prepares.Add(1)
 				requireToolUTF16(t, args[key], 0xd800)
 				return JSON{key: prepared}, nil
 			},
-			Execute: func(ctx context.Context, args JSON, _ *ToolAPI) (ToolResult, error) {
+			Execute: func(ctx context.Context, rawToolArguments any, _ *ToolAPI) (ToolResult, error) {
+				args := rawToolArguments.(JSON)
 				requireToolUTF16(t, args[key], 0xd801)
 				args[key] = "executor mutation"
 				if effects.Add(1) == 1 {
@@ -40,14 +42,14 @@ func TestNestedUTF16MainReopenHooksAndReaders(t *testing.T) {
 			if !call.HasStreamingArguments() {
 				t.Error("before hook lost ownership")
 			}
-			requireToolUTF16(t, call.Arguments[key], 0xdfff)
+			requireToolUTF16(t, call.Arguments.(map[string]any)[key], 0xdfff)
 			return &BeforeToolResult{Arguments: JSON{key: rewrite}}, nil
 		}, AfterTool: func(_ context.Context, call goai.ToolCall, result ToolResult, _ *HookAPI) (*ToolResult, error) {
 			after.Add(1)
 			if !call.HasStreamingArguments() {
 				t.Error("after hook lost ownership")
 			}
-			requireToolUTF16(t, call.Arguments[key], 0xd801)
+			requireToolUTF16(t, call.Arguments.(map[string]any)[key], 0xd801)
 			return &result, nil
 		}}})
 		if err != nil {

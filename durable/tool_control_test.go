@@ -17,7 +17,7 @@ func TestToolControlsPinnedUnanimousTerminationLastHandoffAndAddTools(t *testing
 				var effects atomic.Int64
 				for index, name := range []string{"first", "second", "extra"} {
 					index, name := index, name
-					if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: name, Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "control." + name, Version: 1, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+					if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: name, Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "control." + name, Version: 1, Execute: func(context.Context, any, *ToolAPI) (ToolResult, error) {
 						effects.Add(1)
 						control := &ToolControl{}
 						switch mode {

@@ -587,7 +587,7 @@ func TestMainAfterRunTerminateSummary(t *testing.T) {
 				def := mainAfterRunTask(t, probe)
 				registry := NewRegistry()
 				registration := wrapRegistration(mode)
-				registration.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+				registration.Execute = func(context.Context, any, *ToolAPI) (ToolResult, error) {
 					control := &ToolControl{Terminate: true}
 					if mode == "handoff" {
 						s := "fresh start"

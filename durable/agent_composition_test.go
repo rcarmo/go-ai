@@ -11,7 +11,7 @@ import (
 func TestAgentCompositionPinnedDeclarationReplacementSectionsAndRemovalWins(t *testing.T) {
 	registry := NewRegistry()
 	registration := func(name, description string) ToolRegistration {
-		return ToolRegistration{Definition: goai.Tool{Name: name, Description: description, Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "compose." + name, Version: 1, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) { return ToolResult{}, nil }}
+		return ToolRegistration{Definition: goai.Tool{Name: name, Description: description, Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "compose." + name, Version: 1, Execute: func(context.Context, any, *ToolAPI) (ToolResult, error) { return ToolResult{}, nil }}
 	}
 	if err := registry.Register(registration("z-base", "base")); err != nil {
 		t.Fatal(err)

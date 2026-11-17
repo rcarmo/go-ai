@@ -19,7 +19,7 @@ func TestToolRecoveryPinnedCurrentAgentCwdAndDeselection(t *testing.T) {
 			cwds := []string{}
 			entered, release := make(chan struct{}), make(chan struct{})
 			reg := wrapRegistration("work")
-			reg.Execute = func(ctx context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+			reg.Execute = func(ctx context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 				env, err := api.Environment(ctx)
 				if err != nil {
 					return ToolResult{}, err
