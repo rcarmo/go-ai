@@ -1,5 +1,7 @@
 # Upstream conformance completion report
 
+Latest bounded packet: guarded constructor reservations fix the demonstrated Session failure-latch defect; six failure/rollback consumers use actual canonical records/publications. Expanded three-shuffle41.303s, five allocator bypass controls detected/restored, static gates pass; unchanged originals27/37/18 and93 separate probes pass zero skipped. Complete actual-tree baseline21: durable835.764s with53 failed top-level groups;25 other tested packages pass (tools14.923s/public12.659s). No panic, timeout, overlay or exclusions. Integration remains red;89c031e is still the last fully verified tree. [Mapping](canonical-builtin-execution.md#failure-placement-and-guarded-constructor-reservations).
+
 **Overall migration: incomplete. The current worktree fails full durable regression.** The [revised findings and fresh plan](../docs/upstream-v1.5.0/alignment-roadmap.md) replace the accumulated checklist. Historical receipts below retain their original revisions and scope.
 
 Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Native implementation: `/work/go-ai/durable`, authorised SQLite-only, pure Go. Last fully verified tree remains `89c031ebcdc7374b28240ca09511bfcd7e9f8c22`; subsequent canonical admission checkpoints are committed/pushed but integration-red.

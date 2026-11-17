@@ -20,11 +20,10 @@ func (t *Tx) AppendEntry(conversation ID, draft EntryDraft) (Entry, error) {
 	if err := t.requireConversation(conversation); err != nil {
 		return Entry{}, reject(fmt.Sprintf("Conversation %d does not exist", conversation))
 	}
-	id, err := t.store.mintID(t.ctx, true)
+	id, err := t.mintIDEntered()
 	if err != nil {
 		return Entry{}, err
 	}
-	t.state.HighWater = uint64(id)
 	// Apply the source's object spread/overrides before strict JSON copying:
 	// overwritten caller properties must not be validated or acquire authority.
 	record := make(JSON, len(draft)+3)

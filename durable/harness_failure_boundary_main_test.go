@@ -124,7 +124,7 @@ func TestMainRunFailureAttachedInputsWithoutQueuedSuccessor(t *testing.T) {
 				awaitTaskSignal(t, toolEntered[0])
 				_, live := liveSnapshot()
 				firstRun := generationObject(live["run"])
-				ancestor, first := submissionEntryID(firstRun["task"]), submissionEntryID(firstRun["first"])
+				ancestor, first := submissionEntryID(firstRun["taskId"]), submissionEntryID(firstRun["first"])
 				inputs := []*SubmissionHandle{primary}
 				inputIDs := []any{primary.ID()}
 				for _, text := range []string{"steer-one", "steer-two"} {
@@ -142,15 +142,17 @@ func TestMainRunFailureAttachedInputsWithoutQueuedSuccessor(t *testing.T) {
 				awaitTaskSignal(t, failureEntered)
 				state, live := liveSnapshot()
 				run := generationObject(live["run"])
-				owner := submissionEntryID(run["task"])
-				var handoff generationCheckpoint
-				if err := fromObject(state.Tasks[ancestor].Checkpoint, &handoff, h.session.limits); err != nil {
-					t.Fatal(err)
+				owner := submissionEntryID(run["taskId"])
+				previous, found, err := h.Task(bg, ancestor)
+				if err != nil || !found || ancestor == 0 || owner == 0 || owner == ancestor || previous.State.Status != "terminal" || previous.State.Outcome == nil || previous.State.Outcome.Status != "completed" || previous.State.Outcome.Result == nil || !previous.State.Outcome.Result.Present || previous.State.Checkpoint != nil || state.Tasks[owner].Conversation != c.ID() {
+					t.Fatal("expected actual canonical tool handoff", ancestor, owner, previous, err)
 				}
-				if ancestor == 0 || owner == 0 || owner == ancestor || handoff.Successor != owner || state.Tasks[ancestor].Status != "done" || state.Tasks[owner].Conversation != c.ID() {
-					t.Fatal("expected actual committed tool handoff", ancestor, owner, handoff)
+				assistant := submissionEntryID(generationObject(previous.State.Outcome.Result.Value)["entryId"])
+				entry, found, err := h.Entry(bg, assistant)
+				if err != nil || !found || entry.Kind != "pi.assistant" || entry.ByTask != ancestor || len(entry.Model) != 1 || len(entry.Model[0].Content) != 1 || entry.Model[0].Content[0].ID != "attach-call" {
+					t.Fatal("handoff result must reference its real assistant call", entry, err)
 				}
-				wantRun, err := dtoObject(JSON{"task": owner, "inputs": inputIDs, "first": first}, h.session.limits)
+				wantRun, err := dtoObject(JSON{"taskId": owner, "inputs": inputIDs, "first": first, "turns": 1}, h.session.limits)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -187,12 +189,13 @@ func TestMainRunFailureAttachedInputsWithoutQueuedSuccessor(t *testing.T) {
 					}
 				}
 				idleFailed140(t, h)
-				var cp generationCheckpoint
-				if err := fromObject(failed.Task.Checkpoint, &cp, h.session.limits); err != nil {
-					t.Fatal(err)
+				ending, found, err := h.Task(bg, owner)
+				wantOutcome := "failed"
+				if reason == "reset" {
+					wantOutcome = "completed"
 				}
-				if cp.FailureCut != 0 || reason == "reset" && !cp.Reset || reason == "model_error" && cp.AfterFailedRun != "continue" {
-					t.Fatalf("no unattached successor may be reserved: %+v", cp)
+				if err != nil || !found || failed.Task.ID != owner || ending.State.Status != "terminal" || ending.State.Checkpoint != nil || ending.State.Outcome == nil || ending.State.Outcome.Status != wantOutcome {
+					t.Fatal("ending canonical generation outcome", ending, err)
 				}
 				state, live = liveSnapshot()
 				for _, task := range state.Tasks {
@@ -219,7 +222,7 @@ func TestMainRunFailureAttachedInputsWithoutQueuedSuccessor(t *testing.T) {
 				state, live = liveSnapshot()
 				freshStatus := publicSubmission(state.Submissions[fresh.ID()])
 				run = generationObject(live["run"])
-				if freshStatus.Status != "placed" || freshStatus.Entry == 0 || seen[freshStatus.Entry] || submissionEntryID(run["first"]) != freshStatus.Entry || submissionEntryID(run["task"]) == owner {
+				if freshStatus.Status != "placed" || freshStatus.Entry == 0 || seen[freshStatus.Entry] || submissionEntryID(run["first"]) != freshStatus.Entry || submissionEntryID(run["taskId"]) == owner {
 					t.Fatal("fresh admission must own a new run/first", freshStatus, run)
 				}
 				if failure, exists := live["runFailure"]; exists {

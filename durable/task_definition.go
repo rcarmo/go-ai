@@ -165,11 +165,10 @@ func (tx *Tx) createTask(definition *TaskDefinition, input any, options TaskOpti
 		}
 	}
 	native.Background = options.Background
-	id, err := tx.store.mintID(tx.ctx, true)
+	id, err := tx.mintIDEntered()
 	if err != nil {
 		return 0, err
 	}
-	tx.state.HighWater = uint64(id)
 	task := Task{AbandonOnRestart: options.AbandonOnRestart, ID: id, Conversation: conversation, Owner: owner, Kind: definition.options.Kind, Status: "pending", Checkpoint: JSON{}, Execution: &TaskExecution{Tag: nativeTaskTag, Native: native}}
 	if err = tx.bindTaskTrace(&task, options); err != nil {
 		return 0, err

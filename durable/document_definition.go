@@ -519,11 +519,10 @@ func (t *Tx) acquireDefinition(def *DocumentDefinition, owner ID, key *string, s
 	if err != nil {
 		return nil, err
 	}
-	id, err := t.store.mintID(t.ctx, true)
+	id, err := t.mintIDEntered()
 	if err != nil {
 		return nil, err
 	}
-	t.state.HighWater = uint64(id)
 	d = Document{ID: id, Scope: address.Scope, Owner: owner, Kind: address.Kind, Key: address.Key, Family: address.Family, History: def.options.History, Fork: def.options.Fork, Version: def.options.Version, Value: value}
 	if err = t.stage(Write{Op: "put-document", Document: &d}); err != nil {
 		return nil, err

@@ -888,3 +888,38 @@ it("aborts the queued record and removes only the first matching inbox position"
   }finally{guard.detach()}
  }finally{await harness.close(context)}
 });
+
+it("latches constructor reservation failures even when the callback catches them",async()=>{
+ const {defineTask}=await import("@earendil-works/pi-durable");
+ const Doc=defineDoc({kind:"oracle.alloc.failure",scope:"session",version:1,initial:()=>({}),checkpointWhen:()=>false});
+ const Task=defineTask({name:"oracle.alloc.task",version:1,initial:()=>({phase:"run"}),phases:{run:async()=>{}},abort:async()=>{}} as any);
+ for(const operation of ["submission","entry","conversation","task","document"]){
+  for(const caught of [false,true]){
+   const failure={operation,caught};
+   class Failing extends ControlledStorage{
+    fail=false;
+    override async mintId():Promise<any>{if(this.fail)throw failure;return super.mintId()}
+   }
+   const storage=new Failing(),session=new SessionImpl(storage,Date.now,()=>600000);
+   const conversation=await session.commit(tx=>tx.createConversation({ownership:{kind:"ownerless"}}),context);
+   storage.fail=true;
+   const writing=session.commit(async tx=>{
+    const construct=async()=>{
+     switch(operation){
+      case"submission":return tx.createSubmission({conversationId:conversation.id,type:"input",status:"queued"});
+      case"entry":return tx.appendEntry(conversation.id,{kind:"note"});
+      case"conversation":return tx.createConversation({ownership:{kind:"ownerless"}});
+      case"task":return tx.createTask(Task,{}, {ownership:{kind:"conversation"},conversationId:conversation.id});
+      default:return tx.doc(Doc);
+     }
+    };
+    if(caught){try{await construct()}catch{};return undefined}
+    return construct();
+   },context);
+   if(caught)await expect(writing).rejects.toMatchObject({name:"SessionFailed",cause:failure});
+   else await expect(writing).rejects.toBe(failure);
+   expect(await session.closed).toEqual({kind:"failed",error:failure});
+   await session.close(context);
+  }
+ }
+});

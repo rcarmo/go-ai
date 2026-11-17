@@ -75,16 +75,13 @@ func TestMainRunFailureContinueQueueClearsFailureAfterAnswer(t *testing.T) {
 				t.Fatal("missing live document")
 			}
 			run := generationObject(live["run"])
-			task, ok := state.Tasks[submissionEntryID(run["task"])]
-			if !ok || task.Kind != "pi.generation" || task.Conversation != c.ID() || terminalStatus(task.Status) {
+			task, ok, err := h.Task(bg, submissionEntryID(run["taskId"]))
+			if err != nil || !ok || task.Kind != "pi.generation" || task.Version != 2 || task.Owner != 0 || task.Conversation != c.ID() || task.State.Status != "running" {
 				t.Fatalf("%s has no active generation: %v", name, live)
 			}
-			var cp generationCheckpoint
-			if err := fromObject(task.Checkpoint, &cp, h.session.limits); err != nil {
-				t.Fatal(err)
-			}
-			if cp.Submission != sub.ID() || cp.InputEntry != status.Entry || submissionEntryID(run["first"]) != status.Entry {
-				t.Fatalf("%s must start at its own checkpoint input entry: run=%v checkpoint=%+v status=%+v", name, run, cp, status)
+			cp := taskCheckpointMap(task.State.Checkpoint)
+			if task.Input == nil || !task.Input.Present || !equalJSONValue(task.Input.Value, JSON{}) || cp["phase"] != "request" || submissionEntryID(cp["attempt"]) != 1 || submissionEntryID(run["first"]) != status.Entry || submissionEntryID(run["turns"]) != 0 {
+				t.Fatalf("%s must start at its own placed entry with a fresh canonical request: run=%v checkpoint=%v status=%+v", name, run, cp, status)
 			}
 			want, err := dtoObject(JSON{"inputs": []any{sub.ID()}}, h.session.limits)
 			if err != nil {

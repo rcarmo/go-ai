@@ -24,11 +24,10 @@ func (t *Tx) CreateSubmission(create SubmissionCreate) (SubmissionRecord, error)
 	if _, found := state.Conversations[create.Conversation]; !found {
 		return SubmissionRecord{}, fmt.Errorf("Conversation %d does not exist", create.Conversation)
 	}
-	id, err := t.store.mintID(t.ctx, true)
+	id, err := t.mintIDEntered()
 	if err != nil {
 		return SubmissionRecord{}, err
 	}
-	t.state.HighWater = uint64(id)
 	record := SubmissionRecord{ID: id, Conversation: create.Conversation, RequestID: create.RequestID, RequestIDPresent: create.RequestIDPresent, Type: create.Type, Status: create.Status, Entry: create.Entry, Answer: create.Answer, Reason: create.Reason, Detail: create.Detail, Trace: create.Trace}
 	native, err := nativeSubmission(record, t.limits)
 	if err != nil {

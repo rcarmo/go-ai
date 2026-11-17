@@ -4,6 +4,8 @@ The oracle runs original pi-durable v1.5.0 tests at `f9a26365568127461c47a07a37d
 
 ## Latest bounded reference packet
 
+Constructor reservation failure/catch probe passes ten scenarios as one test. Separate probe totals now93 (69 admission+24 storage). Unchanged session-documents27, harness-inbox37 and harness-restart-failure18 pass with no skipped/todo/filtered cases. These are original-runtime observations, not full native parity. Older packet totals below retain their historical scope.
+
 Unchanged harness-tools42 passes zero skipped. Separate probes now total91: the new strict-JSON diagnostic-severity case plus the previous90. It confirms reported and returned labels (including empty/out-of-TypeScript-union strings), exact entry data/rendering, independent isError and actual api.commit effects. These are reference-runtime observations; full native export/shape/behaviour coverage remains unaccepted. Historical selected-mode totals below retain their original scope.
 
 ## Commands

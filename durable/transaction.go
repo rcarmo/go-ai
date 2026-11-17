@@ -277,6 +277,12 @@ func (t *Tx) mintID() (ID, error) {
 		return 0, e
 	}
 	defer t.leave()
+	return t.mintIDEntered()
+}
+
+// mintIDEntered is shared by constructors already holding the Tx guard.
+// Every backend reservation is a mutation: failures latch even if caught.
+func (t *Tx) mintIDEntered() (ID, error) {
 	id, e := t.store.mintID(t.ctx, true)
 	if t.session != nil {
 		e = t.session.backendResult(t.ctx, e, true)

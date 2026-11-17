@@ -2,6 +2,8 @@ package durable
 
 import (
 	"context"
+	"encoding/json"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -229,19 +231,80 @@ func mainPreparationTerminalPublication(t *testing.T, h *Harness, id ID) func() 
 	}
 }
 
-func mainRequirePreparationInputSettlement(t *testing.T, h *Harness, c *ConversationHandle, sub *SubmissionHandle, result Settlement, state Snapshot, publication sessionPublication, text string) {
+// Retain actual public publications by sequence, with a deterministic delivery
+// signal. This never reconstructs a publication from a later snapshot.
+func mainPreparationSourcePublications(t *testing.T, h *Harness) func(uint64) CommitPublication {
 	t.Helper()
-	r := result.Record
-	if r.ID != sub.ID() || r.Conversation != c.ID() || r.Type != "input" || r.RequestID != "" || r.Status != "unanswered" || r.Reason != "no_model" || r.Detail != nil || r.Entry == 0 || r.Answer != 0 || result.Message != nil || result.Task.ID == 0 || result.Task.Conversation != c.ID() {
-		t.Fatalf("expected exact unanswered/no_model without detail/answer, with own entry: %+v", result)
-	}
-	want, err := dtoObject(JSON{"errorCode": "no_model", "taskId": result.Task.ID, "placedEntry": r.Entry}, h.session.limits)
+	var mu sync.Mutex
+	frames := map[uint64]CommitPublication{}
+	waiters := map[uint64]chan struct{}{}
+	guard, err := h.ObserveCommits(CommitObserver{Advance: func(_ context.Context, frame CommitPublication) error {
+		mu.Lock()
+		defer mu.Unlock()
+		frames[frame.Seq] = frame
+		if waiter := waiters[frame.Seq]; waiter != nil {
+			close(waiter)
+			delete(waiters, frame.Seq)
+		}
+		return nil
+	}, End: func(WatchEnd) error { return nil }})
 	if err != nil {
 		t.Fatal(err)
 	}
-	stored := state.Submissions[sub.ID()]
-	if result.Submission.Status != "failed" || stored.Status != "failed" || !equalJSONValue(result.Submission.Value, want) || !equalJSONValue(stored.Value, want) {
-		t.Fatal("settlement and stored envelope must retain only their own placed entry and shared failure", result, stored, want)
+	t.Cleanup(guard.Detach)
+	return func(seq uint64) CommitPublication {
+		t.Helper()
+		mu.Lock()
+		if frame, found := frames[seq]; found {
+			mu.Unlock()
+			return frame
+		}
+		waiter := make(chan struct{})
+		waiters[seq] = waiter
+		mu.Unlock()
+		awaitTaskSignal(t, waiter)
+		mu.Lock()
+		defer mu.Unlock()
+		return frames[seq]
+	}
+}
+
+func mainPreparationPublishedRecord(t *testing.T, frame CommitPublication, kind string, id ID) ReadonlyValue {
+	t.Helper()
+	for i := range frame.Changes.Len() {
+		change, _ := frame.Changes.Index(i)
+		if immutableViewMember(t, change, "type").String() != kind {
+			continue
+		}
+		value := immutableViewMember(t, change, "value")
+		if submissionEntryID(immutableViewMember(t, value, "id").Number()) == id {
+			return value
+		}
+	}
+	t.Fatalf("missing %s %d in deciding public publication %d", kind, id, frame.Seq)
+	return nil
+}
+
+func mainRequirePreparationInputSettlement(t *testing.T, h *Harness, c *ConversationHandle, sub *SubmissionHandle, result Settlement, state Snapshot, publication sessionPublication, source CommitPublication, text string) {
+	t.Helper()
+	r := result.Record
+	wireRecord, err := json.Marshal(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var expected JSON
+	if err := json.Unmarshal(wireRecord, &expected); err != nil {
+		t.Fatal(err)
+	}
+	if source.Seq != publication.Seq || !equalJSONValue(mainPreparationPublishedRecord(t, source, "submission", sub.ID()).Copy(), expected) {
+		t.Fatal("exact source deciding settlement record", source.Seq, publication.Seq, expected)
+	}
+	if r.ID != sub.ID() || r.Conversation != c.ID() || r.Type != "input" || r.RequestID != "" || r.Status != "unanswered" || r.Reason != "no_model" || r.Detail != nil || r.Entry == 0 || r.Answer != 0 || result.Message != nil || result.Task.ID == 0 || result.Task.Conversation != c.ID() {
+		t.Fatalf("expected exact unanswered/no_model without detail/answer, with own entry: %+v", result)
+	}
+	stored, found, err := h.session.Submission(bg, sub.ID())
+	if err != nil || !found || !equalJSONValue(stored, r) {
+		t.Fatal("exact canonical no-model settlement", stored, r, err)
 	}
 	input, err := inputReceipt(text, nil, h.session.limits)
 	if err != nil {
@@ -277,7 +340,7 @@ func mainRequirePreparationInputSettlement(t *testing.T, h *Harness, c *Conversa
 			t.Fatal("terminal decision must reuse its input placement, not append it again", publication, r)
 		}
 	}
-	if final == nil || final.Status != "failed" || !equalJSONValue(final.Value, want) {
+	if final == nil || final.Status != "failed" || final.Value["errorCode"] != "no_model" || submissionEntryID(final.Value["placedEntry"]) != r.Entry {
 		t.Fatal("terminal decision must retain the start decision's exact placed entry", publication, r)
 	}
 }
@@ -285,31 +348,25 @@ func mainRequirePreparationInputSettlement(t *testing.T, h *Harness, c *Conversa
 // Assert startRun/applyBoundary at the earlier run's deciding commit, before the
 // successor's resolver can return. Both the atomic publication and the gated
 // snapshot must contain exactly the selected inputs and the same live owner.
-func mainRequirePreparationStart(t *testing.T, h *Harness, c *ConversationHandle, state Snapshot, publication sessionPublication, group []*SubmissionHandle, texts map[ID]string, failure JSON) (ID, map[ID]ID) {
+func mainRequirePreparationStart(t *testing.T, h *Harness, c *ConversationHandle, state Snapshot, publication sessionPublication, source CommitPublication, group []*SubmissionHandle, texts map[ID]string, failure JSON) (ID, map[ID]ID) {
 	t.Helper()
-	var owner ID
-	var next generationCheckpoint
-	for _, task := range state.Tasks {
-		if task.Kind != "pi.generation" || task.Conversation != c.ID() || terminalStatus(task.Status) {
-			continue
-		}
-		var candidate generationCheckpoint
-		if err := fromObject(task.Checkpoint, &candidate, h.session.limits); err != nil {
-			t.Fatal(err)
-		}
-		if candidate.Submission == group[0].ID() {
-			if owner != 0 {
-				t.Fatal("duplicate successor owner", owner, task)
-			}
-			owner, next = task.ID, candidate
-		}
+	liveValue := mainEligibilityDoc(t, state, c.ID(), "pi.live").Value
+	run := generationObject(liveValue["run"])
+	owner := submissionEntryID(run["taskId"])
+	next, found, err := h.Task(bg, owner)
+	if err != nil || !found || next.Kind != "pi.generation" || next.Version != 2 || next.Owner != 0 || next.Conversation != c.ID() || next.State.Status != "running" || !equalJSONValue(next.State.Checkpoint, JSON{"phase": "prepare", "attempt": 1}) || next.Input == nil || !next.Input.Present || !equalJSONValue(next.Input.Value, JSON{}) {
+		t.Fatal("successor must own canonical prepare before model resolution", next, err)
 	}
-	if owner == 0 || len(next.Steered) != len(group)-1 || next.Phase != "queued" || next.Model != nil || next.Attempt != 0 {
-		t.Fatal("successor must be queued with the full boundary group before model resolution or attempts", owner, next)
+	if source.Seq != publication.Seq {
+		t.Fatal("source/native deciding sequence differs", source.Seq, publication.Seq)
+	}
+	created := mainPreparationPublishedRecord(t, source, "task", owner)
+	if immutableViewMember(t, created, "kind").String() != "pi.generation" || immutableViewMember(t, created, "version").Number().String() != "2" || !equalJSONValue(immutableViewMember(t, created, "input").Copy(), JSON{}) || !equalJSONValue(immutableViewMember(t, created, "state").Copy(), JSON{"status": "pending", "checkpoint": JSON{"phase": "prepare", "attempt": 1}}) {
+		t.Fatal("exact fresh successor in deciding source publication", created.Copy())
 	}
 	entries, seen := map[ID]ID{}, map[ID]bool{}
 	inputIDs := []any{}
-	for i, sub := range group {
+	for _, sub := range group {
 		status := publicSubmission(state.Submissions[sub.ID()])
 		input, err := inputReceipt(texts[sub.ID()], nil, h.session.limits)
 		if err != nil {
@@ -325,7 +382,7 @@ func mainRequirePreparationStart(t *testing.T, h *Harness, c *ConversationHandle
 			t.Fatal(err)
 		}
 
-		if status.Status != "placed" || status.Entry == 0 || status.Answer != 0 || seen[status.Entry] || !exists || entry.Conversation != c.ID() || !isMessageEntry(entry) || !equalJSONValue(messageEntryValue(entry), wire) || i == 0 && next.InputEntry != status.Entry || i > 0 && next.Steered[i-1] != sub.ID() {
+		if status.Status != "placed" || status.Entry == 0 || status.Answer != 0 || seen[status.Entry] || !exists || entry.Conversation != c.ID() || !isMessageEntry(entry) || !equalJSONValue(messageEntryValue(entry), wire) {
 			t.Fatal("successor must already own its distinct placed input before resolution", status, entry, next)
 		}
 		copies, appends, placements := 0, 0, 0
@@ -355,7 +412,7 @@ func mainRequirePreparationStart(t *testing.T, h *Harness, c *ConversationHandle
 		entries[sub.ID()], seen[status.Entry] = status.Entry, true
 		inputIDs = append(inputIDs, sub.ID())
 	}
-	want := JSON{"run": JSON{"task": owner, "inputs": inputIDs, "first": entries[group[0].ID()]}}
+	want := JSON{"run": JSON{"taskId": owner, "inputs": inputIDs, "first": entries[group[0].ID()], "turns": 0}}
 	if failure != nil {
 		want["runFailure"] = failure
 	}
@@ -389,14 +446,8 @@ func mainRequirePreparationStart(t *testing.T, h *Harness, c *ConversationHandle
 			publishedOwner = write.Task
 		}
 	}
-	if publishedOwner != nil {
-		var candidate generationCheckpoint
-		if err := fromObject(publishedOwner.Checkpoint, &candidate, h.session.limits); err != nil {
-			t.Fatal(err)
-		}
-		if publishedOwner.Kind != "pi.generation" || publishedOwner.Conversation != c.ID() || terminalStatus(publishedOwner.Status) || candidate.Submission != group[0].ID() || candidate.InputEntry != entries[group[0].ID()] || !equalJSONValue(candidate.Steered, next.Steered) || candidate.Phase != "queued" || candidate.Model != nil || candidate.Attempt != 0 {
-			t.Fatal("start commit must establish successor ownership and full grouping", publishedOwner)
-		}
+	if publishedOwner != nil && (publishedOwner.Kind != "pi.generation" || publishedOwner.Conversation != c.ID() || terminalStatus(publishedOwner.Status)) {
+		t.Fatal("start publication must establish the actual successor task", publishedOwner)
 	}
 	if liveCount != 1 || publishedLive != 1 || publishedOwner == nil || userAppends != len(group) {
 		t.Fatal("earlier decision must atomically publish one actual start, not a later repair", liveCount, publishedLive, publishedOwner, userAppends, publication)
@@ -444,6 +495,7 @@ func TestMainRunFailureQueuedFollowUpNoModelRetainsDecisionPlacement(t *testing.
 			return nil
 		}
 		h := openHarness(t, b.store, options)
+		sourceAt := mainPreparationSourcePublications(t, h)
 		cleanupTaskGates(t, providerRelease, resolverRelease)
 		c := root(t, h, ref)
 		a, err := c.Submit(bg, Input{Content: "earlier input"})
@@ -476,14 +528,14 @@ func TestMainRunFailureQueuedFollowUpNoModelRetainsDecisionPlacement(t *testing.
 			t.Fatal(err)
 		}
 		startPublication := startDecision()
-		owner, entries := mainRequirePreparationStart(t, h, c, started, startPublication, []*SubmissionHandle{followup}, map[ID]string{followup.ID(): "queued follow-up"}, nil)
+		owner, entries := mainRequirePreparationStart(t, h, c, started, startPublication, sourceAt(startPublication.Seq), []*SubmissionHandle{followup}, map[ID]string{followup.ID(): "queued follow-up"}, nil)
 		decision := mainPreparationTerminalPublication(t, h, followup.ID())
 		releaseTaskGate(resolverRelease)
 		result := waitSubmission(t, followup)
 		idleFailed140(t, h)
 		state := mainRequirePreparationNoModel(t, h, c, followup, result, "Model openai/durable-test is not available", true)
 		terminalPublication := decision()
-		mainRequirePreparationInputSettlement(t, h, c, followup, result, state, terminalPublication, "queued follow-up")
+		mainRequirePreparationInputSettlement(t, h, c, followup, result, state, terminalPublication, sourceAt(terminalPublication.Seq), "queued follow-up")
 		if terminalPublication.Seq <= startPublication.Seq || result.Task.ID != owner || result.Record.Entry != entries[followup.ID()] || result.Record.Entry != queued.Entry {
 			t.Fatal("no-model settlement must reuse the earlier start's owner and placement", startPublication, terminalPublication, queued, result)
 		}
@@ -566,6 +618,7 @@ func TestMainRunFailureNoModelAttachedSteersAndRemainingSuccessor(t *testing.T) 
 				}
 				options.Settings = &HarnessSettings{AfterFailedRun: "continue", SteeringMode: mode, FollowUpMode: "one-at-a-time"}
 				h := openHarness(t, b.store, options)
+				sourceAt := mainPreparationSourcePublications(t, h)
 				cleanupTaskGates(t, resolverRelease[0], resolverRelease[1], providerRelease[0], providerRelease[1])
 				c := root(t, h, ref)
 				primary, err := c.Submit(bg, Input{Content: "A"})
@@ -588,17 +641,14 @@ func TestMainRunFailureNoModelAttachedSteersAndRemainingSuccessor(t *testing.T) 
 				decision := mainPreparationTerminalPublication(t, h, primary.ID())
 				releaseTaskGate(resolverRelease[0])
 				failed := waitSubmission(t, primary)
-				var cp generationCheckpoint
-				if err := fromObject(failed.Task.Checkpoint, &cp, h.session.limits); err != nil {
-					t.Fatal(err)
-				}
-				if cp.Submission != primary.ID() || cp.InputEntry != failed.Record.Entry || cp.AfterFailedRun != "continue" || cp.FailureCut != inputs[1].ID() || cp.Phase != "terminal" || len(cp.Steered) != 0 {
-					t.Fatal("no-model must end A alone and reserve exactly B, not attach queued B/C", cp)
+				ending, found, err := h.Task(bg, failed.Task.ID)
+				if err != nil || !found || ending.State.Status != "terminal" || ending.State.Checkpoint != nil || ending.State.Outcome == nil || ending.State.Outcome.Status != "failed" || failed.Record.Entry == 0 {
+					t.Fatal("no-model must end only A's actual canonical run", ending, failed.Record, err)
 				}
 				awaitTaskSignal(t, resolverEntered[1])
 				publication := decision()
 				state := mainRequirePreparationNoModelState(t, h, c, primary, failed, "Model openai/durable-test is not available")
-				mainRequirePreparationInputSettlement(t, h, c, primary, failed, state, publication, "A")
+				mainRequirePreparationInputSettlement(t, h, c, primary, failed, state, publication, sourceAt(publication.Seq), "A")
 				if calls.Load() != 0 || resolutions.Load() != 2 {
 					t.Fatal("A must fail without provider dispatch; B's resolver must remain gated", calls.Load(), resolutions.Load())
 				}
@@ -617,7 +667,7 @@ func TestMainRunFailureNoModelAttachedSteersAndRemainingSuccessor(t *testing.T) 
 						}
 					}
 				}
-				startedOwner, entries := mainRequirePreparationStart(t, h, c, state, publication, group, texts, failure)
+				startedOwner, entries := mainRequirePreparationStart(t, h, c, state, publication, sourceAt(publication.Seq), group, texts, failure)
 				if startedOwner == failed.Task.ID {
 					t.Fatal("B must not reuse A's failed run", startedOwner)
 				}
@@ -635,28 +685,14 @@ func TestMainRunFailureNoModelAttachedSteersAndRemainingSuccessor(t *testing.T) 
 					if err != nil {
 						t.Fatal(err)
 					}
-					var owner ID
-					var next generationCheckpoint
-					for _, task := range state.Tasks {
-						if task.Kind != "pi.generation" || task.Conversation != c.ID() || terminalStatus(task.Status) {
-							continue
-						}
-						var candidate generationCheckpoint
-						if err := fromObject(task.Checkpoint, &candidate, h.session.limits); err != nil {
-							t.Fatal(err)
-						}
-						if candidate.Submission == group[0].ID() {
-							if owner != 0 || task.ID == failed.Task.ID {
-								t.Fatal("successor reused/duplicated failure owner", task)
-							}
-							owner, next = task.ID, candidate
-						}
-					}
-					if owner == 0 || len(next.Steered) != len(group)-1 {
-						t.Fatal("missing actual successor or wrong grouping", owner, next)
+					live := mainEligibilityDoc(t, state, c.ID(), "pi.live").Value
+					owner := submissionEntryID(generationObject(live["run"])["taskId"])
+					next, found, err := h.Task(bg, owner)
+					if err != nil || !found || owner == failed.Task.ID || next.Kind != "pi.generation" || next.Version != 2 || next.Owner != 0 || next.State.Status != "running" || taskCheckpointMap(next.State.Checkpoint)["phase"] != "request" {
+						t.Fatal("missing actual canonical successor", next, err)
 					}
 					inputIDs := []any{}
-					for i, sub := range group {
+					for _, sub := range group {
 						status := publicSubmission(state.Submissions[sub.ID()])
 						input, err := inputReceipt(texts[sub.ID()], nil, h.session.limits)
 						if err != nil {
@@ -672,13 +708,13 @@ func TestMainRunFailureNoModelAttachedSteersAndRemainingSuccessor(t *testing.T) 
 							t.Fatal(err)
 						}
 
-						if status.Status != "placed" || status.Entry == 0 || status.Answer != 0 || entries[sub.ID()] != 0 && entries[sub.ID()] != status.Entry || entries[sub.ID()] == 0 && seen[status.Entry] || !exists || entry.Conversation != c.ID() || !isMessageEntry(entry) || !equalJSONValue(messageEntryValue(entry), wire) || i == 0 && next.InputEntry != status.Entry || i > 0 && next.Steered[i-1] != sub.ID() {
+						if status.Status != "placed" || status.Entry == 0 || status.Answer != 0 || entries[sub.ID()] != 0 && entries[sub.ID()] != status.Entry || entries[sub.ID()] == 0 && seen[status.Entry] || !exists || entry.Conversation != c.ID() || !isMessageEntry(entry) || !equalJSONValue(messageEntryValue(entry), wire) {
 							t.Fatal("successor input must retain its exact distinct boundary placement", status, entry, next)
 						}
 						entries[sub.ID()], seen[status.Entry] = status.Entry, true
 						inputIDs = append(inputIDs, sub.ID())
 					}
-					want := JSON{"run": JSON{"task": owner, "inputs": inputIDs, "first": entries[group[0].ID()]}, "generation": JSON{"attempt": 1}}
+					want := JSON{"run": JSON{"taskId": owner, "inputs": inputIDs, "first": entries[group[0].ID()], "turns": 0}, "generation": JSON{"attempt": 1}}
 					if keepFailure {
 						want["runFailure"] = failure
 					}
@@ -709,12 +745,12 @@ func TestMainRunFailureNoModelAttachedSteersAndRemainingSuccessor(t *testing.T) 
 						t.Fatal(err)
 					}
 					entry := state.Entries[r.Answer]
-					want, err := dtoObject(JSON{"taskId": owner, "placedEntry": entries[sub.ID()], "answerEntry": r.Answer, "message": legacyEntryValue(entry)}, h.session.limits)
-					if err != nil {
-						t.Fatal(err)
+					stored, found, err := h.session.Submission(bg, sub.ID())
+					if err != nil || !found || !equalJSONValue(stored, r) {
+						t.Fatal("exact canonical answer settlement", stored, r, err)
 					}
-					if r.ID != sub.ID() || r.Conversation != c.ID() || r.Type != "input" || r.RequestID != "" || r.Status != "done" || r.Reason != "" || r.Detail != nil || r.Entry != entries[sub.ID()] || r.Answer == 0 || seen[r.Answer] || result.Task.ID != owner || result.Task.Conversation != c.ID() || result.Message == nil || len(result.Message.Content) != 1 || result.Message.Content[0].Text != answer || entry.Conversation != c.ID() || legacyEntryValue(entry)["role"] != "assistant" || entry.ByTask != owner || result.Submission.Status != "done" || !equalJSONValue(result.Submission.Value, want) || !equalJSONValue(state.Submissions[sub.ID()].Value, want) {
-						t.Fatal("successor must settle uniformly with its own entry and actual shared answer", result, entry, want)
+					if r.ID != sub.ID() || r.Conversation != c.ID() || r.Type != "input" || r.RequestID != "" || r.Status != "done" || r.Reason != "" || r.Detail != nil || r.Entry != entries[sub.ID()] || r.Answer == 0 || seen[r.Answer] || result.Task.ID != owner || result.Task.Conversation != c.ID() || result.Message == nil || len(result.Message.Content) != 1 || result.Message.Content[0].Text != answer || entry.Conversation != c.ID() || legacyEntryValue(entry)["role"] != "assistant" || entry.ByTask != owner || result.Submission.Status != "done" {
+						t.Fatal("successor must settle uniformly with its own entry and actual shared answer", result, entry)
 					}
 					placedInput := state.Entries[entries[sub.ID()]]
 					copies := 0
@@ -735,8 +771,19 @@ func TestMainRunFailureNoModelAttachedSteersAndRemainingSuccessor(t *testing.T) 
 							final = write.Submission
 						}
 					}
-					if final == nil || final.Status != "done" || !equalJSONValue(final.Value, want) {
-						t.Fatal("same successor decision must retain each input's own placement", publication, want)
+					if final == nil || final.Status != "done" || submissionEntryID(final.Value["placedEntry"]) != r.Entry || submissionEntryID(final.Value["answerEntry"]) != r.Answer {
+						t.Fatal("same successor decision must retain each input's own placement", publication, r)
+					}
+					wireRecord, err := json.Marshal(r)
+					if err != nil {
+						t.Fatal(err)
+					}
+					var expected JSON
+					if err := json.Unmarshal(wireRecord, &expected); err != nil {
+						t.Fatal(err)
+					}
+					if !equalJSONValue(mainPreparationPublishedRecord(t, sourceAt(publication.Seq), "submission", sub.ID()).Copy(), expected) {
+						t.Fatal("exact source answered record", r)
 					}
 					return result
 				}

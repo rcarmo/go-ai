@@ -10,7 +10,7 @@ import (
 // applyBoundary. A rejected candidate must not mutate the adopted submission
 // through adopted records, whether appending or classifying stale. Placement and
 // settlement stay queued until assembly, as in the original transaction.
-// Session admission controls keep scheduling disabled; all IDs are really minted
+// Session admission controls keep scheduling sealed; all IDs are really minted
 // and all queued passive writes are admitted by the public Submit path.
 func TestMainBoundaryPassiveWriteRollback(t *testing.T) {
 	for _, stale := range []bool{false, true} {
@@ -22,47 +22,15 @@ func TestMainBoundaryPassiveWriteRollback(t *testing.T) {
 			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				h := openHarness(t, b.store, Options{})
 				c := root(t, h, ModelRef{})
-				var owner, input, anchor ID
-				// Admit a valid native queued generation and place its actual input
-				// through the production boundary without enabling the scheduler.
-				if _, err := h.session.Commit(bg, func(tx *Tx) (any, error) {
-					var err error
-					input, err = tx.mintID()
-					if err != nil {
-						return nil, err
-					}
-					owner, err = tx.mintID()
-					if err != nil {
-						return nil, err
-					}
-					if err := tx.putSubmissionRecord(Submission{ID: input, Conversation: c.ID(), Type: "follow-up", Status: "pending", Value: JSON{"content": "A"}}); err != nil {
-						return nil, err
-					}
-					cp, err := dtoObject(generationCheckpoint{Phase: "queued", Submission: input, Input: "A"}, tx.limits)
-					if err != nil {
-						return nil, err
-					}
-					if err := tx.putTaskRecord(Task{ID: owner, Conversation: c.ID(), Kind: "pi.generation", Status: "pending", Checkpoint: cp}); err != nil {
-						return nil, err
-					}
-					inbox, err := builtin(tx, c.ID(), "pi.inbox")
-					if err != nil {
-						return nil, err
-					}
-					if err := inbox.Update(func(value JSON) error {
-						value["items"] = []any{JSON{"id": input, "mode": "followUp", "content": "A"}}
-						return nil
-					}); err != nil {
-						return nil, err
-					}
-					return nil, h.startQueuedRunBoundary(tx, c.ID(), 0, false)
-				}); err != nil {
-					t.Fatal("admit unscheduled input", err)
+				h.scheduler.sealed.Store(true)
+				admitted, err := c.Submit(bg, Input{Content: "A"})
+				if err != nil {
+					t.Fatal(err)
 				}
-				placed := snap(t, b.store)
-				anchor = publicSubmission(placed.Submissions[input]).Entry
-				if anchor == 0 || placed.Entries[anchor].ID != anchor || h.scheduler.enabled.Load() {
-					t.Fatal("fixture must own a real placed input with scheduling disabled")
+				status, err := admitted.Status(bg)
+				anchor := status.Entry
+				if err != nil || status.Status != "placed" || anchor == 0 {
+					t.Fatal("real admission must own its placed input", status, err)
 				}
 				draft := Entry{Kind: "app.note", HasData: true, Data: JSON{"text": "W"}, Model: []MessageReceipt{userReceipt("W")}}
 				if stale {
@@ -72,32 +40,40 @@ func TestMainBoundaryPassiveWriteRollback(t *testing.T) {
 				if err != nil {
 					t.Fatal("queue actual passive write", err)
 				}
-				// Explicit end-boundary control, not a simulated model completion:
-				// release the real live.run before taking the rollback baseline.
-				// The stale lane advances the real context head after W was queued.
-				if _, err := h.session.Commit(bg, func(tx *Tx) (any, error) {
-					live, err := builtin(tx, c.ID(), "pi.live")
-					if err != nil {
-						return nil, err
+				// End the actual admitted run through its real no-model path;
+				// keep failure policy retains W for a later final boundary.
+				h.scheduler.sealed.Store(false)
+				if err := h.Resume(bg); err != nil {
+					t.Fatal(err)
+				}
+				if result := waitSubmission(t, admitted); result.Record.Status != "unanswered" || result.Record.Reason != "no_model" {
+					t.Fatal("real preparation must end A without placing W", result)
+				}
+				idleFailed140(t, h)
+				h.scheduler.sealed.Store(true)
+				if stale {
+					if _, err := h.Commit(bg, func(tx *Tx) (any, error) {
+						return tx.AppendEntry(c.ID(), JSON{"kind": "pi.reset", "head": "self", "model": []any{JSON{"role": "user", "content": "new context head"}}})
+					}); err != nil {
+						t.Fatal("append actual newer head", err)
 					}
-					if err := live.Update(func(value JSON) error { delete(value, "run"); return nil }); err != nil {
-						return nil, err
-					}
-					if stale {
-						return nil, appendReset(tx, c.ID(), "new context head")
-					}
-					return nil, nil
-				}); err != nil {
-					t.Fatal("prepare explicit boundary control", err)
 				}
 				before := snap(t, b.store)
 				queued := before.Submissions[write.ID()]
-				status := publicSubmission(queued)
-				if queued.Status != "pending" || status.Status != "queued" || status.Entry != 0 || status.Answer != 0 || h.scheduler.enabled.Load() {
-					t.Fatal("W must really be queued, unplaced and unscheduled", queued, status)
+				status = publicSubmission(queued)
+				if queued.Status != "pending" || status.Status != "queued" || status.Entry != 0 || status.Answer != 0 || !h.scheduler.sealed.Load() {
+					t.Fatal("W must really be queued, unplaced and sealed", queued, status)
 				}
-				if got, err := passiveHeadStale(before, c.ID(), queued.Value, h.session.limits); err != nil || got != stale {
-					t.Fatal("actual queued head must select the intended branch", got, err)
+				if stale {
+					if _, err := h.Commit(bg, func(tx *Tx) (any, error) {
+						marker, found, err := tx.LatestHeadMarker(c.ID())
+						if err != nil || !found || marker.Head <= anchor {
+							t.Fatal("actual newer head must make W stale", marker, err)
+						}
+						return nil, nil
+					}); err != nil {
+						t.Fatal(err)
+					}
 				}
 				requireInbox := func(state Snapshot, count int) {
 					t.Helper()
@@ -121,8 +97,8 @@ func TestMainBoundaryPassiveWriteRollback(t *testing.T) {
 				refusal := &StorageRejected{Reason: "forced rollback after passive boundary classification"}
 				var candidateEntry ID
 				classified := false
-				value, err := h.session.Commit(bg, func(tx *Tx) (any, error) {
-					if err := h.startQueuedRunBoundary(tx, c.ID(), owner, false); err != nil {
+				value, err := h.Commit(bg, func(tx *Tx) (any, error) {
+					if _, err := c.SubmitIn(tx, Input{Type: "continue"}); err != nil {
 						return nil, err
 					}
 					candidate, err := tx.current()
@@ -193,8 +169,9 @@ func TestMainBoundaryPassiveWriteRollback(t *testing.T) {
 				}
 				// Positive retry control: the same retained queue can still adopt,
 				// with a new real entry in the append lane, or no entry when stale.
-				if _, err := h.session.Commit(bg, func(tx *Tx) (any, error) {
-					return nil, h.startQueuedRunBoundary(tx, c.ID(), owner, false)
+				if _, err := h.Commit(bg, func(tx *Tx) (any, error) {
+					_, err := c.SubmitIn(tx, Input{Type: "continue"})
+					return nil, err
 				}); err != nil {
 					t.Fatal("positive boundary retry", err)
 				}
@@ -209,8 +186,8 @@ func TestMainBoundaryPassiveWriteRollback(t *testing.T) {
 					t.Error("positive append control", settled)
 				}
 				requireInbox(after, 0)
-				if after.Seq != before.Seq+1 || h.scheduler.enabled.Load() {
-					t.Error("only the positive boundary may adopt, without enabling scheduling", before.Seq, after.Seq)
+				if after.Seq != before.Seq+1 || !h.scheduler.sealed.Load() {
+					t.Error("only the positive boundary may adopt, without unsealing scheduling", before.Seq, after.Seq)
 				}
 			})
 		})

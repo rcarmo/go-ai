@@ -6,6 +6,8 @@ Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Canonical m
 
 ## Current model metadata and compact request consumers
 
+Superseding current packet: constructor reservations now use the Session mutation guard; demonstrated unlatched failures and repeated acknowledgement tests pass. Six failure/rollback consumers retain assertions through real canonical records and publications. Complete actual-tree baseline21: durable835.764s with53 failed top-level groups;25 other tested packages pass (tools14.923s/public12.659s). No panic, timeout, overlay or exclusions. Integration remains red;89c031e is still the last fully verified tree. [Mapping](../../notes/canonical-builtin-execution.md#failure-placement-and-guarded-constructor-reservations). The model packet receipts below are historical.
+
 Two test-only translations retain source model references, committed stream options and current model metadata through recovery. Large-header real HTTP/security/deduplication assertions remain. Three-shuffle metadata1.513s/combined4.928s/expanded29.804s/static/3 controls; original recovery9/generation26 plus separate92 probes zero skipped. [Exact mapping/limits](../../notes/canonical-builtin-execution.md#model-metadata-and-request-reference-consumers).
 
 Complete actual-tree verbose ./...: durable862.069s/60 failed groups,25 other tested packages pass (tools15.027s/public12.419s), no panic/timeout/exclusions. The uncertain-acknowledgement fixture recurs and remains unresolved. [Inventory](../../notes/canonical-integration-baseline.md). Step2 stays active; broad acceptance remains open.

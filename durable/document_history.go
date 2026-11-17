@@ -329,11 +329,10 @@ func (t *Tx) forkConversationRecord(parent, at ID, owner ID) (Conversation, erro
 		return Conversation{}, reject("fork entry is not visible from parent")
 	}
 	entry := t.state.Entries[at]
-	id, err := t.store.mintID(t.ctx, true)
+	id, err := t.mintIDEntered()
 	if err != nil {
 		return Conversation{}, err
 	}
-	t.state.HighWater = uint64(id)
 	child := Conversation{ID: id, Owner: owner, Parent: parent, ParentAt: at}
 	return t.stageForkConversation(child, entry)
 }
@@ -372,11 +371,10 @@ func (t *Tx) stageForkConversation(child Conversation, entry Entry) (Conversatio
 				return Conversation{}, reject("fork selects multiple source documents for address")
 			}
 			selected[address] = true
-			target.ID, err = t.store.mintID(t.ctx, true)
+			target.ID, err = t.mintIDEntered()
 			if err != nil {
 				return Conversation{}, err
 			}
-			t.state.HighWater = uint64(target.ID)
 			target.Value, target.Version, target.CreatedAt, target.RetiredAt, target.Retired, target.DeltasSinceBase = nil, 0, 0, 0, false, 0
 			copySource := DocumentCopySource{sourceID, point}
 			if err = t.stage(Write{Op: "copy-document", Document: &target, Source: &copySource}); err != nil {

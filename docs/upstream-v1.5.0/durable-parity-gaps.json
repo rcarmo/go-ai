@@ -1137,7 +1137,7 @@
     "historical": true
   },
   "currentCheckpoint": {
-    "scope": "Canonical migration through535815f plus test-only current-model metadata/compact request consumers. Complete verbose ./... observes60 durable failures/25 other tested packages pass; recurring uncertain acknowledgement failure remains unresolved.89c031e remains last fully verified tree.",
+    "scope": "Canonical migration through09f32a1 plus guarded constructor reservations and public failure/rollback consumers. Complete actual-tree baseline21: durable835.764s with53 failed top-level groups;25 other tested packages pass (tools14.923s/public12.659s). No panic, timeout, overlay or exclusions. Integration remains red;89c031e is still the last fully verified tree.",
     "baseRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
     "lastVerifiedPushed": {
       "revision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
@@ -1276,6 +1276,17 @@
           "topLevelFailureGroups": 60,
           "toolsSeconds": 15.027,
           "consumerSeconds": 12.419
+        },
+        {
+          "scope": "baseline21 actual tree; no overlays/exclusions",
+          "result": "fail",
+          "seconds": 835.764,
+          "failedTopLevelGroups": 53,
+          "otherTestedPackagesPassing": 25,
+          "toolsSeconds": 14.923,
+          "publicSeconds": 12.659,
+          "panic": false,
+          "timeout": false
         }
       ],
       "focusedSeconds": 60.888,
@@ -1520,6 +1531,24 @@
         "staticcheck": "v0.8.2 pass",
         "logging": "pass",
         "mapping": "notes/canonical-builtin-execution.md#model-metadata-and-request-reference-consumers"
+      },
+      "constructorFailurePacket": {
+        "sourceFirst": "Five unlatched public constructor cases fail before production edits",
+        "focusedThreeShuffleSeconds": 41.303,
+        "acknowledgementThirtyRepeatSeconds": 41.326,
+        "faults": "Five allocator guard bypass controls detected; restored",
+        "originalTests": {
+          "sessionDocuments": 27,
+          "harnessInbox": 37,
+          "harnessRestartFailure": 18
+        },
+        "independentProbes": 93,
+        "skipped": 0,
+        "vet": "pass",
+        "staticcheck": "v0.8.2 pass",
+        "logging": "pass",
+        "scope": "Six public failure/rollback consumer groups; caught/uncaught constructor failures; no separate fork-allocation failure test",
+        "mapping": "notes/canonical-builtin-execution.md#failure-placement-and-guarded-constructor-reservations"
       }
     },
     "reference": {
@@ -1535,7 +1564,7 @@
     },
     "profiling": "Pre-release CPU/alloc_space/alloc_objects analysis, measured tuning and equivalent-workload remeasurement required.",
     "reviewOnly": "No runtime tests rerun by the planning review; structural register/hash checks are separate.",
-    "execution": "Resumed execution authorised; step1 baseline complete, step2 in progress. Model request consumers use source references/current metadata/pinned options.60 durable failure groups remain; full parity/release acceptance open."
+    "execution": "Step2 remains active. Latest bounded guard/failure packet has focused/source/fault/static receipts; full integration still fails53 groups. No overall native/API/Storage/schema or release acceptance."
   },
   "review": {
     "basisRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",

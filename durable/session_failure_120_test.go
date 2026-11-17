@@ -3,6 +3,7 @@ package durable
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -57,7 +58,7 @@ func TestSession120FatalReadLatchedAndClosed(t *testing.T) {
 	}
 }
 func TestSession120BackendMutationFailureIsFatalEvenRejected(t *testing.T) {
-	for _, operation := range []string{"commit", "mint", "caught-mint"} {
+	for _, operation := range []string{"commit", "mint", "caught-mint", "create-submission", "append-entry", "create-conversation", "create-task", "acquire-document", "caught-create-submission", "caught-append-entry", "caught-create-conversation", "caught-create-task", "caught-acquire-document"} {
 		t.Run(operation, func(t *testing.T) {
 			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				seedRootConversation(t, b.store)
@@ -85,6 +86,30 @@ func TestSession120BackendMutationFailureIsFatalEvenRejected(t *testing.T) {
 					_, e = s.MintID(bg)
 				} else if operation == "caught-mint" {
 					_, e = s.Commit(bg, func(tx *Tx) (any, error) { _, _ = tx.mintID(); return nil, nil })
+				} else if operation != "commit" {
+					_, e = s.Commit(bg, func(tx *Tx) (any, error) {
+						construct := func() (any, error) {
+							switch strings.TrimPrefix(operation, "caught-") {
+							case "create-submission":
+								return tx.CreateSubmission(SubmissionCreate{Conversation: 1, Type: "input", Status: "queued"})
+							case "append-entry":
+								return tx.AppendEntry(1, JSON{"kind": "test"})
+							case "create-conversation":
+								return tx.CreateConversation(JSON{"ownership": JSON{"kind": "ownerless"}})
+							case "create-task":
+								return tx.CreateTask(GenerationTask(), JSON{}, TaskOptions{Conversation: 1, Ownership: TaskOwnership{Kind: "conversation"}})
+							case "acquire-document":
+								def := checkpointDef(t, DefinitionOptions{Kind: "allocation.failure", Version: 1, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{}, nil }, CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }})
+								return tx.AcquireDocument(def, 0, nil, nil)
+							}
+							return nil, errors.New("unknown constructor fixture")
+						}
+						if strings.HasPrefix(operation, "caught-") {
+							_, _ = construct()
+							return nil, nil
+						}
+						return construct()
+					})
 				} else {
 					_, e = s.Commit(bg, func(tx *Tx) (any, error) {
 						return nil, tx.appendEntryRecord(Entry{ID: 2, Conversation: 1, Kind: "test", Value: JSON{"x": 1}})
@@ -94,10 +119,10 @@ func TestSession120BackendMutationFailureIsFatalEvenRejected(t *testing.T) {
 				if !errors.Is(e, cause) || !errors.As(s.failure(), &failed) || failed.Cause != cause {
 					t.Fatal("backend rejection was not latched", e, s.failure())
 				}
-				if operation != "caught-mint" && e != cause {
+				if !strings.HasPrefix(operation, "caught-") && e != cause {
 					t.Fatal("originating call lost own error identity", e)
 				}
-				if operation == "caught-mint" && !errors.As(e, &failed) {
+				if strings.HasPrefix(operation, "caught-") && !errors.As(e, &failed) {
 					t.Fatal("caught backend error escaped the post-callback health fence", e)
 				}
 				end, ended := subscription.End()

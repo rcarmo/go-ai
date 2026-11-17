@@ -13,8 +13,8 @@ import (
 // an actual postTools reset ends the old run unanswered/reset, without detail,
 // and starts its immediate queued successor with keepFailure. startRun at
 // 1162-1172 clears that failure when the answered successor starts more work.
-// Native adaptation: live.run.task names the actual generation task; failure
-// uses source taskId. All IDs below come from placed submissions/live tasks.
+// Live taskId and canonical task results identify actual generations. All IDs
+// below come from placed submissions/live tasks.
 func TestMainRunFailurePostToolsResetRetainsOnlyImmediateSuccessor(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		toolEntered, toolRelease := make(chan struct{}), make(chan struct{})
@@ -105,13 +105,17 @@ func TestMainRunFailurePostToolsResetRetainsOnlyImmediateSuccessor(t *testing.T)
 				t.Fatal("missing live document")
 			}
 			run := generationObject(live["run"])
-			task, ok := state.Tasks[submissionEntryID(run["task"])]
-			if !ok || task.Kind != "pi.generation" || task.Conversation != c.ID() || terminalStatus(task.Status) {
+			task, ok, err := h.Task(bg, submissionEntryID(run["taskId"]))
+			if err != nil || !ok || task.Kind != "pi.generation" || task.Version != 2 || task.Owner != 0 || task.Conversation != c.ID() || task.State.Status == "terminal" {
 				t.Fatalf("%s has no actual active generation: %v", name, live)
 			}
-			var cp generationCheckpoint
-			if err := fromObject(task.Checkpoint, &cp, h.session.limits); err != nil {
-				t.Fatal(err)
+			cp := taskCheckpointMap(task.State.Checkpoint)
+			phase := "request"
+			if name == "A tools" {
+				phase = "tools"
+			}
+			if cp["phase"] != phase || task.Input == nil || !task.Input.Present || !equalJSONValue(task.Input.Value, JSON{}) {
+				t.Fatal("canonical request/tool round", task, cp)
 			}
 			want, err := dtoObject(JSON{"inputs": []any{sub.ID()}}, h.session.limits)
 			if err != nil {
@@ -124,7 +128,7 @@ func TestMainRunFailurePostToolsResetRetainsOnlyImmediateSuccessor(t *testing.T)
 				input := state.Entries[status.Entry]
 				boundaryOK = exists && reset.Conversation == c.ID() && reset.Kind == "pi.reset" && reset.Seq == input.Seq && reset.Position < input.Position
 			}
-			if cp.Submission != sub.ID() || cp.InputEntry != status.Entry || !boundaryOK || !equalJSONValue(run["inputs"], want["inputs"]) {
+			if !boundaryOK || !equalJSONValue(run["inputs"], want["inputs"]) {
 				t.Fatalf("%s must own its actual input/first: run=%v checkpoint=%+v status=%+v", name, run, cp, status)
 			}
 			entry, ok := state.Entries[status.Entry]
@@ -169,13 +173,14 @@ func TestMainRunFailurePostToolsResetRetainsOnlyImmediateSuccessor(t *testing.T)
 		if old.Record.Status != "unanswered" || old.Record.Reason != "reset" || old.Record.Answer != 0 || old.Record.Entry != aEntry || old.Task.ID != aTask || old.Record.Detail != nil && old.Record.Detail.Present {
 			t.Fatalf("post-tools reset must settle A unanswered/reset without detail: %+v, task=%d", old.Record, old.Task.ID)
 		}
-		var cp generationCheckpoint
-		if err := fromObject(old.Task.Checkpoint, &cp, h.session.limits); err != nil {
-			t.Fatal(err)
+		record, found, err := h.Task(bg, aTask)
+		if err != nil || !found || record.State.Checkpoint != nil || record.State.Outcome == nil || record.State.Outcome.Status != "completed" || record.State.Outcome.Result == nil || !record.State.Outcome.Result.Present {
+			t.Fatal("reset must complete the actual tool-calling generation", record, err)
 		}
-		record, err := CanonicalTask(old.Task, h.session.limits)
-		if err != nil || !cp.Reset || cp.AssistantEntry == 0 || record.State.Outcome == nil || record.State.Outcome.Status != "completed" {
-			t.Fatal("reset must complete the actual tool-calling generation, not synthesize a failed task", record, cp, err)
+		assistant := submissionEntryID(generationObject(record.State.Outcome.Result.Value)["entryId"])
+		entry, found, err := h.Entry(bg, assistant)
+		if err != nil || !found || entry.Kind != "pi.assistant" || entry.ByTask != aTask || len(entry.Model) != 1 || len(entry.Model[0].Content) != 1 || entry.Model[0].Content[0].ID != "old-call" {
+			t.Fatal("reset generation result must reference its actual assistant call", entry, err)
 		}
 		awaitTaskSignal(t, entered[0])
 		live, bTask, bEntry := active(bSub, "B")

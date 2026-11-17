@@ -53,11 +53,10 @@ func (t *Tx) allocateConversationRecord(options JSON) (Conversation, error) {
 			owner = submissionEntryID(ownerValue)
 		}
 	}
-	id, err := t.store.mintID(t.ctx, true)
+	id, err := t.mintIDEntered()
 	if err != nil {
 		return Conversation{}, err
 	}
-	t.state.HighWater = uint64(id)
 	record := Conversation{ID: id}
 	if taskOwned {
 		var task Task

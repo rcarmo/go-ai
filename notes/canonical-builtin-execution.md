@@ -585,3 +585,24 @@ Corrected metadata three-shuffle1.513s; combined metadata/header/close/intent4.9
 Three compiled semantic controls detected/restored: reread stream options from the replacement host, discard process-local model sampling metadata and add an extra API field to the stored model reference. The last is rejected by the existing canonical JSON schema gate before transport; no new output-comparison defect is claimed. No production mutation remains.
 
 Complete unchanged-tree verbose ./... baseline20: durable862.069s fails60 top-level groups,25 other tested packages pass (tools15.027s/public12.419s), no panic/timeout/exclusions. The two old model fixture names disappear; the already observed uncertain-acknowledgement fixture fails again during Close. Its intermittent cause remains unverified; the observed count is60 rather than an inferred59. [Full inventory](canonical-integration-baseline.md). Private provider protocol/recovery/eligibility consumers, extra Withdraw and all broader API/Storage/readOnly/dependency/identity/corpus/profile acceptance remain open.89c031e remains last fully verified tree.
+
+## Failure placement and guarded constructor reservations
+
+Pinned source: packages/durable/src/session/session.ts guarded Storage mintId path and #call failure latch; test/session-documents.test.ts, test/harness-inbox.test.ts and test/harness-restart-failure.test.ts. Source constructor mutations fail the Session even when the callback catches the originating error. Source failure scenarios use canonical task input/prepare1, current task/result.entryId and deferred submission settlement, not retired private successor checkpoints.
+
+Native mapping:
+
+- harness_failure_queue_main_test.go retains failure lifecycle, own placement and continued-answer clearing using taskId and Generation2/input{} requests.
+- harness_failure_reset_main_test.go identifies completed tools by actual result.entryId; retains immediate-successor history/placement and turns.
+- harness_failure_boundary_main_test.go uses the actual public outcome assistant entry for attached-input handoff; retains failure/reset outcome and turn assertions.
+- harness_failure_preparation_main_test.go captures actual public commit records by sequence with a deterministic waiter; exact input/prepare1, grouped source task and settled source records remain asserted. Native storage taps are supplemental.
+- harness_boundary_rollback_main_test.go constructs a real no-model run and queued input, then uses public Continue placement. It retains rejection identity, no adopted leakage, deferred settlement, stale-head and append ordering. No private queued-generation producer remains.
+- session_failure_120_test.go adds five public constructor cases, caught and uncaught: submission, entry, conversation, task and document. They retain originating error identity, the callback health fence, failed notification/Closed reason and no published effect. Source-first tests fail all five with an unlatched Session; the same production paths pass after sharing mintIDEntered. Fork conversation/document allocations also share this helper; no separate fork-allocation failure coverage is claimed.
+
+The recurring uncertain-acknowledgement Close failure was real. Direct constructor store.mintID calls poisoned the backend without immediately latching Session failure; Harness requeue could then fail before Close. Every production reservation now passes through the existing guarded mutation logic without re-entering the already-held Tx guard. Temporary diagnostic instrumentation was restored.
+
+Verification: six failure/rollback groups three-shuffle16.660s; expanded three-shuffle41.303s; allocator/acknowledgement30-repeat41.326s (before adding caught constructor variants), then restored five-repeat caught/uncaught selection. Five independent allocator-bypass controls compile and fail for the expected unlatched-failure assertion; all restored. Vet, Staticcheck v0.8.2, logging and diff checks pass.
+
+Independent original-runtime probe adds ten constructor failure/catch scenarios as one Vitest test; probes now93 (69+24). Unchanged originals run separately: session-documents27, harness-inbox37 and harness-restart-failure18, all zero skipped. Original executions and supplemental probes do not establish full native assertion acceptance.
+
+Complete actual-tree baseline21: durable835.764s with53 failed top-level groups;25 other tested packages pass (tools14.923s/public12.659s). No panic, timeout, overlay or exclusions. Integration remains red;89c031e is still the last fully verified tree.
