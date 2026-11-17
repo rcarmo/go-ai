@@ -8,59 +8,59 @@ Command: `make test PACKAGES=./... TEST_FLAGS='-v -count=1 -p 1 -timeout 1200s'`
 
 The real edited-ancestor HTTP fixture now passes both configured and unconfigured loadouts with exact system text, retained content/security/tool assertions and public entry producers. All four newly exposed flat-prompt consumer groups from baseline22 pass; the canonical transcript is not flattened to restore their old envelope. [Mapping](canonical-builtin-execution.md#single-rendered-system-sections-and-property-order).
 
-The table is an observed failure inventory, not an assertion crosswalk or root-cause verdict. First diagnostics are shortened for indexing; tests retain full assertions.
+The table is an observed failure inventory, not an assertion crosswalk or root-cause verdict. Test names come from the complete run; file links are resolved from their source declarations. The previous forward-scanned diagnostic index could associate the next test’s diagnostic/file with the preceding failure. Those unreliable associations are removed; native assertions remain unchanged.
 
-| Test | Native file | First diagnostic |
-| --- | --- | --- |
-| `TestEnvironmentFactoryAbortAndFailureFenceEffects` | [failed_run_140_test.go](../durable/failed_run_140_test.go) | deterministic handler/commit barrier timed out |
-| `TestFailedRun140BoundedWithdrawalRecovery` | [failed_run_140_test.go](../durable/failed_run_140_test.go) | durable: rejected: task owner missing |
-| `TestFailedRun140WithdrawalJoinsOwnedHosts` | [harness_after_run_first_entry_main_test.go](../durable/harness_after_run_first_entry_main_test.go) | live doc inside the hook commit: map[generation:map[attempt:1] run:map[first:7 inputs:[8] taskId:9 turns:0]] |
-| `TestMainBoundaryEligibilityInheritedCancellationBeforePlacement` | [harness_boundary_eligibility_main_test.go](../durable/harness_boundary_eligibility_main_test.go) | expected one real generation for 6, got 0 |
-| `TestMainBoundaryEligibilityAbsentAgentHostAllModes` | [harness_boundary_eligibility_main_test.go](../durable/harness_boundary_eligibility_main_test.go) | expected one real generation for 9, got 0 |
-| `TestMainBoundaryEligibilityLocallyDecidedFailFast` | [harness_boundary_lifetime_main_test.go](../durable/harness_boundary_lifetime_main_test.go) | legacy queued preparation is busy; rejection must not steal its run &{0x435a5b3a4f00 9} <nil> |
-| `TestMainBoundaryLegacyRecoveryBusyControl` | [harness_deferred_progress_main_test.go](../durable/harness_deferred_progress_main_test.go) | source100: memory partials=20 stored document batches=7 |
-| `TestMainHarnessRecoveryCrashAfterConversion` | [harness_generation_test.go](../durable/harness_generation_test.go) | lost billed usage |
-| `TestM1bTerminalAndExplicitUnsupported` | [harness_interruption_budget_main_test.go](../durable/harness_interruption_budget_main_test.go) | duplicate input or missing assistant [user assistant] |
-| `TestMainInterruptedBudgetAndCloseAccounting` | [harness_interruption_poll_main_test.go](../durable/harness_interruption_poll_main_test.go) | fixture did not crash during the poll fetch {9 1 0 pi.generation running map[] 0x435a5d9fa940 <nil> <nil> 0 false  0x435a5b6e4ea8 <nil>} {<nil> []  0  0 <nil> 0  [] {<nil> { }    <nil> {map[] map[] <nil> <nil> <nil> <nil>    {false 0 0 0} {false 0 0  |
-| `TestMainInterruptedPollRetryEdges` | [harness_poll_boundary_main_test.go](../durable/harness_poll_boundary_main_test.go) | poll fixture {9 1 0 pi.generation sleeping map[] 0x435a5b5501c0 <nil> <nil> 0 false  0x435a5be36988 <nil>} {<nil> []  0  0 <nil> 0  [] {<nil> { }    <nil> {map[] map[] <nil> <nil> <nil> <nil>    {false 0 0 0} {false 0 0 0} <nil> <nil> <nil> <nil>  <n |
-| `TestMainPollTerminalOnlyBoundaryDerived` | [harness_poll_boundary_main_test.go](../durable/harness_poll_boundary_main_test.go) | poll fixture {9 1 0 pi.generation sleeping map[] 0x435a5bdfa4e0 <nil> <nil> 0 false  0x435a5bf19be0 <nil>} {<nil> []  0  0 <nil> 0  [] {<nil> { }    <nil> {map[] map[] <nil> <nil> <nil> <nil>    {false 0 0 0} {false 0 0 0} <nil> <nil> <nil> <nil>  <n |
-| `TestMainAbortedPollCancelHandlerCutoff` | [harness_poll_boundary_main_test.go](../durable/harness_poll_boundary_main_test.go) | poll fixture {9 1 0 pi.generation sleeping map[] 0x435a5dbeb0c0 <nil> <nil> 0 false  0x435a5b5cfae8 <nil>} {<nil> []  0  0 <nil> 0  [] {<nil> { }    <nil> {map[] map[] <nil> <nil> <nil> <nil>    {false 0 0 0} {false 0 0 0} <nil> <nil> <nil> <nil>  <n |
-| `TestMainPollCutoffSkipsRepeatedCancellationDerived` | [harness_tool_deferral_main_test.go](../durable/harness_tool_deferral_main_test.go) | durable: rejected: unresolvable operation path |
-| `TestMainToolProgressDeferredMemoryAndPersistence` | [harness_tools_test.go](../durable/harness_tools_test.go) | tool receipt/accounting counts 1 0 1 |
-| `TestM1cActualHTTPToolResultAwareAnswer` | [harness_tools_test.go](../durable/harness_tools_test.go) | effect before final intent {false [] <nil> {<nil> map[] false <nil>   map[]  0 false false  false <nil>}  0 map[]  false false   false <nil>  <nil> false 0 0  false 0 0 false [] <nil> <nil>} <nil> |
-| `TestM1cSchemaSubsetAndRepairBeforeIntent` | [harness_tools_test.go](../durable/harness_tools_test.go) | missing explicit tool error |
-| `TestM1cNotOfferedAndInvalidArgumentsZeroEffects` | [harness_tools_test.go](../durable/harness_tools_test.go) | Abort marks/Hold not adopted context deadline exceeded |
-| `TestM1cAbortDrainsChildBeforeParentAndFencesEscapedAPI` | [harness_tools_test.go](../durable/harness_tools_test.go) | returned outcome lost |
-| `TestM1cCloseNoncooperativeToolKeepsOwnershipAndReturnedOutcome` | [harness_tools_test.go](../durable/harness_tools_test.go) | appfailure/output notatomic {false [] <nil> {<nil> map[] false <nil>   map[]  0 false false  false <nil>}  0 map[]  false false   false <nil>  <nil> false 0 0  false 0 0 false [] <nil> <nil>} |
-| `TestM1cRegistryPhasePinOutputCapAndAtomicAppFailure` | [harness_tools_test.go](../durable/harness_tools_test.go) | invalidusage notsettledonce |
-| `TestM1cInvalidToolUsageSettlesOnceNoAppOrReplay` | [harness_tools_test.go](../durable/harness_tools_test.go) | tool dispatchedafterabort |
-| `TestM1cAbortAtOfferedCallBoundaryStartsNoTool` | [hooks_test.go](../durable/hooks_test.go) | {[] toolResult [{text <harness> |
-| `TestBeforeToolBlockOrThrowPreventsEffectAndRevalidatesReplacement` | [identity_140_test.go](../durable/identity_140_test.go) | identity=&{UserAgent:<nil> Attribution:0x435a5bf7e680 AttributionSet:true Version:<nil>} want attribution= |
-| `TestIdentity140DurableDefaultHostAndPinnedOverrides` | [idle_model_main_test.go](../durable/idle_model_main_test.go) | model steps=200 checked=200 operations(ownerless,work,owned,end,skip)=[24 74 22 80 0] contexts=27 idle=14 |
-| `TestInputMetadata120QueuedReopenBeforePlacement` | [message_protocol_test.go](../durable/message_protocol_test.go) | protocol identity changed {Role:assistant Content:[{Type:text Text:text TextSignature:signature TextSignaturePresent:true Thinking: ThinkingSignature: ThinkingSignaturePresent:false Redacted:false RedactedPresent:false Data: MimeType: ID: Name: Argum |
-| `TestAssistantProtocolFieldsSignaturesPresenceContextAndReopen` | [reader_utf16_main_test.go](../durable/reader_utf16_main_test.go) | deterministic handler/commit barrier timed out |
-| `TestReaderUTF16MainCommittedEventsAndSnapshot` | [report_140_test.go](../durable/report_140_test.go) | {0x435a5bb671c0 {task_faulted 0x435a5bd56220  0  threw <nil>} 0x435a5b61e410} |
-| `TestReport140ModelHostFailuresReportAfterFallbackAdoption` | [report_140_test.go](../durable/report_140_test.go) | {0x435a5b8ce030 {task_error 0x435a5c059080  0   <nil>} 0x435a5bed6190} |
-| `TestReport140StructuredOutputUsesCapturedProducer` | [reset_test.go](../durable/reset_test.go) | {{9 1  false follow-up failed map[errorCode:reset placedEntry:8] <nil>} {9 1  input unanswered 8 0 reset <nil> <nil> false} {10 1 0 pi.generation done map[] 0x435a5bd01b60 <nil> <nil> 0 false  0x435a5bd62838 0x435a5bd62840} <nil>} {{14 1  false follo |
-| `TestResetIdleAndPostToolsStartsFollowUpInNewContext` | [restart_limit_140_test.go](../durable/restart_limit_140_test.go) | durable: rejected: native task status/ownership disagreement |
-| `TestRestartLimit140BuiltinGenerationAbortCutoffSettlesSubmission` | [storage_sqlite_purego_main_test.go](../durable/storage_sqlite_purego_main_test.go) | busy_timeout=5000ms; caller=context canceled; queued read=context canceled in 41.269µs; Close waiter=context canceled in 32.969µs; external writer lock held 1.86013ms; release/drain/SQL recovery/reacquire=13.620056ms |
-| `TestStopBackgroundSuppressesReportAndChildStaysUsable` | [submission_test.go](../durable/submission_test.go) | ADMISSION index=0 id=8 submit_ms=41.699 total_ms=109.280 wait_ms=67.581 calls=1 worker=false status=done err=<nil> |
-| `TestTaskRecoveryBuiltinHoldFinalFailureAndReopen` | [task_recovery_test.go](../durable/task_recovery_test.go) | aggregate tool usage map[] 2 |
-| `TestTaskRecoveryToolOutcomePanicRollbackFallbackAndReopen` | [task_recovery_test.go](../durable/task_recovery_test.go) | first preparation admission missing |
-| `TestTaskRecoveryGenerationPreparationFallbackWakeSequence` | [task_recovery_test.go](../durable/task_recovery_test.go) | offline fallback admission missing |
-| `TestTaskRecoveryOfflineGenerationPreparationFallbackWakeSequence` | [task_recovery_test.go](../durable/task_recovery_test.go) | deciding confirmed receipt content/identity <nil> known-prefix |
-| `TestTaskRecoveryToolDecidingHoldRejectedUncertainAndReopen` | [task_recovery_test.go](../durable/task_recovery_test.go) | {{14 8  false follow-up failed map[content:queued child scope errorCode:aborted placedEntry:19] <nil>} {14 8  input unanswered 19 0 aborted <nil> <nil> false} {20 8 0 pi.generation aborted map[] 0x435a5b551780 <nil> <nil> 0 false  0x435a5ba24050 0x43 |
-| `TestTaskRecoveryQueuedWithdrawalOwnedChildDefersSettlement` | [task_recovery_test.go](../durable/task_recovery_test.go) | generation rejection cause durable: rejected: writer host panicked |
-| `TestTaskRecoveryGenerationDecidingFinalFailureMatrix` | [task_recovery_test.go](../durable/task_recovery_test.go) | callback receipt disposition {0 false  0x435a5bf18738 0x435a5bf18740 10 1 0 pi.generation 2 0x435a5ba694e8 false false map[] { <nil> terminal <nil> []  0x435a5b5829c0} <nil> <nil> false} {<nil> []  0  0 <nil> 0  [] {<nil> { }    <nil> {map[] map[] <n |
-| `TestTaskRecoveryGenerationHostCallbacksPreparationAndDispatchedReceipts` | [task_recovery_test.go](../durable/task_recovery_test.go) | unconfirmed attempt resolver count 4 2 2 |
-| `TestTaskRecoveryHostPanicDecidingStoragePrefixAndReopen` | [task_recovery_test.go](../durable/task_recovery_test.go) | invalid repair receipt/raw mapping {false [] <nil> {<nil> map[] false <nil>   map[]  0 false false  false <nil>}  0 map[]  false false   false <nil>  <nil> false 0 0  false 0 0 false [] <nil> <nil>} {0 false  0x435a5bdc5d98 0x435a5bdc5da0 13 1 10 pi. |
-| `TestTaskRecoveryToolValidatorHostFailureBeforeIntentAndDecidingReopen` | [task_recovery_test.go](../durable/task_recovery_test.go) | deterministic handler/commit barrier timed out |
-| `TestTaskRecoverySuccessfulValidatorIntentStoragePrefixAndReopen` | [task_recovery_test.go](../durable/task_recovery_test.go) | actual ordered round not drained {<nil> []  0  0 <nil> 0  [] {<nil> { }    <nil> {map[] map[] <nil> <nil> <nil> <nil>    {false 0 0 0} {false 0 0 0} <nil> <nil> <nil> <nil>  <nil> <nil> <nil> map[] map[] }  <nil> <nil> <nil> <nil> <nil>} <nil> [] 0 < |
-| `TestTaskRecoveryOrderedToolContinuationAdmissionCloseAndLateOwnedWork` | [task_scheduler_test.go](../durable/task_scheduler_test.go) | decided receipt lost {false [] <nil> {<nil> map[] false <nil>   map[]  0 false false  false <nil>}  0 map[]  false false   false <nil>  <nil> false 0 0  false 0 0 false [] <nil> <nil>} <nil> |
-| `TestTaskSchedulerCapacityToolChildHoldOne` | [task_trace_main_test.go](../durable/task_trace_main_test.go) | shared task missing |
-| `TestMainTaskTraceQueuedFirstInvocation` | [telemetry_140_test.go](../durable/telemetry_140_test.go) | [{pi.durable.entry map[entry.id:7 entry.kind:pi.user]} {pi.durable.submission map[status:done submission.id:8]}] |
-| `TestTelemetry140AdoptedEntryAndSettlementEvents` | [tool_selection_recovery_test.go](../durable/tool_selection_recovery_test.go) | See test assertion |
-| `TestToolRecoveryPinnedCurrentAgentCwdAndDeselection` | [tool_utf16_main_test.go](../durable/tool_utf16_main_test.go) | deterministic handler/commit barrier timed out |
-| `TestToolUTF16MainExecutionReopenHooks` | [view_generation_oracle_main_test.go](../durable/view_generation_oracle_main_test.go) | pending persistence oracle: frames=3 stored touches=2; source requires touches+1 |
-| `TestMainViewUpstreamGenerationValueOperations` | [view_generation_persistence_main_test.go](../durable/view_generation_persistence_main_test.go) | source user splice/generation tuple: user=true generation=false |
-| `TestMainViewUpstreamGenerationOracle` | [image_lanczos_120_test.go](../durable/image_lanczos_120_test.go) | [7 5] channel max=0 mean=0.000000 |
+| Test | Native file |
+| --- | --- |
+| `TestEnvironmentFactoryAbortAndFailureFenceEffects` | [environment_test.go](../durable/environment_test.go) |
+| `TestFailedRun140BoundedWithdrawalRecovery` | [failed_run_140_test.go](../durable/failed_run_140_test.go) |
+| `TestFailedRun140WithdrawalJoinsOwnedHosts` | [failed_run_140_test.go](../durable/failed_run_140_test.go) |
+| `TestMainBoundaryEligibilityInheritedCancellationBeforePlacement` | [harness_boundary_eligibility_main_test.go](../durable/harness_boundary_eligibility_main_test.go) |
+| `TestMainBoundaryEligibilityAbsentAgentHostAllModes` | [harness_boundary_eligibility_main_test.go](../durable/harness_boundary_eligibility_main_test.go) |
+| `TestMainBoundaryEligibilityLocallyDecidedFailFast` | [harness_boundary_eligibility_main_test.go](../durable/harness_boundary_eligibility_main_test.go) |
+| `TestMainBoundaryLegacyRecoveryBusyControl` | [harness_boundary_lifetime_main_test.go](../durable/harness_boundary_lifetime_main_test.go) |
+| `TestMainHarnessRecoveryCrashAfterConversion` | [harness_generation_recovery_main_test.go](../durable/harness_generation_recovery_main_test.go) |
+| `TestM1bTerminalAndExplicitUnsupported` | [harness_generation_test.go](../durable/harness_generation_test.go) |
+| `TestMainInterruptedBudgetAndCloseAccounting` | [harness_interruption_budget_main_test.go](../durable/harness_interruption_budget_main_test.go) |
+| `TestMainInterruptedPollRetryEdges` | [harness_interruption_poll_main_test.go](../durable/harness_interruption_poll_main_test.go) |
+| `TestMainPollTerminalOnlyBoundaryDerived` | [harness_poll_boundary_main_test.go](../durable/harness_poll_boundary_main_test.go) |
+| `TestMainAbortedPollCancelHandlerCutoff` | [harness_poll_boundary_main_test.go](../durable/harness_poll_boundary_main_test.go) |
+| `TestMainPollCutoffSkipsRepeatedCancellationDerived` | [harness_poll_boundary_main_test.go](../durable/harness_poll_boundary_main_test.go) |
+| `TestMainToolProgressDeferredMemoryAndPersistence` | [harness_tool_deferral_main_test.go](../durable/harness_tool_deferral_main_test.go) |
+| `TestM1cActualHTTPToolResultAwareAnswer` | [harness_tools_test.go](../durable/harness_tools_test.go) |
+| `TestM1cSchemaSubsetAndRepairBeforeIntent` | [harness_tools_test.go](../durable/harness_tools_test.go) |
+| `TestM1cNotOfferedAndInvalidArgumentsZeroEffects` | [harness_tools_test.go](../durable/harness_tools_test.go) |
+| `TestM1cAbortDrainsChildBeforeParentAndFencesEscapedAPI` | [harness_tools_test.go](../durable/harness_tools_test.go) |
+| `TestM1cCloseNoncooperativeToolKeepsOwnershipAndReturnedOutcome` | [harness_tools_test.go](../durable/harness_tools_test.go) |
+| `TestM1cRegistryPhasePinOutputCapAndAtomicAppFailure` | [harness_tools_test.go](../durable/harness_tools_test.go) |
+| `TestM1cInvalidToolUsageSettlesOnceNoAppOrReplay` | [harness_tools_test.go](../durable/harness_tools_test.go) |
+| `TestM1cAbortAtOfferedCallBoundaryStartsNoTool` | [harness_tools_test.go](../durable/harness_tools_test.go) |
+| `TestBeforeToolBlockOrThrowPreventsEffectAndRevalidatesReplacement` | [hooks_test.go](../durable/hooks_test.go) |
+| `TestIdentity140DurableDefaultHostAndPinnedOverrides` | [identity_140_test.go](../durable/identity_140_test.go) |
+| `TestInputMetadata120QueuedReopenBeforePlacement` | [input_metadata_reopen_120_test.go](../durable/input_metadata_reopen_120_test.go) |
+| `TestAssistantProtocolFieldsSignaturesPresenceContextAndReopen` | [message_protocol_test.go](../durable/message_protocol_test.go) |
+| `TestReaderUTF16MainCommittedEventsAndSnapshot` | [reader_utf16_main_test.go](../durable/reader_utf16_main_test.go) |
+| `TestReport140ModelHostFailuresReportAfterFallbackAdoption` | [report_140_test.go](../durable/report_140_test.go) |
+| `TestReport140StructuredOutputUsesCapturedProducer` | [report_140_test.go](../durable/report_140_test.go) |
+| `TestResetIdleAndPostToolsStartsFollowUpInNewContext` | [reset_test.go](../durable/reset_test.go) |
+| `TestRestartLimit140BuiltinGenerationAbortCutoffSettlesSubmission` | [restart_limit_140_test.go](../durable/restart_limit_140_test.go) |
+| `TestStopBackgroundSuppressesReportAndChildStaysUsable` | [subagent_test.go](../durable/subagent_test.go) |
+| `TestTaskRecoveryBuiltinHoldFinalFailureAndReopen` | [task_recovery_test.go](../durable/task_recovery_test.go) |
+| `TestTaskRecoveryToolOutcomePanicRollbackFallbackAndReopen` | [task_recovery_test.go](../durable/task_recovery_test.go) |
+| `TestTaskRecoveryGenerationPreparationFallbackWakeSequence` | [task_recovery_test.go](../durable/task_recovery_test.go) |
+| `TestTaskRecoveryOfflineGenerationPreparationFallbackWakeSequence` | [task_recovery_test.go](../durable/task_recovery_test.go) |
+| `TestTaskRecoveryToolDecidingHoldRejectedUncertainAndReopen` | [task_recovery_test.go](../durable/task_recovery_test.go) |
+| `TestTaskRecoveryQueuedWithdrawalOwnedChildDefersSettlement` | [task_recovery_test.go](../durable/task_recovery_test.go) |
+| `TestTaskRecoveryGenerationDecidingFinalFailureMatrix` | [task_recovery_test.go](../durable/task_recovery_test.go) |
+| `TestTaskRecoveryGenerationHostCallbacksPreparationAndDispatchedReceipts` | [task_recovery_test.go](../durable/task_recovery_test.go) |
+| `TestTaskRecoveryHostPanicDecidingStoragePrefixAndReopen` | [task_recovery_test.go](../durable/task_recovery_test.go) |
+| `TestTaskRecoveryToolValidatorHostFailureBeforeIntentAndDecidingReopen` | [task_recovery_test.go](../durable/task_recovery_test.go) |
+| `TestTaskRecoverySuccessfulValidatorIntentStoragePrefixAndReopen` | [task_recovery_test.go](../durable/task_recovery_test.go) |
+| `TestTaskRecoveryOrderedToolContinuationAdmissionCloseAndLateOwnedWork` | [task_recovery_test.go](../durable/task_recovery_test.go) |
+| `TestTaskSchedulerCapacityToolChildHoldOne` | [task_scheduler_test.go](../durable/task_scheduler_test.go) |
+| `TestMainTaskTraceQueuedFirstInvocation` | [task_trace_main_test.go](../durable/task_trace_main_test.go) |
+| `TestTelemetry140AdoptedEntryAndSettlementEvents` | [telemetry_140_test.go](../durable/telemetry_140_test.go) |
+| `TestToolRecoveryPinnedCurrentAgentCwdAndDeselection` | [tool_selection_recovery_test.go](../durable/tool_selection_recovery_test.go) |
+| `TestToolUTF16MainExecutionReopenHooks` | [tool_utf16_main_test.go](../durable/tool_utf16_main_test.go) |
+| `TestMainViewUpstreamGenerationValueOperations` | [view_generation_oracle_main_test.go](../durable/view_generation_oracle_main_test.go) |
+| `TestMainViewUpstreamGenerationOracle` | [view_generation_persistence_main_test.go](../durable/view_generation_persistence_main_test.go) |
