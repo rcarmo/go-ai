@@ -1,14 +1,14 @@
 # Canonical integration baseline
 
-Latest complete actual-tree run:f6527e8 plus scoped Tool3 UTF-16 checkpoint/publication/replay fixes in the containing commit. Prior complete counts:53 (21),56 (intermediate22),52 (23),48 (24).
+Latest complete actual-tree run:ac28bb7 plus structured-output report attribution and public telemetry/report consumers in the containing commit. Prior counts:52 (23),48 (24),46 (25).
 
 Command: `make test PACKAGES=./... TEST_FLAGS='-v -count=1 -p 1 -timeout 1200s'`, after sourcing scripts/project-env.sh. CGO disabled, sequential packages. No overlays or test exclusions.
 
-**Integration is red.** Complete actual-tree baseline25: durable838.361s with46 failed top-level groups;25 other tested packages pass (tools15.606s/public12.785s). No panic, timeout, overlay or exclusions. Integration remains red;89c031e is still the last fully verified tree.
+**Integration is red.** Complete actual-tree baseline26: durable838.350s with43 failed top-level groups;25 other tested packages pass (tools15.365s/public12.512s). No panic, timeout, overlay or exclusions. Integration remains red;89c031e is still the last fully verified tree.
 
-Both UTF-16 execution/reopen/hook and committed-reader/publication groups now pass. [Mapping](canonical-builtin-execution.md#scoped-tool3-utf-16-checkpoints-and-publications).
+All three report/telemetry groups reconciled in this packet pass. [Mapping](canonical-builtin-execution.md#phase-tool-report-origin-and-public-write-telemetry).
 
-The table is an observed failure inventory, not an assertion crosswalk or root-cause verdict. Names come from the complete run; links resolve source declarations. Earlier forward-scanned diagnostic associations are not used.
+This is an observed failure inventory, not an assertion crosswalk or root-cause verdict. Names come from the complete run; links resolve source declarations. Earlier forward-scanned diagnostic associations are not used.
 
 | Test | Native file |
 | --- | --- |
@@ -36,8 +36,6 @@ The table is an observed failure inventory, not an assertion crosswalk or root-c
 | `TestM1cAbortAtOfferedCallBoundaryStartsNoTool` | [harness_tools_test.go](../durable/harness_tools_test.go) |
 | `TestBeforeToolBlockOrThrowPreventsEffectAndRevalidatesReplacement` | [hooks_test.go](../durable/hooks_test.go) |
 | `TestIdentity140DurableDefaultHostAndPinnedOverrides` | [identity_140_test.go](../durable/identity_140_test.go) |
-| `TestReport140ModelHostFailuresReportAfterFallbackAdoption` | [report_140_test.go](../durable/report_140_test.go) |
-| `TestReport140StructuredOutputUsesCapturedProducer` | [report_140_test.go](../durable/report_140_test.go) |
 | `TestRestartLimit140BuiltinGenerationAbortCutoffSettlesSubmission` | [restart_limit_140_test.go](../durable/restart_limit_140_test.go) |
 | `TestStopBackgroundSuppressesReportAndChildStaysUsable` | [subagent_test.go](../durable/subagent_test.go) |
 | `TestTaskRecoveryBuiltinHoldFinalFailureAndReopen` | [task_recovery_test.go](../durable/task_recovery_test.go) |
@@ -54,7 +52,6 @@ The table is an observed failure inventory, not an assertion crosswalk or root-c
 | `TestTaskRecoveryOrderedToolContinuationAdmissionCloseAndLateOwnedWork` | [task_recovery_test.go](../durable/task_recovery_test.go) |
 | `TestTaskSchedulerCapacityToolChildHoldOne` | [task_scheduler_test.go](../durable/task_scheduler_test.go) |
 | `TestMainTaskTraceQueuedFirstInvocation` | [task_trace_main_test.go](../durable/task_trace_main_test.go) |
-| `TestTelemetry140AdoptedEntryAndSettlementEvents` | [telemetry_140_test.go](../durable/telemetry_140_test.go) |
 | `TestToolRecoveryPinnedCurrentAgentCwdAndDeselection` | [tool_selection_recovery_test.go](../durable/tool_selection_recovery_test.go) |
 | `TestMainViewUpstreamGenerationValueOperations` | [view_generation_oracle_main_test.go](../durable/view_generation_oracle_main_test.go) |
 | `TestMainViewUpstreamGenerationOracle` | [view_generation_persistence_main_test.go](../durable/view_generation_persistence_main_test.go) |

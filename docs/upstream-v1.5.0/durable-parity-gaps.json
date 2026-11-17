@@ -1137,7 +1137,7 @@
     "historical": true
   },
   "currentCheckpoint": {
-    "scope": "Canonical migration throughf6527e8 plus scoped Tool3 UTF-16 execute/publication/replay and public JSON support. Complete actual-tree baseline25: durable838.361s with46 failed top-level groups;25 other tested packages pass (tools15.606s/public12.785s). No panic, timeout, overlay or exclusions. Integration remains red;89c031e is still the last fully verified tree.",
+    "scope": "Canonical migration throughac28bb7 plus phase tool report origin and public telemetry/report consumers. Complete actual-tree baseline26: durable838.350s with43 failed top-level groups;25 other tested packages pass (tools15.365s/public12.512s). No panic, timeout, overlay or exclusions. Integration remains red;89c031e is still the last fully verified tree.",
     "baseRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
     "lastVerifiedPushed": {
       "revision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
@@ -1329,6 +1329,17 @@
           "otherTestedPackagesPassing": 25,
           "toolsSeconds": 15.606,
           "publicSeconds": 12.785,
+          "panic": false,
+          "timeout": false
+        },
+        {
+          "scope": "baseline26 actual tree; no overlays/exclusions",
+          "result": "fail",
+          "seconds": 838.35,
+          "failedTopLevelGroups": 43,
+          "otherTestedPackagesPassing": 25,
+          "toolsSeconds": 15.365,
+          "publicSeconds": 12.512,
           "panic": false,
           "timeout": false
         }
@@ -1645,6 +1656,22 @@
         "logging": "pass",
         "remaining": "Tool1/2 isolated-surrogate migration and broader generic-string/API/schema authority acceptance",
         "mapping": "notes/canonical-builtin-execution.md#scoped-tool3-utf-16-checkpoints-and-publications"
+      },
+      "reportOriginPacket": {
+        "sourceFirst": "Structured attribution red1.340s; telemetry order red0.195s",
+        "focusedThreeShuffleSeconds": 71.283,
+        "faults": "Three compiled semantic controls detected/restored",
+        "originalTests": {
+          "harnessReports": 4,
+          "harnessTelemetry": 26
+        },
+        "independentProbes": 98,
+        "skipped": 0,
+        "vet": "pass",
+        "staticcheck": "v0.8.2 pass",
+        "logging": "pass",
+        "remaining": "Complete structured schema-error text and model getter failure identity, plus full API/Storage acceptance",
+        "mapping": "notes/canonical-builtin-execution.md#phase-tool-report-origin-and-public-write-telemetry"
       }
     },
     "reference": {
@@ -1660,7 +1687,7 @@
     },
     "profiling": "Pre-release CPU/alloc_space/alloc_objects analysis, measured tuning and equivalent-workload remeasurement required.",
     "reviewOnly": "No runtime tests rerun by the planning review; structural register/hash checks are separate.",
-    "execution": "Step2 active; bounded Tool3 UTF-16 runtime/source/fault/static/full-run receipts. Integration fails46 groups; full API/Storage/schema/release acceptance incomplete."
+    "execution": "Step2 active; report/telemetry source-first, runtime, fault, static and actual full-run receipts. Integration fails43 groups; full API/Storage/schema/release acceptance incomplete."
   },
   "review": {
     "basisRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",

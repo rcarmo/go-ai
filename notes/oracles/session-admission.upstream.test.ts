@@ -989,3 +989,36 @@ it("retains isolated UTF-16 keys and values in a real tool execute checkpoint an
   release.resolve();expect((await submission.wait(context)).status).toBe("done");expect([before,after]).toEqual([1,1]);
  }finally{release.resolve();await harness.close(context)}
 });
+
+it("attributes invalid model structured output to the phase tool installer, not its rewriting hook",async()=>{
+ const {MemoryStorage,defineTool,defineExtension,hook,ToolTask}=await import("@earendil-works/pi-durable");
+ const {chatSetup,openChat}=await import("@pinned/chat");
+ const {fauxAssistantMessage,fauxText}=await import("@reference/pi-ai");
+ for(const rewrite of [false,true]){
+  const setup=chatSetup();let producer:any;
+  producer=defineExtension({name:"producer",tools:[defineTool({name:"origin",description:"origin",parameters:{type:"object"}as any,structuredOutputSchema:{type:"integer"}as any,execute:async()=>{setup.registry.uninstall(producer);return{output:[{type:"text"as const,text:"visible"}],structuredOutput:rewrite?1:"invalid"}}})]});
+  setup.registry.install(producer);
+  if(rewrite)setup.registry.install(defineExtension({name:"replacement",hooks:[hook(ToolTask,{afterTool:(_call,result)=>({...result,structuredOutput:"invalid"})})]}));
+  setup.faux.setResponses([fauxAssistantMessage([{type:"toolCall",id:"origin",name:"origin",arguments:{}}],{stopReason:"toolUse"}),fauxAssistantMessage([fauxText("done")])]);
+  const {harness,root}=await openChat(new MemoryStorage(),setup);
+  try{
+   expect((await(await root.submit({type:"input",content:"go"},context)).wait(context)).status).toBe("done");
+   expect(setup.infos).toEqual([expect.objectContaining({kind:"extension_error",extension:"producer",task:expect.objectContaining({kind:"pi.tool",conversationId:root.id})})]);
+  }finally{await harness.close(context)}
+ }
+});
+
+it("reports a throwing model getter as an adopted generation task fault",async()=>{
+ const {Harness,MemoryStorage,createRegistry}=await import("@earendil-works/pi-durable");
+ const cause=new Error("model getter failed"),reported=Promise.withResolvers<any>();
+ let harness:any;
+ harness=await Harness.open(new MemoryStorage(),{registry:createRegistry(),models:()=>{throw cause},onReport:report=>reported.resolve(report)},context);
+ try{
+  const root=await harness.root(context,{agent:{model:{provider:"faux",modelId:"faux-1"}}});
+  const submission=await root.submit({type:"input",content:"go"},context),report=await reported.promise;
+  expect(report.error).toBe(cause);expect(report).toMatchObject({kind:"task_faulted",reason:"threw",task:{kind:"pi.generation",conversationId:root.id}});
+  const stored=await harness.commit((tx:any)=>tx.task(report.task.id),context);
+  expect(stored.state).toMatchObject({status:"terminal",outcome:{status:"faulted"}});
+  await submission.wait(context);
+ }finally{await harness.close(context)}
+});

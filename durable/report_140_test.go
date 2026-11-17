@@ -411,7 +411,7 @@ func TestReport140ModelHostFailuresReportAfterFallbackAdoption(t *testing.T) {
 					t.Fatal(err)
 				}
 				report := awaitReport140(t, events)
-				if report.info.Type != "host_error" || report.info.Callback != "models" || report.info.Task.Kind != "pi.generation" || report.info.Task.ConversationID != conversation.ID() {
+				if report.info.Type != "task_faulted" || report.info.Reason != "threw" || report.info.Callback != "" || report.info.Task.Kind != "pi.generation" || report.info.Task.ConversationID != conversation.ID() {
 					t.Fatal(report)
 				}
 				waitSubmission(t, submission)
@@ -477,11 +477,7 @@ func TestReport140StructuredOutputUsesCapturedProducer(t *testing.T) {
 					t.Fatal(err)
 				}
 				report := awaitReport140(t, events)
-				owner := "producer"
-				if after {
-					owner = "replacement"
-				}
-				if report.info.Type != "extension_error" || report.info.Extension != owner || report.info.Task == nil || report.info.Task.Kind != "pi.tool" || report.ctx != expected {
+				if report.info.Type != "extension_error" || report.info.Extension != "producer" || report.info.Task == nil || report.info.Task.Kind != "pi.tool" || report.ctx != expected {
 					t.Fatal(report)
 				}
 				result := waitSubmission(t, submission)

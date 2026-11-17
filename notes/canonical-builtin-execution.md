@@ -671,3 +671,19 @@ Verification: UTF-16/streaming/public-record/canonical selection three-shuffle18
 Unchanged original tools42, tools-recovery10, session-tables12 pass zero skipped;96 separate probes per command remain distinct. No complete native source/API/Storage/schema/release acceptance is claimed.
 
 Complete actual-tree baseline25: durable838.361s with46 failed top-level groups;25 other tested packages pass (tools15.606s/public12.785s). No panic, timeout, overlay or exclusions. Integration remains red;89c031e is still the last fully verified tree.
+
+## Phase tool report origin and public write telemetry
+
+Pinned source: tool.ts finalResult/structuredOutputError reports the model-issued tool's invalid structured value with extension origin from its phase agent/tool installer. Replacing structuredOutput in afterTool does not make the hook's installer the schema owner. A throwing model getter leaves the generation phase by exception, becoming an adopted task_faulted/threw report, not host_error/models. session.ts #publish emits telemetry in table-write order; submissions.ts appends a display-only write entry before creating its done submission.
+
+Source-first structured report test red1.340s (both direct and afterTool-invalid lanes) observes native task_error. canonical_tool.go now routes validation reports through reportExtensionError with the selected registration's captured installer. The original producer remains attributed after it uninstalls and its host object is renamed. The separate source runtime probe confirms both lanes.
+
+report_140_test.go retains report task/conversation, original invocation context, installed-name lifetime and useful model answer assertions, but expects producer for the rewriting-hook case as the source does. The model host-failure consumer retains post-adoption delivery/no dispatch but expects task_faulted/threw with no host callback. A source probe verifies error identity and reads the already-terminal task from the report callback's result; native RequestOptions remains a Go adapter consumer, not an original source export. Model getter exception text/identity and complete structured schema-error wording remain broader unaccepted obligations; this packet's assertion scope is attribution/outcome/context.
+
+telemetry_140_test.go uses an actual display-only application write and public AppendEntry for the traced commit/rollback controls. It retains exact event order, ID/status/kind, content-free metadata, dedup/rejection/rollback silence and reentrant unlocked callbacks. Correct source order is entry then done submission, not the retired private producer's reversed order. Native red0.195s. No sorting or event normalisation hides order.
+
+Two supplemental source tests were added, now98 probes (74+24). The throwing-model probe first assumed a nested report.info envelope; the source's flat report was then asserted directly without changing the expected fields. The unchanged source reports4 and telemetry26 pass zero skipped; original and supplemental counts remain separate.
+
+Verification: combined report/telemetry three-shuffle5.569s; expanded all Report140/Telemetry140 plus canonical/UTF-16/environment/metadata/reset/acknowledgement selection71.283s. Three compiled controls detected/restored: downgrade extension reports to task_error, substitute the rewriting installer, reverse adopted telemetry event order. Vet, Staticcheck v0.8.2, logging/register/diff pass.
+
+Complete actual-tree baseline26: durable838.350s with43 failed top-level groups;25 other tested packages pass (tools15.365s/public12.512s). No panic, timeout, overlay or exclusions. Integration remains red;89c031e is still the last fully verified tree.

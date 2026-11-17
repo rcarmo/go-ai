@@ -646,11 +646,11 @@ func TestTelemetry140AdoptedEntryAndSettlementEvents(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		sub, err := conv.Submit(bg, Input{Type: "write", Content: "private transcript", RequestID: "private request"})
+		sub, err := conv.Submit(bg, Input{Type: "write", Entry: &Entry{Kind: "app.write", Data: JSON{"message": "private transcript"}, HasData: true}, RequestID: "private request"})
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(events) != 2 || events[0].name != "pi.durable.submission" || events[1].name != "pi.durable.entry" || events[0].attrs["submission.id"] != uint64(sub.id) || events[0].attrs["status"] != "done" {
+		if len(events) != 2 || events[0].name != "pi.durable.entry" || events[0].attrs["entry.kind"] != "app.write" || events[1].name != "pi.durable.submission" || events[1].attrs["submission.id"] != uint64(sub.id) || events[1].attrs["status"] != "done" {
 			t.Fatal(events)
 		}
 		if _, err := conv.Submit(bg, Input{Type: "write", RequestID: "private request"}); err != nil {
@@ -677,11 +677,7 @@ func TestTelemetry140AdoptedEntryAndSettlementEvents(t *testing.T) {
 		carrier.span.Store(backend())
 		ctx := context.WithValue(bg, telemetryContextKey{}, carrier)
 		if _, err := conv.Commit(ctx, func(tx *Tx) (any, error) {
-			id, err := tx.mintID()
-			if err != nil {
-				return nil, err
-			}
-			return nil, tx.appendEntryRecord(Entry{ID: id, Conversation: conv.id, Kind: "app.note", Value: JSON{"private": "payload"}})
+			return tx.AppendEntry(conv.ID(), JSON{"kind": "app.note", "data": JSON{"private": "payload"}})
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -689,11 +685,7 @@ func TestTelemetry140AdoptedEntryAndSettlementEvents(t *testing.T) {
 			t.Fatal(events)
 		}
 		if _, err := conv.Commit(ctx, func(tx *Tx) (any, error) {
-			id, err := tx.mintID()
-			if err != nil {
-				return nil, err
-			}
-			if err := tx.appendEntryRecord(Entry{ID: id, Conversation: conv.id, Kind: "app.rejected", Value: JSON{}}); err != nil {
+			if _, err := tx.AppendEntry(conv.ID(), JSON{"kind": "app.rejected", "data": JSON{}}); err != nil {
 				return nil, err
 			}
 			return nil, errors.New("reject after staging")

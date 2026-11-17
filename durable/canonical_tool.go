@@ -536,7 +536,7 @@ func settleCanonicalTool(ctx context.Context, r *TaskRuntime, input canonicalToo
 			owned, _ = validateNestedStructuredResult(owned, reg.offer, l)
 		}
 	} else {
-		owned = r.harness.validateModelStructuredResult(owned, reg.offer, r.reportError)
+		owned = r.harness.validateModelStructuredResult(owned, reg.offer, func(err error) { r.reportExtensionError(err, reg.extension) })
 	}
 	if len(owned.Diagnostics) > 0 {
 		block := goai.ContentBlock{Type: "text", Text: renderToolDiagnostics(owned.Diagnostics)}

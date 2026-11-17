@@ -4,6 +4,10 @@
 
 Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Canonical migration checkpoints through a5661b7 and the timing/output packet in the containing commit remain integration-red;89c031e is the last fully verified tree. Execution continues under step2. No new integrated acceptance.
 
+## Current report origin and telemetry packet
+
+Structured model-output diagnostics use the phase tool installer, not task_error or the rewriting hook. Source task-fault classification and entry-before-submission telemetry consumers retain public assertions. Expanded3-shuffle71.283s/static/three controls; original4/26 plus98 probes zero skipped. Complete actual-tree baseline26: durable838.350s with43 failed top-level groups;25 other tested packages pass (tools15.365s/public12.512s). No panic, timeout, overlay or exclusions. Integration remains red;89c031e is still the last fully verified tree. [Mapping](../../notes/canonical-builtin-execution.md#phase-tool-report-origin-and-public-write-telemetry). Complete schema-error wording, model failure identity and broader API/Storage acceptance remain open.
+
 ## Current scoped Tool3 UTF-16 packet
 
 Actual checkpoint/publication rejection now preserves the existing typed argument domain through safe replay, events and public JSON; no new source carrier field. Original42/10/12 plus96 probes, expanded3-shuffle53.350s/static/six controls pass. Complete actual-tree baseline25: durable838.361s with46 failed top-level groups;25 other tested packages pass (tools15.606s/public12.785s). No panic, timeout, overlay or exclusions. Integration remains red;89c031e is still the last fully verified tree. [Mapping](../../notes/canonical-builtin-execution.md#scoped-tool3-utf-16-checkpoints-and-publications). Broader legacy-version/schema/authority acceptance remains open; older packet descriptions retain historical scope.
