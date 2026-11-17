@@ -328,8 +328,11 @@ func canonicalGenerationRequest(ctx context.Context, task TaskRecord, r *TaskRun
 		if err := canonicalConvertPartial(tx, r.conversation, live); err != nil {
 			return nil, err
 		}
-		live["generation"] = JSON{"attempt": cp["attempt"]}
-		return nil, doc.Set(live)
+		attempt := JSON{"attempt": cp["attempt"]}
+		return nil, doc.Update(func(value JSON) error {
+			value["generation"] = attempt
+			return nil
+		})
 	}); err != nil {
 		return err
 	}

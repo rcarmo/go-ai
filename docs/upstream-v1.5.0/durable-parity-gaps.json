@@ -1137,7 +1137,7 @@
     "historical": true
   },
   "currentCheckpoint": {
-    "scope": "Canonical migration through a0a35cf plus public hook rejection consumer. Complete baseline33: durable 851.519s with 38 failed top-level groups; 25 other tested packages pass (tools 15.236s, public 11.823s). No panic, timeout, overlay or exclusions.",
+    "scope": "Canonical migration through31961e6 plus generation-view attempt tuple. Complete baseline36: durable915.408s with36 failed top-level groups;25 other tested packages pass (tools15.735s/public12.319s). No panic, timeout, overlay or exclusions. Later public tool commit consumer changes not compiled in36.89c031e last fully verified tree.",
     "baseRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
     "lastVerifiedPushed": {
       "revision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
@@ -1411,6 +1411,27 @@
           "otherTestedPackagesPassing": 25,
           "toolsSeconds": 15.236,
           "publicSeconds": 11.823,
+          "panic": false,
+          "timeout": false
+        },
+        {
+          "scope": "baseline34 interrupted terminal/helper before durable result; no saved exit",
+          "result": "incomplete",
+          "diagnostic": "Terminated make log; no complete durable result or panic/timeout verdict. No count inferred."
+        },
+        {
+          "scope": "baseline35 interrupted terminal/helper before durable result; no saved exit",
+          "result": "incomplete",
+          "diagnostic": "Terminated make log; no complete durable result or panic/timeout verdict. No count inferred."
+        },
+        {
+          "scope": "baseline36 independent process; before later public tool consumer edits; saved exit2; no overlays/exclusions",
+          "result": "fail",
+          "seconds": 915.408,
+          "failedTopLevelGroups": 36,
+          "otherTestedPackagesPassing": 25,
+          "toolsSeconds": 15.735,
+          "publicSeconds": 12.319,
           "panic": false,
           "timeout": false
         }
@@ -1825,6 +1846,20 @@
         "originalTests": 18,
         "separateSupplementalProbes": 105,
         "skipped": 0
+      },
+      "generationViewPacket": {
+        "sourceFirstRedSeconds": 0.362,
+        "scope": "Exact generation attempt set tuple; public stored-commit count plus deferred attempt frame; full revision replay",
+        "focusedThreeShuffleSeconds": 2.039,
+        "expandedThreeShuffleSeconds": 78.893,
+        "semanticFaults": 2,
+        "unchangedOriginalViewTests": 23,
+        "separateSupplementalProbes": 105,
+        "skipped": 0,
+        "vet": "pass",
+        "staticcheck": "v0.8.2 pass",
+        "logging": "pass",
+        "mapping": "notes/canonical-builtin-execution.md#generation-view-attempt-operation"
       }
     },
     "reference": {
@@ -1840,7 +1875,7 @@
     },
     "profiling": "Pre-release CPU/alloc_space/alloc_objects analysis, measured tuning and equivalent-workload remeasurement required.",
     "reviewOnly": "No runtime tests rerun by the planning review; structural register/hash checks are separate.",
-    "execution": "Step2 active. Baseline33 fails 38 groups; wider acceptance remains incomplete."
+    "execution": "Step2 active. Generation-view operation/storage assertions pass; full baseline36 fails36 groups. Wider API/Storage/compiler/corpus/release acceptance remains open."
   },
   "review": {
     "basisRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",

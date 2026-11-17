@@ -33,50 +33,32 @@ func TestMainViewUpstreamGenerationOracle(t *testing.T) {
 		h := openHarness(t, b.store, options)
 		c := root(t, h, ref)
 		initial, ch := recordUpstreamWindow(t, c)
-		core := h.session.core
 		var touching atomic.Int64
-		original := core.appendFrame
-		installTaskAppend(t, h, core, func(kind byte, ordinal, high uint64, payload []byte) error {
-			touched := false
-			if kind == 2 {
-				var commit commitRecord
-				if err := decodeStrict(payload, h.session.limits, h.session.limits.MaxFramePayloadBytes, &commit); err != nil {
-					return err
+		observer, err := h.ObserveCommits(CommitObserver{Advance: func(_ context.Context, frame CommitPublication) error {
+			for i := range frame.Changes.Len() {
+				node, _ := frame.Changes.Index(i)
+				change := generationObject(node.Copy())
+				if change["type"] == "entry" && submissionEntryID(generationObject(change["value"])["conversationId"]) == c.ID() {
+					touching.Add(1)
+					break
 				}
-				for _, w := range commit.Writes {
-					if delta := w.Delta; delta != nil && len(delta.Ops) > 0 {
-						d := core.state.Documents[delta.ID]
-						if d.Scope == "conversation" && d.Owner == c.ID() {
-							switch d.Kind {
-							case "pi.agent", "pi.inbox", "pi.live", "pi.provider", "pi.usage":
-								touched = true
-							}
-						}
-					}
-					if w.Entry != nil && w.Entry.Conversation == c.ID() {
-						touched = true
-					}
-					if d := w.Document; d != nil && d.Owner == c.ID() && d.Scope == "conversation" {
-						switch d.Kind {
-						case "pi.agent", "pi.inbox", "pi.live", "pi.provider", "pi.usage":
-							old, exists := core.state.Documents[d.ID]
-							if !exists || !equalJSONValue(old.Value, d.Value) {
-								touched = true
-							}
+				if change["type"] == "document" && change["kind"] == "change" && submissionEntryID(change["conversationId"]) == c.ID() {
+					ops, _ := change["ops"].([]any)
+					switch generationObject(change["record"])["kind"] {
+					case "pi.agent", "pi.inbox", "pi.live", "pi.provider", "pi.usage":
+						if len(ops) > 0 {
+							touching.Add(1)
+							return nil
 						}
 					}
 				}
-			}
-			if original != nil {
-				if err := original(kind, ordinal, high, payload); err != nil {
-					return err
-				}
-			}
-			if touched {
-				touching.Add(1)
 			}
 			return nil
-		})
+		}, End: func(WatchEnd) error { return nil }})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer observer.Detach()
 		sub, err := c.Submit(bg, Input{Content: "hi"})
 		if err != nil {
 			t.Fatal(err)
@@ -147,6 +129,9 @@ func TestMainViewUpstreamGenerationOracle(t *testing.T) {
 		}
 		if !foundUser || !foundGeneration {
 			t.Errorf("source user splice/generation tuple: user=%v generation=%v", foundUser, foundGeneration)
+			for _, frame := range frames {
+				t.Logf("ops: %v", frame.ops)
+			}
 		}
 	})
 }

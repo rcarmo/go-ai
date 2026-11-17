@@ -2,6 +2,8 @@
 
 Compact index of repository notes; history/evidence, not new instructions.
 
+- Generation view attempt tuple: source red0.362s, update-only generation field preserves exact mounted operation and deferred touch count. Both compiled faults detected; focused2.039s/expanded78.893s; original view23 plus105 probes pass. Baseline34/35 interrupted; independent36 completed: durable915.408s/36 groups,25 others pass. [Mapping](../canonical-builtin-execution.md#generation-view-attempt-operation).
+
 - Public hook rejection records: test-only public outcome/diagnostics, own attribution, original arguments and no effects. Baseline33: 38 durable groups, 25 other packages pass.
 
 - Public argument value union: direct/real arrays, beforeTool rewrite, UTF-16 safe replay/readonly/raw JSON and original calls pass; deep ownership and late-return hook ordering fixed after source-first reds. Return-vs-throw abort lanes are exact; root3-shuffle1.520s/expanded72.442s, ten controls/static, original42/10/10/18 plus105 probes. Baseline31:42 durable groups; three new cutoff failures are source-corrected, baseline32 completed with 39 durable failure groups; retired object DTOs and extra Validator/Withdraw remain unaccepted. See [mapping](canonical-builtin-execution.md#public-tool-argument-value-union).

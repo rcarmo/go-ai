@@ -6,6 +6,8 @@ Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Canonical m
 
 ## Current argument value union packet
 
+The newer generation-view packet fixes the exact attempt tuple and keeps deferred storage. Its complete fixture uses public commit observation; focused/source/two mutation/static checks pass. Complete baseline36: durable915.408s with36 failed top-level groups;25 other tested packages pass (tools15.735s/public12.319s). No panic, timeout, overlay or exclusions. Baselines34/35 did not complete. [Mapping](../../notes/canonical-builtin-execution.md#generation-view-attempt-operation).
+
 The public hook rejection consumer now passes against the canonical outcome and diagnostics. Complete baseline33: durable 851.519s with 38 failed top-level groups; 25 other tested packages pass (tools 15.236s, public 11.823s). No panic, timeout, overlay or exclusions.
 
 Public root and durable callbacks carry parsed values; canonical array execution, hook rewrites, checkpoints, readonly/raw JSON and UTF-16 safe replay pass. Root ownership and late-return afterTool order were fixed after source-first failures. Ten compiled controls and focused/static gates pass; original42/10/10/18 plus105 probes pass zero skipped. Baseline31:42 durable failure groups,25 other packages pass; three new cutoff failures are source-corrected with distinct late-return/aborted-throw hook paths. Complete baseline32: durable 854.664s with 39 failed top-level groups; 25 other tested packages pass (tools 15.980s, public 11.773s). No panic, timeout, overlay or exclusions. Retired object DTOs, extra Validator/Withdraw and broader API/Storage/compiler/release obligations remain open. [Mapping](../../notes/canonical-builtin-execution.md#public-tool-argument-value-union).

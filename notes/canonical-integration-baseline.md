@@ -1,12 +1,12 @@
 # Canonical integration baseline
 
-Latest complete run: a0a35cf plus the test-only public hook rejection consumer. Baseline32 had 39 failed groups; baseline33 removes only the reconciled hook test.
+Latest complete run:31961e6 plus the generation-view attempt operation and public stored-touch observer. Later public tool commit consumer edits were not in this run's compiled tree; they have separate focused checks. Baselines34/35 interrupted without a durable result.
 
-Command: `make test PACKAGES=./... TEST_FLAGS='-v -count=1 -p 1 -timeout 1200s'`, after sourcing scripts/project-env.sh. CGO disabled, sequential packages. Baseline33 ran in a separate tmux session with a saved exit code. No overlays or test exclusions.
+Command: `make test PACKAGES=./... TEST_FLAGS='-v -count=1 -p 1 -timeout 1200s'`, after sourcing scripts/project-env.sh. CGO disabled, sequential packages. Baseline36 ran in a separate tmux session with a saved exit code. No overlays or test exclusions.
 
-**Integration is red.** Complete baseline33: durable 851.519s with 38 failed top-level groups; 25 other tested packages pass (tools 15.236s, public 11.823s). No panic, timeout, overlay or exclusions. 89c031e remains the last fully verified tree.
+**Integration is red.** Complete baseline36: durable915.408s with36 failed top-level groups;25 other tested packages pass (tools15.735s/public12.319s). No panic, timeout, overlay or exclusions.89c031e remains the last fully verified tree.
 
-The public hook rejection consumer passes. [Mapping](canonical-builtin-execution.md#public-hook-rejection-records).
+Exact generation attempt operations, deferred stored-touch count and replay pass. [Mapping](canonical-builtin-execution.md#generation-view-attempt-operation).
 
 This is an observed failure inventory, not an assertion crosswalk or root-cause verdict. Names come from the complete run; links resolve source declarations.
 
@@ -48,5 +48,3 @@ This is an observed failure inventory, not an assertion crosswalk or root-cause 
 | `TestTaskSchedulerCapacityToolChildHoldOne` | [task_scheduler_test.go](../durable/task_scheduler_test.go) |
 | `TestMainTaskTraceQueuedFirstInvocation` | [task_trace_main_test.go](../durable/task_trace_main_test.go) |
 | `TestToolRecoveryPinnedCurrentAgentCwdAndDeselection` | [tool_selection_recovery_test.go](../durable/tool_selection_recovery_test.go) |
-| `TestMainViewUpstreamGenerationValueOperations` | [view_generation_oracle_main_test.go](../durable/view_generation_oracle_main_test.go) |
-| `TestMainViewUpstreamGenerationOracle` | [view_generation_persistence_main_test.go](../durable/view_generation_persistence_main_test.go) |

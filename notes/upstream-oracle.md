@@ -4,6 +4,8 @@ The oracle runs original pi-durable v1.5.0 tests at `f9a26365568127461c47a07a37d
 
 ## Latest bounded reference packet
 
+Unchanged harness-view23 and105 supplemental probes pass zero skipped. Native selected attempt tuple, deferred stored-touch count and replay assertions now pass. This remains a selected source mapping; complete native acceptance is open. [Mapping](canonical-builtin-execution.md#generation-view-attempt-operation).
+
 Argument arrays now have direct validation, nested ownership, exact checkpoint/hook/JSON and UTF-16 safe-replay probes. The replay fixture reopens public Node SQLite rather than a closed MemoryStorage; source establishes afterTool count2 for two normal returns, or1 when the aborted execution throws. Unchanged tools42, tools-recovery10 and registry10 and tool-hooks18 pass zero skipped; supplemental probes105 (81+24) pass separately. Native selected production assertions now pass; full source/native acceptance remains open. See [mapping](canonical-builtin-execution.md#public-tool-argument-value-union).
 
 Selected parameter schemas, at-use failures, UTF-16 formats and array coercion are independently checked. Unchanged tools42 and registry10 pass zero skipped; separate supplemental probes103 (79+24). The array probe is source-only until native callbacks/checkpoints support the value union. Source accepts required:true and wrappers retain a string declaration without compiling it. See [packet](canonical-builtin-execution.md#selected-tool-parameter-schemas-and-utf-16-validation).
