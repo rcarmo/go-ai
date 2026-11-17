@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	goai "github.com/rcarmo/go-ai"
+	"reflect"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -67,51 +68,38 @@ func TestResetIdleAndPostToolsStartsFollowUpInNewContext(t *testing.T) {
 		releaseTaskGate(release)
 		old := waitSubmission(t, first)
 		fresh := waitSubmission(t, follow)
-		if old.Submission.Status != "aborted" || old.Submission.Value["errorCode"] != "reset" || fresh.Submission.Status != "done" || calls.Load() != 2 {
+		if old.Record.Status != "unanswered" || old.Record.Reason != "reset" || old.Record.Answer != 0 || fresh.Record.Status != "done" || calls.Load() != 2 {
 			t.Fatal(old, fresh, calls.Load())
 		}
-		state, err := h.Snapshot(bg)
+		history, err := conversation.Entries(bg, EntryQuery{Order: Ascending}, 100, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		oldGeneration, oldReceipts := ID(0), 0
-		for _, raw := range state.Tasks {
-			if raw.Kind == "pi.generation" {
-				var cp generationCheckpoint
-				if err := fromObject(raw.Checkpoint, &cp, h.session.limits); err != nil {
-					t.Fatal(err)
-				}
-				if cp.Submission == first.ID() {
-					oldGeneration = raw.ID
-					record, err := CanonicalTask(raw, h.session.limits)
-					if err != nil || record.State.Outcome.Status != "completed" {
-						t.Fatal("post-tools reset changed completed generation", record, err)
-					}
-					for _, mutation := range []string{"checkpoint", "entry", "outcome", "status"} {
-						invalid, err := copyTask(raw, h.session.limits)
-						if err != nil {
-							t.Fatal(err)
-						}
-						switch mutation {
-						case "checkpoint":
-							invalid.Checkpoint["reset"] = false
-						case "entry":
-							invalid.Execution.Builtin.Hold.Entry++
-						case "outcome":
-							invalid.Execution.Builtin.Hold.Outcome = TaskOutcome{Status: "aborted"}
-						case "status":
-							invalid.Execution.Builtin.Hold.FinalStatus = "aborted"
-						}
-						if err := validateBuiltinHold(invalid, invalid.Execution.Builtin.Hold, h.session.limits); err == nil {
-							t.Fatal("invalid reset disposition accepted", mutation)
-						}
-					}
-				}
+		var kinds []string
+		for _, entry := range history.Items {
+			if entry.Kind != "pi.system" {
+				kinds = append(kinds, entry.Kind)
 			}
 		}
+		if !reflect.DeepEqual(kinds, []string{"pi.reset", "pi.user", "pi.assistant", "pi.tool-result", "pi.reset", "pi.user", "pi.assistant"}) {
+			t.Fatal("reset transcript ordering", kinds)
+		}
+		oldGeneration, oldAssistant, oldReceipts := ID(0), ID(0), 0
+		for _, entry := range history.Items {
+			if entry.Kind == "pi.assistant" && len(entry.Model) == 1 && entry.Model[0].StopReason == goai.StopReasonToolUse {
+				oldGeneration, oldAssistant = entry.ByTask, entry.ID
+			}
+		}
+		if oldGeneration == 0 || oldAssistant == 0 {
+			t.Fatal("actual tool-call assistant attribution missing", history.Items)
+		}
+		record, found, err := h.Task(bg, oldGeneration)
+		if err != nil || !found || record.Kind != "pi.generation" || record.Version != 2 || record.State.Outcome == nil || record.State.Outcome.Status != "completed" || record.State.Outcome.Result == nil || submissionEntryID(generationObject(record.State.Outcome.Result.Value)["entryId"]) != oldAssistant {
+			t.Fatal("post-tools reset changed completed generation", record, err)
+		}
 		resetCount := 0
-		for _, entry := range state.Entries {
-			if entry.ByTask == oldGeneration && isMessageEntry(entry) {
+		for _, entry := range history.Items {
+			if entry.ByTask == oldGeneration && entry.Kind == "pi.assistant" {
 				oldReceipts++
 			}
 			if entry.Kind == "pi.reset" {

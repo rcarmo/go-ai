@@ -4,6 +4,10 @@
 
 Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Canonical migration checkpoints through a5661b7 and the timing/output packet in the containing commit remain integration-red;89c031e is the last fully verified tree. Execution continues under step2. No new integrated acceptance.
 
+## Current environment and metadata/reset packet
+
+Source-first environment tests remove generic replacement/duplicate reporting; source public error diagnostics and caught error identity are retained. Public protocol, queued inbox metadata/reopen and canonical reset consumers pass. Expanded3-shuffle84.733s/static/seven controls, original42/11/26/37 plus95 probes zero skipped. Complete actual-tree baseline24: durable854.904s with48 failed top-level groups;25 other tested packages pass (tools14.876s/public12.266s). No panic, timeout, overlay or exclusions. Integration remains red;89c031e is still the last fully verified tree. [Mapping](../../notes/canonical-builtin-execution.md#environment-errors-and-public-metadatareset-consumers). Older packet descriptions retain historical scope.
+
 ## Current section projection packet
 
 Exact HTTP/system equality exposed duplicate durable sections and implicit pi-ai tags. Source JSON order, whitespace, core/shared/Codex projection and supplemental prompt consumers are corrected;11 controls restored and original9/26/16 plus94 probes pass. Complete actual-tree baseline23: durable842.839s with52 failed top-level groups;25 other tested packages pass (tools15.114s/public13.570s). No panic, timeout, overlay or exclusions. Integration remains red;89c031e is still the last fully verified tree. [Mapping](../../notes/canonical-builtin-execution.md#single-rendered-system-sections-and-property-order). Durable sectionOrder wire metadata and broader API/provider/schema acceptance remain open. Older packet descriptions below retain historical scope.

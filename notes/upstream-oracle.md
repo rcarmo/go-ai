@@ -4,6 +4,8 @@ The oracle runs original pi-durable v1.5.0 tests at `f9a26365568127461c47a07a37d
 
 ## Latest bounded reference packet
 
+Requested-thinking-level/response-protocol probe passes against the original runtime: provider metadata and content survive, requested off replaces provider low, and an unoffered call has its own task. Separate probe total95 (71+24). Unchanged tools42, input-entries11, generation26 and inbox37 pass zero skipped. Earlier totals below are historical; these observations do not establish full native parity.
+
 Rendered-section/value/order probe now runs against pinned pi-ai source, not the published dependency alias. It covers plain/pretagged/empty values, whitespace/separators, deletion/re-addition and string/numeric property enumeration. Separate probes94 (70+24). Unchanged harness-prompt9, harness-generation26 and conversation-transcript16 pass zero skipped. Source observations are not complete native parity. Older packet totals below are historical.
 
 Constructor reservation failure/catch probe passes ten scenarios as one test. Separate probe totals now93 (69 admission+24 storage). Unchanged session-documents27, harness-inbox37 and harness-restart-failure18 pass with no skipped/todo/filtered cases. These are original-runtime observations, not full native parity. Older packet totals below retain their historical scope.

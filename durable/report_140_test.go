@@ -255,8 +255,14 @@ func TestReport140EnvironmentHostAttribution(t *testing.T) {
 		cause := errors.New("private environment diagnostic")
 		events := make(chan observedReport140, 4)
 		definition := taskDefinition(t, "task.env-report-140", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
-			if _, err := r.Environment(ctx); err == nil {
-				return errors.New("environment failure lost")
+			_, err := r.Environment(ctx)
+			if err != cause {
+				t.Error("environment failure identity", err)
+			}
+			// Source runtime.env propagates a caller-handled error without an
+			// automatic report. The caller chooses to report its host origin.
+			if err := r.ReportFrom(err, ReportFrom{Type: "host", Callback: "env"}); err != nil {
+				return err
 			}
 			return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone(nil), nil })
 		})
@@ -272,6 +278,14 @@ func TestReport140EnvironmentHostAttribution(t *testing.T) {
 			t.Fatal(report)
 		}
 		waitPublicTask(t, h, id)
+		if err := h.Close(bg); err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case extra := <-events:
+			t.Fatal("duplicate handled environment report", extra)
+		default:
+		}
 	})
 }
 func TestReport140GenerationHooksAndSectionsKeepInstaller(t *testing.T) {

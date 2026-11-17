@@ -21,6 +21,9 @@ var mountedDocumentDefinitions = []*DocumentDefinition{
 	builtinDocumentDefinition("pi.usage", 1, "latest", "initial", nil, func(JSON) (JSON, error) { return JSON{"models": JSON{}, "tools": JSON{}}, nil }, func(JSON, []Operation, CheckpointInfo) (bool, error) { return true, nil }),
 }
 
+// InboxDoc returns the stable definition token exported by the source harness.
+func InboxDoc() *DocumentDefinition { return mountedDocumentDefinitions[2] }
+
 func builtinDocumentDefinition(kind string, version uint64, history, fork string, migrate func(JSON, uint64) (JSON, error), initial func(JSON) (JSON, error), checkpoint func(JSON, []Operation, CheckpointInfo) (bool, error)) *DocumentDefinition {
 	return &DocumentDefinition{options: DefinitionOptions{Kind: kind, Version: version, Scope: "conversation", History: history, Fork: fork, Initial: initial, Migrate: migrate, CheckpointWhen: checkpoint}}
 }

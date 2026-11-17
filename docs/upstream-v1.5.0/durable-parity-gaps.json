@@ -1137,7 +1137,7 @@
     "historical": true
   },
   "currentCheckpoint": {
-    "scope": "Canonical migration through4656a0 plus single-rendered sections/property-order fixes. Complete actual-tree baseline23: durable842.839s with52 failed top-level groups;25 other tested packages pass (tools15.114s/public13.570s). No panic, timeout, overlay or exclusions. Integration remains red;89c031e is still the last fully verified tree.",
+    "scope": "Canonical migration through56fdf5c plus source environment errors and public metadata/reset consumers. Complete actual-tree baseline24: durable854.904s with48 failed top-level groups;25 other tested packages pass (tools14.876s/public12.266s). No panic, timeout, overlay or exclusions. Integration remains red;89c031e is still the last fully verified tree.",
     "baseRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
     "lastVerifiedPushed": {
       "revision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
@@ -1307,6 +1307,17 @@
           "otherTestedPackagesPassing": 25,
           "toolsSeconds": 15.114,
           "publicSeconds": 13.57,
+          "panic": false,
+          "timeout": false
+        },
+        {
+          "scope": "baseline24 actual tree; no overlays/exclusions",
+          "result": "fail",
+          "seconds": 854.904,
+          "failedTopLevelGroups": 48,
+          "otherTestedPackagesPassing": 25,
+          "toolsSeconds": 14.876,
+          "publicSeconds": 12.266,
           "panic": false,
           "timeout": false
         }
@@ -1588,6 +1599,24 @@
         "logging": "pass",
         "remaining": "Existing durable sectionOrder wire extra; broader API/provider/schema/readonly acceptance",
         "mapping": "notes/canonical-builtin-execution.md#single-rendered-system-sections-and-property-order"
+      },
+      "environmentMetadataPacket": {
+        "sourceFirst": "Wrong environment text/report count red1.799s; unchanged original tools42 passes",
+        "focusedThreeShuffleSeconds": 84.733,
+        "faults": "Seven compiled semantic controls detected/restored",
+        "originalTests": {
+          "harnessTools": 42,
+          "harnessInputEntries": 11,
+          "harnessGeneration": 26,
+          "harnessInbox": 37
+        },
+        "independentProbes": 95,
+        "skipped": 0,
+        "vet": "pass",
+        "staticcheck": "v0.8.2 pass",
+        "logging": "pass",
+        "publicToken": "InboxDoc() stable definition identity; remaining export ledger open",
+        "mapping": "notes/canonical-builtin-execution.md#environment-errors-and-public-metadatareset-consumers"
       }
     },
     "reference": {
@@ -1603,7 +1632,7 @@
     },
     "profiling": "Pre-release CPU/alloc_space/alloc_objects analysis, measured tuning and equivalent-workload remeasurement required.",
     "reviewOnly": "No runtime tests rerun by the planning review; structural register/hash checks are separate.",
-    "execution": "Step2 active. Latest section projection packet has source-first/runtime/consumer, fault, static and full-run receipts; full integration fails52 groups. No overall API/Storage/schema or release acceptance."
+    "execution": "Step2 active; bounded environment/consumer source, runtime, fault, static and full-run receipts. Integration fails48 groups; full native/API/Storage/schema/release acceptance incomplete."
   },
   "review": {
     "basisRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",

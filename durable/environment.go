@@ -1,6 +1,9 @@
 package durable
 
-import "context"
+import (
+	"context"
+	"fmt"
+)
 
 // ExecutionEnvironment is the native local/remote environment identity.
 // Read/write/edit tools require FileSystem; the local Bash adapter additionally
@@ -90,13 +93,12 @@ func resolveInvocationEnvironment(ctx context.Context, h *Harness, runtime *Task
 	target := EnvTarget{Conversation: conversation, Cwd: cwd, Read: &InvocationReader{runtime}}
 	env, err := callEnvironment(ctx, h.options.Env, target)
 	if err != nil {
-		// This is a host callback, not a tool's own error. Report locally but
-		// never publish credentials/private payloads through durable outcomes.
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
-		runtime.reportHostError(err, "env")
-		return nil, reject("environment callback failed")
+		// Preparation reports its failure once and renders without env. Tool
+		// execution instead turns this same error into a tool_error result.
+		return nil, err
 	}
 	if err := runtime.check(); err != nil {
 		return nil, err
@@ -114,9 +116,13 @@ func resolveInvocationEnvironment(ctx context.Context, h *Harness, runtime *Task
 }
 func callEnvironment(ctx context.Context, factory func(context.Context, EnvTarget) (ExecutionEnvironment, error), target EnvTarget) (env ExecutionEnvironment, err error) {
 	defer func() {
-		if recover() != nil {
+		if failure := recover(); failure != nil {
 			env = nil
-			err = reject("environment callback panic")
+			if cause, ok := failure.(error); ok {
+				err = cause
+			} else {
+				err = fmt.Errorf("%v", failure)
+			}
 		}
 	}()
 	return factory(ctx, target)

@@ -3,6 +3,7 @@ package durable
 import (
 	"context"
 	goai "github.com/rcarmo/go-ai"
+	"reflect"
 	"sync/atomic"
 	"testing"
 )
@@ -30,44 +31,41 @@ func TestInputMetadata120QueuedReopenBeforePlacement(t *testing.T) {
 			t.Fatal(err)
 		}
 		awaitTaskSignal(t, entered)
-		sub, err := conv.Submit(bg, Input{Content: "queued", Entry: &Entry{Kind: "app.queued", Data: JSON{"source": "before-restart"}, HasData: true}})
+		metadata := JSON{"source": "before-restart"}
+		entry := &Entry{Kind: "app.queued", Data: metadata, HasData: true}
+		sub, err := conv.Submit(bg, Input{Content: "queued", Entry: entry})
 		if err != nil {
 			t.Fatal(err)
 		}
-		snap, err := h.Snapshot(bg)
+		metadata["source"] = "caller mutated"
+		entry.Kind = "pi.forged"
+		queued, exists, err := h.SnapshotDefinition(bg, InboxDoc(), conv.ID(), nil)
+		if err != nil || !exists {
+			t.Fatal("queued inbox", exists, err)
+		}
+		wantInbox := JSON{"items": []any{JSON{"id": float64(sub.ID()), "mode": "followUp", "content": "queued", "entry": JSON{"kind": "app.queued", "data": JSON{"source": "before-restart"}}}}}
+		if !equalJSONValue(queued.Copy(), wantInbox) {
+			t.Fatal("queued metadata must be owned by the real inbox", queued.Copy())
+		}
+		before, err := conv.Entries(bg, EntryQuery{}, 100, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, entry := range snap.Entries {
+		for _, entry := range before.Items {
 			if entry.Kind == "app.queued" {
 				t.Fatal("queued input placed early")
 			}
 		}
-		checked := false
-		for _, task := range snap.Tasks {
-			if task.Kind != "pi.generation" {
-				continue
-			}
-			var cp generationCheckpoint
-			if err := fromObject(task.Checkpoint, &cp, h.session.limits); err != nil {
-				t.Fatal(err)
-			}
-			if cp.InputMetadata == nil {
-				continue
-			}
-			cp.InputMetadata.Kind = "pi.forged"
-			forged, err := dtoObject(cp, h.session.limits)
-			if err != nil {
-				t.Fatal(err)
-			}
-			task.Checkpoint = forged
-			if err := validateTaskRecord(task, h.session.limits); err == nil {
-				t.Fatal("forged checkpoint metadata accepted")
-			}
-			checked = true
+		if _, err := conv.Submit(bg, Input{Content: "forged", Entry: &Entry{Kind: "pi.forged"}}); err == nil {
+			t.Fatal("reserved input kind accepted")
 		}
-		if !checked {
-			t.Fatal("queued metadata checkpoint absent")
+		after, exists, err := h.SnapshotDefinition(bg, InboxDoc(), conv.ID(), nil)
+		if err != nil || !exists || after != queued {
+			t.Fatal("rejected input changed the shared inbox", exists, err)
+		}
+		afterEntries, err := conv.Entries(bg, EntryQuery{}, 100, nil)
+		if err != nil || !reflect.DeepEqual(before, afterEntries) {
+			t.Fatal("rejected metadata wrote an entry", err)
 		}
 		if err := h.Close(bg); err != nil {
 			t.Fatal(err)
@@ -81,12 +79,16 @@ func TestInputMetadata120QueuedReopenBeforePlacement(t *testing.T) {
 		if _, err := handle.Wait(bg); err != nil {
 			t.Fatal(err)
 		}
-		snap, err = next.Snapshot(bg)
+		reopened, err := next.Conversation(bg, conv.ID())
+		if err != nil {
+			t.Fatal(err)
+		}
+		history, err := reopened.Entries(bg, EntryQuery{}, 100, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
 		count := 0
-		for _, entry := range snap.Entries {
+		for _, entry := range history.Items {
 			if entry.Kind == "app.queued" {
 				count++
 				if !entry.HasData || !equalJSONValue(entry.Data, JSON{"source": "before-restart"}) || len(entry.Model) != 1 {

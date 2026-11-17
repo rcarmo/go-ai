@@ -1,18 +1,17 @@
 # Canonical integration baseline
 
-Latest complete actual-tree run:4656a0 plus section projection/ordered message fixes in the containing commit. Prior complete runs observed53 groups (baseline21) and56 groups (intermediate baseline22, before newly exposed flat-prompt consumers were reconciled).
+Latest complete actual-tree run:56fdf5c plus environment error semantics and public metadata/reset consumers in the containing commit. Prior complete counts:53 (baseline21),56 (intermediate22),52 (23).
 
 Command: `make test PACKAGES=./... TEST_FLAGS='-v -count=1 -p 1 -timeout 1200s'`, after sourcing scripts/project-env.sh. CGO disabled, sequential packages. No overlays or test exclusions.
 
-**Integration is red.** Complete actual-tree baseline23: durable842.839s with52 failed top-level groups;25 other tested packages pass (tools15.114s/public13.570s). No panic, timeout, overlay or exclusions. Integration remains red;89c031e is still the last fully verified tree.
+**Integration is red.** Complete actual-tree baseline24: durable854.904s with48 failed top-level groups;25 other tested packages pass (tools14.876s/public12.266s). No panic, timeout, overlay or exclusions. Integration remains red;89c031e is still the last fully verified tree.
 
-The real edited-ancestor HTTP fixture now passes both configured and unconfigured loadouts with exact system text, retained content/security/tool assertions and public entry producers. All four newly exposed flat-prompt consumer groups from baseline22 pass; the canonical transcript is not flattened to restore their old envelope. [Mapping](canonical-builtin-execution.md#single-rendered-system-sections-and-property-order).
+The four reconciled groups pass: environment factory failure/abort, requested thinking/protocol fields, queued entry metadata across reopen, and post-tools reset. [Mapping](canonical-builtin-execution.md#environment-errors-and-public-metadatareset-consumers).
 
-The table is an observed failure inventory, not an assertion crosswalk or root-cause verdict. Test names come from the complete run; file links are resolved from their source declarations. The previous forward-scanned diagnostic index could associate the next test’s diagnostic/file with the preceding failure. Those unreliable associations are removed; native assertions remain unchanged.
+The table is an observed failure inventory, not an assertion crosswalk or root-cause verdict. Names come from the complete run; file links are resolved from source declarations. The earlier forward-scanned diagnostic index was unreliable and is not used.
 
 | Test | Native file |
 | --- | --- |
-| `TestEnvironmentFactoryAbortAndFailureFenceEffects` | [environment_test.go](../durable/environment_test.go) |
 | `TestFailedRun140BoundedWithdrawalRecovery` | [failed_run_140_test.go](../durable/failed_run_140_test.go) |
 | `TestFailedRun140WithdrawalJoinsOwnedHosts` | [failed_run_140_test.go](../durable/failed_run_140_test.go) |
 | `TestMainBoundaryEligibilityInheritedCancellationBeforePlacement` | [harness_boundary_eligibility_main_test.go](../durable/harness_boundary_eligibility_main_test.go) |
@@ -37,12 +36,9 @@ The table is an observed failure inventory, not an assertion crosswalk or root-c
 | `TestM1cAbortAtOfferedCallBoundaryStartsNoTool` | [harness_tools_test.go](../durable/harness_tools_test.go) |
 | `TestBeforeToolBlockOrThrowPreventsEffectAndRevalidatesReplacement` | [hooks_test.go](../durable/hooks_test.go) |
 | `TestIdentity140DurableDefaultHostAndPinnedOverrides` | [identity_140_test.go](../durable/identity_140_test.go) |
-| `TestInputMetadata120QueuedReopenBeforePlacement` | [input_metadata_reopen_120_test.go](../durable/input_metadata_reopen_120_test.go) |
-| `TestAssistantProtocolFieldsSignaturesPresenceContextAndReopen` | [message_protocol_test.go](../durable/message_protocol_test.go) |
 | `TestReaderUTF16MainCommittedEventsAndSnapshot` | [reader_utf16_main_test.go](../durable/reader_utf16_main_test.go) |
 | `TestReport140ModelHostFailuresReportAfterFallbackAdoption` | [report_140_test.go](../durable/report_140_test.go) |
 | `TestReport140StructuredOutputUsesCapturedProducer` | [report_140_test.go](../durable/report_140_test.go) |
-| `TestResetIdleAndPostToolsStartsFollowUpInNewContext` | [reset_test.go](../durable/reset_test.go) |
 | `TestRestartLimit140BuiltinGenerationAbortCutoffSettlesSubmission` | [restart_limit_140_test.go](../durable/restart_limit_140_test.go) |
 | `TestStopBackgroundSuppressesReportAndChildStaysUsable` | [subagent_test.go](../durable/subagent_test.go) |
 | `TestTaskRecoveryBuiltinHoldFinalFailureAndReopen` | [task_recovery_test.go](../durable/task_recovery_test.go) |

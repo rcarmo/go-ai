@@ -945,3 +945,26 @@ it("replays already-rendered section values without implicit tags or stale value
   {role:"system",content:"",sections:{a:"second"},timestamp:0}
  ])).toBe("kept\n\nsecond");
 });
+
+it("records requested thinking level without losing response metadata or an unoffered call",async()=>{
+ const {MemoryStorage}=await import("@earendil-works/pi-durable");
+ const {chatSetup,openChat,allEntries}=await import("@pinned/chat");
+ const {fauxAssistantMessage,fauxText}=await import("@reference/pi-ai");
+ const content=[
+  {type:"text",text:"text",textSignature:"signature"},
+  {type:"thinking",thinking:"thought",thinkingSignature:"",redacted:false},
+  {type:"toolCall",id:"call",name:"missing",arguments:{},thoughtSignature:"signed",namespace:""}
+ ];
+ const setup=chatSetup();
+ setup.faux.setResponses([Object.assign(fauxAssistantMessage(content as any,{stopReason:"toolUse",responseId:"response-id"}),{responseModel:"actual-model",providerThinkingLevel:"provider-low",thinkingLevel:"low",rawStopReason:"raw"}),fauxAssistantMessage([fauxText("answer")])]);
+ const {harness,root}=await openChat(new MemoryStorage(),setup);
+ try{
+  expect((await(await root.submit({type:"input",content:"question"},context)).wait(context)).status).toBe("done");
+  const entries=await allEntries(root),assistant=entries.find(entry=>entry.kind==="pi.assistant")!;
+  expect(assistant.model).toEqual([expect.objectContaining({content,responseId:"response-id",responseModel:"actual-model",providerThinkingLevel:"provider-low",thinkingLevel:"off",rawStopReason:"raw"})]);
+  const tasks=await harness.commit(tx=>tx.scanTasks({conversationId:root.id,kind:"pi.tool"},20),context);
+  expect(tasks.items).toHaveLength(1);expect(tasks.items[0]!.input).toMatchObject({callId:"call",unoffered:true});
+  const result=entries.find(entry=>entry.kind==="pi.tool-result")!;
+  expect(result.model).toEqual([expect.objectContaining({toolCallId:"call",isError:true})]);
+ }finally{await harness.close(context)}
+});
