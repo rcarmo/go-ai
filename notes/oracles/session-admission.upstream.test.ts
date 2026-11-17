@@ -1164,3 +1164,45 @@ it.each([false,true])("replays a coerced UTF-16 array checkpoint without repeati
   expect(assistant.model?.[0].content).toEqual([{type:"toolCall",id:"array-replay",name:"array_replay",arguments:{[key]:original}}]);
  }finally{await opened.harness.close(context);await rm(directory,{recursive:true,force:true})}
 });
+
+it("selects a current tool before execution and rolls back a throwing public commit with bounded partial output",async()=>{
+ const {MemoryStorage,defineTool}=await import("@earendil-works/pi-durable");
+ const {chatSetup,openChat,allEntries}=await import("@pinned/chat"),{addTool}=await import("@pinned/harness-support");
+ const {fauxAssistantMessage,fauxText}=await import("@reference/pi-ai");
+ const setup=chatSetup(),entered=Promise.withResolvers<void>(),release=Promise.withResolvers<void>();let oldCalls=0,newCalls=0;
+ addTool(setup.registry,defineTool({name:"atomic_pin",description:"pin",parameters:{type:"object"}as any,execute:async()=>{oldCalls++;return{output:[]}}}));
+ setup.faux.setResponses([async()=>{entered.resolve();await release.promise;return fauxAssistantMessage([{type:"toolCall",id:"atomic",name:"atomic_pin",arguments:{}}],{stopReason:"toolUse"})},fauxAssistantMessage([fauxText("answer")])]);
+ const {harness,root}=await openChat(new MemoryStorage(),setup);
+ try{
+  const submission=await root.submit({type:"input",content:"go"},context);await entered.promise;
+  addTool(setup.registry,defineTool({name:"atomic_pin",description:"pin",parameters:{type:"object"}as any,execute:async(_args,api,ctx)=>{
+   newCalls++;api.output("x".repeat(50*1024+1));await api.commit(async tx=>{await tx.appendEntry(api.conversationId,{kind:"test.must-rollback"});throw new Error("applicationfailure")},ctx);return{output:[]}
+  }}));release.resolve();
+  expect((await submission.wait(context)).status).toBe("done");expect({oldCalls,newCalls,requests:setup.faux.state.callCount}).toEqual({oldCalls:0,newCalls:1,requests:2});
+  const entries=await allEntries(root);expect(entries.filter(entry=>entry.kind==="test.must-rollback")).toHaveLength(0);
+  const result=entries.filter(entry=>entry.kind==="pi.tool-result");expect(result).toHaveLength(1);
+  const tasks=await harness.commit(tx=>tx.scanTasks({conversationId:root.id,kind:"pi.tool"},20),context);expect(tasks.items).toHaveLength(1);
+  expect(tasks.items[0].state).toEqual({status:"terminal",outcome:{status:"failed",error:{message:"Tool atomic_pin threw"},result:{kind:"model",entryId:result[0].id}}});
+  expect(result[0].byTaskId).toBe(tasks.items[0].id);
+  expect((result[0].data as any).diagnostics).toEqual([{severity:"error",code:"tool_error",message:"applicationfailure"},{severity:"warn",code:"truncated",message:"Output truncated to its beginning: 0 lines, 1 bytes dropped"}]);
+  expect(result[0].model).toEqual([expect.objectContaining({toolCallId:"atomic",toolName:"atomic_pin",isError:true,content:[{type:"text",text:"x".repeat(50*1024)},{type:"text",text:"<harness>\n[error] applicationfailure\n[warn] Output truncated to its beginning: 0 lines, 1 bytes dropped\n</harness>"}]})]);
+ }finally{release.resolve();await harness.close(context)}
+});
+
+it.each(["dependent","unload","close"])("retains held operations when a deferred checkpoint selected a storage base (%s)",async(finish)=>{
+ const session=new SessionImpl(new ControlledStorage(),Date.now,()=>600000);
+ const conversation=await session.commit(tx=>tx.createConversation({ownership:{kind:"ownerless"}}),context);
+ const Doc=defineDoc({kind:"oracle.public.held-base",scope:"conversation",history:"latest",fork:"initial",version:1,initial:()=>({text:"",base:false}),checkpointWhen:(value:any)=>value.base===true});
+ await session.commit(async tx=>{await tx.doc(Doc,conversation.id)},context);
+ const seen:any[]=[];const guard=session.observeCommits({advance:p=>seen.push(p),end:()=>{}});
+ try{
+  const deferred={persistence:{kind:"deferred"as const,withinMs:Infinity}};
+  await session.commit(async tx=>{const doc=await tx.doc(Doc,conversation.id);doc.text="x";doc.base=true},context,deferred);
+  await session.commit(async tx=>{(await tx.doc(Doc,conversation.id)).text+="y"},context,deferred);
+  expect(seen).toHaveLength(0);
+  const value=await session.snapshot(Doc,conversation.id,context);expect(value).toEqual({text:"xy",base:true});
+  if(finish==="dependent")await session.commit(async tx=>{await tx.doc(Doc,conversation.id);await tx.appendEntry(conversation.id,{kind:"note"})},context);else if(finish==="unload")await session.unloadDocuments();else await session.close(context);
+  expect(seen).toHaveLength(1);const changes=seen[0].changes.filter((change:any)=>change.type==="document");expect(changes).toHaveLength(1);
+  expect(changes[0].value).toBe(value);expect(changes[0].ops).toEqual([["a",["text"],"xy"],["s",["base"],true]]);
+ }finally{guard.detach();await session.close(context)}
+});

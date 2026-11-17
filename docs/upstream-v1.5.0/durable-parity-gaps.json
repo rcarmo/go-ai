@@ -1137,7 +1137,7 @@
     "historical": true
   },
   "currentCheckpoint": {
-    "scope": "Canonical migration through31961e6 plus generation-view attempt tuple. Complete baseline36: durable915.408s with36 failed top-level groups;25 other tested packages pass (tools15.735s/public12.319s). No panic, timeout, overlay or exclusions. Later public tool commit consumer changes not compiled in36.89c031e last fully verified tree.",
+    "scope": "Canonical migration through24fc5d1 plus held stored-operation replay and public tool commit consumer. Complete baseline38: durable866.631s with34 failed top-level groups;25 other tested packages pass (tools15.311s/public12.517s). No panic, timeout, overlay or exclusions.89c031e remains last fully verified tree.",
     "baseRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
     "lastVerifiedPushed": {
       "revision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
@@ -1432,6 +1432,22 @@
           "otherTestedPackagesPassing": 25,
           "toolsSeconds": 15.735,
           "publicSeconds": 12.319,
+          "panic": false,
+          "timeout": false
+        },
+        {
+          "scope": "baseline37 before held-publication runtime fixes; process disappeared without saved exit or durable result",
+          "result": "incomplete",
+          "diagnostic": "No remaining process, log ends during a tool-progress test; no panic/timeout verdict or failure count inferred."
+        },
+        {
+          "scope": "baseline38 complete independent actual tree; saved exit2; no overlays/exclusions",
+          "result": "fail",
+          "seconds": 866.631,
+          "failedTopLevelGroups": 34,
+          "otherTestedPackagesPassing": 25,
+          "toolsSeconds": 15.311,
+          "publicSeconds": 12.517,
           "panic": false,
           "timeout": false
         }
@@ -1860,6 +1876,31 @@
         "staticcheck": "v0.8.2 pass",
         "logging": "pass",
         "mapping": "notes/canonical-builtin-execution.md#generation-view-attempt-operation"
+      },
+      "heldPublicationAndRollbackPacket": {
+        "scope": "Stored operation intent independent of selected storage base; overflow root replacement; dependency/unload/close readonly identity; current tool public commit rollback with bounded partial/error result",
+        "sourceFirstSelectedBaseRedSeconds": 0.29,
+        "sourceFirstCombinedRedSeconds": 2.256,
+        "publicToolConsumerThreeShuffleSeconds": 2.172,
+        "finalRootThreeShuffleSeconds": 1.438,
+        "expandedThreeShuffleSeconds": 194.644,
+        "selectedFinalThreeShuffleSeconds": 13.628,
+        "semanticFaults": 6,
+        "discardedFault": "Internal overflow-tail mutation passed after later replacement handling; replaced by detected stored-publication mutation",
+        "originalTests": {
+          "harnessTools": 42,
+          "sessionDeferredCommits": 25,
+          "sessionObservers": 22
+        },
+        "separateSupplementalProbes": 109,
+        "skipped": 0,
+        "writeOrder": "Explicit source assignment-order operations; arbitrary map-diff Update write-order equivalence unaccepted",
+        "vet": "pass",
+        "staticcheck": "v0.8.2 pass",
+        "logging": "pass",
+        "mapping": "notes/canonical-builtin-execution.md#stored-held-operation-replay-and-public-tool-commit-failure",
+        "toolsSeconds": 19.404,
+        "publicSeconds": 12.233
       }
     },
     "reference": {
@@ -1875,7 +1916,7 @@
     },
     "profiling": "Pre-release CPU/alloc_space/alloc_objects analysis, measured tuning and equivalent-workload remeasurement required.",
     "reviewOnly": "No runtime tests rerun by the planning review; structural register/hash checks are separate.",
-    "execution": "Step2 active. Generation-view operation/storage assertions pass; full baseline36 fails36 groups. Wider API/Storage/compiler/corpus/release acceptance remains open."
+    "execution": "Step2 active. Selected held-operation replay and public rollback pass; complete baseline38 fails34 groups. Wider tracker/write-order/Storage/API/compiler/corpus/release acceptance remains open."
   },
   "review": {
     "basisRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",

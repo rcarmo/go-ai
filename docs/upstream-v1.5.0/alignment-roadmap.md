@@ -6,6 +6,8 @@ Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Canonical m
 
 ## Current argument value union packet
 
+The newer held-publication packet keeps operation intent independent of storage base choice, including dependency/unload/close and overflow replay. The real ToolAPI.Commit rollback consumer replaces the returned Commit/private checkpoint fixture. Source/red/six mutation/expanded194.644s/static gates pass; Complete baseline38: durable866.631s with34 failed top-level groups;25 other tested packages pass (tools15.311s/public12.517s). No panic, timeout, overlay or exclusions. Baseline37 incomplete. [Mapping](../../notes/canonical-builtin-execution.md#stored-held-operation-replay-and-public-tool-commit-failure).
+
 The newer generation-view packet fixes the exact attempt tuple and keeps deferred storage. Its complete fixture uses public commit observation; focused/source/two mutation/static checks pass. Complete baseline36: durable915.408s with36 failed top-level groups;25 other tested packages pass (tools15.735s/public12.319s). No panic, timeout, overlay or exclusions. Baselines34/35 did not complete. [Mapping](../../notes/canonical-builtin-execution.md#generation-view-attempt-operation).
 
 The public hook rejection consumer now passes against the canonical outcome and diagnostics. Complete baseline33: durable 851.519s with 38 failed top-level groups; 25 other tested packages pass (tools 15.236s, public 11.823s). No panic, timeout, overlay or exclusions.

@@ -1,5 +1,7 @@
 # Upstream conformance completion report
 
+Latest packet fixes stored held-operation replay and reconciles the public tool commit-failure consumer. Selected-base identity/operations, overflow root replacement and real transaction rollback are checked. Six compiled controls and expanded3-shuffle194.644s/static checks pass; source tools42/deferred25 plus109 separate probes pass zero skipped. Complete baseline38: durable866.631s with34 failed top-level groups;25 other tested packages pass (tools15.311s/public12.517s). No panic, timeout, overlay or exclusions. Baseline37 incomplete. [Mapping](canonical-builtin-execution.md#stored-held-operation-replay-and-public-tool-commit-failure).
+
 Latest generation-view packet preserves the exact attempt operation through the public mounted view. Stored-touch counting uses public commit observation. Red0.362s; two compiled controls; focused2.039s/expanded78.893s and static gates pass. Original view23 and105 separate probes pass zero skipped. Complete baseline36: durable915.408s with36 failed top-level groups;25 other tested packages pass (tools15.735s/public12.319s). No panic, timeout, overlay or exclusions. Incomplete34/35 are not counted. [Mapping](canonical-builtin-execution.md#generation-view-attempt-operation).
 
 Latest test-only packet reconciles hook rejection records; Complete baseline33: durable 851.519s with 38 failed top-level groups; 25 other tested packages pass (tools 15.236s, public 11.823s). No panic, timeout, overlay or exclusions.

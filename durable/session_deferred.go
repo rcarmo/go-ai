@@ -12,6 +12,7 @@ type heldDocument struct {
 	record   Document
 	ops      []Operation
 	base     bool
+	overflow bool // stored observers replace only when pending operations overflow
 	deadline persistenceDeadline
 }
 
@@ -75,14 +76,18 @@ func (s *Session) canHoldDocuments(tx *Tx) bool {
 
 // Fold operations without weakening the native operation/value budgets. An
 // overflowing operation tail becomes an already validated whole-value base.
-func (s *Session) extendHeld(held heldDocument, writes []Write) (heldDocument, error) {
+func (s *Session) extendHeld(held heldDocument, writes []Write, plans ...map[ID]*transactionDocumentPlan) (heldDocument, error) {
+	var own []Operation
+	changed := false
 	for _, write := range writes {
 		if documentWriteID(write) != held.record.ID {
 			continue
 		}
+		changed = true
 		switch write.Op {
 		case "put-document":
-			held.record, held.base, held.ops = *write.Document, true, nil
+			held.record, held.base = *write.Document, true
+			own = []Operation{{"r", map[string]any(held.record.Value)}}
 		case "delta-document":
 			value, err := ApplyOperations(held.record.Value, write.Delta.Ops, s.limits)
 			if err != nil {
@@ -93,19 +98,33 @@ func (s *Session) extendHeld(held heldDocument, writes []Write) (heldDocument, e
 				return heldDocument{}, reject("held document root must be object")
 			}
 			held.record.Value = JSON(object)
-			if !held.base {
-				combined, overflow, err := foldWatchOperations([][]Operation{held.ops, write.Delta.Ops}, s.limits)
-				if err != nil {
-					return heldDocument{}, err
-				}
-				owned, err := ownOperations(combined, s.limits)
-				if overflow || err != nil {
-					held.base, held.ops = true, nil
-				} else {
-					held.ops = owned
-				}
-			}
+			own = append(own, write.Delta.Ops...)
 		}
+	}
+	if !changed {
+		return held, nil
+	}
+	// Selecting a storage base does not replace the source operation intent.
+	// A checkpoint-selected base still publishes the folded logical operations.
+	if len(plans) > 0 {
+		if plan := plans[0][held.record.ID]; plan != nil {
+			own = plan.ops
+		}
+	}
+	if held.overflow {
+		held.ops = []Operation{{"r", map[string]any(held.record.Value)}}
+		return held, nil
+	}
+	combined, overflow, err := foldWatchOperations([][]Operation{held.ops, own}, s.limits)
+	if err != nil {
+		return heldDocument{}, err
+	}
+	owned, err := ownOperations(combined, s.limits)
+	if overflow || err != nil {
+		held.base, held.overflow = true, true
+		held.ops = []Operation{{"r", map[string]any(held.record.Value)}}
+	} else {
+		held.ops = owned
 	}
 	return held, nil
 }
@@ -139,7 +158,7 @@ func (s *Session) holdPreparedDocuments(p *preparedSessionPublication, withinMs 
 			held.deadline = deadline
 		}
 		var err error
-		held, err = s.extendHeld(held, p.tx.writes)
+		held, err = s.extendHeld(held, p.tx.writes, p.tx.documentPlans)
 		if err != nil {
 			return err
 		}
@@ -201,7 +220,7 @@ func (s *Session) holdPreparedDocuments(p *preparedSessionPublication, withinMs 
 
 // Select only held documents actually accessed by a writing transaction. A
 // write-free transaction returned before publication preparation and stays held.
-func (s *Session) writesWithHeld(tx *Tx) ([]Write, []ID, error) {
+func (s *Session) writesWithHeld(tx *Tx) ([]Write, []ID, map[ID][]Operation, error) {
 	selected := map[ID]bool{}
 	for id := range tx.readDocuments {
 		if _, ok := s.heldDocuments[id]; ok {
@@ -225,17 +244,19 @@ func (s *Session) writesWithHeld(tx *Tx) ([]Write, []ID, error) {
 			}
 		}
 	}
-	return s.foldSelectedHeld(tx.writes, selected)
+	return s.foldSelectedHeld(tx.writes, selected, tx.documentPlans)
 }
 
-func (s *Session) foldSelectedHeld(own []Write, selected map[ID]bool) ([]Write, []ID, error) {
+func (s *Session) foldSelectedHeld(own []Write, selected map[ID]bool, plans ...map[ID]*transactionDocumentPlan) ([]Write, []ID, map[ID][]Operation, error) {
+	replay := make(map[ID][]Operation, len(selected))
 	writes := make([]Write, 0, len(own)+len(selected))
 	stored := ids(selected)
 	for _, id := range stored {
-		held, err := s.extendHeld(s.heldDocuments[id], own)
+		held, err := s.extendHeld(s.heldDocuments[id], own, plans...)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
+		replay[id] = held.ops
 		writes = append(writes, heldWrite(held))
 	}
 	for _, write := range own {
@@ -244,7 +265,7 @@ func (s *Session) foldSelectedHeld(own []Write, selected map[ID]bool) ([]Write, 
 		}
 		writes = append(writes, write)
 	}
-	return writes, stored, nil
+	return writes, stored, replay, nil
 }
 
 type preparedStoredPublication struct {
@@ -253,16 +274,28 @@ type preparedStoredPublication struct {
 	subscriptions []preparedSubscription
 }
 
-func (s *Session) prepareHeldStoragePublication(ctx context.Context, writes []Write, highWater uint64, ready <-chan struct{}) (preparedStoredPublication, error) {
+func (s *Session) prepareHeldStoragePublication(ctx context.Context, writes []Write, highWater uint64, ready <-chan struct{}, replay ...map[ID][]Operation) (preparedStoredPublication, error) {
 	state := s.readImage
 	// Reservations are durable independently of document commits. Include IDs
 	// minted in this callback without mutating the prior receipted image.
 	state.HighWater = highWater
 	tx := &Tx{state: state, limits: s.limits, writes: writes}
 	for _, write := range writes {
+		id := documentWriteID(write)
+		if id == 0 {
+			continue
+		}
+		plan := tx.documentPlan(id)
 		if write.Delta != nil {
-			plan := tx.documentPlan(write.Delta.ID)
 			plan.ops = append(plan.ops, write.Delta.Ops...)
+		}
+		if write.Document != nil && write.Op == "put-document" {
+			plan.ops = []Operation{{"r", map[string]any(write.Document.Value)}}
+		}
+		if len(replay) > 0 {
+			if ops, ok := replay[0][id]; ok {
+				plan.ops = ops
+			}
 		}
 	}
 	publication, err := tx.preparePublication(ctx)
@@ -387,7 +420,7 @@ func (s *Session) storeHeldDocuments(ctx context.Context, selected []ID) error {
 	if ready == nil {
 		ready = make(chan struct{})
 	}
-	stored, err := s.prepareHeldStoragePublication(ctx, writes, highWater, ready)
+	stored, err := s.prepareHeldStoragePublication(ctx, writes, highWater, ready, s.heldReplayOperations(selected))
 	if err != nil {
 		return err
 	}
@@ -452,7 +485,7 @@ func (s *Session) flushHeldOnClose() error {
 	if err != nil {
 		return err
 	}
-	stored, err := s.prepareHeldStoragePublication(ctx, writes, highWater, nil)
+	stored, err := s.prepareHeldStoragePublication(ctx, writes, highWater, nil, s.heldReplayOperations(ids(s.heldDocuments)))
 	if err != nil {
 		return err
 	}
@@ -470,4 +503,14 @@ func (s *Session) flushHeldOnClose() error {
 	s.queuePublicCommit(ctx, stored.public, false)
 	s.publishStoredCommit(ctx, stored.publication)
 	return nil
+}
+
+// The operation queue and base/delta storage choice are independent, as in
+// pinned transaction.ts storeHeld. Keep the public stored replay intent exact.
+func (s *Session) heldReplayOperations(selected []ID) map[ID][]Operation {
+	replay := make(map[ID][]Operation, len(selected))
+	for _, id := range selected {
+		replay[id] = s.heldDocuments[id].ops
+	}
+	return replay
 }

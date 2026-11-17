@@ -4,6 +4,8 @@ The oracle runs original pi-durable v1.5.0 tests at `f9a26365568127461c47a07a37d
 
 ## Latest bounded reference packet
 
+Public rollback, partial-output bounds/current-tool phase selection, and held checkpoint-base operation retention have independent probes. Selected bases keep folded append/set operations; overflow uses a root replacement. Unchanged tools42 and session-deferred25 pass; separate probes109 (85+24) pass zero skipped. Go map-diff write-order equivalence remains open. [Mapping](canonical-builtin-execution.md#stored-held-operation-replay-and-public-tool-commit-failure).
+
 Unchanged harness-view23 and105 supplemental probes pass zero skipped. Native selected attempt tuple, deferred stored-touch count and replay assertions now pass. This remains a selected source mapping; complete native acceptance is open. [Mapping](canonical-builtin-execution.md#generation-view-attempt-operation).
 
 Argument arrays now have direct validation, nested ownership, exact checkpoint/hook/JSON and UTF-16 safe-replay probes. The replay fixture reopens public Node SQLite rather than a closed MemoryStorage; source establishes afterTool count2 for two normal returns, or1 when the aborted execution throws. Unchanged tools42, tools-recovery10 and registry10 and tool-hooks18 pass zero skipped; supplemental probes105 (81+24) pass separately. Native selected production assertions now pass; full source/native acceptance remains open. See [mapping](canonical-builtin-execution.md#public-tool-argument-value-union).

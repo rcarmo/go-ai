@@ -43,14 +43,15 @@ func (s *Session) prepareSessionPublication(ctx context.Context, tx *Tx, base Sn
 	} else if len(s.heldDocuments) == 0 {
 		p.subs, err = s.prepareSubscriptions(ctx, publication, tx, ready)
 	} else {
-		p.storageWrites, p.storedHeld, err = s.writesWithHeld(tx)
+		var replay map[ID][]Operation
+		p.storageWrites, p.storedHeld, replay, err = s.writesWithHeld(tx)
 		if err != nil {
 			return preparedSessionPublication{}, err
 		}
 		p.subs, err = s.prepareSubscriptionKinds(ctx, publication, tx, ready, true, false)
 		if err == nil {
 			var stored preparedStoredPublication
-			stored, err = s.prepareHeldStoragePublication(ctx, p.storageWrites, tx.state.HighWater, ready)
+			stored, err = s.prepareHeldStoragePublication(ctx, p.storageWrites, tx.state.HighWater, ready, replay)
 			p.stored = stored.publication
 			p.subs = append(p.subs, stored.subscriptions...)
 		}

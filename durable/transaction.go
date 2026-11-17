@@ -414,7 +414,7 @@ func (t *Tx) prepareCandidate(writes []Write, references bool) (Snapshot, error)
 			selected[id] = true
 		}
 		var err error
-		writes, _, err = t.session.foldSelectedHeld(writes, selected)
+		writes, _, _, err = t.session.foldSelectedHeld(writes, selected)
 		if err != nil {
 			return Snapshot{}, err
 		}

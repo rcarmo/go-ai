@@ -3,6 +3,7 @@ package durable
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"reflect"
 	"strings"
@@ -86,7 +87,7 @@ func mainOpenRecoveryWithRetry(t *testing.T, store Storage, ref ModelRef, option
 			if change.Record.Kind == "pi.live" && change.Record.Owner == f.c.ID() {
 				next, err := ApplyOperations(f.replica, change.Ops, f.h.session.limits)
 				if err != nil {
-					f.replicaErr = err
+					f.replicaErr = fmt.Errorf("stored live replay at %d: base=%v operations=%v value=%v: %w", frame.Publication.Seq, f.replica, change.Ops, change.Value, err)
 				} else {
 					switch value := next.(type) {
 					case JSON:

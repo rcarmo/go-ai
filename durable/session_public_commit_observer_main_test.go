@@ -896,3 +896,112 @@ func TestMainTaskApplicationPiNamespace(t *testing.T) {
 		}
 	})
 }
+
+// Selected assertions from pinned session-deferred-commits bases/publications:
+// checkpoint-selected storage bases retain the logical held operation sequence.
+func TestSourcePublicHeldBaseRetainsOperations(t *testing.T) {
+	for _, finish := range []string{"dependent", "unload", "close"} {
+		t.Run(finish, func(t *testing.T) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+				session, err := OpenSession(b.store)
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() {
+					if err := session.Close(bg); err != nil {
+						t.Error(err)
+					}
+				})
+				created, err := session.Commit(bg, func(tx *Tx) (any, error) { return tx.CreateConversation(JSON{"ownership": JSON{"kind": "ownerless"}}) })
+				if err != nil {
+					t.Fatal(err)
+				}
+				conversation := created.(Conversation)
+				definition, err := DefineDocument(DefinitionOptions{Kind: "source.held-base", Scope: "conversation", Version: 1, History: "latest", Fork: "initial", Initial: func(JSON) (JSON, error) { return JSON{"text": "", "base": false}, nil }, CheckpointWhen: func(value JSON, _ []Operation, _ CheckpointInfo) (bool, error) { return value["base"] == true, nil }})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := session.Commit(bg, func(tx *Tx) (any, error) {
+					_, err := tx.AcquireDocument(definition, conversation.ID, nil, nil)
+					return nil, err
+				}); err != nil {
+					t.Fatal(err)
+				}
+				frames := make(chan CommitPublication, 4)
+				observer, err := session.ObserveCommits(CommitObserver{Advance: func(_ context.Context, frame CommitPublication) error { frames <- frame; return nil }, End: func(WatchEnd) error { return nil }})
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer observer.Detach()
+				window := math.Inf(1)
+				deferred := CommitOptions{Persistence: &CommitPersistence{Kind: "deferred", WithinMs: &window}}
+				for _, part := range []string{"x", "y"} {
+					if _, err := session.Commit(bg, func(tx *Tx) (any, error) {
+						document, err := tx.AcquireDocument(definition, conversation.ID, nil, nil)
+						if err != nil {
+							return nil, err
+						}
+						// These are the source tracker's assignment-order operations.
+						// Map-diff Update sorts members; it cannot encode JS write order.
+						operations := []Operation{{"a", []any{"text"}, part}}
+						if part == "x" {
+							operations = append(operations, Operation{"s", []any{"base"}, true})
+						}
+						return nil, document.ApplyOperations(operations)
+					}, deferred); err != nil {
+						t.Fatal(err)
+					}
+				}
+				select {
+				case frame := <-frames:
+					t.Fatal("deferred memory change reached stored observer", frame)
+				default:
+				}
+				value, found, err := session.SnapshotDefinition(bg, definition, conversation.ID, nil)
+				if err != nil || !found || !equalJSONValue(value.Copy(), JSON{"text": "xy", "base": true}) {
+					t.Fatal("held public value", value, err)
+				}
+				switch finish {
+				case "dependent":
+					if _, err := session.Commit(bg, func(tx *Tx) (any, error) {
+						if _, err := tx.AcquireDocument(definition, conversation.ID, nil, nil); err != nil {
+							return nil, err
+						}
+						return tx.AppendEntry(conversation.ID, JSON{"kind": "note"})
+					}); err != nil {
+						t.Fatal(err)
+					}
+				case "unload":
+					if err := session.UnloadDocuments(bg); err != nil {
+						t.Fatal(err)
+					}
+				case "close":
+					if err := session.Close(bg); err != nil {
+						t.Fatal(err)
+					}
+				}
+				frame := watchReceive(t, frames)
+				changes := 0
+				for index := range frame.Changes.Len() {
+					node, _ := frame.Changes.Index(index)
+					change := generationObject(node.Copy())
+					if change["type"] != "document" {
+						continue
+					}
+					changes++
+					original, _ := node.Get("value")
+					if original != value {
+						t.Error("stored base lost adopted readonly identity")
+					}
+					want := []any{[]any{"a", []any{"text"}, "xy"}, []any{"s", []any{"base"}, true}}
+					if !equalJSONValue(change["ops"], want) {
+						t.Error("stored selected base lost held operations", change["ops"], want)
+					}
+				}
+				if changes != 1 {
+					t.Fatal("stored held document changes", changes)
+				}
+			})
+		})
+	}
+}

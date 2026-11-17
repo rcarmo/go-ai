@@ -564,19 +564,34 @@ func TestM1cCloseNoncooperativeToolKeepsOwnershipAndRecoveryOutcome(t *testing.T
 	}
 }
 
+// Selected source tool.ts current phase resolution/output/ToolAPI.commit rules.
+// A failed public commit rolls back before its error becomes the tool result.
 func TestM1cRegistryPhasePinOutputCapAndAtomicAppFailure(t *testing.T) {
 	entered, release := make(chan struct{}), make(chan struct{})
 	var oldCalls, newCalls atomic.Int64
 	registry := NewRegistry()
+	failedCommit := func(ctx context.Context, api *ToolAPI) (ToolResult, error) {
+		if err := api.Output(strings.Repeat("x", MaxToolOutputBytes+1)); err != nil {
+			return ToolResult{}, err
+		}
+		_, err := api.Commit(ctx, func(tx *Tx) (any, error) {
+			task, found, err := tx.Task(api.TaskID())
+			if err != nil || !found {
+				return nil, fmt.Errorf("own task absent: %w", err)
+			}
+			if _, err := tx.AppendEntry(task.Conversation, JSON{"kind": "test.must-rollback"}); err != nil {
+				return nil, err
+			}
+			return nil, errors.New("applicationfailure")
+		})
+		return ToolResult{}, err
+	}
 	reg := ToolRegistration{Definition: goai.Tool{Name: "pin", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "pin.impl", Version: 1, Execute: func(ctx context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 		oldCalls.Add(1)
-		if e := api.Output(strings.Repeat("x", MaxToolOutputBytes+1)); e != nil {
-			return ToolResult{}, e
-		}
-		return ToolResult{Content: "ok", Commit: func(tx *Tx) error { return reject("applicationfailure") }}, nil
+		return failedCommit(ctx, api)
 	}}
-	if e := registry.Register(reg); e != nil {
-		t.Fatal(e)
+	if err := registry.Install(&Extension{Name: "phase-pin", Tools: []ToolRegistration{reg}}); err != nil {
+		t.Fatal(err)
 	}
 	var requests atomic.Int64
 	ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
@@ -597,37 +612,68 @@ func TestM1cRegistryPhasePinOutputCapAndAtomicAppFailure(t *testing.T) {
 	options.Registry = registry
 	s, _ := newTestSQLite(t)
 	h := openHarness(t, s, options)
-	sub, e := root(t, h, ref).Submit(bg, Input{Content: "phasepin"})
-	if e != nil {
-		t.Fatal(e)
+	conversation := root(t, h, ref)
+	cleanupTaskGates(t, release)
+	sub, err := conversation.Submit(bg, Input{Content: "phasepin"})
+	if err != nil {
+		t.Fatal(err)
 	}
-	<-entered
-	reg.Execute = func(_ context.Context, _ any, api *ToolAPI) (ToolResult, error) {
+	awaitTaskSignal(t, entered)
+	reg.Execute = func(ctx context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 		newCalls.Add(1)
-		if err := api.Output(strings.Repeat("x", MaxToolOutputBytes+1)); err != nil {
-			return ToolResult{}, err
-		}
-		return ToolResult{Content: "ok", Commit: func(*Tx) error { return reject("applicationfailure") }}, nil
+		return failedCommit(ctx, api)
 	}
-	if e = registry.Register(reg); e != nil {
-		t.Fatal(e)
+	if err := registry.Install(&Extension{Name: "phase-pin", Tools: []ToolRegistration{reg}}); err != nil {
+		t.Fatal(err)
 	}
 	close(release)
-	if waitSubmission(t, sub).Submission.Status != "done" || oldCalls.Load() != 0 || newCalls.Load() != 1 {
-		t.Fatal("tool call did not resolve its current phase implementation")
+	if settled := waitSubmission(t, sub); settled.Record.Status != "done" || oldCalls.Load() != 0 || newCalls.Load() != 1 || requests.Load() != 2 {
+		t.Fatal("tool did not resolve current phase or useful answer", settled, oldCalls.Load(), newCalls.Load(), requests.Load())
 	}
-	state, e := h.Snapshot(bg)
-	if e != nil {
-		t.Fatal(e)
+	value, err := h.Commit(bg, func(tx *Tx) (any, error) {
+		return tx.ScanTasks(TaskQuery{Conversation: conversation.ID(), Kind: "pi.tool"}, 20, nil)
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
-	for _, task := range state.Tasks {
-		if task.Kind == "pi.tool" {
-			var cp toolCheckpoint
-			_ = fromObject(task.Checkpoint, &cp, h.session.limits)
-			if cp.ErrorCode != "tool_outcome_rejected" {
-				t.Fatal("appfailure/output notatomic", cp)
-			}
+	tasks := value.(Page[TaskRecord]).Items
+	if len(tasks) != 1 {
+		t.Fatal("expected own public tool", tasks)
+	}
+	task := tasks[0]
+	outcome := task.State.Outcome
+	if task.State.Status != "terminal" || outcome == nil || outcome.Status != "failed" || outcome.Error == nil || outcome.Error.Message != "Tool pin threw" || outcome.Result == nil {
+		t.Fatal("throwing public commit outcome", task)
+	}
+	result := generationObject(outcome.Result.Value)
+	entry, found, err := h.Entry(bg, submissionEntryID(result["entryId"]))
+	if err != nil || !found || len(result) != 2 || result["kind"] != "model" || entry.Kind != "pi.tool-result" || entry.ByTask != task.ID || len(entry.Model) != 1 {
+		t.Fatal("own tool result entry", result, entry, err)
+	}
+	message := entry.Model[0]
+	wantDiagnostic := "<harness>\n[error] applicationfailure\n[warn] Output truncated to its beginning: 0 lines, 1 bytes dropped\n</harness>"
+	if message.ToolCallID != "call" || message.ToolName != "pin" || !message.IsError || len(message.Content) != 2 || message.Content[0].Type != "text" || message.Content[0].Text != strings.Repeat("x", MaxToolOutputBytes) || message.Content[1].Type != "text" || message.Content[1].Text != wantDiagnostic {
+		t.Fatal("bounded throwing tool result", len(message.Content), goai.ContentText(message.Content))
+	}
+	want := []any{JSON{"severity": "error", "code": "tool_error", "message": "applicationfailure"}, JSON{"severity": "warn", "code": "truncated", "message": "Output truncated to its beginning: 0 lines, 1 bytes dropped"}}
+	if !equalJSONValue(generationObject(entry.Data)["diagnostics"], want) {
+		t.Fatal("own ordered result diagnostics", entry.Data)
+	}
+	entries, err := conversation.Entries(bg, EntryQuery{}, 100, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	results := 0
+	for _, entry := range entries.Items {
+		if entry.Kind == "test.must-rollback" {
+			t.Error("throwing tool commit leaked application entry", entry)
 		}
+		if entry.Kind == "pi.tool-result" {
+			results++
+		}
+	}
+	if results != 1 {
+		t.Fatal("duplicate tool result after rollback", results)
 	}
 }
 

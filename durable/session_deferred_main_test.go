@@ -256,6 +256,12 @@ func TestMainSessionDeferredCreationIsImmediate(t *testing.T) {
 func TestMainSessionDeferredOperationOverflowStoresBase(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		s, doc, other := openMainDeferredSession(t, b)
+		frames := make(chan CommitPublication, 4)
+		guard, err := s.ObserveCommits(CommitObserver{Advance: func(_ context.Context, frame CommitPublication) error { frames <- frame; return nil }, End: func(WatchEnd) error { return nil }})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer guard.Detach()
 		total := 0
 		for _, count := range []int{maxDeltaOperations / 2, maxDeltaOperations / 2, 1} {
 			ops := make([]Operation, count)
@@ -291,6 +297,22 @@ func TestMainSessionDeferredOperationOverflowStoresBase(t *testing.T) {
 		raw := mainDeferredSnapshot(t, b.store)
 		if raw.Documents[doc].DeltasSinceBase != 0 || !equalJSONValue(raw.Documents[doc].Value["box"], map[string]any{"n": total}) {
 			t.Fatal("overflow did not store exact final base", raw.Documents[doc])
+		}
+		frame := watchReceive(t, frames)
+		found := false
+		for index := range frame.Changes.Len() {
+			node, _ := frame.Changes.Index(index)
+			change := generationObject(node.Copy())
+			if change["type"] != "document" || submissionEntryID(generationObject(change["record"])["id"]) != doc {
+				continue
+			}
+			found = true
+			if !equalJSONValue(change["ops"], []any{[]any{"r", raw.Documents[doc].Value}}) {
+				t.Error("stored overflow observer must replace its copy", change["ops"])
+			}
+		}
+		if !found {
+			t.Error("stored overflow document absent")
 		}
 	})
 }
