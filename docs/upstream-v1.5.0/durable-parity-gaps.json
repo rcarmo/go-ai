@@ -1137,7 +1137,7 @@
     "historical": true
   },
   "currentCheckpoint": {
-    "scope": "Canonical migration through5224c05 plus canonical record-only submission abort/positional splice packet. Complete verbose ./... observes61 durable failures/25 other tested packages pass; no panic/timeout/exclusions.89c031e remains last fully verified tree.",
+    "scope": "Canonical migration through535815f plus test-only current-model metadata/compact request consumers. Complete verbose ./... observes60 durable failures/25 other tested packages pass; recurring uncertain acknowledgement failure remains unresolved.89c031e remains last fully verified tree.",
     "baseRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
     "lastVerifiedPushed": {
       "revision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
@@ -1269,6 +1269,13 @@
           "topLevelFailureGroups": 61,
           "toolsSeconds": 15.78,
           "consumerSeconds": 11.737
+        },
+        {
+          "seconds": 862.069,
+          "result": "complete verbose ./...;60 durable failure groups;25 other tested packages pass;no panic/timeout/exclusions;recurring uncertain acknowledgement fixture failure",
+          "topLevelFailureGroups": 60,
+          "toolsSeconds": 15.027,
+          "consumerSeconds": 12.419
         }
       ],
       "focusedSeconds": 60.888,
@@ -1497,6 +1504,22 @@
         "logging": "pass",
         "mapping": "notes/canonical-builtin-execution.md#canonical-submission-abort-and-positional-inbox-removal",
         "remainingExtraAPI": "SubmissionHandle.Withdraw plus four legacy consumers; unaccepted D13"
+      },
+      "modelRequestConsumerPacket": {
+        "status": "test-only bounded pass; full integration red",
+        "metadataShuffledCount": 3,
+        "metadataSeconds": 1.513,
+        "combinedSeconds": 4.928,
+        "expandedShuffledSeconds": 29.804,
+        "semanticFaults": 3,
+        "originalGenerationRecoveryCases": 9,
+        "originalGenerationCases": 26,
+        "originalSkipped": 0,
+        "independentProbesPerRun": 92,
+        "vet": "pass",
+        "staticcheck": "v0.8.2 pass",
+        "logging": "pass",
+        "mapping": "notes/canonical-builtin-execution.md#model-metadata-and-request-reference-consumers"
       }
     },
     "reference": {
@@ -1512,7 +1535,7 @@
     },
     "profiling": "Pre-release CPU/alloc_space/alloc_objects analysis, measured tuning and equivalent-workload remeasurement required.",
     "reviewOnly": "No runtime tests rerun by the planning review; structural register/hash checks are separate.",
-    "execution": "Resumed execution authorised; step1 baseline complete, step2 in progress. AbortSubmission uses canonical record/settlement and one positional inbox splice.61 durable failure groups remain; full parity/release acceptance open."
+    "execution": "Resumed execution authorised; step1 baseline complete, step2 in progress. Model request consumers use source references/current metadata/pinned options.60 durable failure groups remain; full parity/release acceptance open."
   },
   "review": {
     "basisRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",

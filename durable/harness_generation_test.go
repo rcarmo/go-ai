@@ -544,7 +544,7 @@ func TestM1bLargeLocalModelAuthorizationHTTP(t *testing.T) {
 			t.Error(e)
 		}
 		if body["model"] != "durable-test" || body["temperature"] != 0.25 || body["max_tokens"] != float64(77) || body["top_p"] != 0.5 {
-			t.Error("pinned request behavior changed", body)
+			t.Error("request behavior changed", body)
 		}
 		w.Header().Set("Content-Type", "text/event-stream")
 		fmt.Fprint(w, "data: {\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"large header answer\"},\"finish_reason\":null}]}\n\n")
@@ -560,18 +560,36 @@ func TestM1bLargeLocalModelAuthorizationHTTP(t *testing.T) {
 	}
 	model := fakeModel(goai.ApiOpenAICompletions)
 	model.BaseURL = server.URL
+	model.MaxTokens = 77
 	model.Headers = map[string]string{"Authorization": header}
 	model.CompletionsCompat = &goai.OpenAICompletionsCompat{MaxTokensField: "max_tokens"}
 	model.SamplingParams = map[string]any{"top_p": 0.5}
 	// Avoid an environment key taking precedence over model default headers;
 	// this test specifically exercises header-only authentication on real HTTP.
-	options := Options{Models: func(goai.Provider, string) *goai.Model { return model }, RequestOptions: func(context.Context, ModelRef) (*goai.StreamOptions, error) {
+	var h *Harness
+	requests := make(chan TaskRecord, 1)
+	temperature := 0.25
+	options := Options{Settings: &HarnessSettings{Stream: RequestSettings{Temperature: &temperature}}, Models: func(goai.Provider, string) *goai.Model { return model }, RequestOptions: func(context.Context, ModelRef) (*goai.StreamOptions, error) {
+		state, err := h.Snapshot(bg)
+		if err != nil {
+			return nil, err
+		}
+		for id, stored := range state.Tasks {
+			if stored.Kind != "pi.generation" || terminalStatus(stored.Status) {
+				continue
+			}
+			record, found, err := h.Task(bg, id)
+			if err != nil || !found {
+				return nil, fmt.Errorf("request task lookup: %v", err)
+			}
+			if taskCheckpointMap(record.State.Checkpoint)["phase"] == "request" {
+				requests <- record
+			}
+		}
 		return &goai.StreamOptions{Env: goai.ProviderEnv{"OPENAI_API_KEY": ""}}, nil
 	}}
-	h := openHarness(t, store, options)
-	temperature := 0.25
-	maxTokens := 77
-	r, e := h.Root(bg, AgentChange{Model: ModelRef{model.Provider, model.ID}, Settings: RequestSettings{Temperature: &temperature, MaxTokens: &maxTokens}})
+	h = openHarness(t, store, options)
+	r, e := h.Root(bg, AgentChange{Model: ModelRef{model.Provider, model.ID}})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -587,23 +605,23 @@ func TestM1bLargeLocalModelAuthorizationHTTP(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	for _, task := range state.Tasks {
-		var cp generationCheckpoint
-		if e = fromObject(task.Checkpoint, &cp, h.session.limits); e != nil {
-			t.Fatal(e)
-		}
-		if cp.Model == nil || cp.Model.BaseURL != "" || cp.Model.Headers != nil || cp.Model.APIKey != "" {
-			t.Fatal("unsanitized model intent")
-		}
-		encoded, e := encodeBounded(cp.Model, h.session.limits, 2048)
-		if e != nil || len(encoded) >= 2048 {
-			t.Fatal("model intent not compact", e)
-		}
-		if cp.Model.Api != goai.ApiOpenAICompletions || cp.Model.MaxTokens != 256 || cp.Model.SamplingParams["top_p"] != json.Number("0.5") || cp.Model.CompletionsCompat == nil || cp.Model.CompletionsCompat.MaxTokensField != "max_tokens" {
-			t.Fatal("lost pinned model behavior")
-		}
+	request := watchReceive(t, requests)
+	cp := taskCheckpointMap(request.State.Checkpoint)
+	if request.Kind != "pi.generation" || request.Version != 2 || cp["phase"] != "request" || !equalJSONValue(cp["model"], JSON{"provider": "openai", "modelId": "durable-test"}) || !equalJSONValue(cp["streamOptions"], JSON{"temperature": 0.25}) {
+		t.Fatal("canonical request must retain compact reference/options only", request, cp)
 	}
-	// Persisted behavior budgets still apply; process-local auth is not a waiver.
+	encoded, e := encodeBounded(cp, h.session.limits, 2048)
+	if e != nil || len(encoded) >= 2048 {
+		t.Fatal("model reference request not compact", e)
+	}
+	terminal, found, e := h.Task(bg, request.ID)
+	if e != nil || !found || terminal.State.Checkpoint != nil || terminal.State.Outcome == nil || terminal.State.Outcome.Status != "completed" {
+		t.Fatal("canonical terminal generation", terminal, e)
+	}
+	if len(state.Tasks) != 1 {
+		t.Fatal("HTTP generation task cardinality", len(state.Tasks))
+	}
+	// Supplemental private clone guard; Source does not persist model metadata.
 	oversized := *model
 	oversized.Name = strings.Repeat("n", DefaultLimits().MaxStringBytes+1)
 	if _, e = cloneModel(&oversized, h.session.limits); e == nil {

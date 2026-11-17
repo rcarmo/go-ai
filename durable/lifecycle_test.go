@@ -2,7 +2,6 @@ package durable
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	goai "github.com/rcarmo/go-ai"
 	"os"
@@ -340,84 +339,98 @@ func TestGenerationCloseBeforeTerminalClassificationResendsRequest(t *testing.T)
 	}
 }
 
-func TestM1bPinnedModelRecoveryIgnoresRegistryBehaviorChange(t *testing.T) {
-	var calls atomic.Int64
-	firstEntered := make(chan struct{})
-	release := make(chan struct{})
-	originalAPI := goai.Api("m1b-pinned-original")
-	changedAPI := goai.Api("m1b-pinned-changed")
-	goai.RegisterApi(&goai.ApiProvider{Api: originalAPI, Stream: func(ctx context.Context, m *goai.Model, c *goai.Context, o *goai.StreamOptions) <-chan goai.Event {
-		n := calls.Add(1)
-		if m.Api != originalAPI || m.MaxTokens != 256 || m.SamplingParams["top_p"] != json.Number("0.5") || o.MaxTokens == nil || *o.MaxTokens != 77 {
-			t.Errorf("behavior drift %+v %+v", m, o)
+// Source request checkpoints pin the model reference and stream options, not
+// process-local model metadata. A clean-close resend resolves that reference again.
+func TestGenerationRecoveryUsesCurrentModelMetadataAndCommittedStreamOptions(t *testing.T) {
+	var originalCalls, changedCalls atomic.Int64
+	firstEntered, release := make(chan struct{}), make(chan struct{})
+	originalAPI, changedAPI := goai.Api("recovery-metadata-original"), goai.Api("recovery-metadata-changed")
+	goai.RegisterApi(&goai.ApiProvider{Api: originalAPI, Stream: func(_ context.Context, model *goai.Model, _ *goai.Context, options *goai.StreamOptions) <-chan goai.Event {
+		if originalCalls.Add(1) != 1 {
+			t.Error("resend dispatched the old API")
+			ch := make(chan goai.Event, 1)
+			ch <- terminal("old API replay")
+			close(ch)
+			return ch
+		}
+		if model.Api != originalAPI || model.MaxTokens != 256 || !equalJSONValue(model.SamplingParams, map[string]any{"top_p": 0.5}) || options.TimeoutMs == nil || *options.TimeoutMs != 1234 {
+			t.Error("initial model metadata/options", model, options)
 		}
 		ch := make(chan goai.Event)
-		go func() {
-			if n == 1 {
-				close(firstEntered)
-				<-release
-				close(ch)
-				return
-			}
-			ch <- terminal("recovered")
-			close(ch)
-		}()
+		go func() { close(firstEntered); <-release; close(ch) }()
 		return ch
 	}})
-	goai.RegisterApi(&goai.ApiProvider{Api: changedAPI, Stream: func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
-		t.Error("changed API dispatched")
-		ch := make(chan goai.Event)
+	goai.RegisterApi(&goai.ApiProvider{Api: changedAPI, Stream: func(_ context.Context, model *goai.Model, input *goai.Context, options *goai.StreamOptions) <-chan goai.Event {
+		changedCalls.Add(1)
+		if model.Api != changedAPI || model.MaxTokens != 999 || !equalJSONValue(model.SamplingParams, map[string]any{"top_p": 0.99}) || options.TimeoutMs == nil || *options.TimeoutMs != 1234 {
+			t.Error("resend must resolve current metadata but keep committed options", model, options)
+		}
+		if len(input.Messages) != 1 || input.Messages[0].Role != goai.RoleUser || len(input.Messages[0].Content) != 1 || input.Messages[0].Content[0].Text != "pinned" {
+			t.Error("resend context changed", input)
+		}
+		ch := make(chan goai.Event, 1)
+		ch <- terminal("recovered")
 		close(ch)
 		return ch
 	}})
-	defer goai.UnregisterApi(originalAPI)
-	defer goai.UnregisterApi(changedAPI)
+	t.Cleanup(func() { goai.UnregisterApi(originalAPI); goai.UnregisterApi(changedAPI) })
 	model := fakeModel(originalAPI)
 	model.SamplingParams = map[string]any{"top_p": 0.5}
-	options := Options{Models: func(goai.Provider, string) *goai.Model { return model }}
-	s, dir := newSQLiteTestStore(t)
-	h := openHarness(t, s, options)
-	tokens := 77
-	r, e := h.Root(bg, AgentChange{Model: ModelRef{goai.ProviderOpenAI, model.ID}, Settings: RequestSettings{MaxTokens: &tokens}})
-	if e != nil {
-		t.Fatal(e)
+	timeout := 1234
+	options := Options{Models: func(goai.Provider, string) *goai.Model { return model }, Settings: &HarnessSettings{Stream: RequestSettings{TimeoutMs: &timeout}}}
+	store, dir := newSQLiteTestStore(t)
+	h := openHarness(t, store, options)
+	cleanupTaskGates(t, release)
+	r := root(t, h, ModelRef{Provider: goai.ProviderOpenAI, ID: model.ID})
+	sub, err := r.Submit(bg, Input{Content: "pinned", RequestID: "pinned"})
+	if err != nil {
+		t.Fatal(err)
 	}
-	sub, e := r.Submit(bg, Input{Content: "pinned", RequestID: "pinned"})
-	if e != nil {
-		t.Fatal(e)
+	awaitTaskSignal(t, firstEntered)
+	view, err := r.View(bg)
+	if err != nil {
+		t.Fatal(err)
 	}
-	<-firstEntered
+	live := immutableViewMember(t, view.Docs, "pi.live")
+	run := immutableViewMember(t, live, "run")
+	id := submissionEntryID(immutableViewMember(t, run, "taskId").Number())
+	before, found, err := h.Task(bg, id)
+	if err != nil || !found {
+		t.Fatal("request task", before, err)
+	}
+	checkpoint := before.State.Checkpoint
+	cp := taskCheckpointMap(checkpoint)
+	if cp["phase"] != "request" || submissionEntryID(cp["attempt"]) != 1 || !equalJSONValue(cp["model"], JSON{"provider": "openai", "modelId": "durable-test"}) || !equalJSONValue(cp["streamOptions"], JSON{"timeoutMs": 1234}) {
+		t.Fatal("canonical committed request", cp)
+	}
 	ctx, cancel := context.WithTimeout(bg, 20*time.Millisecond)
 	defer cancel()
-	_ = h.Close(ctx)
-	close(release)
-	_ = h.Close(bg)
+	if err := h.Close(ctx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatal("close must join provider", err)
+	}
+	releaseTaskGate(release)
+	if err := h.Close(bg); err != nil {
+		t.Fatal(err)
+	}
 	model = fakeModel(changedAPI)
-	model.MaxTokens = 999
-	model.SamplingParams = map[string]any{"top_p": 0.99}
-	s, e = openSQLiteTestDirectory(dir, SQLiteOptions{})
-	if e != nil {
-		t.Fatal(e)
+	model.MaxTokens, model.SamplingParams = 999, map[string]any{"top_p": 0.99}
+	changedTimeout := 999
+	options.Settings = &HarnessSettings{Stream: RequestSettings{TimeoutMs: &changedTimeout}}
+	store, err = openSQLiteTestDirectory(dir, SQLiteOptions{})
+	if err != nil {
+		t.Fatal(err)
 	}
-	h2 := openHarness(t, s, options)
-	snapshot, e := h2.Snapshot(bg)
-	if e != nil {
-		t.Fatal(e)
+	h2 := openHarness(t, store, options)
+	reopened, found, err := h2.Task(bg, id)
+	if err != nil || !found || reopened.State.Status != "pending" || reopened.Restarts != 0 || !equalJSONValue(reopened.State.Checkpoint, checkpoint) || originalCalls.Load() != 1 || changedCalls.Load() != 0 {
+		t.Fatal("Open must retain the request without dispatch", reopened, err)
 	}
-	for _, task := range snapshot.Tasks {
-		if task.Status != "pending" {
-			t.Fatal("recovered running without invocation", task.Status)
-		}
+	resumed, err := h2.Submission(bg, sub.ID())
+	if err != nil {
+		t.Fatal(err)
 	}
-	if calls.Load() != 1 {
-		t.Fatal("Open dispatched")
-	}
-	resumed, e := h2.Submission(bg, sub.ID())
-	if e != nil {
-		t.Fatal(e)
-	}
-	if waitSubmission(t, resumed).Submission.Status != "done" || calls.Load() != 2 {
-		t.Fatal("pinned recovery failed")
+	if result := waitSubmission(t, resumed); result.Record.Status != "done" || result.Message == nil || len(result.Message.Content) != 1 || result.Message.Content[0].Text != "recovered" || originalCalls.Load() != 1 || changedCalls.Load() != 1 {
+		t.Fatal("current metadata resend failed", result, originalCalls.Load(), changedCalls.Load())
 	}
 }
 

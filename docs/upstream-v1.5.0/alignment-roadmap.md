@@ -4,6 +4,12 @@
 
 Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Canonical migration checkpoints through a5661b7 and the timing/output packet in the containing commit remain integration-red;89c031e is the last fully verified tree. Execution continues under step2. No new integrated acceptance.
 
+## Current model metadata and compact request consumers
+
+Two test-only translations retain source model references, committed stream options and current model metadata through recovery. Large-header real HTTP/security/deduplication assertions remain. Three-shuffle metadata1.513s/combined4.928s/expanded29.804s/static/3 controls; original recovery9/generation26 plus separate92 probes zero skipped. [Exact mapping/limits](../../notes/canonical-builtin-execution.md#model-metadata-and-request-reference-consumers).
+
+Complete actual-tree verbose ./...: durable862.069s/60 failed groups,25 other tested packages pass (tools15.027s/public12.419s), no panic/timeout/exclusions. The uncertain-acknowledgement fixture recurs and remains unresolved. [Inventory](../../notes/canonical-integration-baseline.md). Step2 stays active; broad acceptance remains open.
+
 ## Canonical submission abort and current baseline
 
 Source abort authority now follows the canonical submission record and deferred settlement, without private generation scans. The first matching inbox position is removed with the exact splice; duplicate-removal test red0.370s and independent original-runtime probe agree. Partial/queued abort consumer uses public records. Three-shuffle37.265s/static/4 controls; original submissions11 zero skipped and now92 separate probes. [Mappings/limits](../../notes/canonical-builtin-execution.md#canonical-submission-abort-and-positional-inbox-removal).
