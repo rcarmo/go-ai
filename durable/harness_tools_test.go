@@ -134,7 +134,7 @@ func TestM1cActualHTTPToolResultAwareAnswer(t *testing.T) {
 	if child.Owner == 0 || snapshot.Tasks[child.Owner].Kind != "pi.generation" || snapshot.Tasks[child.Owner].Status != "done" || parent.Status != "done" || child.Status != "done" {
 		t.Fatal("owned drain")
 	}
-	assertToolUsageReceipts(t, snapshot, "sum", &goai.Usage{Output: 1, TotalTokens: 1}, h.session.limits)
+	assertToolUsageReceipts(t, h, snapshot, "sum", &goai.Usage{Output: 1, TotalTokens: 1}, h.session.limits)
 	for _, d := range snapshot.Documents {
 		if d.Kind == "pi.usage" {
 			models := d.Value["models"].(map[string]any)
@@ -171,7 +171,7 @@ func TestM1cActualHTTPToolResultAwareAnswer(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	assertToolUsageReceipts(t, reopened, "sum", &goai.Usage{Output: 1, TotalTokens: 1}, h2.session.limits)
+	assertToolUsageReceipts(t, h2, reopened, "sum", &goai.Usage{Output: 1, TotalTokens: 1}, h2.session.limits)
 }
 
 func TestM1cSchemaSubsetAndRepairBeforeIntent(t *testing.T) {
@@ -249,7 +249,7 @@ func TestM1cNotOfferedAndInvalidArgumentsZeroEffects(t *testing.T) {
 					case "not-offered":
 						name = "secret"
 					case "wrongtype":
-						args["a"] = "2"
+						args["a"] = JSON{"not": "an integer"}
 					case "maximum":
 						args["a"] = 101
 					case "additional":
@@ -278,14 +278,43 @@ func TestM1cNotOfferedAndInvalidArgumentsZeroEffects(t *testing.T) {
 			if e != nil {
 				t.Fatal(e)
 			}
+			children := 0
 			for _, task := range state.Tasks {
-				if task.Kind == "pi.tool" {
-					var cp toolCheckpoint
-					_ = fromObject(task.Checkpoint, &cp, h.session.limits)
-					if cp.Result == nil || !cp.Result.IsError {
-						t.Fatal("missing explicit tool error")
-					}
+				if task.Kind != "pi.tool" {
+					continue
 				}
+				children++
+				record, found, err := h.Task(bg, task.ID)
+				if err != nil || !found || record.State.Outcome == nil || record.State.Outcome.Result == nil || record.Input == nil {
+					t.Fatal("missing public tool outcome", record, err)
+				}
+				input := generationObject(record.Input.Value)
+				if input["callId"] != "call" {
+					t.Fatal("tool call ownership", input)
+				}
+				if mode == "not-offered" {
+					if input["unoffered"] != true {
+						t.Fatal("unoffered task not flagged", input)
+					}
+				} else if _, exists := input["unoffered"]; exists {
+					t.Fatal("offered task acquired unoffered field", input)
+				}
+				result := generationObject(record.State.Outcome.Result.Value)
+				entry, found := state.Entries[submissionEntryID(result["entryId"])]
+				if result["kind"] != "model" || !found || entry.Kind != "pi.tool-result" || len(entry.Model) != 1 || !entry.Model[0].IsError || entry.Model[0].ToolCallID != "call" {
+					t.Fatal("missing explicit tool error", result, entry)
+				}
+				code := "invalid_arguments"
+				if mode == "not-offered" {
+					code = "tool_unavailable"
+				}
+				diagnostics, valid := generationObject(entry.Data)["diagnostics"].([]any)
+				if !valid || len(diagnostics) != 1 || generationObject(diagnostics[0])["code"] != code {
+					t.Fatal("tool error diagnostic", entry.Data)
+				}
+			}
+			if children != 1 {
+				t.Fatal("expected one own error task", children)
 			}
 		})
 	}
@@ -420,7 +449,7 @@ func TestM1cAbortDrainsChildBeforeParentAndFencesEscapedAPI(t *testing.T) {
 	if effects.Load() != 1 {
 		t.Fatal("extraeffect")
 	}
-	assertToolUsageReceipts(t, state, "block", &goai.Usage{Input: 1, TotalTokens: 1}, h.session.limits)
+	assertToolUsageReceipts(t, h, state, "block", &goai.Usage{Input: 1, TotalTokens: 1}, h.session.limits)
 	if e = h.Close(bg); e != nil {
 		t.Fatal(e)
 	}
@@ -440,14 +469,16 @@ func TestM1cAbortDrainsChildBeforeParentAndFencesEscapedAPI(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	assertToolUsageReceipts(t, state, "block", &goai.Usage{Input: 1, TotalTokens: 1}, h2.session.limits)
+	assertToolUsageReceipts(t, h2, state, "block", &goai.Usage{Input: 1, TotalTokens: 1}, h2.session.limits)
 }
 
-func TestM1cCloseNoncooperativeToolKeepsOwnershipAndReturnedOutcome(t *testing.T) {
+func TestM1cCloseNoncooperativeToolKeepsOwnershipAndRecoveryOutcome(t *testing.T) {
 	entered, release := make(chan struct{}), make(chan struct{})
 	var escaped *ToolAPI
+	var effects atomic.Int64
 	registry := NewRegistry()
 	if e := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "block", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "block.impl", Version: 1, Execute: func(ctx context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+		effects.Add(1)
 		escaped = api
 		close(entered)
 		<-release
@@ -456,11 +487,23 @@ func TestM1cCloseNoncooperativeToolKeepsOwnershipAndReturnedOutcome(t *testing.T
 		t.Fatal(e)
 	}
 	var requests atomic.Int64
-	ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
+	ref, options := setupFakeAPI(t, func(_ context.Context, _ *goai.Model, input *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
 		ch := make(chan goai.Event, 1)
 		if requests.Add(1) == 1 {
 			ch <- toolAnswer("call", "block", JSON{})
 		} else {
+			results := 0
+			for _, message := range input.Messages {
+				if message.Role == goai.RoleToolResult {
+					results++
+					if !message.IsError || message.ToolCallID != "call" || goai.ContentText(message.Content) != "<harness>\n[error] Tool block was interrupted and may have partially run\n</harness>" {
+						t.Error("unsafe interrupted result", message)
+					}
+				}
+			}
+			if results != 1 {
+				t.Error("missing recovery result", results)
+			}
 			ch <- terminal("answer")
 		}
 		close(ch)
@@ -470,11 +513,13 @@ func TestM1cCloseNoncooperativeToolKeepsOwnershipAndReturnedOutcome(t *testing.T
 	s, dir := newSQLiteTestStore(t)
 	h := openHarness(t, s, options)
 	r := root(t, h, ref)
+	cleanupTaskGates(t, release)
 	sub, e := r.Submit(bg, Input{Content: "close"})
 	if e != nil {
 		t.Fatal(e)
 	}
-	<-entered
+	awaitTaskSignal(t, entered)
+	toolID := escaped.TaskID()
 	ctx, cancel := context.WithTimeout(bg, 30*time.Millisecond)
 	defer cancel()
 	if e = h.Close(ctx); !errors.Is(e, context.DeadlineExceeded) {
@@ -495,21 +540,20 @@ func TestM1cCloseNoncooperativeToolKeepsOwnershipAndReturnedOutcome(t *testing.T
 		t.Fatal(e)
 	}
 	h2 := openHarness(t, s, options)
-	state, e := h2.Snapshot(bg)
-	if e != nil {
-		t.Fatal(e)
-	}
-	for _, task := range state.Tasks {
-		if task.Kind == "pi.tool" && task.Status != "done" {
-			t.Fatal("returned outcome lost")
-		}
+	recovered, found, e := h2.Task(bg, toolID)
+	if e != nil || !found || recovered.Version != 3 || taskCheckpointMap(recovered.State.Checkpoint)["phase"] != "execute" || taskCheckpointMap(recovered.State.Checkpoint)["replay"] != "unsafe" {
+		t.Fatal("unsafe execute intent lost on close", recovered, e)
 	}
 	resumed, e := h2.Submission(bg, sub.ID())
 	if e != nil {
 		t.Fatal(e)
 	}
-	if waitSubmission(t, resumed).Submission.Status != "done" || requests.Load() != 2 {
+	if waitSubmission(t, resumed).Record.Status != "done" || requests.Load() != 2 || effects.Load() != 1 {
 		t.Fatal("tool replay orlostsuccessor")
+	}
+	settled, found, e := h2.Task(bg, toolID)
+	if e != nil || !found || settled.State.Outcome == nil || settled.State.Outcome.Status != "failed" || settled.State.Outcome.Result == nil || generationObject(settled.State.Outcome.Result.Value)["kind"] != "model" {
+		t.Fatal("unsafe tool recovery outcome", settled, e)
 	}
 }
 
@@ -809,7 +853,7 @@ func TestM1cInvalidToolUsageSettlesOnceNoAppOrReplay(t *testing.T) {
 				expectedUsage = &goai.Usage{Input: 2, Output: 1, TotalTokens: 3}
 			}
 			if mode == "valid-error" {
-				assertToolUsageReceipts(t, state, "usage", expectedUsage, h.session.limits)
+				assertToolUsageReceipts(t, h, state, "usage", expectedUsage, h.session.limits)
 			} else {
 				for _, entry := range state.Entries {
 					var receipt MessageReceipt
@@ -840,7 +884,7 @@ func TestM1cInvalidToolUsageSettlesOnceNoAppOrReplay(t *testing.T) {
 				t.Fatal(e)
 			}
 			if mode == "valid-error" {
-				assertToolUsageReceipts(t, state, "usage", expectedUsage, h2.session.limits)
+				assertToolUsageReceipts(t, h2, state, "usage", expectedUsage, h2.session.limits)
 			} else {
 				for _, task := range state.Tasks {
 					if task.Kind == "pi.tool" {
@@ -1184,7 +1228,7 @@ func assertStoredOriginalAndExecutionArgs(t *testing.T, state Snapshot, name, ke
 		t.Fatal("call/intent identity counts", calls, children)
 	}
 }
-func assertToolUsageReceipts(t *testing.T, state Snapshot, name string, want *goai.Usage, l Limits) {
+func assertToolUsageReceipts(t *testing.T, h *Harness, state Snapshot, name string, want *goai.Usage, l Limits) {
 	t.Helper()
 	entries, children, ledgers := 0, 0, 0
 	matches := func(usage *goai.Usage) {
@@ -1223,17 +1267,31 @@ func assertToolUsageReceipts(t *testing.T, state Snapshot, name string, want *go
 		if task.Kind != "pi.tool" {
 			continue
 		}
-		var cp toolCheckpoint
-		if e := fromObject(task.Checkpoint, &cp, l); e != nil {
-			t.Fatal(e)
+		public, found, err := h.Task(bg, task.ID)
+		if err != nil || !found || public.Version != 3 || public.State.Outcome == nil || public.State.Outcome.Result == nil {
+			t.Fatal("public tool outcome absent", public, err)
 		}
-		if cp.Offer.Name == name {
-			children++
-			if cp.Result == nil {
-				t.Fatal("checkpoint tool receipt absent")
-			}
-			matches(cp.Result.Usage)
+		result := generationObject(public.State.Outcome.Result.Value)
+		if result["kind"] != "model" {
+			t.Fatal("expected model-issued tool result", result)
 		}
+		entry, found := state.Entries[submissionEntryID(result["entryId"])]
+		if !found || entry.Kind != "pi.tool-result" || len(entry.Model) != 1 {
+			t.Fatal("tool outcome must identify its actual result entry", result, entry)
+		}
+		receipt := entry.Model[0]
+		if receipt.ToolName != name {
+			continue
+		}
+		children++
+		if public.Input == nil {
+			t.Fatal("tool input absent", public)
+		}
+		input := generationObject(public.Input.Value)
+		if input["kind"] != "model" || input["callId"] != receipt.ToolCallID || entry.ByTask != public.ID {
+			t.Fatal("tool receipt ownership changed", input, entry, public)
+		}
+		matches(receipt.Usage)
 	}
 	for _, doc := range state.Documents {
 		if doc.Kind != "pi.usage" {

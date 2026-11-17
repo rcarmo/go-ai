@@ -1137,7 +1137,7 @@
     "historical": true
   },
   "currentCheckpoint": {
-    "scope": "Canonical migration throughac28bb7 plus phase tool report origin and public telemetry/report consumers. Complete actual-tree baseline26: durable838.350s with43 failed top-level groups;25 other tested packages pass (tools15.365s/public12.512s). No panic, timeout, overlay or exclusions. Integration remains red;89c031e is still the last fully verified tree.",
+    "scope": "Canonical migration throughc228afd plus test-only public tool/usage/invalid/unsafe-close consumers. Complete actual-tree baseline28: durable843.031s with40 failed top-level groups;25 other tested packages pass (tools16.250s/public12.547s). No panic, timeout, overlay or exclusions. Integration remains red;89c031e is still the last fully verified tree.",
     "baseRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
     "lastVerifiedPushed": {
       "revision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
@@ -1340,6 +1340,22 @@
           "otherTestedPackagesPassing": 25,
           "toolsSeconds": 15.365,
           "publicSeconds": 12.512,
+          "panic": false,
+          "timeout": false
+        },
+        {
+          "scope": "baseline27 interrupted tool terminal; no durable result",
+          "result": "incomplete",
+          "diagnostic": "Saved make no-child-process errors; no panic/timeout diagnostic or remaining test process. No deadlock claim."
+        },
+        {
+          "scope": "baseline28 independent tmux actual tree; saved exit2; no overlays/exclusions",
+          "result": "fail",
+          "seconds": 843.031,
+          "failedTopLevelGroups": 40,
+          "otherTestedPackagesPassing": 25,
+          "toolsSeconds": 16.25,
+          "publicSeconds": 12.547,
           "panic": false,
           "timeout": false
         }
@@ -1672,6 +1688,21 @@
         "logging": "pass",
         "remaining": "Complete structured schema-error text and model getter failure identity, plus full API/Storage acceptance",
         "mapping": "notes/canonical-builtin-execution.md#phase-tool-report-origin-and-public-write-telemetry"
+      },
+      "publicToolConsumerPacket": {
+        "scope": "Test-only public task result.entryId/entry+ledger usage, invalid/unoffered tasks, unsafe close recovery",
+        "focusedThreeShuffleSeconds": 85.871,
+        "faults": "Four compiled semantic controls detected/restored",
+        "originalTests": {
+          "harnessTools": 42,
+          "harnessToolsRecovery": 10
+        },
+        "independentProbes": 99,
+        "skipped": 0,
+        "vet": "pass",
+        "staticcheck": "v0.8.2 pass",
+        "logging": "pass",
+        "mapping": "notes/canonical-builtin-execution.md#public-tool-result-usage-invalid-calls-and-unsafe-close-recovery"
       }
     },
     "reference": {
@@ -1687,7 +1718,7 @@
     },
     "profiling": "Pre-release CPU/alloc_space/alloc_objects analysis, measured tuning and equivalent-workload remeasurement required.",
     "reviewOnly": "No runtime tests rerun by the planning review; structural register/hash checks are separate.",
-    "execution": "Step2 active; report/telemetry source-first, runtime, fault, static and actual full-run receipts. Integration fails43 groups; full API/Storage/schema/release acceptance incomplete."
+    "execution": "Step2 active. Public tool consumer packet has focused/source/fault/static receipts and complete baseline28; interrupted27 is not acceptance. Integration fails40 groups; full API/Storage/schema/release acceptance incomplete."
   },
   "review": {
     "basisRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",

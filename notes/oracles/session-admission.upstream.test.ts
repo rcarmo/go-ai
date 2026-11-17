@@ -1022,3 +1022,21 @@ it("reports a throwing model getter as an adopted generation task fault",async()
   await submission.wait(context);
  }finally{await harness.close(context)}
 });
+
+it("links a model tool outcome to its usage-bearing entry and exact tool ledger",async()=>{
+ const {MemoryStorage,defineTool,UsageDoc}=await import("@earendil-works/pi-durable");
+ const {chatSetup,openChat,allEntries}=await import("@pinned/chat"),{addTool}=await import("@pinned/harness-support");
+ const {fauxAssistantMessage,fauxText}=await import("@reference/pi-ai");
+ const usage={input:0,output:1,cacheRead:0,cacheWrite:0,totalTokens:1,cost:{input:0,output:0,cacheRead:0,cacheWrite:0,total:0}};
+ const setup=chatSetup();addTool(setup.registry,defineTool({name:"billed",description:"billed",parameters:{type:"object"}as any,execute:async()=>({output:[{type:"text"as const,text:"5"}],usage})}));
+ setup.faux.setResponses([fauxAssistantMessage([{type:"toolCall",id:"billed-call",name:"billed",arguments:{}}],{stopReason:"toolUse"}),fauxAssistantMessage([fauxText("answer")])]);
+ const {harness,root}=await openChat(new MemoryStorage(),setup);
+ try{
+  expect((await(await root.submit({type:"input",content:"go"},context)).wait(context)).status).toBe("done");
+  const entries=await allEntries(root),entry=entries.find(entry=>entry.kind==="pi.tool-result")!;
+  expect(entry.model).toEqual([expect.objectContaining({toolCallId:"billed-call",toolName:"billed",usage})]);
+  const tasks=await harness.commit(tx=>tx.scanTasks({conversationId:root.id,kind:"pi.tool"},20),context);
+  expect(tasks.items).toHaveLength(1);expect(tasks.items[0]!.state).toEqual({status:"terminal",outcome:{status:"completed",result:{kind:"model",entryId:entry.id}}});
+  expect((await harness.snapshot(UsageDoc,root.id,context))?.tools.billed).toEqual(usage);
+ }finally{await harness.close(context)}
+});

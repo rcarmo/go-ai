@@ -4,6 +4,10 @@
 
 Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Canonical migration checkpoints through a5661b7 and the timing/output packet in the containing commit remain integration-red;89c031e is the last fully verified tree. Execution continues under step2. No new integrated acceptance.
 
+## Current public tool consumer packet
+
+Test-only HTTP/usage, invalid/unoffered task and unsafe-close consumers use actual public result records. Expanded3-shuffle85.871s/static/four controls; original42/10 plus99 probes zero skipped. Baseline27 interrupted with no complete result; independent tmux baseline28 completed. Complete actual-tree baseline28: durable843.031s with40 failed top-level groups;25 other tested packages pass (tools16.250s/public12.547s). No panic, timeout, overlay or exclusions. Integration remains red;89c031e is still the last fully verified tree. [Mapping](../../notes/canonical-builtin-execution.md#public-tool-result-usage-invalid-calls-and-unsafe-close-recovery). Broader schema/native compatibility consumers and full API/Storage acceptance remain open.
+
 ## Current report origin and telemetry packet
 
 Structured model-output diagnostics use the phase tool installer, not task_error or the rewriting hook. Source task-fault classification and entry-before-submission telemetry consumers retain public assertions. Expanded3-shuffle71.283s/static/three controls; original4/26 plus98 probes zero skipped. Complete actual-tree baseline26: durable838.350s with43 failed top-level groups;25 other tested packages pass (tools15.365s/public12.512s). No panic, timeout, overlay or exclusions. Integration remains red;89c031e is still the last fully verified tree. [Mapping](../../notes/canonical-builtin-execution.md#phase-tool-report-origin-and-public-write-telemetry). Complete schema-error wording, model failure identity and broader API/Storage acceptance remain open.

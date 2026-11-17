@@ -687,3 +687,21 @@ Two supplemental source tests were added, now98 probes (74+24). The throwing-mod
 Verification: combined report/telemetry three-shuffle5.569s; expanded all Report140/Telemetry140 plus canonical/UTF-16/environment/metadata/reset/acknowledgement selection71.283s. Three compiled controls detected/restored: downgrade extension reports to task_error, substitute the rewriting installer, reverse adopted telemetry event order. Vet, Staticcheck v0.8.2, logging/register/diff pass.
 
 Complete actual-tree baseline26: durable838.350s with43 failed top-level groups;25 other tested packages pass (tools15.365s/public12.512s). No panic, timeout, overlay or exclusions. Integration remains red;89c031e is still the last fully verified tree.
+
+## Public tool result usage, invalid calls and unsafe close recovery
+
+Pinned source: tool.ts ToolTaskResult/appendToolResult and unsafe execute recovery; harness-tools.test.ts unoffered/invalid validation cases; harness-tools-recovery.test.ts interrupted unsafe calls. Source model-tool outcomes identify their actual usage-bearing entry with {kind:model,entryId}, rather than keeping a private result inside a scheduler checkpoint. A late return after Close cancellation does not commit a successful tool result.
+
+Test-only mapping in harness_tools_test.go:
+
+- The real HTTP sum chain retains exact offered tool presence, assistant/tool pairing and original call ID, useful answer, app effect, usage accounting, owned drain, close/reopen/dedup/no redispatch. Its common usage assertion now reads actual public Tool3 records through h.Task, verifies model result.entryId and own task/call/entry attribution, then compares entry/ledger usage exactly. It no longer decodes retired raw toolCheckpoint.Result. Initial failure: counts1/0/1, not a runtime accounting defect. The helper's additional callers remain subject to their own still-red fixtures; they are not silently accepted.
+- Invalid/unoffered calls retain zero effects and now check one public own task, call ID, exact unoffered property presence, own model result entry, isError and diagnostic code. Wrong-type input is an object rather than numeric string2: the source deliberately coerces numeric strings, so treating2 as an invalid integer was not a valid source assertion. Other maximum/additional/required lanes remain unchanged.
+- The noncooperative Close consumer is renamed to KeepsOwnershipAndRecoveryOutcome. It retains Close deadline, writer ownership until join, sealed escaped API, one execution and two model requests. It checks the persisted unsafe execute intent, actual failed recovery task and exact interrupted diagnostic in the successor model context. The returned late finished value is not accepted as a source success. No new private checkpoint is produced. Gate cleanup is deterministic.
+
+New separate source probe checks the exact public completed task result object, entry usage and tool ledger through a real tool. Supplemental probes now99 (75+24); unchanged tools42 and tools-recovery10 pass zero skipped. Original runs remain distinct from native tests and supplemental probes.
+
+Verification: HTTP three-shuffle1.824s, HTTP/invalid9.767s, all three12.108s, final expanded three-shuffle85.871s; vet, Staticcheck v0.8.2, logging/diff pass. Four compiled semantic controls detected/restored: missing entry usage, wrong outcome kind, false unoffered flag, wrong unsafe-recovery text. The initial mutation script's non-unique selector did not edit production; its corrected selector was rerun.
+
+Baseline27's tool terminal disappeared before recording a result. Inspection found no remaining test process; the saved log ended in make no-child-process errors without a durable result/panic/timeout diagnostic. No deadlock or lower failure count is inferred. Baseline28 ran independently in tmux and recorded its exit code; it completed normally with the observed result below.
+
+Complete actual-tree baseline28: durable843.031s with40 failed top-level groups;25 other tested packages pass (tools16.250s/public12.547s). No panic, timeout, overlay or exclusions. Integration remains red;89c031e is still the last fully verified tree.

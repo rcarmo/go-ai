@@ -4,6 +4,8 @@ The oracle runs original pi-durable v1.5.0 tests at `f9a26365568127461c47a07a37d
 
 ## Latest bounded reference packet
 
+A new actual-tool source probe verifies exact completed model-tool result.entryId, usage-bearing result entry and tool ledger. Separate probes99 (75+24). Unchanged tools42 and tools-recovery10 pass zero skipped; earlier totals are historical and do not establish complete native acceptance.
+
 Two new source probes confirm phase tool installer origin after self-uninstall/rewriting hook and adopted generation task fault for a throwing model getter. The latter asserts the source flat Report, not a nested info object. Separate probes98 (74+24). Unchanged reports4 and telemetry26 pass zero skipped; older totals below retain historical scope.
 
 A real tool execute checkpoint preserves isolated UTF-16 keys/values through prepare/rewrite and retains original call arguments for afterTool. Exact returned state uses status, not the initial probe typo phase. Separate probes96 (72+24). Unchanged tools42, tools-recovery10 and session-tables12 pass zero skipped. Older totals below are historical; full native assertion acceptance remains incomplete.
