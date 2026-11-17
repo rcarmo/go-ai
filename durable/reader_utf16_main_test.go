@@ -197,11 +197,27 @@ func TestReaderUTF16MainCommittedEventsAndSnapshot(t *testing.T) {
 				if !bytes.Contains(wire, []byte(`"arguments":{"\ud800":"\ud800"}`)) || bytes.Contains(wire, []byte("utf16Arguments")) {
 					t.Fatalf("public task lost source UTF-16 arguments: %s", wire)
 				}
-				var cp toolCheckpoint
-				if err = fromObject(task.Checkpoint, &cp, h.session.limits); err != nil {
-					t.Fatal(err)
+				requireToolUTF16(t, taskCheckpointMap(checkpoint["arguments"])[key], 0xd800)
+				var roundtrip TaskRecord
+				if err := json.Unmarshal(wire, &roundtrip); err != nil {
+					t.Fatal("public JSON tool record", err)
 				}
-				requireToolUTF16(t, cp.Arguments[key], 0xd800)
+				requireToolUTF16(t, taskCheckpointMap(taskCheckpointMap(roundtrip.State.Checkpoint)["arguments"])[key], 0xd800)
+				if err := decodeStrict(wire, h.session.limits, h.session.limits.MaxRecordBytes, &roundtrip); err != nil {
+					t.Fatal("typed tool record roundtrip", err)
+				}
+				requireToolUTF16(t, taskCheckpointMap(taskCheckpointMap(roundtrip.State.Checkpoint)["arguments"])[key], 0xd800)
+				// Only transform an actual production record for negative parser
+				// checks; no fabricated checkpoint can drive this fixture.
+				for _, change := range [][2]string{{`"kind":"pi.tool"`, `"kind":"app.other"`}, {`"version":3`, `"version":4`}, {`"phase":"execute"`, `"phase":"call"`}, {`"arguments":`, `"other":`}} {
+					if bytes.Count(wire, []byte(change[0])) != 1 {
+						t.Fatal("mutation target", change[0])
+					}
+					invalid := bytes.Replace(wire, []byte(change[0]), []byte(change[1]), 1)
+					if err := decodeStrict(invalid, h.session.limits, h.session.limits.MaxRecordBytes, &roundtrip); err == nil {
+						t.Error("untyped field acquired tool argument authority", change[0])
+					}
+				}
 			}
 		}
 	})

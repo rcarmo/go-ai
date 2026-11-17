@@ -374,7 +374,7 @@ func (s *AgentEventStream) Start(listener func(context.Context, []AgentEvent) er
 						}
 						checkpoint := generationObject(record.State.Checkpoint)
 						after.Started = checkpoint["phase"] == "execute"
-						after.Arguments = generationObject(checkpoint["arguments"])
+						after.Arguments = taskCheckpointMap(checkpoint["arguments"])
 						if canonicalToolRecord(old) {
 							before.Started = generationObject(old.Execution.Native.State.Checkpoint)["phase"] == "execute"
 						}

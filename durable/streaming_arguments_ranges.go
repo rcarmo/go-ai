@@ -70,6 +70,13 @@ func streamingArgumentRanges(raw []byte, target reflect.Type, l Limits) ([]utf16
 		seen[key] = true
 		switch t.Kind() {
 		case reflect.Struct:
+			arguments, qualified, err := canonicalToolArgumentsRaw(raw, base, t)
+			if err != nil {
+				return err
+			}
+			if qualified {
+				result = append(result, utf16JSONRange{arguments.start, arguments.end})
+			}
 			fields, err := rangeObject(raw, base)
 			if err != nil {
 				return err

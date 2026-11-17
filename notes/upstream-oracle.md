@@ -4,6 +4,8 @@ The oracle runs original pi-durable v1.5.0 tests at `f9a26365568127461c47a07a37d
 
 ## Latest bounded reference packet
 
+A real tool execute checkpoint preserves isolated UTF-16 keys/values through prepare/rewrite and retains original call arguments for afterTool. Exact returned state uses status, not the initial probe typo phase. Separate probes96 (72+24). Unchanged tools42, tools-recovery10 and session-tables12 pass zero skipped. Older totals below are historical; full native assertion acceptance remains incomplete.
+
 Requested-thinking-level/response-protocol probe passes against the original runtime: provider metadata and content survive, requested off replaces provider low, and an unoffered call has its own task. Separate probe total95 (71+24). Unchanged tools42, input-entries11, generation26 and inbox37 pass zero skipped. Earlier totals below are historical; these observations do not establish full native parity.
 
 Rendered-section/value/order probe now runs against pinned pi-ai source, not the published dependency alias. It covers plain/pretagged/empty values, whitespace/separators, deletion/re-addition and string/numeric property enumeration. Separate probes94 (70+24). Unchanged harness-prompt9, harness-generation26 and conversation-transcript16 pass zero skipped. Source observations are not complete native parity. Older packet totals below are historical.

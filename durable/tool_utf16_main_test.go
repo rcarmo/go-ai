@@ -144,7 +144,7 @@ func TestToolUTF16MainExecutionReopenHooks(t *testing.T) {
 			if !call.HasStreamingArguments() {
 				t.Error("afterTool lost ownership")
 			}
-			requireToolUTF16(t, call.Arguments["text"], 0xd801)
+			requireToolUTF16(t, call.Arguments["text"], 0xd800)
 			return &result, nil
 		}}})
 		if err != nil {

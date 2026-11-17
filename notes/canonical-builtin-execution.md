@@ -649,3 +649,25 @@ Verification: three reconciled consumer groups3-shuffle7.206s; environment+consu
 Unchanged source runs, zero skipped: tools42, input-entries11, generation26 and inbox37. Their original counts remain separate from95 supplemental probes per command and native assertions. Broad API/Storage/readOnly/schema/recovery/continuation/export acceptance remains open; InboxDoc is one mapped token, not closure of the export ledger.
 
 Complete actual-tree baseline24: durable854.904s with48 failed top-level groups;25 other tested packages pass (tools14.876s/public12.266s). No panic, timeout, overlay or exclusions. Integration remains red;89c031e is still the last fully verified tree.
+
+## Scoped Tool3 UTF-16 checkpoints and publications
+
+Pinned source: tool.ts call/execute checkpoint, readCall and beforeTool/afterTool paths; source harness-tools42, harness-tools-recovery10 and session-tables12. The independent actual-tool probe supplies isolated UTF-16 keys/values, prepares and rewrites arguments, reads the real execute checkpoint, and verifies afterTool still receives the original model call.
+
+Demonstrated native defect: preparation, both validations and beforeTool completed, but no effect began. The canonical execute checkpoint used an ordinary JSON bag, rejecting the isolated scalar; adding the existing scoped argument domain then exposed the publication's strict decoder rejecting its valid escaped source bytes. A temporary stack trace located preparePublication's typed Write decode. All diagnostic code was restored. This is a runtime defect, not only a private-checkpoint consumer mismatch.
+
+Production mapping:
+
+- canonical_tool.go writes the already-existing sourceToolArguments domain for a streamed model call's validated execute arguments, without a new JSON carrier property. task_checkpoint.go recognises that object when resuming a safe execution.
+- canonical_tool_arguments.go qualifies only typed pi.tool version3 records with execute checkpoints, selects the arguments subtree and restores it losslessly from the original bytes before validation/freezing. streaming_arguments_ranges.go grants that exact scanner range; streaming_arguments_json.go restores it through typed table/storage containers. Dynamic ordinary JSON bags gain no permission. TaskRecord.UnmarshalJSON also restores the public record's qualified subtree directly.
+- events.go reads the scoped checkpoint arguments instead of dropping the map wrapper, preserving tool_execution_start arguments and listener isolation.
+
+Native assertions: ToolUTF16MainExecutionReopenHooks retains prepare/validate/rewrite/execution counts, close/reopen safe replay and transcript-original ownership. Its afterTool expectation changes from rewritten d801 to original d800, as source readCall/tool.ts requires; beforeTool still sees prepared dfff and Execute sees rewritten d801. ReaderUTF16MainCommittedEventsAndSnapshot retains actual readonly publication identity/ownership, snapshot/listener isolation, exact escaped source JSON and ordinary-JSON rejection. The obsolete raw private Task.Checkpoint read is replaced by the actual public execute record. It additionally checks public json.Unmarshal/decodeStrict roundtrips and negative kind/version/phase/field edits of an actual produced record, never a fabricated executable checkpoint.
+
+Reference probe's first state assertion mistakenly used phase instead of source status; it was corrected before acceptance without normalising the returned record. Separate probes now96 (72+24). The probe is source-derived and supplemental, not an extra unchanged upstream test. Native Tool1/2 isolated-surrogate migration assets and broader generic-string/API/schema authority remain unaccepted; no version-exclusion approval is claimed.
+
+Verification: UTF-16/streaming/public-record/canonical selection three-shuffle18.752s; final expanded canonical/tool/state/environment/metadata/reset/acknowledgement selection53.350s; vet, Staticcheck v0.8.2, logging/diff pass. Six compiled semantic controls detected/restored without timeout/panic acceptance: drop direct public-record restoration, drop typed event arguments, lose scoped replay arguments, and overgrant kind/version/phase permission.
+
+Unchanged original tools42, tools-recovery10, session-tables12 pass zero skipped;96 separate probes per command remain distinct. No complete native source/API/Storage/schema/release acceptance is claimed.
+
+Complete actual-tree baseline25: durable838.361s with46 failed top-level groups;25 other tested packages pass (tools15.606s/public12.785s). No panic, timeout, overlay or exclusions. Integration remains red;89c031e is still the last fully verified tree.

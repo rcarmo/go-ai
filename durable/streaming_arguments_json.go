@@ -181,7 +181,7 @@ func restoreStreamingArguments(p []byte, target any) error {
 	if err := goai.RestoreStreamingArgumentsJSON(p, target, true); err != nil {
 		return reject("streaming argument JSON rejected")
 	}
-	return nil
+	return restoreCanonicalToolArguments(p, target)
 }
 
 func (b *jsonBudget) walkNativeField(v reflect.Value, field jsonStructField, depth int, objectsOnly bool) error {

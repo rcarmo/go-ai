@@ -1,14 +1,14 @@
 # Canonical integration baseline
 
-Latest complete actual-tree run:56fdf5c plus environment error semantics and public metadata/reset consumers in the containing commit. Prior complete counts:53 (baseline21),56 (intermediate22),52 (23).
+Latest complete actual-tree run:f6527e8 plus scoped Tool3 UTF-16 checkpoint/publication/replay fixes in the containing commit. Prior complete counts:53 (21),56 (intermediate22),52 (23),48 (24).
 
 Command: `make test PACKAGES=./... TEST_FLAGS='-v -count=1 -p 1 -timeout 1200s'`, after sourcing scripts/project-env.sh. CGO disabled, sequential packages. No overlays or test exclusions.
 
-**Integration is red.** Complete actual-tree baseline24: durable854.904s with48 failed top-level groups;25 other tested packages pass (tools14.876s/public12.266s). No panic, timeout, overlay or exclusions. Integration remains red;89c031e is still the last fully verified tree.
+**Integration is red.** Complete actual-tree baseline25: durable838.361s with46 failed top-level groups;25 other tested packages pass (tools15.606s/public12.785s). No panic, timeout, overlay or exclusions. Integration remains red;89c031e is still the last fully verified tree.
 
-The four reconciled groups pass: environment factory failure/abort, requested thinking/protocol fields, queued entry metadata across reopen, and post-tools reset. [Mapping](canonical-builtin-execution.md#environment-errors-and-public-metadatareset-consumers).
+Both UTF-16 execution/reopen/hook and committed-reader/publication groups now pass. [Mapping](canonical-builtin-execution.md#scoped-tool3-utf-16-checkpoints-and-publications).
 
-The table is an observed failure inventory, not an assertion crosswalk or root-cause verdict. Names come from the complete run; file links are resolved from source declarations. The earlier forward-scanned diagnostic index was unreliable and is not used.
+The table is an observed failure inventory, not an assertion crosswalk or root-cause verdict. Names come from the complete run; links resolve source declarations. Earlier forward-scanned diagnostic associations are not used.
 
 | Test | Native file |
 | --- | --- |
@@ -36,7 +36,6 @@ The table is an observed failure inventory, not an assertion crosswalk or root-c
 | `TestM1cAbortAtOfferedCallBoundaryStartsNoTool` | [harness_tools_test.go](../durable/harness_tools_test.go) |
 | `TestBeforeToolBlockOrThrowPreventsEffectAndRevalidatesReplacement` | [hooks_test.go](../durable/hooks_test.go) |
 | `TestIdentity140DurableDefaultHostAndPinnedOverrides` | [identity_140_test.go](../durable/identity_140_test.go) |
-| `TestReaderUTF16MainCommittedEventsAndSnapshot` | [reader_utf16_main_test.go](../durable/reader_utf16_main_test.go) |
 | `TestReport140ModelHostFailuresReportAfterFallbackAdoption` | [report_140_test.go](../durable/report_140_test.go) |
 | `TestReport140StructuredOutputUsesCapturedProducer` | [report_140_test.go](../durable/report_140_test.go) |
 | `TestRestartLimit140BuiltinGenerationAbortCutoffSettlesSubmission` | [restart_limit_140_test.go](../durable/restart_limit_140_test.go) |
@@ -57,6 +56,5 @@ The table is an observed failure inventory, not an assertion crosswalk or root-c
 | `TestMainTaskTraceQueuedFirstInvocation` | [task_trace_main_test.go](../durable/task_trace_main_test.go) |
 | `TestTelemetry140AdoptedEntryAndSettlementEvents` | [telemetry_140_test.go](../durable/telemetry_140_test.go) |
 | `TestToolRecoveryPinnedCurrentAgentCwdAndDeselection` | [tool_selection_recovery_test.go](../durable/tool_selection_recovery_test.go) |
-| `TestToolUTF16MainExecutionReopenHooks` | [tool_utf16_main_test.go](../durable/tool_utf16_main_test.go) |
 | `TestMainViewUpstreamGenerationValueOperations` | [view_generation_oracle_main_test.go](../durable/view_generation_oracle_main_test.go) |
 | `TestMainViewUpstreamGenerationOracle` | [view_generation_persistence_main_test.go](../durable/view_generation_persistence_main_test.go) |

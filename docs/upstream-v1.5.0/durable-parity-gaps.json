@@ -1137,7 +1137,7 @@
     "historical": true
   },
   "currentCheckpoint": {
-    "scope": "Canonical migration through56fdf5c plus source environment errors and public metadata/reset consumers. Complete actual-tree baseline24: durable854.904s with48 failed top-level groups;25 other tested packages pass (tools14.876s/public12.266s). No panic, timeout, overlay or exclusions. Integration remains red;89c031e is still the last fully verified tree.",
+    "scope": "Canonical migration throughf6527e8 plus scoped Tool3 UTF-16 execute/publication/replay and public JSON support. Complete actual-tree baseline25: durable838.361s with46 failed top-level groups;25 other tested packages pass (tools15.606s/public12.785s). No panic, timeout, overlay or exclusions. Integration remains red;89c031e is still the last fully verified tree.",
     "baseRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
     "lastVerifiedPushed": {
       "revision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
@@ -1318,6 +1318,17 @@
           "otherTestedPackagesPassing": 25,
           "toolsSeconds": 14.876,
           "publicSeconds": 12.266,
+          "panic": false,
+          "timeout": false
+        },
+        {
+          "scope": "baseline25 actual tree; no overlays/exclusions",
+          "result": "fail",
+          "seconds": 838.361,
+          "failedTopLevelGroups": 46,
+          "otherTestedPackagesPassing": 25,
+          "toolsSeconds": 15.606,
+          "publicSeconds": 12.785,
           "panic": false,
           "timeout": false
         }
@@ -1617,6 +1628,23 @@
         "logging": "pass",
         "publicToken": "InboxDoc() stable definition identity; remaining export ledger open",
         "mapping": "notes/canonical-builtin-execution.md#environment-errors-and-public-metadatareset-consumers"
+      },
+      "toolUTF16Packet": {
+        "sourceFirst": "Real checkpoint/publication rejects valid typed scalar after hooks and validation, before execution",
+        "focusedThreeShuffleSeconds": 53.35,
+        "faults": "Six compiled semantic controls detected/restored without timeout/panic acceptance",
+        "originalTests": {
+          "harnessTools": 42,
+          "harnessToolsRecovery": 10,
+          "sessionTables": 12
+        },
+        "independentProbes": 96,
+        "skipped": 0,
+        "vet": "pass",
+        "staticcheck": "v0.8.2 pass",
+        "logging": "pass",
+        "remaining": "Tool1/2 isolated-surrogate migration and broader generic-string/API/schema authority acceptance",
+        "mapping": "notes/canonical-builtin-execution.md#scoped-tool3-utf-16-checkpoints-and-publications"
       }
     },
     "reference": {
@@ -1632,7 +1660,7 @@
     },
     "profiling": "Pre-release CPU/alloc_space/alloc_objects analysis, measured tuning and equivalent-workload remeasurement required.",
     "reviewOnly": "No runtime tests rerun by the planning review; structural register/hash checks are separate.",
-    "execution": "Step2 active; bounded environment/consumer source, runtime, fault, static and full-run receipts. Integration fails48 groups; full native/API/Storage/schema/release acceptance incomplete."
+    "execution": "Step2 active; bounded Tool3 UTF-16 runtime/source/fault/static/full-run receipts. Integration fails46 groups; full API/Storage/schema/release acceptance incomplete."
   },
   "review": {
     "basisRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",

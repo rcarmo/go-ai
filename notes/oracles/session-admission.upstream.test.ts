@@ -968,3 +968,24 @@ it("records requested thinking level without losing response metadata or an unof
   expect(result.model).toEqual([expect.objectContaining({toolCallId:"call",isError:true})]);
  }finally{await harness.close(context)}
 });
+
+it("retains isolated UTF-16 keys and values in a real tool execute checkpoint and hook calls",async()=>{
+ const {MemoryStorage,defineTool,ToolTask}=await import("@earendil-works/pi-durable");
+ const {chatSetup,openChat}=await import("@pinned/chat");
+ const {addTool,addHooks}=await import("@pinned/harness-support");
+ const {fauxAssistantMessage,fauxText}=await import("@reference/pi-ai");
+ const key="\ud800",original="\ud800",prepared="\udfff",rewritten="\ud801";
+ const entered=Promise.withResolvers<any>(),release=Promise.withResolvers<void>();
+ const setup=chatSetup();let before=0,after=0;
+ addTool(setup.registry,defineTool({name:"unicode_scope",description:"scope",parameters:{type:"object"}as any,replay:"safe",prepareArguments:args=>{expect(args).toEqual({[key]:original});return{[key]:prepared}},execute:async(args,api)=>{expect(args).toEqual({[key]:rewritten});entered.resolve(api.taskId);await release.promise;return{output:[{type:"text"as const,text:"done"}]}}}));
+ addHooks(setup.registry,ToolTask,{beforeTool:call=>{before++;expect(call.arguments).toEqual({[key]:prepared});return{arguments:{[key]:rewritten}}},afterTool:call=>{after++;expect(call.arguments).toEqual({[key]:original})}});
+ setup.faux.setResponses([fauxAssistantMessage([{type:"toolCall",id:"unicode",name:"unicode_scope",arguments:{[key]:original}}],{stopReason:"toolUse"}),fauxAssistantMessage([fauxText("answer")])]);
+ const {harness,root}=await openChat(new MemoryStorage(),setup);
+ try{
+  const submission=await root.submit({type:"input",content:"go"},context),id=await entered.promise;
+  const record=await harness.commit(tx=>tx.task(id),context);
+  expect(record?.state).toEqual({status:"running",checkpoint:{phase:"execute",arguments:{[key]:rewritten},replay:"safe"}});
+  expect(JSON.stringify((record!.state as any).checkpoint.arguments)).toBe('{"\\ud800":"\\ud801"}');
+  release.resolve();expect((await submission.wait(context)).status).toBe("done");expect([before,after]).toEqual([1,1]);
+ }finally{release.resolve();await harness.close(context)}
+});

@@ -4,6 +4,10 @@
 
 Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Canonical migration checkpoints through a5661b7 and the timing/output packet in the containing commit remain integration-red;89c031e is the last fully verified tree. Execution continues under step2. No new integrated acceptance.
 
+## Current scoped Tool3 UTF-16 packet
+
+Actual checkpoint/publication rejection now preserves the existing typed argument domain through safe replay, events and public JSON; no new source carrier field. Original42/10/12 plus96 probes, expanded3-shuffle53.350s/static/six controls pass. Complete actual-tree baseline25: durable838.361s with46 failed top-level groups;25 other tested packages pass (tools15.606s/public12.785s). No panic, timeout, overlay or exclusions. Integration remains red;89c031e is still the last fully verified tree. [Mapping](../../notes/canonical-builtin-execution.md#scoped-tool3-utf-16-checkpoints-and-publications). Broader legacy-version/schema/authority acceptance remains open; older packet descriptions retain historical scope.
+
 ## Current environment and metadata/reset packet
 
 Source-first environment tests remove generic replacement/duplicate reporting; source public error diagnostics and caught error identity are retained. Public protocol, queued inbox metadata/reopen and canonical reset consumers pass. Expanded3-shuffle84.733s/static/seven controls, original42/11/26/37 plus95 probes zero skipped. Complete actual-tree baseline24: durable854.904s with48 failed top-level groups;25 other tested packages pass (tools14.876s/public12.266s). No panic, timeout, overlay or exclusions. Integration remains red;89c031e is still the last fully verified tree. [Mapping](../../notes/canonical-builtin-execution.md#environment-errors-and-public-metadatareset-consumers). Older packet descriptions retain historical scope.

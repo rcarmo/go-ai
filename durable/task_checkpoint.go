@@ -8,6 +8,8 @@ func taskCheckpointMap(value any) JSON {
 		return v
 	case map[string]any:
 		return JSON(v)
+	case sourceToolArguments:
+		return JSON(v)
 	default:
 		return nil
 	}

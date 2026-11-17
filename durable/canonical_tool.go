@@ -219,8 +219,12 @@ func canonicalToolCallPhase(ctx context.Context, task TaskRecord, r *TaskRuntime
 	if reg.offer.ReplaySafe {
 		replay = "safe"
 	}
+	var checkpointArguments any = args
+	if call.HasStreamingArguments() {
+		checkpointArguments = sourceToolArguments(args)
+	}
 	if err := r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) {
-		return &TaskState{Status: "running", Checkpoint: JSON{"phase": "execute", "arguments": args, "replay": replay}}, nil
+		return &TaskState{Status: "running", Checkpoint: JSON{"phase": "execute", "arguments": checkpointArguments, "replay": replay}}, nil
 	}); err != nil {
 		return err
 	}

@@ -207,6 +207,9 @@ func (record *TaskRecord) UnmarshalJSON(data []byte) error {
 		result.Restarts = *wire.Restarts
 		result.wireRestartsPresent = true
 	}
+	if err := restoreCanonicalToolArguments(data, &result); err != nil {
+		return err
+	}
 	*record = result
 	return nil
 }
