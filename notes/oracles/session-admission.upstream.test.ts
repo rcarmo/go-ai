@@ -977,7 +977,7 @@ it("retains isolated UTF-16 keys and values in a real tool execute checkpoint an
  const key="\ud800",original="\ud800",prepared="\udfff",rewritten="\ud801";
  const entered=Promise.withResolvers<any>(),release=Promise.withResolvers<void>();
  const setup=chatSetup();let before=0,after=0;
- addTool(setup.registry,defineTool({name:"unicode_scope",description:"scope",parameters:{type:"object"}as any,replay:"safe",prepareArguments:args=>{expect(args).toEqual({[key]:original});return{[key]:prepared}},execute:async(args,api)=>{expect(args).toEqual({[key]:rewritten});entered.resolve(api.taskId);await release.promise;return{output:[{type:"text"as const,text:"done"}]}}}));
+ addTool(setup.registry,defineTool({name:"unicode_scope",description:"scope",parameters:{type:"object",additionalProperties:{type:"string",minLength:1,maxLength:1,pattern:"^.$"}}as any,replay:"safe",prepareArguments:args=>{expect(args).toEqual({[key]:original});return{[key]:prepared}},execute:async(args,api)=>{expect(args).toEqual({[key]:rewritten});entered.resolve(api.taskId);await release.promise;return{output:[{type:"text"as const,text:"done"}]}}}));
  addHooks(setup.registry,ToolTask,{beforeTool:call=>{before++;expect(call.arguments).toEqual({[key]:prepared});return{arguments:{[key]:rewritten}}},afterTool:call=>{after++;expect(call.arguments).toEqual({[key]:original})}});
  setup.faux.setResponses([fauxAssistantMessage([{type:"toolCall",id:"unicode",name:"unicode_scope",arguments:{[key]:original}}],{stopReason:"toolUse"}),fauxAssistantMessage([fauxText("answer")])]);
  const {harness,root}=await openChat(new MemoryStorage(),setup);
@@ -1039,4 +1039,78 @@ it("links a model tool outcome to its usage-bearing entry and exact tool ledger"
   expect(tasks.items).toHaveLength(1);expect(tasks.items[0]!.state).toEqual({status:"terminal",outcome:{status:"completed",result:{kind:"model",entryId:entry.id}}});
   expect((await harness.snapshot(UsageDoc,root.id,context))?.tools.billed).toEqual(usage);
  }finally{await harness.close(context)}
+});
+
+it("accepts complete parameter schemas and coerces detached tool arguments at use",async()=>{
+ const {MemoryStorage,defineTool}=await import("@earendil-works/pi-durable");
+ const {chatSetup,openChat,allEntries}=await import("@pinned/chat"),{addTool}=await import("@pinned/harness-support");
+ const {fauxAssistantMessage,fauxText}=await import("@reference/pi-ai");
+ const cases=[
+  [{},{anything:true},{anything:true}],
+  [{type:"object",unknown:true},{x:"kept"},{x:"kept"}],
+  [{type:"object",required:true,unknown:true},{},{}],
+  [{type:"object",properties:{n:{type:"integer"}},required:["n"]},{n:"2"},{n:2}],
+  [{type:"object",properties:{n:{$ref:"#/$defs/int"}},required:["n"],$defs:{int:{type:"integer",minimum:1}}},{n:"3"},{n:3}],
+  [{type:"object",patternProperties:{"^x":{type:"string"}},additionalProperties:false},{x:4},{x:"4"}],
+  [{anyOf:[{type:"object",properties:{n:{type:"integer"}},required:["n"]},{type:"object",properties:{text:{type:"string"}},required:["text"]}]},{n:"5"},{n:5}],
+  [{type:"object",properties:{n:{type:["integer","null"]}},required:["n"]},{n:null},{n:null}]
+ ];
+ for(const [parameters,args,want] of cases){
+  const setup=chatSetup();let effects=0;
+  addTool(setup.registry,defineTool({name:"schema",description:"schema",parameters:parameters as any,execute:async(input,api,ctx)=>{effects++;expect(input).toEqual(want);const record=await api.commit(tx=>tx.task(api.taskId),ctx);expect((record!.state as any).checkpoint).toEqual({phase:"execute",arguments:want,replay:"unsafe"});(input as any)["host-mutation"]=true;return{output:[{type:"text"as const,text:"done"}]}}}));
+  setup.faux.setResponses([fauxAssistantMessage([{type:"toolCall",id:"schema",name:"schema",arguments:args as any}],{stopReason:"toolUse"}),fauxAssistantMessage([fauxText("answer")])]);
+  const {harness,root}=await openChat(new MemoryStorage(),setup);
+  try{
+   expect((await(await root.submit({type:"input",content:"go"},context)).wait(context)).status).toBe("done");expect(effects).toBe(1);expect(setup.faux.state.callCount).toBe(2);
+   const entries=await allEntries(root),assistant=entries.find(entry=>entry.kind==="pi.assistant")!;
+   expect(assistant.model?.[0].content).toEqual([{type:"toolCall",id:"schema",name:"schema",arguments:args}]);
+  }finally{await harness.close(context)}
+ }
+});
+
+it("defers parameter schema failures to an own invalid-arguments tool result",async()=>{
+ const {MemoryStorage,defineTool}=await import("@earendil-works/pi-durable");
+ const {chatSetup,openChat,allEntries}=await import("@pinned/chat"),{addTool}=await import("@pinned/harness-support");
+ const {fauxAssistantMessage,fauxText}=await import("@reference/pi-ai");
+ for(const [parameters,args] of [
+  [{type:"object",required:["absent"]},{}],
+  [{type:"object",properties:{x:{type:"string",pattern:"["}}},{x:"value"}],
+  [{type:"object",properties:{n:{type:"number",minimum:10,maximum:1}}},{n:2}]
+ ]){
+  const setup=chatSetup();let effects=0;
+  addTool(setup.registry,defineTool({name:"invalid_schema",description:"invalid",parameters:parameters as any,execute:async()=>{effects++;return{output:[]}}}));
+  setup.faux.setResponses([fauxAssistantMessage([{type:"toolCall",id:"invalid-schema",name:"invalid_schema",arguments:args as any}],{stopReason:"toolUse"}),fauxAssistantMessage([fauxText("answer")])]);
+  const {harness,root}=await openChat(new MemoryStorage(),setup);
+  try{
+   expect((await(await root.submit({type:"input",content:"go"},context)).wait(context)).status).toBe("done");expect(effects,JSON.stringify(parameters)).toBe(0);
+   const entries=await allEntries(root),entry=entries.find(entry=>entry.kind==="pi.tool-result")!;
+   expect(entry.model).toEqual([expect.objectContaining({toolCallId:"invalid-schema",isError:true})]);expect(entry.data).toMatchObject({diagnostics:[{code:"invalid_arguments"}]});
+  }finally{await harness.close(context)}
+ }
+});
+
+// Reference blocker: native Execute/ToolCall argument types are currently maps.
+// Record the source array arm explicitly; no native assertion acceptance claimed.
+it("coerces an object call to an array parameter value",async()=>{
+ const {MemoryStorage,defineTool}=await import("@earendil-works/pi-durable");
+ const {chatSetup,openChat}=await import("@pinned/chat"),{addTool}=await import("@pinned/harness-support");
+ const {fauxAssistantMessage,fauxText}=await import("@reference/pi-ai");
+ const setup=chatSetup();let effects=0;
+ addTool(setup.registry,defineTool({name:"array_schema",description:"array",parameters:{type:"array"}as any,execute:async(args)=>{effects++;expect(args).toEqual([{}]);return{output:[]}}}));
+ setup.faux.setResponses([fauxAssistantMessage([{type:"toolCall",id:"array",name:"array_schema",arguments:{}}],{stopReason:"toolUse"}),fauxAssistantMessage([fauxText("answer")])]);
+ const {harness,root}=await openChat(new MemoryStorage(),setup);
+ try{expect((await(await root.submit({type:"input",content:"go"},context)).wait(context)).status).toBe("done");expect(effects).toBe(1)}finally{await harness.close(context)}
+});
+
+it("checks string formats without replacing isolated UTF-16 values",async()=>{
+ const {MemoryStorage,defineTool}=await import("@earendil-works/pi-durable");
+ const {chatSetup,openChat}=await import("@pinned/chat"),{addTool}=await import("@pinned/harness-support");
+ const {fauxAssistantMessage,fauxText}=await import("@reference/pi-ai");
+ for(const [format,valid] of [["uuid",false],["regex",true]]as const){
+  const setup=chatSetup();let effects=0;
+  addTool(setup.registry,defineTool({name:"utf16_format",description:"format",parameters:{type:"object",properties:{text:{type:"string",format}}}as any,execute:async(args)=>{effects++;expect(args.text).toBe("\ud800");return{output:[]}}}));
+  setup.faux.setResponses([fauxAssistantMessage([{type:"toolCall",id:"format",name:"utf16_format",arguments:{text:"\ud800"}}],{stopReason:"toolUse"}),fauxAssistantMessage([fauxText("answer")])]);
+  const {harness,root}=await openChat(new MemoryStorage(),setup);
+  try{expect((await(await root.submit({type:"input",content:"go"},context)).wait(context)).status).toBe("done");expect(effects).toBe(valid?1:0)}finally{await harness.close(context)}
+ }
 });

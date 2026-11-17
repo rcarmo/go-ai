@@ -51,7 +51,7 @@ func (v *toolSchemaValidator) checkSchemaPatternSyntax(pattern string) error {
 // A single budget covers all distinct string-pattern evaluations in one
 // validation call; both failures and successful results are memoised exactly.
 func (v *toolSchemaValidator) stringPatternReason(value interface{}, schema map[string]interface{}) string {
-	text, ok := value.(string)
+	text, ok := schemaStringValue(value)
 	if !ok {
 		return ""
 	}

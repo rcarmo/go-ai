@@ -4,7 +4,11 @@
 
 Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Canonical migration checkpoints through a5661b7 and the timing/output packet in the containing commit remain integration-red;89c031e is the last fully verified tree. Execution continues under step2. No new integrated acceptance.
 
-## Current public tool consumer packet
+## Current selected schema packet
+
+Shared at-use parameter validation/coercion replaces durable registration/subset gates. UTF-16 type/length/pattern/format regression is fixed; six compiled controls and focused/static checks pass. Original tools42/registry10 plus103 separate probes pass. Array-valued Execute/checkpoint/hooks need a true public value union; full compiler acceptance remains open. Complete baseline30: durable866.370s with39 failed top-level groups;25 other tested packages pass (tools14.832s/public11.887s). No panic, timeout, overlay or exclusions. Integration remains red;89c031e is still the last fully verified tree. Baseline30 preceded only final full-checkpoint assertion strengthening, subsequently verified in expanded three-shuffle60.371s. [Mapping](../../notes/canonical-builtin-execution.md#selected-tool-parameter-schemas-and-utf-16-validation).
+
+## Earlier public tool consumer packet
 
 Test-only HTTP/usage, invalid/unoffered task and unsafe-close consumers use actual public result records. Expanded3-shuffle85.871s/static/four controls; original42/10 plus99 probes zero skipped. Baseline27 interrupted with no complete result; independent tmux baseline28 completed. Complete actual-tree baseline28: durable843.031s with40 failed top-level groups;25 other tested packages pass (tools16.250s/public12.547s). No panic, timeout, overlay or exclusions. Integration remains red;89c031e is still the last fully verified tree. [Mapping](../../notes/canonical-builtin-execution.md#public-tool-result-usage-invalid-calls-and-unsafe-close-recovery). Broader schema/native compatibility consumers and full API/Storage acceptance remain open.
 

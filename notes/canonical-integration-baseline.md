@@ -1,12 +1,12 @@
 # Canonical integration baseline
 
-Latest complete actual-tree run:c228afd plus test-only public tool result/invalid-call/unsafe-close consumers in the containing commit. Prior complete counts:48 (24),46 (25),43 (26). Baseline27 was interrupted before a durable result; it is not a complete count.
+Latest complete run:e9c0f61 plus the selected schema/UTF-16 packet and source-reconciled registration consumers. Prior complete groups:40 (28),41 (29). Baseline27 was interrupted without a durable result. Baseline30 compiled before the final full-checkpoint assertion strengthening; that stronger assertion and expanded selection subsequently pass three-shuffle60.371s. No runtime changes followed baseline30.
 
-Command: `make test PACKAGES=./... TEST_FLAGS='-v -count=1 -p 1 -timeout 1200s'`, after sourcing scripts/project-env.sh. CGO disabled, sequential packages. Baseline28 ran in a separate tmux session with a saved exit code. No overlays or test exclusions.
+Command: `make test PACKAGES=./... TEST_FLAGS='-v -count=1 -p 1 -timeout 1200s'`, after sourcing scripts/project-env.sh. CGO disabled, sequential packages. Baseline30 ran in a separate tmux session with a saved exit code. No overlays or test exclusions.
 
-**Integration is red.** Complete actual-tree baseline28: durable843.031s with40 failed top-level groups;25 other tested packages pass (tools16.250s/public12.547s). No panic, timeout, overlay or exclusions. Integration remains red;89c031e is still the last fully verified tree.
+**Integration is red.** Complete baseline30: durable866.370s with39 failed top-level groups;25 other tested packages pass (tools14.832s/public11.887s). No panic, timeout, overlay or exclusions. Integration remains red;89c031e is still the last fully verified tree.
 
-The three reconciled tool consumers pass. [Mapping](canonical-builtin-execution.md#public-tool-result-usage-invalid-calls-and-unsafe-close-recovery).
+Selected schema, repair and registration/wrapper consumers pass. [Mapping](canonical-builtin-execution.md#selected-tool-parameter-schemas-and-utf-16-validation).
 
 This is an observed failure inventory, not an assertion crosswalk or root-cause verdict. Names come from the complete run; links resolve source declarations.
 
@@ -26,7 +26,6 @@ This is an observed failure inventory, not an assertion crosswalk or root-cause 
 | `TestMainAbortedPollCancelHandlerCutoff` | [harness_poll_boundary_main_test.go](../durable/harness_poll_boundary_main_test.go) |
 | `TestMainPollCutoffSkipsRepeatedCancellationDerived` | [harness_poll_boundary_main_test.go](../durable/harness_poll_boundary_main_test.go) |
 | `TestMainToolProgressDeferredMemoryAndPersistence` | [harness_tool_deferral_main_test.go](../durable/harness_tool_deferral_main_test.go) |
-| `TestM1cSchemaSubsetAndRepairBeforeIntent` | [harness_tools_test.go](../durable/harness_tools_test.go) |
 | `TestM1cAbortDrainsChildBeforeParentAndFencesEscapedAPI` | [harness_tools_test.go](../durable/harness_tools_test.go) |
 | `TestM1cRegistryPhasePinOutputCapAndAtomicAppFailure` | [harness_tools_test.go](../durable/harness_tools_test.go) |
 | `TestM1cInvalidToolUsageSettlesOnceNoAppOrReplay` | [harness_tools_test.go](../durable/harness_tools_test.go) |

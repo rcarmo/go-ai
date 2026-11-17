@@ -4,6 +4,8 @@ The oracle runs original pi-durable v1.5.0 tests at `f9a26365568127461c47a07a37d
 
 ## Latest bounded reference packet
 
+Selected parameter schemas, at-use failures, UTF-16 formats and array coercion are independently checked. Unchanged tools42 and registry10 pass zero skipped; separate supplemental probes103 (79+24). The array probe is source-only until native callbacks/checkpoints support the value union. Source accepts required:true and wrappers retain a string declaration without compiling it. See [packet](canonical-builtin-execution.md#selected-tool-parameter-schemas-and-utf-16-validation).
+
 A new actual-tool source probe verifies exact completed model-tool result.entryId, usage-bearing result entry and tool ledger. Separate probes99 (75+24). Unchanged tools42 and tools-recovery10 pass zero skipped; earlier totals are historical and do not establish complete native acceptance.
 
 Two new source probes confirm phase tool installer origin after self-uninstall/rewriting hook and adopted generation task fault for a throwing model getter. The latter asserts the source flat Report, not a nested info object. Separate probes98 (74+24). Unchanged reports4 and telemetry26 pass zero skipped; older totals below retain historical scope.

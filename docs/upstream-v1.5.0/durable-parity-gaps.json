@@ -1137,7 +1137,7 @@
     "historical": true
   },
   "currentCheckpoint": {
-    "scope": "Canonical migration throughc228afd plus test-only public tool/usage/invalid/unsafe-close consumers. Complete actual-tree baseline28: durable843.031s with40 failed top-level groups;25 other tested packages pass (tools16.250s/public12.547s). No panic, timeout, overlay or exclusions. Integration remains red;89c031e is still the last fully verified tree.",
+    "scope": "Canonical migration throughe9c0f61 plus selected schema/coercion and UTF-16 validation packet. Complete baseline30: durable866.370s with39 failed top-level groups;25 other tested packages pass (tools14.832s/public11.887s). No panic, timeout, overlay or exclusions. Integration remains red;89c031e is still the last fully verified tree. Full-checkpoint assertion strengthened after baseline30 compilation passes expanded three-shuffle60.371s; runtime unchanged.",
     "baseRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
     "lastVerifiedPushed": {
       "revision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
@@ -1356,6 +1356,28 @@
           "otherTestedPackagesPassing": 25,
           "toolsSeconds": 16.25,
           "publicSeconds": 12.547,
+          "panic": false,
+          "timeout": false
+        },
+        {
+          "scope": "baseline29 independent tmux actual tree; saved exit2; no overlays/exclusions",
+          "result": "fail",
+          "seconds": 836.674,
+          "failedTopLevelGroups": 41,
+          "otherTestedPackagesPassing": 25,
+          "toolsSeconds": 14.739,
+          "publicSeconds": 13.914,
+          "panic": false,
+          "timeout": false
+        },
+        {
+          "scope": "baseline30 after source-correct registration consumers; before final test-only full-checkpoint assertion strengthening; runtime unchanged; independent tmux saved exit2; no overlays/exclusions",
+          "result": "fail",
+          "seconds": 866.37,
+          "failedTopLevelGroups": 39,
+          "otherTestedPackagesPassing": 25,
+          "toolsSeconds": 14.832,
+          "publicSeconds": 11.887,
           "panic": false,
           "timeout": false
         }
@@ -1703,6 +1725,28 @@
         "staticcheck": "v0.8.2 pass",
         "logging": "pass",
         "mapping": "notes/canonical-builtin-execution.md#public-tool-result-usage-invalid-calls-and-unsafe-close-recovery"
+      },
+      "toolSchemaPacket": {
+        "sourceFirst": "Seven public source-derived tool cases red1.043s",
+        "scope": "Selected schema/coercion at use and UTF-16 type/code-point/pattern/format preservation",
+        "expandedThreeShuffleSeconds": 77.707,
+        "consumerThreeShuffleSeconds": 19.907,
+        "semanticFaults": 6,
+        "discardedFault": "Typed string bypassed coercion-arm mutation; replaced by detected type-match control",
+        "originalTests": {
+          "harnessTools": 42,
+          "harnessRegistry": 10
+        },
+        "separateSupplementalProbes": 103,
+        "skipped": 0,
+        "arrayArgumentUnion": "Required; source-only {} -> [{}] probe; native acceptance open",
+        "mapping": "notes/canonical-builtin-execution.md#selected-tool-parameter-schemas-and-utf-16-validation",
+        "finalExpandedThreeShuffleSeconds": 60.371,
+        "finalRootThreeShuffleSeconds": 1.417,
+        "fullCheckpointAssertion": "Exact public execute checkpoint; strengthened after baseline30 compilation and covered in final expanded selection",
+        "vet": "pass",
+        "staticcheck": "v0.8.2 pass",
+        "logging": "pass"
       }
     },
     "reference": {
@@ -1718,7 +1762,7 @@
     },
     "profiling": "Pre-release CPU/alloc_space/alloc_objects analysis, measured tuning and equivalent-workload remeasurement required.",
     "reviewOnly": "No runtime tests rerun by the planning review; structural register/hash checks are separate.",
-    "execution": "Step2 active. Public tool consumer packet has focused/source/fault/static receipts and complete baseline28; interrupted27 is not acceptance. Integration fails40 groups; full API/Storage/schema/release acceptance incomplete."
+    "execution": "Step2 active. Selected schema packet focused/source/six fault/static checks pass. Baseline30 fails39 groups; array argument value union and full API/Storage/schema/release acceptance remain open."
   },
   "review": {
     "basisRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",

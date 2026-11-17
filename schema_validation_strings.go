@@ -6,7 +6,33 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
+
+func schemaStringValue(value any) (string, bool) {
+	switch text := value.(type) {
+	case string:
+		return text, true
+	case UTF16String:
+		return text.WTF8(), true
+	default:
+		return "", false
+	}
+}
+
+func schemaStringLength(value any, text string) int {
+	if value, ok := value.(UTF16String); ok {
+		units, count := value.CodeUnits(), 0
+		for index := 0; index < len(units); index++ {
+			if units[index] >= 0xd800 && units[index] <= 0xdbff && index+1 < len(units) && units[index+1] >= 0xdc00 && units[index+1] <= 0xdfff {
+				index++
+			}
+			count++
+		}
+		return count
+	}
+	return utf8.RuneCountInString(text)
+}
 
 // JSON's float writer uses ECMAScript's fixed/exponential thresholds and shortest
 // round-tripping decimal. String(number) additionally keeps non-finite names and

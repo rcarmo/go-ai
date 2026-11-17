@@ -174,32 +174,20 @@ func TestM1cActualHTTPToolResultAwareAnswer(t *testing.T) {
 	assertToolUsageReceipts(t, h2, reopened, "sum", &goai.Usage{Output: 1, TotalTokens: 1}, h2.session.limits)
 }
 
-func TestM1cSchemaSubsetAndRepairBeforeIntent(t *testing.T) {
-	for _, schema := range []string{`{}`, `{"type":"object","unknown":true}`, `{"type":"object","required":["absent"]}`, `{"type":"array"}`, `{"type":"string","pattern":"["}`, `{"type":"number","minimum":10,"maximum":1}`} {
-		registry := NewRegistry()
-		e := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "test", Parameters: json.RawMessage(schema)}, Implementation: "test.impl", Version: 1, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
-			t.Error("invalid schema effect")
-			return ToolResult{}, nil
-		}})
-		if e == nil {
-			t.Fatal("malformed/unsupported schema accepted", schema)
-		}
-	}
+func TestM1cSourceRepairBeforeIntent(t *testing.T) {
 	var effects, repairs atomic.Int64
+	var executeRecord TaskRecord
 	registry := NewRegistry()
-	e := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "repair", Parameters: json.RawMessage(`{"type":"object","properties":{"n":{"type":"integer","minimum":1,"maximum":9}},"required":["n"],"additionalProperties":false}`)}, Implementation: "repair.impl", Version: 1, ReplaySafe: true, Validator: func(context.Context, JSON) (JSON, error) { repairs.Add(1); return JSON{"n": 3}, nil }, Execute: func(ctx context.Context, args JSON, api *ToolAPI) (ToolResult, error) {
+	e := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "repair", Parameters: json.RawMessage(`{"type":"object","properties":{"n":{"type":"integer","minimum":1,"maximum":9}},"required":["n"],"additionalProperties":false}`)}, Implementation: "repair.impl", Version: 1, ReplaySafe: true, PrepareArguments: func(context.Context, JSON) (JSON, error) { repairs.Add(1); return JSON{"n": 3}, nil }, Execute: func(ctx context.Context, args JSON, api *ToolAPI) (ToolResult, error) {
 		effects.Add(1)
 		if args["n"] != json.Number("3") {
 			t.Error("rewritten args not stored")
 		}
-		state, e := api.h.Snapshot(bg)
-		if e != nil {
-			t.Error(e)
+		record, found, e := api.Task(ctx, api.TaskID())
+		if e != nil || !found || taskCheckpointMap(record.State.Checkpoint)["phase"] != "execute" || !equalJSONValue(taskCheckpointMap(taskCheckpointMap(record.State.Checkpoint)["arguments"]), JSON{"n": 3}) {
+			t.Error("effect before final source intent", record, e)
 		}
-		var cp toolCheckpoint
-		if e = fromObject(state.Tasks[api.TaskID()].Checkpoint, &cp, api.h.session.limits); e != nil || cp.Arguments["n"] != json.Number("3") || !cp.Started {
-			t.Error("effect before final intent", cp, e)
-		}
+		executeRecord = record
 		return ToolResult{Content: "3"}, nil
 	}})
 	if e != nil {
@@ -220,18 +208,35 @@ func TestM1cSchemaSubsetAndRepairBeforeIntent(t *testing.T) {
 	options.Registry = registry
 	s, _ := newTestSQLite(t)
 	h := openHarness(t, s, options)
-	sub, e := root(t, h, ref).Submit(bg, Input{Content: "repair"})
+	conversation := root(t, h, ref)
+	sub, e := conversation.Submit(bg, Input{Content: "repair"})
 	if e != nil {
 		t.Fatal(e)
 	}
-	if waitSubmission(t, sub).Submission.Status != "done" || effects.Load() != 1 || repairs.Load() != 2 {
+	if waitSubmission(t, sub).Submission.Status != "done" || effects.Load() != 1 || repairs.Load() != 1 {
 		t.Fatal("repair/effectcount")
 	}
-	state, e := h.Snapshot(bg)
+	if !equalJSONValue(taskCheckpointMap(taskCheckpointMap(executeRecord.State.Checkpoint)["arguments"]), JSON{"n": 3}) {
+		t.Fatal("actual execute checkpoint changed", executeRecord)
+	}
+	view, e := conversation.ContextView(bg, 0)
 	if e != nil {
 		t.Fatal(e)
 	}
-	assertStoredOriginalAndExecutionArgs(t, state, "repair", "n", json.Number("2"), json.Number("3"), h.session.limits)
+	original := 0
+	for _, message := range view.Messages {
+		for _, block := range message.Content {
+			if block.Type == "toolCall" && block.Name == "repair" {
+				original++
+				if !equalJSONValue(block.Arguments, JSON{"n": 2}) {
+					t.Fatal("stored original call changed", block)
+				}
+			}
+		}
+	}
+	if original != 1 {
+		t.Fatal("stored original call count", original)
+	}
 }
 
 func TestM1cNotOfferedAndInvalidArgumentsZeroEffects(t *testing.T) {
@@ -737,7 +742,9 @@ func TestM1cSupportedSchemaConstraintsAndHostValidator(t *testing.T) {
 	}
 }
 
-func TestM1cExactNumericSchemaAndMalformedHostBoundary(t *testing.T) {
+// Native exact-number checks below are supplemental, not source numeric parity.
+// Source registration accepts schema declarations; evaluation belongs at use.
+func TestM1cNativeExactNumericProbeAndSourceDeclarationTiming(t *testing.T) {
 	l := DefaultLimits()
 	var schema JSON
 	if e := decodeStrict([]byte(`{"type":"object","properties":{"n":{"type":"integer","maximum":9007199254740991}}}`), l, 4096, &schema); e != nil {
@@ -757,8 +764,8 @@ func TestM1cExactNumericSchemaAndMalformedHostBoundary(t *testing.T) {
 		t.Fatal("lastvalidinteger")
 	}
 	malformed := NewRegistry()
-	if e = malformed.Register(ToolRegistration{Definition: goai.Tool{Name: "malformed", Parameters: json.RawMessage(`{"type":"object","required":true,"unknown":true}`)}, Implementation: "malformed.impl", Version: 1, Validator: func(context.Context, JSON) (JSON, error) { return JSON{}, nil }, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) { return ToolResult{}, nil }}); e == nil {
-		t.Fatal("hostvalidatorwaivedmalformedknownschema")
+	if e = malformed.Register(ToolRegistration{Definition: goai.Tool{Name: "malformed", Parameters: json.RawMessage(`{"type":"object","required":true,"unknown":true}`)}, Implementation: "malformed.impl", Version: 1, Validator: func(context.Context, JSON) (JSON, error) { return JSON{}, nil }, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) { return ToolResult{}, nil }}); e != nil {
+		t.Fatal("source declaration rejected before use", e)
 	}
 }
 
@@ -1187,45 +1194,6 @@ func assertOriginalCallAndResult(t *testing.T, conv *goai.Context, name, callID,
 	}
 	if !paired {
 		t.Error("successor original call absent")
-	}
-}
-func assertStoredOriginalAndExecutionArgs(t *testing.T, state Snapshot, name, key string, original, execution any, l Limits) {
-	t.Helper()
-	calls, children := 0, 0
-	for _, entry := range state.Entries {
-		var receipt MessageReceipt
-		if e := decodeEntryMessage(entry, l, &receipt); e != nil {
-			t.Fatal(e)
-		}
-		if receipt.Role != goai.RoleAssistant {
-			continue
-		}
-		for _, call := range receipt.Content {
-			if call.Type == "toolCall" && call.Name == name {
-				calls++
-				if !equalJSONValue(call.Arguments[key], original) {
-					t.Fatal("stored model call rewritten", call.Arguments)
-				}
-			}
-		}
-	}
-	for _, task := range state.Tasks {
-		if task.Kind != "pi.tool" {
-			continue
-		}
-		var cp toolCheckpoint
-		if e := fromObject(task.Checkpoint, &cp, l); e != nil {
-			t.Fatal(e)
-		}
-		if cp.Offer.Name == name {
-			children++
-			if !equalJSONValue(cp.Arguments[key], execution) {
-				t.Fatal("execution intent not repaired", cp.Arguments)
-			}
-		}
-	}
-	if calls != 1 || children != 1 {
-		t.Fatal("call/intent identity counts", calls, children)
 	}
 }
 func assertToolUsageReceipts(t *testing.T, h *Harness, state Snapshot, name string, want *goai.Usage, l Limits) {

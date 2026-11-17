@@ -7,19 +7,18 @@ import (
 	"math/big"
 	"reflect"
 	"strconv"
-	"unicode/utf8"
 )
 
 // Constraints participate in membership as well as diagnostics: union selection
 // must not regard a branch with failed bounds as a match.
 func (v *toolSchemaValidator) constraintIssue(value interface{}, schema map[string]interface{}, path string, active map[toolSchemaMemoKey]bool) *toolSchemaIssue {
 	fail := func(reason string) *toolSchemaIssue { return &toolSchemaIssue{path, reason} }
-	if text, ok := value.(string); ok {
+	if text, ok := schemaStringValue(value); ok {
 		for _, bound := range []struct {
 			key, description string
 			below            bool
 		}{{"minLength", "at least", true}, {"maxLength", "at most", false}} {
-			if n, ok := schema[bound.key].(float64); ok && (bound.below && float64(utf8.RuneCountInString(text)) < n || !bound.below && float64(utf8.RuneCountInString(text)) > n) {
+			if n, ok := schema[bound.key].(float64); ok && (bound.below && float64(schemaStringLength(value, text)) < n || !bound.below && float64(schemaStringLength(value, text)) > n) {
 				return fail("expected " + bound.description + " " + schemaFloatString(n) + " characters")
 			}
 		}

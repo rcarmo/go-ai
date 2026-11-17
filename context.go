@@ -539,7 +539,7 @@ func schemaTypes(raw interface{}) []string {
 func matchesJSONSchemaType(value interface{}, expectedType string) bool {
 	switch expectedType {
 	case "string":
-		_, ok := value.(string)
+		_, ok := schemaStringValue(value)
 		return ok
 	case "number":
 		switch value.(type) {
@@ -581,6 +581,8 @@ func coerceJSONSchemaType(value interface{}, expectedType string) (interface{}, 
 	case "string":
 		switch v := value.(type) {
 		case string:
+			return v, nil
+		case UTF16String:
 			return v, nil
 		case nil:
 			return "", nil

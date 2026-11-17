@@ -69,7 +69,9 @@ func TestExtensionWrappersPinnedWinnerOrderingDropReportAndDetachment(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(offers) != 1 || offers[0].Description != "winner first second" || calls != 2 || len(reports) != 6 || len(sections) != 1 {
+	// Source wrappers do not compile parameter schemas. A string declaration
+	// remains selected; only throws, renames and invalid sections are dropped.
+	if len(offers) != 2 || offers[0].Description != "winner first second" || offers[1].Name != "schema" || !equalJSONValue(offers[1].Schema, JSON{"type": "string"}) || calls != 2 || len(reports) != 5 || len(sections) != 1 {
 		t.Fatal(offers, calls, reports, sections)
 	}
 	text, err := sections[0].Render(bg, PromptInput{})
@@ -80,7 +82,7 @@ func TestExtensionWrappersPinnedWinnerOrderingDropReportAndDetachment(t *testing
 	calls = 0
 	reports = nil
 	offers, _, _, _, err = registry.selectedGeneration(agentState{Tools: &filtered}, DefaultLimits(), report)
-	if err != nil || len(offers) != 0 || calls != 2 || len(reports) != 6 {
+	if err != nil || len(offers) != 0 || calls != 2 || len(reports) != 5 {
 		t.Fatal("wrapping must precede tool filter", offers, calls, reports, err)
 	}
 	extensions := []string{"base"}

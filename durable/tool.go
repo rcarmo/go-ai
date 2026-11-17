@@ -118,13 +118,6 @@ func (r *Registry) Register(reg ToolRegistration) error {
 	if e != nil {
 		return e
 	}
-	if schema["type"] != "object" {
-		return reject("tool schema root must be object")
-	}
-	subsetErr := validateSchema(schema, 1)
-	if subsetErr != nil && (!errors.Is(subsetErr, ErrUnsupported) || reg.Validator == nil) {
-		return subsetErr
-	}
 	var output *ToolOutputLimits
 	if reg.OutputLimits != nil {
 		copy := *reg.OutputLimits
@@ -133,7 +126,7 @@ func (r *Registry) Register(reg ToolRegistration) error {
 		}
 		output = &copy
 	}
-	offer := toolOffer{Name: reg.Definition.Name, Description: reg.Definition.Description, Schema: schema, Implementation: reg.Implementation, Version: reg.Version, ReplaySafe: reg.ReplaySafe, HostValidation: subsetErr != nil, ExecutionMode: reg.ExecutionMode, ArgumentPreparation: reg.PrepareArguments != nil, OutputLimits: output, Deferred: reg.Deferred}
+	offer := toolOffer{Name: reg.Definition.Name, Description: reg.Definition.Description, Schema: schema, Implementation: reg.Implementation, Version: reg.Version, ReplaySafe: reg.ReplaySafe, ExecutionMode: reg.ExecutionMode, ArgumentPreparation: reg.PrepareArguments != nil, OutputLimits: output, Deferred: reg.Deferred}
 	offer.ConstrainedSampling, e = copyToolConstraints(reg.Definition.ConstrainedSampling, l)
 	if e != nil {
 		return e
@@ -939,12 +932,19 @@ func validateScopedArguments(ctx context.Context, reg registeredTool, args JSON,
 			return nil, e
 		}
 	}
-	if !reg.offer.HostValidation {
-		if e = checkSchema(reg.offer.Schema, owned, 1); e != nil {
-			return nil, e
-		}
+	parameters, e := encodeBounded(reg.offer.Schema, l, l.MaxDocumentBytes)
+	if e != nil {
+		return nil, e
 	}
-	return owned, nil
+	call := goai.ToolCall{Name: reg.offer.Name, Arguments: map[string]any(owned)}
+	if native {
+		call.SetStreamingArguments(call.Arguments, "")
+	}
+	validated, e := goai.ValidateToolArguments(&goai.Tool{Name: reg.offer.Name, Parameters: parameters}, call)
+	if e != nil {
+		return nil, e
+	}
+	return copyScopedToolArguments(JSON(validated), native, l)
 }
 
 func (h *Harness) acceptTools(parent Task, cp generationCheckpoint, message messageReceipt) error {

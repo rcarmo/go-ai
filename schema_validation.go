@@ -264,7 +264,7 @@ func (v *toolSchemaValidator) issue(value interface{}, schema map[string]interfa
 	if issue := v.constraintIssue(value, schema, path, active); issue != nil {
 		return issue
 	}
-	if _, ok := value.(string); ok {
+	if _, ok := schemaStringValue(value); ok {
 		if reason := v.stringPatternReason(value, schema); reason != "" {
 			return &toolSchemaIssue{path, reason}
 		}
