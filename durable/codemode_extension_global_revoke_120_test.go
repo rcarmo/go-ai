@@ -33,7 +33,7 @@ func TestCodemode120ExtensionGlobalRevocationReopen(t *testing.T) {
 				message := &goai.Message{Role: goai.RoleAssistant, StopReason: goai.StopReasonToolUse, Content: []goai.ContentBlock{{Type: "toolCall", ID: "revoke-call", Name: "codemode", Arguments: map[string]any{"code": `const first=await host.lookup("first");if(first!=="confirmed")throw Error("lost delivery");let revoked=false;try{await host.lookup("second")}catch(e){revoked=true}if(!revoked)throw Error("fresh global admitted");text("revoked");`}}}}
 				ch <- &goai.DoneEvent{Reason: goai.StopReasonToolUse, Message: message}
 			} else {
-				if strings.Contains(input.SystemPrompt, "lookup(args:") {
+				if strings.Contains(goai.ResolveContext(input, false).SystemPrompt, "lookup(args:") {
 					t.Error("replacement prompt retains global declaration")
 				}
 				var last goai.Message

@@ -388,12 +388,6 @@ func canonicalGenerationRequest(ctx context.Context, task TaskRecord, r *TaskRun
 	}
 	declarations := receiptMessage(MessageReceipt{Role: goai.RoleSystem, ToolsAdded: ReplayToolDeclarations(messages)})
 	conversation := &goai.Context{Tools: declarations.ToolsAdded, SystemPrompt: agent.SystemPrompt}
-	if text := promptText(ReplayPromptSections(view.Messages)); text != "" {
-		if conversation.SystemPrompt != "" {
-			conversation.SystemPrompt += "\n\n"
-		}
-		conversation.SystemPrompt += text
-	}
 	for _, message := range messages {
 		conversation.Messages = append(conversation.Messages, receiptMessage(message))
 	}

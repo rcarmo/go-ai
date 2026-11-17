@@ -4,6 +4,10 @@
 
 Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Canonical migration checkpoints through a5661b7 and the timing/output packet in the containing commit remain integration-red;89c031e is the last fully verified tree. Execution continues under step2. No new integrated acceptance.
 
+## Current section projection packet
+
+Exact HTTP/system equality exposed duplicate durable sections and implicit pi-ai tags. Source JSON order, whitespace, core/shared/Codex projection and supplemental prompt consumers are corrected;11 controls restored and original9/26/16 plus94 probes pass. Complete actual-tree baseline23: durable842.839s with52 failed top-level groups;25 other tested packages pass (tools15.114s/public13.570s). No panic, timeout, overlay or exclusions. Integration remains red;89c031e is still the last fully verified tree. [Mapping](../../notes/canonical-builtin-execution.md#single-rendered-system-sections-and-property-order). Durable sectionOrder wire metadata and broader API/provider/schema acceptance remain open. Older packet descriptions below retain historical scope.
+
 ## Current model metadata and compact request consumers
 
 Superseding current packet: constructor reservations now use the Session mutation guard; demonstrated unlatched failures and repeated acknowledgement tests pass. Six failure/rollback consumers retain assertions through real canonical records and publications. Complete actual-tree baseline21: durable835.764s with53 failed top-level groups;25 other tested packages pass (tools14.923s/public12.659s). No panic, timeout, overlay or exclusions. Integration remains red;89c031e is still the last fully verified tree. [Mapping](../../notes/canonical-builtin-execution.md#failure-placement-and-guarded-constructor-reservations). The model packet receipts below are historical.

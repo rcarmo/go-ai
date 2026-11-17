@@ -15,10 +15,15 @@ func (m Message) MarshalJSON() ([]byte, error) {
 	if m.ErrorMessagePresent || m.ErrorMessage != "" {
 		errorMessage = &m.ErrorMessage
 	}
+	sections, err := marshalMessageSections(m)
+	if err != nil {
+		return nil, err
+	}
 	return json.Marshal(struct {
 		plain
-		ErrorMessage *string `json:"errorMessage,omitempty"`
-	}{plain: plain(m), ErrorMessage: errorMessage})
+		ErrorMessage *string         `json:"errorMessage,omitempty"`
+		Sections     json.RawMessage `json:"sections,omitempty"`
+	}{plain: plain(m), ErrorMessage: errorMessage, Sections: sections})
 }
 
 func (m *Message) UnmarshalJSON(data []byte) error {
@@ -27,6 +32,7 @@ func (m *Message) UnmarshalJSON(data []byte) error {
 	wire := struct {
 		*plain
 		ErrorMessage json.RawMessage `json:"errorMessage"`
+		Sections     json.RawMessage `json:"sections"`
 	}{plain: &value}
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.UseNumber()
@@ -43,6 +49,52 @@ func (m *Message) UnmarshalJSON(data []byte) error {
 		}
 		value.ErrorMessagePresent = value.ErrorMessage == ""
 	}
+	if len(wire.Sections) != 0 && !bytes.Equal(bytes.TrimSpace(wire.Sections), []byte("null")) {
+		if err := json.Unmarshal(wire.Sections, &value.Sections); err != nil {
+			return err
+		}
+		fields := json.NewDecoder(bytes.NewReader(wire.Sections))
+		if _, err := fields.Token(); err != nil {
+			return err
+		}
+		for fields.More() {
+			key, err := fields.Token()
+			if err != nil {
+				return err
+			}
+			value.SectionOrder = append(value.SectionOrder, key.(string))
+			var ignored json.RawMessage
+			if err := fields.Decode(&ignored); err != nil {
+				return err
+			}
+		}
+	}
 	*m = Message(value)
 	return nil
+}
+
+func marshalMessageSections(message Message) (json.RawMessage, error) {
+	if len(message.Sections) == 0 {
+		return nil, nil
+	}
+	var out bytes.Buffer
+	out.WriteByte('{')
+	for index, key := range transcriptSectionKeys(message) {
+		if index != 0 {
+			out.WriteByte(',')
+		}
+		name, err := json.Marshal(key)
+		if err != nil {
+			return nil, err
+		}
+		value, err := json.Marshal(message.Sections[key])
+		if err != nil {
+			return nil, err
+		}
+		out.Write(name)
+		out.WriteByte(':')
+		out.Write(value)
+	}
+	out.WriteByte('}')
+	return out.Bytes(), nil
 }

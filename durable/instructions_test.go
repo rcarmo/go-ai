@@ -14,7 +14,7 @@ func TestAgentInstructionsReservedSectionDetachedExplicitEmptyAndClear(t *testin
 			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				var seen []string
 				ref, options := setupFakeAPI(t, func(_ context.Context, _ *goai.Model, input *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
-					seen = append(seen, input.SystemPrompt)
+					seen = append(seen, goai.ResolveContext(input, false).SystemPrompt)
 					ch := make(chan goai.Event, 1)
 					ch <- terminal("answer")
 					close(ch)

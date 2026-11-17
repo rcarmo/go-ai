@@ -22,7 +22,7 @@ func TestTranscript120SectionRemovalReaddRendersOnce(t *testing.T) {
 	first, second, kept := "first", "second", "kept"
 	messages := []Message{{Role: RoleSystem, Sections: map[string]*string{"a": &first}}, {Role: RoleSystem, Sections: map[string]*string{"b": &kept}}, {Role: RoleSystem, Sections: map[string]*string{"a": nil}}, {Role: RoleSystem, Sections: map[string]*string{"a": &second}}}
 	text := currentTranscriptSystemText(messages)
-	if strings.Count(text, "<a>") != 1 || strings.Contains(text, "first") || strings.Index(text, "<b>") > strings.Index(text, "<a>") {
+	if text != "kept\n\nsecond" {
 		t.Fatal(text)
 	}
 	context := ResolveContext(&Context{Messages: messages}, false)
@@ -56,7 +56,7 @@ func TestTranscript120SectionPatchRenderingStable(t *testing.T) {
 			t.Fatal(rendered)
 		}
 		prompt := currentTranscriptSystemText([]Message{message})
-		if strings.Index(prompt, "<a>") > strings.Index(prompt, "<b>") {
+		if prompt != "one\n\ntwo" {
 			t.Fatal(prompt)
 		}
 	}

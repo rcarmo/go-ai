@@ -438,6 +438,7 @@ func receiptMessage(r messageReceipt) goai.Message {
 		}
 	}
 	m := goai.Message{Role: r.Role, Content: content, Api: r.Api, Provider: r.Provider, Model: r.Model, Usage: r.Usage, StopReason: r.StopReason, Timestamp: r.Timestamp, DurationMs: copyTaskTime(r.DurationMs), ErrorMessage: r.ErrorMessage, ErrorMessagePresent: r.ErrorMessagePresent, ResponseID: r.ResponseID, ResponseModel: r.ResponseModel, ProviderThinkingLevel: r.ProviderThinkingLevel, ThinkingLevel: r.ThinkingLevel, Diagnostics: r.AssistantDiagnostics, RawStopReason: r.RawStopReason, EndTurn: r.EndTurn, ToolCallID: r.ToolCallID, ToolName: r.ToolName, IsError: r.IsError, Sections: r.Sections, ToolsRemoved: r.ToolsRemoved}
+	m.SectionOrder = append([]string(nil), r.SectionOrder...)
 	// Upstream ToolResultMessage has no errorMessage field; errorCode is a native
 	// tool witness and must not masquerade as assistant protocol state when the
 	// persisted receipt is projected back to a message.
@@ -489,6 +490,7 @@ func contributionReceipt(m goai.Message, l Limits) (messageReceipt, error) {
 		return messageReceipt{}, reject("details require tool-result role")
 	}
 	r := messageReceipt{Role: m.Role, Api: m.Api, Provider: m.Provider, Model: m.Model, Usage: m.Usage, StopReason: m.StopReason, Timestamp: m.Timestamp, DurationMs: copyTaskTime(m.DurationMs), ToolCallID: m.ToolCallID, ToolName: m.ToolName, IsError: m.IsError, Content: make([]goai.ContentBlock, 0, len(m.Content)), ResponseID: m.ResponseID, ResponseModel: m.ResponseModel, ProviderThinkingLevel: m.ProviderThinkingLevel, ThinkingLevel: m.ThinkingLevel, AssistantDiagnostics: m.Diagnostics, RawStopReason: m.RawStopReason, ErrorMessage: m.ErrorMessage, EndTurn: m.EndTurn, ContentPresence: captureContentPresence(m.Content)}
+	r.SectionOrder = append([]string(nil), m.SectionOrder...)
 	if m.Role != goai.RoleAssistant && (m.ResponseID != "" || m.ResponseModel != "" || m.ProviderThinkingLevel != "" || m.ThinkingLevel != "" || len(m.Diagnostics) != 0 || m.RawStopReason != "" || m.ErrorMessage != "" || m.EndTurn != nil) {
 		return messageReceipt{}, reject("assistant protocol fields require assistant role")
 	}

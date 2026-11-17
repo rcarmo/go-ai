@@ -323,9 +323,12 @@ type Message struct {
 	EndTurn             *bool `json:"endTurn,omitempty"`
 
 	// System-only fields for transcript updates.
-	Sections     map[string]*string `json:"sections,omitempty"`
-	ToolsAdded   []Tool             `json:"toolsAdded,omitempty"`
-	ToolsRemoved []ToolReference    `json:"toolsRemoved,omitempty"`
+	Sections map[string]*string `json:"sections,omitempty"`
+	// SectionOrder retains JSON property order across transcript projections.
+	// It is representation metadata, never a separate wire property.
+	SectionOrder []string        `json:"-"`
+	ToolsAdded   []Tool          `json:"toolsAdded,omitempty"`
+	ToolsRemoved []ToolReference `json:"toolsRemoved,omitempty"`
 
 	// ToolResult-only fields
 	ToolCallID     string           `json:"toolCallId,omitempty"`

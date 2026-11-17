@@ -923,3 +923,25 @@ it("latches constructor reservation failures even when the callback catches them
   }
  }
 });
+
+it("replays already-rendered section values without implicit tags or stale values",async()=>{
+ const {getCurrentSystemPrompt}=await import("@pinned/ai-transcript");
+ const ordered=JSON.parse('{"role":"system","content":[],"sections":{"b":"B","a":"A"},"timestamp":0}');
+ expect(getCurrentSystemPrompt([ordered])).toBe("B\n\nA");
+ const numeric=JSON.parse('{"role":"system","content":[],"sections":{"10":"ten","2":"two","01":"leading","a":"A"},"timestamp":0}');
+ expect(getCurrentSystemPrompt([numeric])).toBe("two\n\nten\n\nleading\n\nA");
+ expect(getCurrentSystemPrompt([{role:"system",content:"",sections:{z:"before"},timestamp:0},numeric])).toBe("two\n\nten\n\nbefore\n\nleading\n\nA");
+ expect(getCurrentSystemPrompt([ordered,{role:"system",content:"",sections:{b:null},timestamp:0},{role:"system",content:"",sections:{b:"second"},timestamp:0}])).toBe("A\n\nsecond");
+ for(const [content,want] of [["  ","  "],[[{type:"text",text:""},{type:"text",text:"x"},{type:"text",text:""}],"\nx\n"]] as const){
+  expect(getCurrentSystemPrompt([{role:"system",content,timestamp:0}])).toBe(want);
+ }
+ for(const value of ["plain","<policy>\nrendered\n</policy>",""]){
+  expect(getCurrentSystemPrompt([{role:"system",content:"base",sections:{policy:value},timestamp:0}])).toBe(value?"base\n\n"+value:"base");
+ }
+ expect(getCurrentSystemPrompt([
+  {role:"system",content:"",sections:{a:"first"},timestamp:0},
+  {role:"system",content:"",sections:{b:"kept"},timestamp:0},
+  {role:"system",content:"",sections:{a:null},timestamp:0},
+  {role:"system",content:"",sections:{a:"second"},timestamp:0}
+ ])).toBe("kept\n\nsecond");
+});

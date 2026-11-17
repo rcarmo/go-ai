@@ -11,8 +11,8 @@ func TestPromptRendererInvocationEnvironmentShownAndCommittedReader(t *testing.T
 		renders := 0
 		var escaped *InvocationReader
 		ref, options := setupFakeAPI(t, func(_ context.Context, _ *goai.Model, input *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
-			if input.SystemPrompt != "system\n\n<environment>\n/current\n</environment>" {
-				t.Errorf("prompt capability result %q", input.SystemPrompt)
+			if goai.ResolveContext(input, false).SystemPrompt != "system\n\n<environment>\n/current\n</environment>" {
+				t.Errorf("prompt capability result %q", goai.ResolveContext(input, false).SystemPrompt)
 			}
 			ch := make(chan goai.Event, 1)
 			ch <- terminal("answer")

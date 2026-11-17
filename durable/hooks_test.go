@@ -78,7 +78,7 @@ func TestAgentSelectionAndHooksAreDetachedRequestLocalAndOrdered(t *testing.T) {
 			number := calls.Add(1)
 			ch := make(chan goai.Event, 1)
 			if number <= 2 {
-				if len(input.Tools) != 1 || input.Tools[0].Name != "echo" || !strings.Contains(input.SystemPrompt, "worker section") {
+				if len(input.Tools) != 1 || input.Tools[0].Name != "echo" || !strings.Contains(goai.ResolveContext(input, false).SystemPrompt, "worker section") {
 					t.Error("selected extension missing", input)
 				}
 				if input.Messages[len(input.Messages)-1].Content[0].Text != "request only" {
@@ -90,7 +90,7 @@ func TestAgentSelectionAndHooksAreDetachedRequestLocalAndOrdered(t *testing.T) {
 					ch <- terminal("unmodified answer")
 				}
 			} else {
-				if len(input.Tools) != 0 || strings.Contains(input.SystemPrompt, "worker section") {
+				if len(input.Tools) != 0 || strings.Contains(goai.ResolveContext(input, false).SystemPrompt, "worker section") {
 					t.Error("child loadout leaked", input)
 				}
 				for _, message := range input.Messages {
@@ -635,12 +635,12 @@ func TestPostToolsRefreshesAgentLoadoutAndPromptWithoutDuplicatingInput(t *testi
 			n := requests.Add(1)
 			ch := make(chan goai.Event, 1)
 			if n == 1 {
-				if len(input.Tools) != 1 || !strings.Contains(input.SystemPrompt, "old section") {
+				if len(input.Tools) != 1 || !strings.Contains(goai.ResolveContext(input, false).SystemPrompt, "old section") {
 					t.Error("initial loadout", input)
 				}
 				ch <- toolAnswer("held-call", "held", JSON{})
 			} else {
-				if len(input.Tools) != 0 || strings.Contains(input.SystemPrompt, "old section") || !strings.Contains(input.SystemPrompt, "new section") {
+				if len(input.Tools) != 0 || strings.Contains(goai.ResolveContext(input, false).SystemPrompt, "old section") || !strings.Contains(goai.ResolveContext(input, false).SystemPrompt, "new section") {
 					t.Error("posttools loadout stale", input)
 				}
 				inputs := 0

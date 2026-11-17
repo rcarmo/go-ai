@@ -2,6 +2,7 @@ package goai
 
 import (
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -99,7 +100,7 @@ type TranscriptContext struct {
 // CreateInitialSystemMessage returns the initial transcript system message for
 // a legacy Context, or nil when both prompt and tool declarations are empty.
 func CreateInitialSystemMessage(systemPrompt string, tools []Tool) *Message {
-	if strings.TrimSpace(systemPrompt) == "" && len(tools) == 0 {
+	if systemPrompt == "" && len(tools) == 0 {
 		return nil
 	}
 	msg := &Message{Role: RoleSystem, Content: []ContentBlock{{Type: "text", Text: systemPrompt}}, Timestamp: 0}
@@ -172,10 +173,10 @@ func currentTranscriptSystemText(messages []Message) string {
 		if msg.Role != RoleSystem {
 			continue
 		}
-		if text := extractContentText(msg.Content); strings.TrimSpace(text) != "" {
+		if text := extractContentText(msg.Content); text != "" {
 			base = append(base, text)
 		}
-		for _, name := range sortedTranscriptSectionKeys(msg.Sections) {
+		for _, name := range transcriptSectionKeys(msg) {
 			value := msg.Sections[name]
 			if value == nil {
 				delete(sections, name)
@@ -194,9 +195,9 @@ func currentTranscriptSystemText(messages []Message) string {
 		}
 	}
 	parts := append([]string{}, base...)
-	for _, name := range sectionOrder {
-		if value, ok := sections[name]; ok {
-			parts = append(parts, "<"+name+">\n"+value+"\n</"+name+">")
+	for _, name := range orderTranscriptPropertyKeys(sectionOrder) {
+		if value, ok := sections[name]; ok && value != "" {
+			parts = append(parts, value)
 		}
 	}
 	return strings.Join(parts, "\n\n")
@@ -205,7 +206,7 @@ func currentTranscriptSystemText(messages []Message) string {
 func extractContentText(content []ContentBlock) string {
 	var parts []string
 	for _, block := range content {
-		if block.Type == "text" && block.Text != "" {
+		if block.Type == "text" {
 			parts = append(parts, block.Text)
 		}
 	}
@@ -279,15 +280,30 @@ func ResolveContext(ctx *Context, supportsMidConvoSystemMessages bool) *Context 
 	return ContextFromTranscript(ResolveTranscript(ctx, false))
 }
 
+// GetSystemMessageText renders content followed by already-rendered section
+// values, matching pi-ai's initial system-message projection.
+func GetSystemMessageText(message Message) string {
+	var parts []string
+	if text := extractContentText(message.Content); text != "" {
+		parts = append(parts, text)
+	}
+	for _, key := range transcriptSectionKeys(message) {
+		if value := message.Sections[key]; value != nil && *value != "" {
+			parts = append(parts, *value)
+		}
+	}
+	return strings.Join(parts, "\n\n")
+}
+
 // RenderSystemMessageText renders a single transcript system message for
 // provider payloads. Section removals are explicit text markers so unsupported
 // provider payload shapes do not silently lose removal intent.
 func RenderSystemMessageText(msg Message) string {
 	parts := []string{}
-	if text := extractContentText(msg.Content); strings.TrimSpace(text) != "" {
+	if text := extractContentText(msg.Content); text != "" {
 		parts = append(parts, text)
 	}
-	for _, name := range sortedTranscriptSectionKeys(msg.Sections) {
+	for _, name := range transcriptSectionKeys(msg) {
 		value := msg.Sections[name]
 		if value == nil {
 			parts = append(parts, `Removed system prompt section "`+name+`".`)
@@ -298,13 +314,43 @@ func RenderSystemMessageText(msg Message) string {
 	return strings.Join(parts, "\n\n")
 }
 
-// Native section maps have no insertion order. Sort each patch so repeated
-// provider projections are stable; cross-message replacement order is retained.
-func sortedTranscriptSectionKeys(sections map[string]*string) []string {
-	keys := make([]string, 0, len(sections))
-	for key := range sections {
-		keys = append(keys, key)
+// Decoded messages retain source property order. A host-built Go map has no
+// insertion order, so only unspecified keys use deterministic lexical order.
+func transcriptSectionKeys(message Message) []string {
+	keys := make([]string, 0, len(message.Sections))
+	seen := make(map[string]bool, len(message.Sections))
+	for _, key := range message.SectionOrder {
+		if _, exists := message.Sections[key]; exists && !seen[key] {
+			keys = append(keys, key)
+			seen[key] = true
+		}
 	}
-	sort.Strings(keys)
+	var extra []string
+	for key := range message.Sections {
+		if !seen[key] {
+			extra = append(extra, key)
+		}
+	}
+	sort.Strings(extra)
+	keys = append(keys, extra...)
+	return orderTranscriptPropertyKeys(keys)
+}
+
+func orderTranscriptPropertyKeys(keys []string) []string {
+	// Object.entries enumerates array-index property names first, regardless
+	// of their position in the JSON text; other strings keep insertion order.
+	sort.SliceStable(keys, func(i, j int) bool {
+		a, aIndex := transcriptPropertyIndex(keys[i])
+		b, bIndex := transcriptPropertyIndex(keys[j])
+		if aIndex && bIndex {
+			return a < b
+		}
+		return aIndex && !bIndex
+	})
 	return keys
+}
+
+func transcriptPropertyIndex(key string) (uint64, bool) {
+	index, err := strconv.ParseUint(key, 10, 32)
+	return index, err == nil && index < 1<<32-1 && strconv.FormatUint(index, 10) == key
 }

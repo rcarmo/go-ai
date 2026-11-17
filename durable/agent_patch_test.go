@@ -26,8 +26,8 @@ func TestAgentPatchPinnedPartialClearOrderingHistoricalForkAndReopen(t *testing.
 			if len(input.Tools) != 2 || input.Tools[0].Name != "second" || input.Tools[1].Name != "first" {
 				t.Error("explicit tool order", input.Tools)
 			}
-			if strings.Index(input.SystemPrompt, "<second>") > strings.Index(input.SystemPrompt, "<first>") {
-				t.Error("extension section order", input.SystemPrompt)
+			if strings.Index(goai.ResolveContext(input, false).SystemPrompt, "<second>") > strings.Index(goai.ResolveContext(input, false).SystemPrompt, "<first>") {
+				t.Error("extension section order", goai.ResolveContext(input, false).SystemPrompt)
 			}
 			ch := make(chan goai.Event, 1)
 			ch <- terminal("answer")

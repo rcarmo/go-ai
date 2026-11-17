@@ -59,8 +59,8 @@ func TestCodemode120ModelToolUnsettledReopen(t *testing.T) {
 				message := &goai.Message{Role: goai.RoleAssistant, StopReason: goai.StopReasonToolUse, Content: []goai.ContentBlock{{Type: "toolCall", ID: "recovery-call", Name: "codemode", Arguments: map[string]any{"code": `const ns=await describeNamespace("recovery");if(ns.description!=="original")throw Error("namespace changed");text(await tools.recovery_leaf({}));`}}}}
 				ch <- &goai.DoneEvent{Reason: goai.StopReasonToolUse, Message: message}
 			} else {
-				if !strings.Contains(input.SystemPrompt, "## recovery\nchanged") {
-					t.Error("new prompt did not use replacement namespace", input.SystemPrompt)
+				if !strings.Contains(goai.ResolveContext(input, false).SystemPrompt, "## recovery\nchanged") {
+					t.Error("new prompt did not use replacement namespace", goai.ResolveContext(input, false).SystemPrompt)
 				}
 				var last goai.Message
 				for i := len(input.Messages) - 1; i >= 0; i-- {

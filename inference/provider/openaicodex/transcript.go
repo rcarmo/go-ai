@@ -3,7 +3,6 @@ package openaicodex
 import (
 	goai "github.com/rcarmo/go-ai"
 	"github.com/rcarmo/go-ai/internal/responsestream"
-	"strings"
 )
 
 func codexSystemText(message goai.Message, update bool) string {
@@ -11,15 +10,6 @@ func codexSystemText(message goai.Message, update bool) string {
 }
 func codexTranscriptContext(model *goai.Model, input *goai.Context) *goai.Context {
 	normalized := goai.NormalizeContext(input)
-	// Legacy whitespace-only prompts are meaningful instructions too.
-	if input != nil && input.SystemPrompt != "" && strings.TrimSpace(input.SystemPrompt) == "" {
-		content := []goai.ContentBlock{{Type: "text", Text: input.SystemPrompt}}
-		if len(input.Tools) > 0 {
-			normalized.Messages[0].Content = content
-		} else {
-			normalized.Messages = append([]goai.Message{{Role: goai.RoleSystem, Content: content}}, normalized.Messages...)
-		}
-	}
 	result := &goai.Context{Tools: goai.ContextFromTranscript(normalized).Tools}
 	supportsMid := model.ResponsesCompat != nil && model.ResponsesCompat.SupportsMidConvoSystemMessages != nil && *model.ResponsesCompat.SupportsMidConvoSystemMessages
 	if supportsMid {
@@ -36,25 +26,9 @@ func codexTranscriptContext(model *goai.Model, input *goai.Context) *goai.Contex
 			}
 		}
 	} else {
-		var texts []string
-		sections := map[string]*string{}
-		for _, message := range normalized.Messages {
-			if message.Role != goai.RoleSystem {
-				result.Messages = append(result.Messages, message)
-				continue
-			}
-			if text := responsestream.SystemContent(message); text != "" {
-				texts = append(texts, text)
-			}
-			for key, value := range message.Sections {
-				if value == nil {
-					delete(sections, key)
-				} else {
-					sections[key] = value
-				}
-			}
-		}
-		result.SystemPrompt = codexSystemText(goai.Message{Content: []goai.ContentBlock{{Type: "text", Text: strings.Join(texts, "\n\n")}}, Sections: sections}, false)
+		folded := goai.ResolveContext(input, false)
+		result.SystemPrompt = folded.SystemPrompt
+		result.Messages = folded.Messages
 	}
 	if codexUsesToolSearch(model) {
 		result.Tools, _ = codexToolSearchPlan(normalized.Messages)

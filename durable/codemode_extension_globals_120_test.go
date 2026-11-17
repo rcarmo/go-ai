@@ -31,8 +31,8 @@ func TestCodemode120ExtensionGlobalsCapturedAndExecuted(t *testing.T) {
 		ref, options := setupFakeAPI(t, func(_ context.Context, _ *goai.Model, input *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
 			requests++
 			ch := make(chan goai.Event, 1)
-			if !strings.Contains(input.SystemPrompt, "lookup(args: string): Promise<string>") {
-				t.Error("global metadata drift", input.SystemPrompt)
+			if !strings.Contains(goai.ResolveContext(input, false).SystemPrompt, "lookup(args: string): Promise<string>") {
+				t.Error("global metadata drift", goai.ResolveContext(input, false).SystemPrompt)
 			}
 			if requests == 1 {
 				message := &goai.Message{Role: goai.RoleAssistant, StopReason: goai.StopReasonToolUse, Content: []goai.ContentBlock{{Type: "toolCall", ID: "global-call", Name: "codemode", Arguments: map[string]any{"code": `text(await host.lookup("key"));`}}}}

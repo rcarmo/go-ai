@@ -34,8 +34,8 @@ func TestCodemode120ExtensionModelsCannotExpandHostAuthority(t *testing.T) {
 				ref, options := setupFakeAPI(t, func(_ context.Context, _ *goai.Model, input *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
 					requests++
 					ch := make(chan goai.Event, 1)
-					if strings.Contains(input.SystemPrompt, "declare const models") {
-						t.Error("paid declarations leaked", input.SystemPrompt)
+					if strings.Contains(goai.ResolveContext(input, false).SystemPrompt, "declare const models") {
+						t.Error("paid declarations leaked", goai.ResolveContext(input, false).SystemPrompt)
 					}
 					if requests == 1 {
 						message := &goai.Message{Role: goai.RoleAssistant, StopReason: goai.StopReasonToolUse, Content: []goai.ContentBlock{{Type: "toolCall", ID: "models-call", Name: "codemode", Arguments: map[string]any{"code": `if(typeof models!=="undefined")throw Error("paid globals exposed");text("no paid authority");`}}}}

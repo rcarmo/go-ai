@@ -47,7 +47,7 @@ func testCodemodePrompt120(t *testing.T, parallel bool) {
 		}
 		enabled := true
 		ref, options := setupFakeAPI(t, func(_ context.Context, _ *goai.Model, input *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
-			prompt := input.SystemPrompt
+			prompt := goai.ResolveContext(input, false).SystemPrompt
 			if enabled {
 				if !strings.Contains(prompt, "script_visible") || !strings.Contains(prompt, "searchTools") || !strings.Contains(prompt, guidance) {
 					t.Error("codemode prompt missing", prompt)

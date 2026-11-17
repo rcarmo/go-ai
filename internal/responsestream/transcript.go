@@ -2,7 +2,6 @@ package responsestream
 
 import (
 	goai "github.com/rcarmo/go-ai"
-	"sort"
 	"strings"
 )
 
@@ -16,30 +15,11 @@ func SystemContent(message goai.Message) string {
 	return strings.Join(texts, "\n")
 }
 
-// Sections are Go maps: retain the SDK's deterministic key order at projection.
 func SystemMessageText(message goai.Message, update bool) string {
-	var parts []string
-	if text := SystemContent(message); text != "" {
-		parts = append(parts, text)
+	if update {
+		return goai.RenderSystemMessageText(message)
 	}
-	keys := make([]string, 0, len(message.Sections))
-	for key := range message.Sections {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	for _, key := range keys {
-		value := message.Sections[key]
-		if update {
-			if value == nil {
-				parts = append(parts, "Removed system prompt section \""+key+"\".")
-			} else {
-				parts = append(parts, "Updated system prompt section \""+key+"\":\n\n"+*value)
-			}
-		} else if value != nil && *value != "" {
-			parts = append(parts, *value)
-		}
-	}
-	return strings.Join(parts, "\n\n")
+	return goai.GetSystemMessageText(message)
 }
 
 func ToolSearchPlan(messages []goai.Message) ([]goai.Tool, int) {

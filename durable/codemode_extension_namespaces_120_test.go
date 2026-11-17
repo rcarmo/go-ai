@@ -32,8 +32,8 @@ func TestCodemode120ExtensionNamespacesCapturedForPromptAndVM(t *testing.T) {
 		ref, options := setupFakeAPI(t, func(_ context.Context, _ *goai.Model, input *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
 			requests++
 			ch := make(chan goai.Event, 1)
-			if !strings.Contains(input.SystemPrompt, "## extension\noriginal") || strings.Contains(input.SystemPrompt, "## harness") {
-				t.Error("namespace prompt drift", input.SystemPrompt)
+			if !strings.Contains(goai.ResolveContext(input, false).SystemPrompt, "## extension\noriginal") || strings.Contains(goai.ResolveContext(input, false).SystemPrompt, "## harness") {
+				t.Error("namespace prompt drift", goai.ResolveContext(input, false).SystemPrompt)
 			}
 			if requests == 1 {
 				message := &goai.Message{Role: goai.RoleAssistant, StopReason: goai.StopReasonToolUse, Content: []goai.ContentBlock{{Type: "toolCall", ID: "ns-call", Name: "codemode", Arguments: map[string]any{"code": `const ns=await describeNamespace("extension");if(ns.description!=="original")throw Error("namespace drift");text(await tools.ns_leaf({}));`}}}}

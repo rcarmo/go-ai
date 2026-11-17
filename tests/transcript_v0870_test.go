@@ -23,7 +23,7 @@ func TestV0870ResolveTranscriptFoldsSystemSectionsAndToolsForLegacyProviders(t *
 	if len(resolved.Messages) != 2 || resolved.Messages[0].Role != goai.RoleSystem || resolved.Messages[1].Role != goai.RoleUser {
 		t.Fatalf("resolved messages=%#v", resolved.Messages)
 	}
-	if got := resolved.Messages[0].Content[0].Text; got != "base prompt\n\nupdated guidance\n\n<rules>\nnew rules\n</rules>" {
+	if got := resolved.Messages[0].Content[0].Text; got != "base prompt\n\nupdated guidance\n\nnew rules" {
 		t.Fatalf("system text=%q", got)
 	}
 	if !reflect.DeepEqual(resolved.Messages[0].ToolsAdded, []goai.Tool{late}) {

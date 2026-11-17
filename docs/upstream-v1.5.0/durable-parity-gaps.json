@@ -1137,7 +1137,7 @@
     "historical": true
   },
   "currentCheckpoint": {
-    "scope": "Canonical migration through09f32a1 plus guarded constructor reservations and public failure/rollback consumers. Complete actual-tree baseline21: durable835.764s with53 failed top-level groups;25 other tested packages pass (tools14.923s/public12.659s). No panic, timeout, overlay or exclusions. Integration remains red;89c031e is still the last fully verified tree.",
+    "scope": "Canonical migration through4656a0 plus single-rendered sections/property-order fixes. Complete actual-tree baseline23: durable842.839s with52 failed top-level groups;25 other tested packages pass (tools15.114s/public13.570s). No panic, timeout, overlay or exclusions. Integration remains red;89c031e is still the last fully verified tree.",
     "baseRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
     "lastVerifiedPushed": {
       "revision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
@@ -1285,6 +1285,28 @@
           "otherTestedPackagesPassing": 25,
           "toolsSeconds": 14.923,
           "publicSeconds": 12.659,
+          "panic": false,
+          "timeout": false
+        },
+        {
+          "scope": "baseline22 intermediate section packet before four flat-prompt consumer corrections",
+          "result": "fail",
+          "seconds": 847.409,
+          "failedTopLevelGroups": 56,
+          "otherTestedPackagesPassing": 25,
+          "toolsSeconds": 15.806,
+          "publicSeconds": 12.11,
+          "panic": false,
+          "timeout": false
+        },
+        {
+          "scope": "baseline23 final section packet; no overlays/exclusions",
+          "result": "fail",
+          "seconds": 842.839,
+          "failedTopLevelGroups": 52,
+          "otherTestedPackagesPassing": 25,
+          "toolsSeconds": 15.114,
+          "publicSeconds": 13.57,
           "panic": false,
           "timeout": false
         }
@@ -1549,6 +1571,23 @@
         "logging": "pass",
         "scope": "Six public failure/rollback consumer groups; caught/uncaught constructor failures; no separate fork-allocation failure test",
         "mapping": "notes/canonical-builtin-execution.md#failure-placement-and-guarded-constructor-reservations"
+      },
+      "sectionProjectionPacket": {
+        "sourceFirst": "Exact HTTP duplication, utility value/whitespace, JSON order/numeric-key and Codex wire controls",
+        "focusedThreeShuffleSeconds": 99.877,
+        "faults": "11 compiled semantic controls detected/restored",
+        "originalTests": {
+          "harnessPrompt": 9,
+          "harnessGeneration": 26,
+          "conversationTranscript": 16
+        },
+        "independentProbes": 94,
+        "skipped": 0,
+        "vet": "pass",
+        "staticcheck": "v0.8.2 pass",
+        "logging": "pass",
+        "remaining": "Existing durable sectionOrder wire extra; broader API/provider/schema/readonly acceptance",
+        "mapping": "notes/canonical-builtin-execution.md#single-rendered-system-sections-and-property-order"
       }
     },
     "reference": {
@@ -1564,7 +1603,7 @@
     },
     "profiling": "Pre-release CPU/alloc_space/alloc_objects analysis, measured tuning and equivalent-workload remeasurement required.",
     "reviewOnly": "No runtime tests rerun by the planning review; structural register/hash checks are separate.",
-    "execution": "Step2 remains active. Latest bounded guard/failure packet has focused/source/fault/static receipts; full integration still fails53 groups. No overall native/API/Storage/schema or release acceptance."
+    "execution": "Step2 active. Latest section projection packet has source-first/runtime/consumer, fault, static and full-run receipts; full integration fails52 groups. No overall API/Storage/schema or release acceptance."
   },
   "review": {
     "basisRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",

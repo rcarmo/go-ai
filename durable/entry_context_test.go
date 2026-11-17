@@ -157,6 +157,12 @@ func TestEntryContextContributionControlsRejectBeforeStage(t *testing.T) {
 	}
 }
 func TestEntryContextActualHTTPSystemToolsEditedAncestorReopen(t *testing.T) {
+	for _, configured := range []bool{false, true} {
+		t.Run(fmt.Sprintf("configured-%t", configured), func(t *testing.T) { testEntryContextActualHTTP(t, configured) })
+	}
+}
+
+func testEntryContextActualHTTP(t *testing.T, configured bool) {
 	var request map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if e := json.NewDecoder(r.Body).Decode(&request); e != nil {
@@ -171,6 +177,18 @@ func TestEntryContextActualHTTPSystemToolsEditedAncestorReopen(t *testing.T) {
 	options := Options{Models: func(goai.Provider, string) *goai.Model { return model }, RequestOptions: func(context.Context, ModelRef) (*goai.StreamOptions, error) {
 		return &goai.StreamOptions{APIKey: "AUTH_SECRET_ONLY"}, nil
 	}}
+	if configured {
+		registry := NewRegistry()
+		err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "keep", Description: "kept", Parameters: json.RawMessage(`{"type":"object","properties":{}}`)}, Implementation: "keep", Version: 1, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+			t.Error("declaration-only fixture executed a tool")
+			return ToolResult{}, nil
+		}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		options.Registry = registry
+		options.Sections = []PromptSection{{Key: "policy", Untagged: true, Render: func(context.Context, PromptInput) (*string, error) { text := "section-owned"; return &text, nil }}}
+	}
 	open := func() *Harness {
 		store, e := openSQLiteTestDirectory(dir, SQLiteOptions{})
 		if e != nil {
@@ -189,21 +207,21 @@ func TestEntryContextActualHTTPSystemToolsEditedAncestorReopen(t *testing.T) {
 	}
 	token := entryToken(t, "entry.http")
 	var first, at ID
-	section := "section-owned"
-	tool := goai.Tool{Name: "keep", Description: "kept", Parameters: json.RawMessage(`{"type":"object","properties":{}}`)}
+	sections := JSON{"policy": "section-owned"}
+	tool := JSON{"name": "keep", "description": "kept", "parameters": JSON{"type": "object", "properties": JSON{}}}
 	checkpointCommit(t, h.session, func(tx *Tx) error {
-		v, e := tx.appendTypedEntryFixture(token, root.ID(), entryContentFixture{Model: []goai.Message{goai.UserMessage("ancestor original")}})
+		v, e := tx.AppendTypedEntry(token, root.ID(), JSON{"model": []any{JSON{"role": "user", "content": "ancestor original", "timestamp": 0}}})
 		if e != nil {
 			return e
 		}
 		first = v.ID
-		v, e = tx.appendTypedEntryFixture(token, root.ID(), entryContentFixture{Model: []goai.Message{{Role: goai.RoleSystem, Content: []goai.ContentBlock{}, Sections: map[string]*string{"policy": &section}, ToolsAdded: []goai.Tool{tool, {Name: "remove", Description: "removed", Parameters: json.RawMessage(`{"type":"object"}`)}}}}})
+		v, e = tx.AppendTypedEntry(token, root.ID(), JSON{"model": []any{JSON{"role": "system", "content": "", "sections": sections, "toolsAdded": []any{tool, JSON{"name": "remove", "description": "removed", "parameters": JSON{"type": "object"}}}, "timestamp": 0}}})
 		if e != nil {
 			return e
 		}
 		at = v.ID
 		for _, stop := range []goai.StopReason{goai.StopReasonPending, goai.StopReasonAborted, goai.StopReasonError, goai.StopReasonDeferred} {
-			v, e = tx.appendTypedEntryFixture(token, root.ID(), entryContentFixture{Model: []goai.Message{{Role: goai.RoleAssistant, StopReason: stop, Content: []goai.ContentBlock{{Type: "text", Text: "literal-" + string(stop)}}}}})
+			v, e = tx.AppendTypedEntry(token, root.ID(), JSON{"model": []any{JSON{"role": "assistant", "stopReason": string(stop), "content": []any{JSON{"type": "text", "text": "literal-" + string(stop)}}, "timestamp": 0}}})
 			if e != nil {
 				return e
 			}
@@ -211,14 +229,14 @@ func TestEntryContextActualHTTPSystemToolsEditedAncestorReopen(t *testing.T) {
 		}
 		return nil
 	})
-	section = "caller mutated"
-	tool.Parameters[0] = 'x'
+	sections["policy"] = "caller mutated"
+	tool["parameters"].(JSON)["type"] = "caller mutated"
 	child, e := root.Fork(bg, at)
 	if e != nil {
 		t.Fatal(e)
 	}
 	checkpointCommit(t, h.session, func(tx *Tx) error {
-		_, e := tx.appendTypedEntryFixture(token, child.ID(), entryContentFixture{Edits: []ContextEdit{{Target: first, Action: "replace", Messages: []MessageReceipt{{Role: goai.RoleUser, Content: []goai.ContentBlock{{Type: "text", Text: "edited ancestor"}}}}}}, Model: []goai.Message{{Role: goai.RoleSystem, Content: []goai.ContentBlock{}, ToolsRemoved: []goai.ToolReference{{Name: "remove"}}}}})
+		_, e := tx.AppendTypedEntry(token, child.ID(), JSON{"edits": []any{JSON{"target": first, "action": "replace", "messages": []any{JSON{"role": "user", "content": "edited ancestor", "timestamp": 0}}}}, "model": []any{JSON{"role": "system", "content": "", "toolsRemoved": []any{JSON{"name": "remove"}}, "timestamp": 0}}})
 		return e
 	})
 	childID := child.ID()
@@ -231,6 +249,25 @@ func TestEntryContextActualHTTPSystemToolsEditedAncestorReopen(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
+	view, e := child.ContextView(bg, 0)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if shown := ReplayPromptSections(view.Messages); !reflect.DeepEqual(shown, []RenderedSection{{Key: "policy", Text: "section-owned"}}) {
+		t.Fatal("reopened ancestor section ownership", shown)
+	}
+	beforeRequest, e := child.Context(bg)
+	if e != nil {
+		t.Fatal(e)
+	}
+	replayed := goai.ResolveContext(beforeRequest, false)
+	if len(replayed.Tools) != 1 || replayed.Tools[0].Name != "keep" || replayed.Tools[0].Description != "kept" {
+		t.Fatal("reopened historical tool loadout", replayed.Tools)
+	}
+	var parameters JSON
+	if e := json.Unmarshal(replayed.Tools[0].Parameters, &parameters); e != nil || !equalJSONValue(parameters, JSON{"type": "object", "properties": JSON{}}) {
+		t.Fatal("reopened tool declaration ownership", parameters, e)
+	}
 	sub, e := child.Submit(bg, Input{Content: "actual request", RequestID: "entry-context-http"})
 	if e != nil {
 		t.Fatal(e)
@@ -240,14 +277,26 @@ func TestEntryContextActualHTTPSystemToolsEditedAncestorReopen(t *testing.T) {
 		t.Fatal(result)
 	}
 	messages := request["messages"].([]any)
+	wantSystem := "base"
+	if configured {
+		wantSystem += "\n\nsection-owned"
+	}
+	if len(messages) != 4 || !reflect.DeepEqual(messages[0], map[string]any{"role": "system", "content": wantSystem}) {
+		t.Fatal("exact prepared system projection", messages)
+	}
 	encoded, _ := json.Marshal(messages)
-	if !strings.Contains(string(encoded), "section-owned") || !strings.Contains(string(encoded), "edited ancestor") || !strings.Contains(string(encoded), "literal-pending") || strings.Contains(string(encoded), "literal-aborted") || strings.Contains(string(encoded), "literal-error") || strings.Contains(string(encoded), "literal-deferred") || strings.Contains(string(encoded), "ancestor original") || strings.Contains(string(encoded), "caller mutated") {
+	if strings.Contains(string(encoded), "section-owned") != configured || !strings.Contains(string(encoded), "edited ancestor") || !strings.Contains(string(encoded), "literal-pending") || strings.Contains(string(encoded), "literal-aborted") || strings.Contains(string(encoded), "literal-error") || strings.Contains(string(encoded), "literal-deferred") || strings.Contains(string(encoded), "ancestor original") || strings.Contains(string(encoded), "caller mutated") {
 		t.Fatal("real provider context", string(encoded))
 	}
-	tools := request["tools"].([]any)
-	if len(tools) != 1 || tools[0].(map[string]any)["function"].(map[string]any)["name"] != "keep" {
-		t.Fatal("real provider tools", tools)
+	if configured {
+		tools, ok := request["tools"].([]any)
+		if !ok || len(tools) != 1 || tools[0].(map[string]any)["function"].(map[string]any)["name"] != "keep" {
+			t.Fatal("real provider tools", tools)
+		}
+	} else if tools, exists := request["tools"]; exists {
+		t.Fatal("stale historical declarations must be removed by current loadout", tools)
 	}
+
 	journal, e := os.ReadFile(filepath.Join(dir, "store.sqlite"))
 	if e != nil {
 		t.Fatal(e)

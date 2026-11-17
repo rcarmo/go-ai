@@ -50,7 +50,7 @@ func TestCodemode120ExtensionModelRevocationReopen(t *testing.T) {
 				message := &goai.Message{Role: goai.RoleAssistant, StopReason: goai.StopReasonToolUse, Content: []goai.ContentBlock{{Type: "toolCall", ID: "revoke-call", Name: "codemode", Arguments: map[string]any{"code": `const model={provider:"test",id:"judge"};const c={state:{},questions:{yes:{type:"bool",instructions:"yes",criteria:{true:"yes",false:"no"}}}};const first=await models.classify(model,c);if(first.answers.yes.probability!==1)throw Error("lost delivery");let revoked=false;try{await models.classify(model,c)}catch(e){revoked=true}if(!revoked)throw Error("fresh paid effect admitted");text("revoked");`}}}}
 				ch <- &goai.DoneEvent{Reason: goai.StopReasonToolUse, Message: message}
 			} else {
-				if strings.Contains(input.SystemPrompt, "declare const models") {
+				if strings.Contains(goai.ResolveContext(input, false).SystemPrompt, "declare const models") {
 					t.Error("replacement prompt retains paid declarations")
 				}
 				var last goai.Message

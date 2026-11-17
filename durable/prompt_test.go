@@ -54,8 +54,8 @@ func TestPromptSectionsPersistProductionRequestAndKeepTextOnError(t *testing.T) 
 		var renders, requests, reports atomic.Int64
 		ref, options := setupFakeAPI(t, func(_ context.Context, _ *goai.Model, input *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
 			requests.Add(1)
-			if !strings.Contains(input.SystemPrompt, "<policy>\nuse tools safely\n</policy>") {
-				t.Error("rendered prompt missing", input.SystemPrompt)
+			if !strings.Contains(goai.ResolveContext(input, false).SystemPrompt, "<policy>\nuse tools safely\n</policy>") {
+				t.Error("rendered prompt missing", goai.ResolveContext(input, false).SystemPrompt)
 			}
 			ch := make(chan goai.Event, 1)
 			ch <- terminal("ok")

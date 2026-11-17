@@ -45,8 +45,8 @@ func TestCodemode120ExtensionInlineBudgetCapturedAndZeroDiscovery(t *testing.T) 
 							t.Error("deferred tool offered directly to model")
 						}
 					}
-					if strings.Contains(input.SystemPrompt, "### `budget_leaf`") || !deferred && !strings.Contains(input.SystemPrompt, "Some tools are not listed") {
-						t.Error("zero budget not captured", input.SystemPrompt)
+					if strings.Contains(goai.ResolveContext(input, false).SystemPrompt, "### `budget_leaf`") || !deferred && !strings.Contains(goai.ResolveContext(input, false).SystemPrompt, "Some tools are not listed") {
+						t.Error("zero budget not captured", goai.ResolveContext(input, false).SystemPrompt)
 					}
 					if requests == 1 {
 						message := &goai.Message{Role: goai.RoleAssistant, StopReason: goai.StopReasonToolUse, Content: []goai.ContentBlock{{Type: "toolCall", ID: "budget-call", Name: "codemode", Arguments: map[string]any{"code": `const hits=await searchTools("budget_leaf");if(hits[0].name!=="budget_leaf")throw Error("not discoverable");const description=await describeTool("budget_leaf");if(!description.includes("budget_leaf"))throw Error("not describable");text(await tools.budget_leaf({}));`}}}}
