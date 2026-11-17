@@ -188,7 +188,11 @@ func TestAgentSelectionAndHooksAreDetachedRequestLocalAndOrdered(t *testing.T) {
 func TestBeforeToolBlockOrThrowPreventsEffectAndRevalidatesReplacement(t *testing.T) {
 	for _, mode := range []string{"block", "panic", "invalid"} {
 		t.Run(mode, func(t *testing.T) {
-			var executed atomic.Int64
+			var executed, after atomic.Int64
+			code := "blocked"
+			if mode == "invalid" {
+				code = "invalid_arguments"
+			}
 			registry := NewRegistry()
 			tool := ToolRegistration{Definition: goai.Tool{Name: "guarded", Parameters: json.RawMessage(`{"type":"object","properties":{"n":{"type":"integer"}},"required":["n"]}`)}, Implementation: "hooks.guard", Version: 1, Execute: func(context.Context, any, *ToolAPI) (ToolResult, error) {
 				executed.Add(1)
@@ -202,6 +206,12 @@ func TestBeforeToolBlockOrThrowPreventsEffectAndRevalidatesReplacement(t *testin
 					return &BeforeToolResult{Block: "do not run"}, nil
 				}
 				return &BeforeToolResult{Arguments: JSON{"n": "invalid"}}, nil
+			}, AfterTool: func(_ context.Context, call goai.ToolCall, result ToolResult, _ *HookAPI) (*ToolResult, error) {
+				after.Add(1)
+				if call.ID != "guard-call" || !equalJSONValue(call.Arguments, JSON{"n": 1}) || !result.IsError || len(result.Diagnostics) != 1 || result.Diagnostics[0].Code != code {
+					t.Error("afterTool must see original call and own rejection", call, result)
+				}
+				return nil, nil
 			}}}); err != nil {
 				t.Fatal(err)
 			}
@@ -224,42 +234,33 @@ func TestBeforeToolBlockOrThrowPreventsEffectAndRevalidatesReplacement(t *testin
 			if err != nil {
 				t.Fatal(err)
 			}
-			waitSubmission(t, sub)
-			state, err := h.Snapshot(bg)
+			if settled := waitSubmission(t, sub); settled.Record.Status != "done" || executed.Load() != 0 || requests.Load() != 2 || after.Load() != 1 {
+				t.Fatal("hook rejection did not settle without effect", settled, executed.Load(), requests.Load(), after.Load())
+			}
+			value, err := h.Commit(bg, func(tx *Tx) (any, error) {
+				return tx.ScanTasks(TaskQuery{Conversation: conversation.ID(), Kind: "pi.tool"}, 20, nil)
+			})
 			if err != nil {
 				t.Fatal(err)
 			}
-			found := false
-			for _, entry := range state.Entries {
-				if !isMessageEntry(entry) {
-					continue
-				}
-				var message MessageReceipt
-				if err := decodeEntryMessage(entry, h.session.limits, &message); err != nil {
-					t.Fatal(err)
-				}
-				if message.Role == goai.RoleToolResult {
-					found = true
-					code := "blocked"
-					if mode == "invalid" {
-						code = "invalid_arguments"
-					}
-					if message.ErrorCode != code {
-						t.Fatal(message)
-					}
-				}
+			tasks := value.(Page[TaskRecord]).Items
+			if len(tasks) != 1 {
+				t.Fatal("expected one own tool task", tasks)
 			}
-			if !found || executed.Load() != 0 {
-				t.Fatal("hook allowed effect", found, executed.Load())
+			task := tasks[0]
+			outcome := task.State.Outcome
+			if task.State.Status != "terminal" || outcome == nil || outcome.Status != "completed" || outcome.Result == nil {
+				t.Fatal("blocked/invalid call did not complete with error result", task)
 			}
-			for _, task := range state.Tasks {
-				if task.Kind != "pi.tool" {
-					continue
-				}
-				record, err := CanonicalTask(task, h.session.limits)
-				if err != nil || record.State.Outcome.Status != "completed" {
-					t.Fatal("blocked/invalid call did not complete with error result", record, err)
-				}
+			result := generationObject(outcome.Result.Value)
+			entry, found, err := h.Entry(bg, submissionEntryID(result["entryId"]))
+			if err != nil || !found || len(result) != 2 || result["kind"] != "model" || submissionEntryID(result["entryId"]) != entry.ID || entry.Kind != "pi.tool-result" || entry.ByTask != task.ID || len(entry.Model) != 1 {
+				t.Fatal("own public tool result", result, entry, err)
+			}
+			message := entry.Model[0]
+			diagnostics, ok := generationObject(entry.Data)["diagnostics"].([]any)
+			if message.ToolCallID != "guard-call" || message.ToolName != "guarded" || !message.IsError || !ok || len(diagnostics) != 1 || generationObject(diagnostics[0])["code"] != code {
+				t.Fatal("public hook rejection diagnostic", message, entry.Data)
 			}
 		})
 	}

@@ -1137,7 +1137,7 @@
     "historical": true
   },
   "currentCheckpoint": {
-    "scope": "Canonical migration through a4612c0 plus public argument union. Complete baseline32: durable 854.664s with 39 failed top-level groups; 25 other tested packages pass (tools 15.980s, public 11.773s). No panic, timeout, overlay or exclusions. Integration remains red; 89c031e remains the last fully verified tree.",
+    "scope": "Canonical migration through a0a35cf plus public hook rejection consumer. Complete baseline33: durable 851.519s with 38 failed top-level groups; 25 other tested packages pass (tools 15.236s, public 11.823s). No panic, timeout, overlay or exclusions.",
     "baseRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
     "lastVerifiedPushed": {
       "revision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
@@ -1400,6 +1400,17 @@
           "otherTestedPackagesPassing": 25,
           "toolsSeconds": 15.98,
           "publicSeconds": 11.773,
+          "panic": false,
+          "timeout": false
+        },
+        {
+          "scope": "baseline33 actual tree including public hook rejection consumer",
+          "result": "fail",
+          "seconds": 851.519,
+          "failedTopLevelGroups": 38,
+          "otherTestedPackagesPassing": 25,
+          "toolsSeconds": 15.236,
+          "publicSeconds": 11.823,
           "panic": false,
           "timeout": false
         }
@@ -1805,6 +1816,15 @@
         "mapping": "notes/canonical-builtin-execution.md#public-tool-argument-value-union",
         "abortedThrowSourceFirstRedSeconds": 1.626,
         "cutoffArrayThreeShuffleSeconds": 15.395
+      },
+      "hookRejectionConsumer": {
+        "scope": "Test-only public outcome, diagnostic, attribution and original arguments",
+        "mapping": "notes/canonical-builtin-execution.md#public-hook-rejection-records",
+        "focusedThreeShuffleSeconds": 17.28,
+        "semanticFaults": 2,
+        "originalTests": 18,
+        "separateSupplementalProbes": 105,
+        "skipped": 0
       }
     },
     "reference": {
@@ -1820,7 +1840,7 @@
     },
     "profiling": "Pre-release CPU/alloc_space/alloc_objects analysis, measured tuning and equivalent-workload remeasurement required.",
     "reviewOnly": "No runtime tests rerun by the planning review; structural register/hash checks are separate.",
-    "execution": "Step2 active. Public argument union and return-versus-throw cancellation hook paths pass. Baseline32 fails 39 groups. API/Storage/compiler/corpus/release acceptance remains incomplete."
+    "execution": "Step2 active. Baseline33 fails 38 groups; wider acceptance remains incomplete."
   },
   "review": {
     "basisRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
