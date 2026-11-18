@@ -123,12 +123,33 @@ func upstreamIndexedString(value string) string {
 // been checked. Content-only changes never rewrite document metadata.
 type upstreamWritePatch struct {
 	rows      map[string][][]any
+	positions map[string]map[ID]int
 	revisions map[ID][][]any
 	cleared   map[ID]bool
 }
 
 func (p *upstreamWritePatch) add(table string, values ...any) {
 	p.rows[table] = append(p.rows[table], values)
+}
+
+// Upserts are last-write-wins across the group, before rows are partitioned
+// by size. Keep the first occurrence's position for deterministic packing.
+func (p *upstreamWritePatch) upsert(table string, id ID, cells ...any) {
+	if p.positions == nil {
+		p.positions = make(map[string]map[ID]int)
+	}
+	positions := p.positions[table]
+	if positions == nil {
+		positions = make(map[ID]int)
+		p.positions[table] = positions
+	}
+	row := append([]any{id}, cells...)
+	if i, ok := positions[id]; ok {
+		p.rows[table][i] = row
+		return
+	}
+	positions[id] = len(p.rows[table])
+	p.add(table, row...)
 }
 
 func (p *upstreamWritePatch) clearRevisions(id ID) {
@@ -185,7 +206,7 @@ func (p *upstreamWritePatch) collect(before, after Snapshot, writes []Write, l L
 			if err != nil {
 				return err
 			}
-			p.add("tasks", id, r.Conversation, upstreamIndexedString(r.Kind), r.State.Status, r.AbortRequested, r.Background, raw)
+			p.upsert("tasks", id, r.Conversation, upstreamIndexedString(r.Kind), r.State.Status, r.AbortRequested, r.Background, raw)
 		case "put-submission":
 			id, kind = w.Submission.ID, "submission"
 			if completed[id] {
@@ -203,7 +224,7 @@ func (p *upstreamWritePatch) collect(before, after Snapshot, writes []Write, l L
 			if r.RequestIDPresent || r.RequestID != "" {
 				request = upstreamIndexedString(r.RequestID)
 			}
-			p.add("submissions", id, r.Conversation, request, r.Status, raw)
+			p.upsert("submissions", id, r.Conversation, request, r.Status, raw)
 		case "put-document", "copy-document":
 			id = w.Document.ID
 			documents[id], bases[id] = true, true
@@ -234,7 +255,7 @@ func (p *upstreamWritePatch) collect(before, after Snapshot, writes []Write, l L
 			if err != nil {
 				return err
 			}
-			p.add("documents", id, upstreamIndexedString(doc.Kind), documentFamily(doc), upstreamIndexedString(doc.Key), doc.Scope, doc.Owner, doc.CreatedAt, sqliteOptionalSeq(doc.RetiredAt), raw)
+			p.upsert("documents", id, upstreamIndexedString(doc.Kind), documentFamily(doc), upstreamIndexedString(doc.Key), doc.Scope, doc.Owner, doc.CreatedAt, sqliteOptionalSeq(doc.RetiredAt), raw)
 		}
 		if documentHistory(doc) != "rewindable" {
 			if doc.Retired || bases[id] {
