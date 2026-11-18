@@ -2,6 +2,10 @@
 
 Compact index of repository notes; history/evidence, not new instructions.
 
+- User testing cadence: FOCUSED TESTS ONLY until designated parity sweeps. No full ./... per fix or checkpoint. Batch shared causes and retain the last sweep inventory separately.
+
+- Poll/repair batch: five old recovery/poll groups focused-green after public Generation2 checkpoint reconciliation and a real exhausted-poll cancellation fix. Tool prepare errors preserve exact source text. Focused3-shuffle14.945s/two controls/static; original18/42 plus111 separate probes. Last full sweep remains39/32 failures. [Mapping](../canonical-builtin-execution.md#poll-recovery-checkpoints-and-prepare-error-text).
+
 - Public abort consumers now use adopted Task marks/channels, unanswered(reason:aborted), own terminal entries and unadopted late usage. Parent stays waiting on its tool, not retired completing/Hold. Zero late transaction effects and reopen/no replay retained. Test-only2.849s/expanded76.898s/three controls/static; original26/18/10 plus111 separate probes. Complete baseline39: durable855.317s with32 failed top-level groups;25 other tested packages pass (tools15.527s/public12.464s). No panic, timeout, overlay or exclusions. [Mapping](../canonical-builtin-execution.md#public-abort-ownership-results-and-usage).
 
 - Stored held replay/public tool rollback: checkpoint-selected bases keep exact folded operations; overflow publishes a root replacement. Public ToolAPI.Commit failure retains bounded partial output and rolls back app effects. Source-first red2.256s; six controls, expanded3-shuffle194.644s/static; tools42/deferred25 plus109 separate probes. Complete baseline38: durable866.631s with34 failed top-level groups;25 other tested packages pass (tools15.311s/public12.517s). No panic, timeout, overlay or exclusions. Baseline37 incomplete. [Mapping](../canonical-builtin-execution.md#stored-held-operation-replay-and-public-tool-commit-failure).

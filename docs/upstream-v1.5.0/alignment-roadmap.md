@@ -6,6 +6,8 @@ Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Canonical m
 
 ## Current argument value union packet
 
+Current focused batch resolves five old poll/recovery consumers plus real no-retry cancellation and preparation error-text defects. Focused14.945s/two compiled controls/static pass. Full suites are reserved for designated parity sweeps, per explicit user direction; baseline39 remains the last complete failure inventory. [Mapping](../../notes/canonical-builtin-execution.md#poll-recovery-checkpoints-and-prepare-error-text).
+
 The newer test-only abort packet uses public adopted marks/outcomes, source unanswered settlement, exact bottom-up result ownership and absent late returned usage. Parent tools phase remains waiting. Expanded76.898s/three controls/static pass; original26/18/10 plus111 separate probes zero skipped. Complete baseline39: durable855.317s with32 failed top-level groups;25 other tested packages pass (tools15.527s/public12.464s). No panic, timeout, overlay or exclusions. [Mapping](../../notes/canonical-builtin-execution.md#public-abort-ownership-results-and-usage).
 
 The newer held-publication packet keeps operation intent independent of storage base choice, including dependency/unload/close and overflow replay. The real ToolAPI.Commit rollback consumer replaces the returned Commit/private checkpoint fixture. Source/red/six mutation/expanded194.644s/static gates pass; Complete baseline38: durable866.631s with34 failed top-level groups;25 other tested packages pass (tools15.311s/public12.517s). No panic, timeout, overlay or exclusions. Baseline37 incomplete. [Mapping](../../notes/canonical-builtin-execution.md#stored-held-operation-replay-and-public-tool-commit-failure).

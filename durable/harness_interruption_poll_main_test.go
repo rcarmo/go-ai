@@ -61,10 +61,12 @@ func TestMainInterruptedPollRetryEdges(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
+				var taskID ID
 				for {
 					frame := watchReceive(t, f.frames)
 					generation, _ := frame.value.Docs["pi.live"]["generation"].(map[string]any)
 					if generation["deferred"] != nil {
+						taskID = submissionEntryID(generationObject(frame.value.Docs["pi.live"]["run"])["taskId"])
 						break
 					}
 				}
@@ -73,9 +75,10 @@ func TestMainInterruptedPollRetryEdges(t *testing.T) {
 					t.Fatal(err)
 				}
 				watchReceive(t, fetching)
-				task, cp, ok, err := f.h.nextTask(f.c.ID())
-				if err != nil || !ok || cp.Phase != "poll" || task.Status != "running" || cp.PollAt != 1010 {
-					t.Fatal("fixture did not crash during the poll fetch", task, cp, err)
+				task, found, err := f.h.Task(bg, taskID)
+				cp := taskCheckpointMap(task.State.Checkpoint)
+				if err != nil || !found || task.Version != 2 || cp["phase"] != "poll" || task.State.Status != "running" || submissionEntryID(cp["pollAt"]) != 1010 || generationObject(cp["handle"])["id"] != "job" {
+					t.Fatal("fixture did not crash during the actual public poll fetch", task, cp, err)
 				}
 				store := f.crash()
 				if mode == "backwards" {

@@ -930,7 +930,8 @@ func validateScopedArguments(ctx context.Context, reg registeredTool, args any, 
 	if reg.prepare != nil {
 		owned, e = callToolValidator(reg.prepare, ctx, owned)
 		if e != nil {
-			return nil, reject("tool argument preparation failed")
+			// Source prepare() returns the thrown error's original text.
+			return nil, e
 		}
 		owned, e = copyScopedToolValue(owned, native, l)
 		if e != nil {

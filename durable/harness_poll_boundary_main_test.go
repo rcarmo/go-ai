@@ -85,16 +85,16 @@ func mainPollBoundarySetup(t *testing.T, store Storage, limit uint64, delay int6
 		frame := watchReceive(t, f.frames)
 		g := generationObject(frame.value.Docs["pi.live"]["generation"])
 		if g["deferred"] != nil {
+			f.task = submissionEntryID(generationObject(frame.value.Docs["pi.live"]["run"])["taskId"])
 			break
 		}
 	}
-	task, cp, ok, err := f.h.nextTask(f.c.ID())
-	if err != nil || !ok || cp.Phase != "poll" || cp.Deferred == nil || cp.Deferred.ID != "job" || cp.PollAt != 1000+delay {
-		t.Fatal("poll fixture", task, cp, err)
+	record, found, err := f.h.Task(bg, f.task)
+	cp := taskCheckpointMap(record.State.Checkpoint)
+	if err != nil || !found || record.Kind != "pi.generation" || record.Version != 2 || cp["phase"] != "poll" || generationObject(cp["handle"])["id"] != "job" || submissionEntryID(cp["pollAt"]) != ID(1000+delay) || record.State.Until == nil || *record.State.Until != 1000+delay {
+		t.Fatal("public poll fixture", record, err)
 	}
-	f.task = task.ID
-	record, _, err := f.h.Task(bg, task.ID)
-	if err != nil || record.State.Status != "sleeping" {
+	if record.State.Status != "sleeping" {
 		t.Fatal("poll must sleep before fetch/abort", record, err)
 	}
 	return f
@@ -141,14 +141,10 @@ func (f *mainPollBoundary) failure(t *testing.T, reason, detail string) {
 	if status.Status != "unanswered" || status.Reason != reason || status.Detail == nil || !equalJSONValue(status.Detail.Value, detail) {
 		t.Error("input settlement", status)
 	}
-	// Native failedRun retains queued inputs after policy failures; explicit
-	// aborts clear this extra compatibility field.
+	// Source keeps only runFailure; no native failedRun wire property.
 	wantLive := JSON{"runFailure": live["runFailure"]}
-	if reason != "aborted" {
-		wantLive["failedRun"] = true
-	}
 	if !equalJSONValue(live, wantLive) || len(failure) != 5 || failure["reason"] != reason || failure["detail"] != detail || submissionEntryID(failure["taskId"]) != f.task || len(inputs) != 1 || submissionEntryID(inputs[0]) != f.sub || submissionEntryID(failure["first"]) != status.Entry {
-		t.Error("native failure shape/ownership", live, status)
+		t.Error("source failure shape/ownership", live, status)
 	}
 	if roles := mainSalvageRoles(t, state, f.c.ID()); !reflect.DeepEqual(roles, []goai.Role{goai.RoleUser}) {
 		t.Error("unexpected partial transcript", roles)

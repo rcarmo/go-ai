@@ -454,11 +454,14 @@ func TestMainHarnessRecoveryCrashAfterConversion(t *testing.T) {
 					if write.Task == nil || write.Task.Kind != "pi.generation" {
 						continue
 					}
-					var checkpoint generationCheckpoint
-					if err := fromObject(write.Task.Checkpoint, &checkpoint, f.h.session.limits); err != nil {
-						return err
+					// This supplemental native writer-batch assertion inspects the
+					// real executable record, never the retired raw checkpoint.
+					if write.Task.Execution == nil || write.Task.Execution.Native == nil {
+						continue
 					}
-					charged = checkpoint.Phase == "retry" && checkpoint.RetryCount == 1 && checkpoint.RetryUntil == retryDeadline(clock.Load(), 2000) && checkpoint.Partial == nil && write.Task.Status == "sleeping"
+					execution := write.Task.Execution.Native
+					checkpoint := taskCheckpointMap(execution.State.Checkpoint)
+					charged = execution.Version == 2 && checkpoint["phase"] == "retry" && submissionEntryID(checkpoint["attempt"]) == 1 && submissionEntryID(checkpoint["until"]) == ID(retryDeadline(clock.Load(), 2000)) && checkpoint["partial"] == nil && execution.State.Status == "sleeping"
 				}
 				if !charged {
 					t.Error("partial conversion and interruption charge must share one stored batch")

@@ -1137,7 +1137,7 @@
     "historical": true
   },
   "currentCheckpoint": {
-    "scope": "Canonical migration througha9a4018 plus test-only public abort consumers. Complete baseline39: durable855.317s with32 failed top-level groups;25 other tested packages pass (tools15.527s/public12.464s). No panic, timeout, overlay or exclusions.",
+    "scope": "Migration through59ef137 plus focused public poll checkpoints, exhausted-poll cancellation and preparation error text. Five old failed groups focused-green; no new sweep. Last complete baseline39 fails32 groups;89c031e last fully verified tree.",
     "baseRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
     "lastVerifiedPushed": {
       "revision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
@@ -1932,6 +1932,23 @@
         "staticcheck": "v0.8.2 pass",
         "logging": "pass",
         "mapping": "notes/canonical-builtin-execution.md#public-abort-ownership-results-and-usage"
+      },
+      "pollRecoveryRepairBatch": {
+        "scope": "Public Generation2 poll fixtures; source runFailure shape; exhausted-poll cancellation; actual native conversion/charge state; exact preparation error text",
+        "prepareSourceFirstRedSeconds": 0.658,
+        "focusedSingleSeconds": 4.482,
+        "focusedThreeShuffleSeconds": 14.945,
+        "priorFailedGroupsFocusedPassing": 5,
+        "semanticFaults": 2,
+        "unchangedOriginalTests": {
+          "harnessRestartFailure": 18,
+          "harnessTools": 42
+        },
+        "separateSupplementalProbes": 111,
+        "skipped": 0,
+        "fullSuite": "Not run; focused-only guideline until parity sweeps",
+        "nativeSupplement": "Conversion/charge raw writer-batch observation; original database/Storage boundary remains open",
+        "mapping": "notes/canonical-builtin-execution.md#poll-recovery-checkpoints-and-prepare-error-text"
       }
     },
     "reference": {
@@ -1947,7 +1964,7 @@
     },
     "profiling": "Pre-release CPU/alloc_space/alloc_objects analysis, measured tuning and equivalent-workload remeasurement required.",
     "reviewOnly": "No runtime tests rerun by the planning review; structural register/hash checks are separate.",
-    "execution": "Step2 active. Public abort records/ownership/late usage consumers pass; baseline39 fails32 groups. Batch related fixes with focused checks; full regression at larger checkpoints. Wider acceptance incomplete."
+    "execution": "Step2 active. FOCUSED TESTS ONLY until designated parity sweeps. Batch shared-cause fixes; preserve baseline39 inventory separately from focused progress. Wider acceptance incomplete."
   },
   "review": {
     "basisRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",

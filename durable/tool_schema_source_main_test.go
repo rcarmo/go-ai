@@ -3,6 +3,7 @@ package durable
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -325,4 +326,76 @@ func TestSourceToolArrayArgumentsUTF16SafeReplay(t *testing.T) {
 			})
 		})
 	}
+}
+
+// Port of pinned harness-tools.test.ts: repairs arguments before validation,
+// preserves the throwing repair's text, and never rewrites the stored call.
+func TestSourceToolPrepareArgumentsErrorKeepsSourceMessage(t *testing.T) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+		var prepares, effects, requests atomic.Int64
+		registry := NewRegistry()
+		if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "echo", Parameters: json.RawMessage(`{"type":"object","properties":{"text":{"type":"string"}},"required":["text"]}`)}, Implementation: "source.repair", Version: 1,
+			PrepareArguments: func(_ context.Context, value any) (any, error) {
+				prepares.Add(1)
+				args := value.(JSON)
+				if args["text"] == "throw" {
+					return nil, errors.New("cannot repair")
+				}
+				return JSON{"text": "#7"}, nil
+			},
+			Execute: func(ctx context.Context, value any, api *ToolAPI) (ToolResult, error) {
+				effects.Add(1)
+				if !equalJSONValue(value, JSON{"text": "#7"}) {
+					t.Error("source repaired execution", value)
+				}
+				record, found, err := api.Task(ctx, api.TaskID())
+				if err != nil || !found || !equalJSONValue(record.State.Checkpoint, JSON{"phase": "execute", "arguments": JSON{"text": "#7"}, "replay": "unsafe"}) {
+					t.Error("source repaired intent", record, err)
+				}
+				return ToolResult{Blocks: []goai.ContentBlock{}}, nil
+			},
+		}); err != nil {
+			t.Fatal(err)
+		}
+		ref, options := setupFakeAPI(t, func(_ context.Context, _ *goai.Model, input *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
+			events := make(chan goai.Event, 1)
+			if requests.Add(1) == 1 {
+				event := toolAnswer("fixed", "echo", JSON{"text": 7})
+				event.Message.Content = append(event.Message.Content, goai.ContentBlock{Type: "toolCall", ID: "broken", Name: "echo", Arguments: map[string]any{"text": "throw"}})
+				events <- event
+			} else {
+				results := map[string]goai.Message{}
+				calls := map[string]map[string]any{}
+				for _, message := range input.Messages {
+					if message.Role == goai.RoleToolResult {
+						results[message.ToolCallID] = message
+					}
+					for _, block := range message.Content {
+						if block.Type == "toolCall" {
+							calls[block.ID] = block.Arguments
+						}
+					}
+				}
+				if len(results) != 2 || results["fixed"].IsError || goai.ContentText(results["fixed"].Content) != "" || !results["broken"].IsError || goai.ContentText(results["broken"].Content) != "<harness>\n[error] cannot repair\n</harness>" {
+					t.Error("source throwing repair result", results)
+				}
+				if len(calls) != 2 || !equalJSONValue(calls["fixed"], JSON{"text": 7}) || !equalJSONValue(calls["broken"], JSON{"text": "throw"}) {
+					t.Error("source stored original repair calls", calls)
+				}
+				events <- terminal("answer")
+			}
+			close(events)
+			return events
+		})
+		options.Registry = registry
+		h := openHarness(t, b.store, options)
+		conversation := root(t, h, ref)
+		submission, err := conversation.Submit(bg, Input{Content: "go"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result := waitSubmission(t, submission); result.Record.Status != "done" || prepares.Load() != 2 || effects.Load() != 1 || requests.Load() != 2 {
+			t.Fatal("source repair effects/answer", result.Record, prepares.Load(), effects.Load(), requests.Load())
+		}
+	})
 }

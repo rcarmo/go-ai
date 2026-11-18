@@ -584,6 +584,11 @@ func canonicalGenerationInterrupted(ctx context.Context, r *TaskRuntime, cp JSON
 		message = fmt.Sprintf("The host stopped while the deferred answer was fetched, on attempt %d", attempt)
 	}
 	if !retry {
+		if cp["phase"] == "poll" {
+			// Source interrupted() cancels the provider job when this run
+			// has no retry left; an interrupted poll must not leave it running.
+			canonicalGenerationCancelDeferred(ctx, r, cp)
+		}
 		return canonicalGenerationFail(ctx, r, "interrupted", message)
 	}
 	now, err := r.Now()

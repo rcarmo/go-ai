@@ -8,6 +8,8 @@ Command: `make test PACKAGES=./... TEST_FLAGS='-v -count=1 -p 1 -timeout 1200s'`
 
 Public abort ownership, outcome and late-usage consumers pass. [Mapping](canonical-builtin-execution.md#public-abort-ownership-results-and-usage).
 
+Focused progress since baseline39: TestMainHarnessRecoveryCrashAfterConversion, TestMainInterruptedPollRetryEdges, TestMainPollTerminalOnlyBoundaryDerived, TestMainAbortedPollCancelHandlerCutoff and TestMainPollCutoffSkipsRepeatedCancellationDerived now pass. The table retains the actual sweep result; no lower full-suite count is inferred. Focused tests only until parity sweeps.
+
 This is an observed failure inventory, not an assertion crosswalk or root-cause verdict. Names come from the complete run; links resolve source declarations.
 
 | Test | Native file |
