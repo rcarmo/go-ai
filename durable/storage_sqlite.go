@@ -132,18 +132,19 @@ func OpenSQLite(path string, options SQLiteOptions) (store *SQLiteStorage, err e
 	if err != nil {
 		return nil, err
 	}
-	if store.upstreamSchema && !options.ReadOnly {
-		return nil, fmt.Errorf("durable: upstream SQLite schema: %w", ErrReadOnlyStorage)
-	}
-	if options.ReadOnly {
-		store.readOnly = true
+	store.readOnly = options.ReadOnly
+	if options.ReadOnly || store.upstreamSchema {
 		if err = store.exec("PRAGMA busy_timeout=5000"); err != nil {
 			return nil, err
 		}
 		if readVersion, err = store.sqliteDataVersion(); err != nil {
 			return nil, err
 		}
-		if err = store.exec("BEGIN"); err != nil {
+		begin := "BEGIN"
+		if !options.ReadOnly {
+			begin = "BEGIN IMMEDIATE"
+		}
+		if err = store.exec(begin); err != nil {
 			return nil, err
 		}
 	} else {
@@ -185,11 +186,23 @@ func OpenSQLite(path string, options SQLiteOptions) (store *SQLiteStorage, err e
 	if err = store.readSQLitePrefix(); err != nil {
 		return nil, err
 	}
-	if options.ReadOnly {
+	if store.upstreamSchema && !options.ReadOnly {
+		if err = store.migrateUpstreamSQLite(); err != nil {
+			return nil, err
+		}
+	}
+	if options.ReadOnly || store.upstreamSchema {
 		if err = store.exec("COMMIT"); err != nil {
 			return nil, err
 		}
+	}
+	if options.ReadOnly {
 		store.refreshRead = func() error { return store.refreshSQLitePrefix(&readVersion) }
+	} else if store.upstreamSchema {
+		store.appendFrames = store.appendUpstreamSeries
+		store.appendFrame = func(kind byte, ordinal, high uint64, payload []byte) error {
+			return store.appendUpstreamSeries([]storageFrame{{kind: kind, ordinal: ordinal, high: high, payload: payload}})
+		}
 	} else {
 		store.appendFrame = store.append
 		store.appendFrames = store.appendSeries
@@ -357,6 +370,9 @@ func (s *SQLiteStorage) Reclaim(ctx context.Context) error {
 	defer s.leave()
 	if s.readOnly {
 		return ErrReadOnlyStorage
+	}
+	if s.upstreamSchema {
+		return s.exec("PRAGMA wal_checkpoint(TRUNCATE)")
 	}
 	payload, err := encodeBounded(checkpointOf(s.state, s.ordinal), s.limits, s.limits.MaxRetainedBytesAsInt())
 	if err != nil {
