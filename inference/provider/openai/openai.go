@@ -905,7 +905,8 @@ func convertMessages(model *goai.Model, convCtx *goai.Context, compat *goai.Open
 			if msg.Content == nil && len(msg.ToolCalls) == 0 {
 				continue
 			}
-			if msg.Content == nil {
+			if msg.Content == nil && ((compat.RequiresAssistantAfterToolResult != nil && *compat.RequiresAssistantAfterToolResult) ||
+				(compat.RequiresNonNullAssistantContent != nil && *compat.RequiresNonNullAssistantContent)) {
 				msg.Content = ""
 			}
 			msgs = append(msgs, msg)

@@ -167,6 +167,7 @@ type compatEntry struct {
 	MaxTokensField                              string                       `json:"maxTokensField"`
 	RequiresToolResultName                      *bool                        `json:"requiresToolResultName"`
 	RequiresAssistantAfterToolResult            *bool                        `json:"requiresAssistantAfterToolResult"`
+	RequiresNonNullAssistantContent             *bool                        `json:"requiresNonNullAssistantContent"`
 	RequiresThinkingAsText                      *bool                        `json:"requiresThinkingAsText"`
 	RequiresReasoningContentOnAssistantMessages *bool                        `json:"requiresReasoningContentOnAssistantMessages"`
 	ThinkingFormat                              string                       `json:"thinkingFormat"`
@@ -652,6 +653,7 @@ func writeCompat(b *strings.Builder, api string, c compatEntry) {
 		writeStringField(b, "MaxTokensField", c.MaxTokensField)
 		writeBoolField(b, "RequiresToolResultName", c.RequiresToolResultName)
 		writeBoolField(b, "RequiresAssistantAfterToolResult", c.RequiresAssistantAfterToolResult)
+		writeBoolField(b, "RequiresNonNullAssistantContent", c.RequiresNonNullAssistantContent)
 		writeBoolField(b, "RequiresThinkingAsText", c.RequiresThinkingAsText)
 		writeBoolField(b, "RequiresReasoningContentOnAssistantMessages", c.RequiresReasoningContentOnAssistantMessages)
 		writeStringField(b, "ThinkingFormat", c.ThinkingFormat)
@@ -713,7 +715,7 @@ func writeCompat(b *strings.Builder, api string, c compatEntry) {
 }
 
 func hasCompat(c compatEntry) bool {
-	return c.SupportsStore != nil || c.SupportsDeveloperRole != nil || c.SupportsReasoningEffort != nil || c.SupportsUsageInStreaming != nil || c.SupportsFinishReason != nil || c.MaxTokensField != "" || c.RequiresToolResultName != nil || c.RequiresAssistantAfterToolResult != nil || c.RequiresThinkingAsText != nil || c.RequiresReasoningContentOnAssistantMessages != nil || c.ThinkingFormat != "" || len(c.ChatTemplateKwargs) > 0 || len(c.ChatTemplateArgs) > 0 || c.ThinkingTokenBudgetField != "" || c.SupportsThinkingTokenBudget != nil || c.OpenRouterRouting != nil || c.VercelGatewayRouting != nil || c.ZaiToolStream != nil || c.SupportsStrictMode != nil || c.SupportsOpenAIGrammarTools != nil || c.CacheControlFormat != "" || c.SendSessionAffinityHeaders != nil || c.DeferredToolsMode != "" || c.SupportsLongCacheRetention != nil || c.SupportsTemperature != nil || c.VLLMPriority != nil || c.ForceAdaptiveThinking != nil || len(c.AllowedFallbackModels) > 0 || c.SupportsMidConvoEffort != nil || c.SupportsMidConvoSystemMessages != nil || c.SupportsMidConvoToolAdditions != nil || c.SupportsMidConvoToolChanges != nil || c.AllowEmptySignature != nil || c.SendSessionIdHeader != nil || c.SupportsAdditionalTools != nil || c.SupportsToolSearch != nil || c.SupportsMaxOutputTokens != nil || c.SupportsEagerToolInputStreaming != nil || c.SupportsToolReferences != nil || c.SupportsStrictTools != nil || c.SupportsCacheControlOnTools != nil || c.SessionAffinityFormat != "" || c.SupportsExplicitPromptCacheMode != nil
+	return c.SupportsStore != nil || c.SupportsDeveloperRole != nil || c.SupportsReasoningEffort != nil || c.SupportsUsageInStreaming != nil || c.SupportsFinishReason != nil || c.MaxTokensField != "" || c.RequiresToolResultName != nil || c.RequiresAssistantAfterToolResult != nil || c.RequiresNonNullAssistantContent != nil || c.RequiresThinkingAsText != nil || c.RequiresReasoningContentOnAssistantMessages != nil || c.ThinkingFormat != "" || len(c.ChatTemplateKwargs) > 0 || len(c.ChatTemplateArgs) > 0 || c.ThinkingTokenBudgetField != "" || c.SupportsThinkingTokenBudget != nil || c.OpenRouterRouting != nil || c.VercelGatewayRouting != nil || c.ZaiToolStream != nil || c.SupportsStrictMode != nil || c.SupportsOpenAIGrammarTools != nil || c.CacheControlFormat != "" || c.SendSessionAffinityHeaders != nil || c.DeferredToolsMode != "" || c.SupportsLongCacheRetention != nil || c.SupportsTemperature != nil || c.VLLMPriority != nil || c.ForceAdaptiveThinking != nil || len(c.AllowedFallbackModels) > 0 || c.SupportsMidConvoEffort != nil || c.SupportsMidConvoSystemMessages != nil || c.SupportsMidConvoToolAdditions != nil || c.SupportsMidConvoToolChanges != nil || c.AllowEmptySignature != nil || c.SendSessionIdHeader != nil || c.SupportsAdditionalTools != nil || c.SupportsToolSearch != nil || c.SupportsMaxOutputTokens != nil || c.SupportsEagerToolInputStreaming != nil || c.SupportsToolReferences != nil || c.SupportsStrictTools != nil || c.SupportsCacheControlOnTools != nil || c.SessionAffinityFormat != "" || c.SupportsExplicitPromptCacheMode != nil
 }
 
 func writeInputLimitsField(b *strings.Builder, value *inputLimitsEntry) {

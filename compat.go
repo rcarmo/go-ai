@@ -52,6 +52,9 @@ type OpenAICompletionsCompat struct {
 	// Whether a user message after tool results requires an assistant message in between.
 	RequiresAssistantAfterToolResult *bool `json:"requiresAssistantAfterToolResult,omitempty"`
 
+	// Whether a tool-call-only assistant message needs empty string content instead of null.
+	RequiresNonNullAssistantContent *bool `json:"requiresNonNullAssistantContent,omitempty"`
+
 	// Whether thinking blocks must be converted to text with <thinking> delimiters.
 	RequiresThinkingAsText *bool `json:"requiresThinkingAsText,omitempty"`
 
@@ -249,6 +252,9 @@ func DetectCompatForModel(model *Model) OpenAICompletionsCompat {
 	}
 	if o.RequiresAssistantAfterToolResult != nil {
 		c.RequiresAssistantAfterToolResult = o.RequiresAssistantAfterToolResult
+	}
+	if o.RequiresNonNullAssistantContent != nil {
+		c.RequiresNonNullAssistantContent = o.RequiresNonNullAssistantContent
 	}
 	if o.RequiresThinkingAsText != nil {
 		c.RequiresThinkingAsText = o.RequiresThinkingAsText

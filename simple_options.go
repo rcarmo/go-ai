@@ -1,29 +1,31 @@
 // Simple options — maps unified ThinkingLevel to provider-specific options.
 package goai
 
+import "math"
+
 const (
-	contextSafetyTokens = 4096
-	minMaxTokens        = 1
+	contextSafetyTokens      = 4096
+	contextSafetyRatio       = 0.15
+	minOutputWithRatioMargin = 32768
+	minMaxTokens             = 1
 )
 
 var extendedThinkingLevels = []ModelThinkingLevel{ThinkingOff, ModelThinkingLevel(ThinkingMinimal), ModelThinkingLevel(ThinkingLow), ModelThinkingLevel(ThinkingMedium), ModelThinkingLevel(ThinkingHigh), ModelThinkingLevel(ThinkingXHigh), ModelThinkingLevel(ThinkingMax)}
 
 // ClampMaxTokensToContext limits maxTokens to the model's remaining context window.
 func ClampMaxTokensToContext(model *Model, ctx *Context, maxTokens int) int {
-	if maxTokens < minMaxTokens {
-		maxTokens = minMaxTokens
-	}
 	if model == nil || model.ContextWindow <= 0 {
-		return maxTokens
+		return max(minMaxTokens, maxTokens)
 	}
-	available := model.ContextWindow - EstimateContextTokens(ctx).Tokens - contextSafetyTokens
-	if available < minMaxTokens {
-		available = minMaxTokens
+	input := EstimateContextTokens(ctx).Tokens
+	margin := max(contextSafetyTokens, int(math.Ceil(float64(input)*contextSafetyRatio)))
+	room := model.ContextWindow - input - margin
+	if room < minOutputWithRatioMargin {
+		// Leave fixed headroom when the proportional reserve would crowd out
+		// output, without freeing unlimited output on a nearly full model.
+		room = min(minOutputWithRatioMargin, model.ContextWindow-input-contextSafetyTokens)
 	}
-	if maxTokens > available {
-		return available
-	}
-	return maxTokens
+	return min(maxTokens, max(minMaxTokens, room))
 }
 
 // ClampStreamMaxTokens returns the effective request max token cap for a stream.
