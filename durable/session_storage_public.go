@@ -122,7 +122,8 @@ func (s *Session) commitStorageParts(ctx context.Context, batches []Batch, recei
 		if err := decodeStrict(payload, s.limits, s.limits.MaxFramePayloadBytes, &part.batch); err != nil {
 			return commitGroupResult{}, err
 		}
-		for _, write := range batch.Writes {
+		for i, write := range batch.Writes {
+			part.batch.Writes[i].copyValue = write.copyValue
 			if write.Document != nil {
 				documents[write.Document.ID] = write.Op != "retire-document"
 			}

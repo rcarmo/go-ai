@@ -401,6 +401,7 @@ type DocumentCopySource struct {
 // Entry/Conversation creations are immutable. Task and Submission are full
 // replacements. Documents use explicit full bases, decoded deltas, copies or retirement.
 type Write struct {
+	copyValue    *Document           // exact historical read from a delegated Storage; never on wire
 	Op           string              `json:"op"`
 	Conversation *Conversation       `json:"conversation,omitempty"`
 	Entry        *Entry              `json:"entry,omitempty"`

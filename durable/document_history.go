@@ -265,12 +265,21 @@ func resolveDocumentCopies(s Snapshot, writes []Write, l Limits, validateSources
 		if validateSources && changed[w.Source.ID] {
 			return nil, reject("fork source document is changed in copy batch")
 		}
-		source, ok, err := materializeDocument(s, w.Source.ID, w.Source.At, l)
-		if err != nil {
-			return nil, err
-		}
-		if !ok {
-			return nil, reject("document copy source missing")
+		var source Document
+		if w.copyValue != nil {
+			source = *w.copyValue
+			if w.Source.At.Current || source.ID != w.Source.ID || !aliveDocument(source, w.Source.At) {
+				return nil, reject("document copy source mismatch")
+			}
+		} else {
+			value, ok, err := materializeDocument(s, w.Source.ID, w.Source.At, l)
+			if err != nil {
+				return nil, err
+			}
+			if !ok {
+				return nil, reject("document copy source missing")
+			}
+			source = value
 		}
 		target := *w.Document
 		if _, exists := s.Documents[target.ID]; exists || copyTargets[target.ID] {
@@ -359,26 +368,50 @@ func (t *Tx) stageForkConversation(child Conversation, entry Entry) (Conversatio
 		if policy == "asOf" {
 			owner, point = entry.Conversation, DocumentPoint{Seq: entry.Seq}
 		}
-		for _, sourceID := range ids(t.state.Documents) {
-			d := t.state.Documents[sourceID]
+		visit := func(d Document) error {
 			if d.Scope != "conversation" || d.Owner != owner || documentFork(d) != policy || !aliveDocument(d, point) {
-				continue
+				return nil
 			}
 			target := d
 			target.Owner = child.ID
 			address := documentAddress(target)
 			if selected[address] {
-				return Conversation{}, reject("fork selects multiple source documents for address")
+				return reject("fork selects multiple source documents for address")
 			}
 			selected[address] = true
 			target.ID, err = t.mintIDEntered()
 			if err != nil {
-				return Conversation{}, err
+				return err
 			}
 			target.Value, target.Version, target.CreatedAt, target.RetiredAt, target.Retired, target.DeltasSinceBase = nil, 0, 0, 0, false, 0
-			copySource := DocumentCopySource{sourceID, point}
-			if err = t.stage(Write{Op: "copy-document", Document: &target, Source: &copySource}); err != nil {
+			copySource := DocumentCopySource{d.ID, point}
+			write := Write{Op: "copy-document", Document: &target, Source: &copySource}
+			if t.session != nil && t.session.delegatedStorage && !point.Current {
+				value, found, err := t.session.guardedStorage().DocumentAt(t.ctx, d.ID, point)
+				if err != nil {
+					return err
+				}
+				if !found {
+					return reject("document copy source missing")
+				}
+				value.Value, err = copyObject(value.Value, t.limits)
+				if err != nil {
+					return err
+				}
+				write.copyValue = &value
+			}
+			return t.stage(write)
+		}
+		if t.session != nil && t.session.delegatedStorage {
+			q := DocumentQuery{Scope: "conversation", Owner: owner, At: point}
+			if err := walkStoragePages(t.ctx, q, min(128, t.limits.MaxPage), t.session.guardedStorage().ScanDocuments, visit); err != nil {
 				return Conversation{}, err
+			}
+		} else {
+			for _, sourceID := range ids(t.state.Documents) {
+				if err := visit(t.state.Documents[sourceID]); err != nil {
+					return Conversation{}, err
+				}
 			}
 		}
 	}

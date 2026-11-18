@@ -165,6 +165,7 @@ func (t *Tx) stage(w Write) error {
 	if e = decodeStrict(p, t.limits, t.limits.MaxRecordBytes, &owned); e != nil {
 		return e
 	}
+	owned.copyValue = w.copyValue
 	candidate := append(append([]Write(nil), t.writes...), owned)
 	if _, e = encodeBounded(commitRecord{Seq: t.state.Seq + 1, Writes: candidate}, t.limits, t.limits.MaxFramePayloadBytes); e != nil {
 		return e
