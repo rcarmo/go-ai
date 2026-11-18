@@ -21,6 +21,9 @@ var mountedDocumentDefinitions = []*DocumentDefinition{
 	builtinDocumentDefinition("pi.usage", 1, "latest", "initial", nil, func(JSON) (JSON, error) { return JSON{"models": JSON{}, "tools": JSON{}}, nil }, func(JSON, []Operation, CheckpointInfo) (bool, error) { return true, nil }),
 }
 
+// LiveDoc returns the stable definition token for the conversation runtime state.
+func LiveDoc() *DocumentDefinition { return mountedDocumentDefinitions[1] }
+
 // InboxDoc returns the stable definition token exported by the source harness.
 func InboxDoc() *DocumentDefinition { return mountedDocumentDefinitions[2] }
 

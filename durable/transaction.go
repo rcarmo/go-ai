@@ -286,6 +286,9 @@ func (t *Tx) mintIDEntered() (ID, error) {
 	var id ID
 	var e error
 	if t.session != nil {
+		if t.session.readOnly {
+			return 0, &ReadOnlySession{Operation: "a commit with writes"}
+		}
 		id, e = t.session.reserveStorageID(t.ctx)
 		e = t.session.backendResult(t.ctx, e, true)
 	} else {

@@ -118,7 +118,7 @@ func Open(ctx context.Context, store Storage, options Options) (*Harness, error)
 		}
 		options.Extensions = &names
 	}
-	s, e := OpenSessionWithOptions(store, SessionOptions{Now: options.Now, SetTimer: options.SetTimer, OnReport: options.OnReport})
+	s, e := OpenSessionWithOptions(store, SessionOptions{ReadOnly: options.ReadOnly, Now: options.Now, SetTimer: options.SetTimer, OnReport: options.OnReport})
 	if e != nil {
 		return nil, e
 	}
@@ -166,6 +166,14 @@ func Open(ctx context.Context, store Storage, options Options) (*Harness, error)
 			h.report(ctx, closeErr, ReportInfo{Type: "listener_error"})
 		}
 		return nil, primary
+	}
+	if s.readOnly {
+		if h.options.Registry == nil {
+			h.options.Registry = NewRegistry()
+		}
+		// Inspection can use a paused index, but no scheduler owns this Session.
+		h.scheduler = newTaskScheduler(h)
+		return h, nil
 	}
 	state, e := s.Snapshot(ctx)
 	if e != nil {
@@ -269,6 +277,14 @@ func (h *Harness) RootWithInit(ctx context.Context, change AgentChange, init Con
 	defer h.mu.Unlock()
 	if h.closing.Load() {
 		return nil, h.closedError()
+	}
+	if h.session.readOnly {
+		if _, found, err := h.session.Conversation(ctx, 1); err != nil {
+			return nil, err
+		} else if !found {
+			return nil, &ReadOnlySession{Operation: "a commit with writes"}
+		}
+		return &ConversationHandle{h: h, id: 1}, nil
 	}
 	if e := h.configureLockedWithInit(ctx, 1, change, true, init); e != nil {
 		return nil, e
@@ -648,6 +664,9 @@ func (h *Harness) Resume(ctx context.Context) error {
 	if h.closing.Load() {
 		return h.closedError()
 	}
+	if h.session.readOnly {
+		return &ReadOnlySession{Operation: "running tasks"}
+	}
 	h.scheduler.enable()
 	return nil
 }
@@ -666,6 +685,14 @@ func (h *Harness) Close(ctx context.Context) error {
 	}
 	h.closeOnce.Do(func() {
 		h.closing.Store(true)
+		if h.session.readOnly {
+			h.cancel()
+			go func() {
+				h.closeErr = h.session.Close(context.Background())
+				close(h.closeDone)
+			}()
+			return
+		}
 		h.scheduler.sealed.Store(true)
 		h.scheduler.unsubscribe()
 		h.cancel()

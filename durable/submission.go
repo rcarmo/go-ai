@@ -120,6 +120,9 @@ func (c *ConversationHandle) submitIn(tx *Tx, input Input, binding *TaskRuntime)
 		return 0, err
 	}
 	tx.leave()
+	if c.h.session.readOnly {
+		return 0, &ReadOnlySession{Operation: "a commit with writes"}
+	}
 	c.h.scheduler.enable()
 	ctx := tx.ctx
 	trace := c.beginSubmitTrace(ctx, input)
@@ -173,6 +176,9 @@ func (c *ConversationHandle) submitAdmission(ctx context.Context, input Input, b
 	defer h.mu.Unlock()
 	if h.closing.Load() {
 		return nil, ErrClosed
+	}
+	if h.session.readOnly {
+		return nil, &ReadOnlySession{Operation: "a commit with writes"}
 	}
 	input, err := c.prepareSubmissionInput(input)
 	if err != nil {

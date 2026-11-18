@@ -20,6 +20,7 @@ type Session struct {
 	failureValue          *Failure        // the first failure value exactly as reported
 	now                   func() int64    // line-owned wall clock for lifecycle stamps
 	core                  *storeCore
+	readOnly              bool
 	delegatedStorage      bool     // public decorator owns persistence; core is only a validation image
 	readImage             Snapshot // immutable receipted image; owned by the Session line
 	heldDocuments         map[ID]heldDocument
@@ -83,6 +84,7 @@ func OpenSession(store Storage) (*Session, error) {
 // It runs synchronously on the transaction line and must not reenter the Session.
 // A panic uses the wall clock and reports once, off-line after line release.
 type SessionOptions struct {
+	ReadOnly            bool
 	Now                 func() int64
 	DocumentRetentionMs *int64 // default600000; zero drops idle migrated values
 	// SetTimer may decline background cache expiry; commits/reads still sweep.
@@ -107,6 +109,7 @@ func OpenSessionWithOptions(store Storage, options SessionOptions) (*Session, er
 	if nativeBackend {
 		core = native.nativeCore()
 		l = core.limits
+		options.ReadOnly = options.ReadOnly || core.readOnly
 	} else {
 		image, err := store.Snapshot(context.Background())
 		if err != nil {
@@ -131,7 +134,7 @@ func OpenSessionWithOptions(store Storage, options SessionOptions) (*Session, er
 	}
 	image := core.state
 	core.leave()
-	s := &Session{store: store, core: core, delegatedStorage: !nativeBackend, readImage: image, now: now, line: newSessionLine(), jobs: newSessionLine(), outcomeSlots: make(chan struct{}, 256), done: make(chan struct{}), limits: l, setTimer: options.SetTimer, timerReport: options.OnReport, clockReport: options.OnReport}
+	s := &Session{store: store, core: core, delegatedStorage: !nativeBackend, readOnly: options.ReadOnly, readImage: image, now: now, line: newSessionLine(), jobs: newSessionLine(), outcomeSlots: make(chan struct{}, 256), done: make(chan struct{}), limits: l, setTimer: options.SetTimer, timerReport: options.OnReport, clockReport: options.OnReport}
 	if options.Now != nil {
 		s.now = func() int64 {
 			value, err := callClock(options.Now)
@@ -309,6 +312,9 @@ func (s *Session) MintID(ctx context.Context) (ID, error) {
 		return 0, e
 	}
 	defer s.leave()
+	if s.readOnly {
+		return 0, &ReadOnlySession{Operation: "a commit with writes"}
+	}
 	id, err := s.reserveStorageID(ctx)
 	return id, s.backendResult(ctx, err, true)
 }
@@ -394,7 +400,7 @@ func (s *Session) commitJob(ctx context.Context, callback func(*Tx) error, exter
 			return 0, err
 		}
 	}
-	if deferred && !s.hasNativeReadImage() {
+	if deferred && !s.hasNativeReadImage() && !s.readOnly {
 		s.leave()
 		return 0, ErrUnsupported
 	}
@@ -530,6 +536,9 @@ func (s *Session) commitJob(ctx context.Context, callback func(*Tx) error, exter
 	if len(tx.writes) == 0 {
 		return state.Seq, nil
 	}
+	if s.readOnly {
+		return 0, &ReadOnlySession{Operation: "a commit with writes"}
+	}
 	tx.memoryOnly = deferred && s.canHoldDocuments(tx)
 	prepared, e := s.prepareSessionPublication(ctx, tx, state, ready)
 	if e != nil {
@@ -654,7 +663,7 @@ func (s *Session) readTaskView(ctx context.Context, read func(Snapshot, bool) er
 // Storage receipts. Native test adapters installed after Open still retain their
 // existing direct-read boundary.
 func (s *Session) hasNativeReadImage() bool {
-	return s.delegatedStorage || directSQLiteTaskSnapshot(s.store)
+	return !s.readOnly && (s.delegatedStorage || directSQLiteTaskSnapshot(s.store))
 }
 
 // taskSnapshot is an internal view captured while the Session line is owned.

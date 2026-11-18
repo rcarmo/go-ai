@@ -67,6 +67,8 @@ type ExtensionFilter struct {
 	Remove []string `json:"remove,omitempty"`
 }
 type Options struct {
+	// ReadOnly views persisted records without recovery, writes or scheduling.
+	ReadOnly bool
 	// Identity overrides pi's default harness attribution. Explicit attribution
 	// null disables it. Open snapshots this host-owned, process-local default.
 	Identity        *goai.ClientIdentity

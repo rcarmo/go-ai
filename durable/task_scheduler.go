@@ -54,7 +54,13 @@ func (s *taskScheduler) kick() {
 	}
 }
 func (s *taskScheduler) externalKick() { s.epoch.Add(1); s.kick() }
-func (s *taskScheduler) enable()       { s.enabled.Store(true); s.externalKick() }
+func (s *taskScheduler) enable() {
+	if s.h.session.readOnly {
+		return
+	}
+	s.enabled.Store(true)
+	s.externalKick()
+}
 func (s *taskScheduler) capacity() int {
 	n := s.h.session.limits.MaxPage
 	if n > 64 {

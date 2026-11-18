@@ -33,9 +33,6 @@ var (
 	ErrOwned            = errors.New("durable: storage already owned in this process")
 )
 
-// StorageRejected establishes that no write was admitted for this operation.
-// Post-admission I/O errors instead poison storage; a failed return never proves
-// that such an uncertain frame will be absent after reopen.
 // ReadAfterWrite is the pinned transaction-table read fence. Documents remain
 // accessible after table writes; caller table reads do not expose candidates.
 type ReadAfterWrite struct{ Method string }
@@ -47,6 +44,14 @@ func (e *ReadAfterWrite) Error() string {
 	return "Tx." + e.Method + "() cannot read tables after the first table write"
 }
 
+// ReadOnlySession reports an operation refused by a read-only Harness.
+type ReadOnlySession struct{ Operation string }
+
+func (e *ReadOnlySession) Error() string { return "Read-only Harness: " + e.Operation + " refused" }
+
+// StorageRejected establishes that no write was admitted for this operation.
+// Post-admission I/O errors instead poison storage; a failed return never proves
+// that such an uncertain frame will be absent after reopen.
 type StorageRejected struct{ Reason string }
 
 func (e *StorageRejected) Error() string { return "durable: rejected: " + e.Reason }
