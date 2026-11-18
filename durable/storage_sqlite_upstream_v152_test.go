@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -246,5 +248,143 @@ func TestSourceV152UpstreamSQLiteWriteFailureRollsBackAllAcceptedParts(t *testin
 	result, err = writer.Commit(bg, batches, func(i int, seq uint64) { receipts = append(receipts, publicSQLiteReceipt{i, seq}) })
 	if err != nil || result.Stored != 2 || result.Refused != nil || !reflect.DeepEqual(receipts, []publicSQLiteReceipt{{0, 3}, {1, 4}}) {
 		t.Fatal(result, receipts, err)
+	}
+}
+
+// Statement counts are measured on the original table layout as well as the
+// native frame layout. A group shares one SQL plan, whatever its length.
+func TestSourceV152UpstreamSQLiteGroupReusesSQL(t *testing.T) {
+	var baseline []string
+	for _, count := range []int{1, 3, 150} {
+		data, err := os.ReadFile("testdata/pi-durable-v152/viewer.sqlite")
+		if err != nil {
+			t.Fatal(err)
+		}
+		path := filepath.Join(t.TempDir(), "session.sqlite")
+		if err := os.WriteFile(path, data, 0600); err != nil {
+			t.Fatal(err)
+		}
+		store, err := OpenSQLite(path, SQLiteOptions{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = store.Close(bg) })
+		setup := make([]StorageWrite, count)
+		batches := make([][]StorageWrite, count)
+		for i := range count {
+			id := ID(100 + i)
+			key := fmt.Sprint(id)
+			setup[i] = v152SessionDocument(id, "counter", &key, JSON{"n": 0})
+			batches[i] = []StorageWrite{
+				{Type: "document.change", ID: id, Content: &DocumentContent{Kind: "delta", Version: 1, Ops: []Operation{{"s", []any{"n"}, 1}}}},
+				{Type: "entry", Value: Entry{ID: ID(400 + i), Conversation: 1, Kind: "note", HasData: true, Data: 0}},
+			}
+		}
+		if result, err := store.Commit(bg, [][]StorageWrite{setup}, nil); err != nil || result.Refused != nil || result.Stored != 1 {
+			t.Fatal(result, err)
+		}
+		capture := &recordingSQLiteConnection{sqliteConnection: store.db}
+		store.db = capture
+		var receipts []publicSQLiteReceipt
+		result, err := store.Commit(bg, batches, func(i int, seq uint64) { receipts = append(receipts, publicSQLiteReceipt{i, seq}) })
+		if err != nil || result.Refused != nil || result.Stored != count || len(receipts) != count {
+			t.Fatal(result, len(receipts), err)
+		}
+		for i, receipt := range receipts {
+			if receipt != (publicSQLiteReceipt{i, uint64(4 + i)}) {
+				t.Fatal(receipt)
+			}
+		}
+		var statements []string
+		for _, call := range capture.calls {
+			statements = append(statements, call.text)
+			if strings.Contains(call.text, "json_each") {
+				checkCompactFramePlan(t, capture.sqliteConnection, call)
+			}
+		}
+		if count == 1 {
+			baseline = statements
+		}
+		if len(statements) != 7 || !reflect.DeepEqual(statements, baseline) {
+			t.Errorf("canonical group of %d used %d statements; want 7 with stable SQL", count, len(statements))
+		}
+		if err := store.Close(bg); err != nil {
+			t.Fatal(err)
+		}
+		view, err := OpenSQLite(path, SQLiteOptions{ReadOnly: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for i := range count {
+			e, found, err := view.Entry(bg, ID(400+i))
+			if err != nil || !found || e.CommitSeq != uint64(4+i) || !equalJSONValue(e.Entry.Data, 0) {
+				t.Fatal(e, found, err)
+			}
+			d, found, err := view.DocumentAt(bg, ID(100+i), CurrentDocumentPoint())
+			if err != nil || !found || !equalJSONValue(d.Value, JSON{"n": 1}) {
+				t.Fatal(d, found, err)
+			}
+		}
+		if err := view.Close(bg); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestSourceV152UpstreamSQLiteCurrentOnlyGroupPrunesBeforeNewBase(t *testing.T) {
+	data, err := os.ReadFile("testdata/pi-durable-v152/viewer.sqlite")
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "session.sqlite")
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	store, err := OpenSQLite(path, SQLiteOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close(bg)
+	delta := func(n int) StorageWrite {
+		return StorageWrite{Type: "document.change", ID: 10, Content: &DocumentContent{Kind: "delta", Version: 1, Ops: []Operation{{"s", []any{"n"}, n}}}}
+	}
+	batches := [][]StorageWrite{
+		{v152SessionDocument(10, "current", nil, JSON{"n": 0})},
+		{delta(1)},
+		{{Type: "document.change", ID: 10, Content: &DocumentContent{Kind: "base", Version: 1, Value: JSON{"n": 2}}}},
+		{delta(3)},
+	}
+	result, err := store.Commit(bg, batches, nil)
+	if err != nil || result.Refused != nil || result.Stored != 4 {
+		t.Fatal(result, err)
+	}
+	if err := store.Close(bg); err != nil {
+		t.Fatal(err)
+	}
+	view, err := OpenSQLite(path, SQLiteOptions{ReadOnly: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer view.Close(bg)
+	doc, found, err := view.DocumentAt(bg, 10, CurrentDocumentPoint())
+	if err != nil || !found || !equalJSONValue(doc.Value, JSON{"n": 3}) || doc.DeltasSinceBase != 1 {
+		t.Fatal(doc, found, err)
+	}
+	rows, err := view.db.QueryContext(bg, "SELECT seq,kind FROM document_revisions WHERE document_id=10 ORDER BY seq")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var revisions []string
+	for rows.Next() {
+		var seq uint64
+		var kind string
+		if err := rows.Scan(&seq, &kind); err != nil {
+			t.Fatal(err)
+		}
+		revisions = append(revisions, fmt.Sprintf("%d:%s", seq, kind))
+	}
+	if rows.Err() != nil || !reflect.DeepEqual(revisions, []string{"5:base", "6:delta"}) {
+		t.Fatal(revisions, rows.Err())
 	}
 }

@@ -36,6 +36,7 @@ func (s *SQLiteStorage) storeUpstreamSeries(frames []storageFrame) error {
 	if nextSeq != base.Seq+1 || nextId != strconv.FormatUint(base.HighWater+1, 10) {
 		return reject("upstream SQLite prefix changed externally")
 	}
+	patch := upstreamWritePatch{rows: map[string][][]any{}, revisions: map[ID][][]any{}, cleared: map[ID]bool{}}
 	for _, frame := range frames {
 		switch frame.kind {
 		case 1:
@@ -52,13 +53,16 @@ func (s *SQLiteStorage) storeUpstreamSeries(frames []storageFrame) error {
 			if next.HighWater != frame.high {
 				return ErrCorrupt
 			}
-			if err := s.writeUpstreamRecords(base, next, record.Writes); err != nil {
+			if err := patch.collect(base, next, record.Writes, s.limits); err != nil {
 				return err
 			}
 			base = next
 		default:
 			return ErrCorrupt
 		}
+	}
+	if err := s.flushUpstreamPatch(patch); err != nil {
+		return err
 	}
 	return s.exec("UPDATE "+table+" SET next_id=?,next_seq=? WHERE singleton=1", strconv.FormatUint(base.HighWater+1, 10), base.Seq+1)
 }
@@ -111,13 +115,35 @@ func upstreamIndexedString(value string) string {
 	return b.String()
 }
 
-func (s *SQLiteStorage) insertUpstreamRow(table, columns, conflict string, vals ...any) error {
-	return s.exec("INSERT INTO "+s.upstreamTable(table)+" ("+columns+") VALUES (?"+strings.Repeat(",?", len(vals)-1)+") "+conflict, vals...)
+// A group's SQL writes are emitted by table after all accepted parts have
+// been checked. Content-only changes never rewrite document metadata.
+type upstreamWritePatch struct {
+	rows      map[string][][]any
+	revisions map[ID][][]any
+	cleared   map[ID]bool
 }
 
-func (s *SQLiteStorage) writeUpstreamRecords(before, after Snapshot, writes []Write) error {
-	documents := make(map[ID]bool)
-	completed := make(map[ID]bool)
+func (p *upstreamWritePatch) add(table string, values ...any) {
+	p.rows[table] = append(p.rows[table], values)
+}
+
+func (p *upstreamWritePatch) clearRevisions(id ID) {
+	p.cleared[id] = true
+	delete(p.revisions, id)
+}
+
+func (p *upstreamWritePatch) revision(id ID, seq uint64, kind string, version uint64, value any) error {
+	raw, err := upstreamJSON(value)
+	if err != nil {
+		return err
+	}
+	p.revisions[id] = append(p.revisions[id], []any{id, seq, kind, version, raw})
+	return nil
+}
+
+func (p *upstreamWritePatch) collect(before, after Snapshot, writes []Write, l Limits) error {
+	documents, bases := map[ID]bool{}, map[ID]bool{}
+	completed := map[ID]bool{}
 	for _, w := range writes {
 		var id ID
 		var kind string
@@ -130,9 +156,7 @@ func (s *SQLiteStorage) writeUpstreamRecords(before, after Snapshot, writes []Wr
 			if err != nil {
 				return err
 			}
-			if err := s.insertUpstreamRow("conversations", "id,owner_conversation_id,owner_task_id,record", "", id, sqliteOptionalID(r.OwnerConversation), sqliteOptionalID(r.Owner), raw); err != nil {
-				return err
-			}
+			p.add("conversations", id, sqliteOptionalID(r.OwnerConversation), sqliteOptionalID(r.Owner), raw)
 		case "append-entry":
 			id, kind, fresh = w.Entry.ID, "entry", true
 			r := after.Entries[id]
@@ -140,9 +164,7 @@ func (s *SQLiteStorage) writeUpstreamRecords(before, after Snapshot, writes []Wr
 			if err != nil {
 				return err
 			}
-			if err := s.insertUpstreamRow("entries", "id,conversation_id,head,commit_seq,record", "", id, r.Conversation, sqliteOptionalID(r.Head), r.Seq, raw); err != nil {
-				return err
-			}
+			p.add("entries", id, r.Conversation, sqliteOptionalID(r.Head), r.Seq, raw)
 		case "put-task":
 			id, kind = w.Task.ID, "task"
 			if completed[id] {
@@ -151,7 +173,7 @@ func (s *SQLiteStorage) writeUpstreamRecords(before, after Snapshot, writes []Wr
 			completed[id] = true
 			_, existed := before.Tasks[id]
 			fresh = !existed
-			r, err := CanonicalTask(after.Tasks[id], s.limits)
+			r, err := CanonicalTask(after.Tasks[id], l)
 			if err != nil {
 				return err
 			}
@@ -159,9 +181,7 @@ func (s *SQLiteStorage) writeUpstreamRecords(before, after Snapshot, writes []Wr
 			if err != nil {
 				return err
 			}
-			if err := s.insertUpstreamRow("tasks", "id,conversation_id,kind,status,abort_requested,background,record", "ON CONFLICT(id) DO UPDATE SET status=excluded.status,abort_requested=excluded.abort_requested,background=excluded.background,record=excluded.record", id, r.Conversation, upstreamIndexedString(r.Kind), r.State.Status, r.AbortRequested, r.Background, raw); err != nil {
-				return err
-			}
+			p.add("tasks", id, r.Conversation, upstreamIndexedString(r.Kind), r.State.Status, r.AbortRequested, r.Background, raw)
 		case "put-submission":
 			id, kind = w.Submission.ID, "submission"
 			if completed[id] {
@@ -179,10 +199,11 @@ func (s *SQLiteStorage) writeUpstreamRecords(before, after Snapshot, writes []Wr
 			if r.RequestIDPresent || r.RequestID != "" {
 				request = upstreamIndexedString(r.RequestID)
 			}
-			if err := s.insertUpstreamRow("submissions", "id,conversation_id,request_id,status,record", "ON CONFLICT(id) DO UPDATE SET request_id=excluded.request_id,status=excluded.status,record=excluded.record", id, r.Conversation, request, r.Status, raw); err != nil {
-				return err
-			}
-		case "put-document", "copy-document", "retire-document":
+			p.add("submissions", id, r.Conversation, request, r.Status, raw)
+		case "put-document", "copy-document":
+			id = w.Document.ID
+			documents[id], bases[id] = true, true
+		case "retire-document":
 			documents[w.Document.ID] = true
 		case "delta-document":
 			documents[w.Delta.ID] = true
@@ -190,55 +211,52 @@ func (s *SQLiteStorage) writeUpstreamRecords(before, after Snapshot, writes []Wr
 			return reject("unsupported upstream SQLite command")
 		}
 		if fresh {
-			if err := s.insertUpstreamRow("record_ids", "id,record_type", "", id, kind); err != nil {
-				return err
-			}
+			p.add("record_ids", id, kind)
 		}
 	}
 	for _, id := range ids(documents) {
 		doc := after.Documents[id]
-		if _, existed := before.Documents[id]; !existed {
-			if err := s.insertUpstreamRow("record_ids", "id,record_type", "", id, "document"); err != nil {
+		prior, existed := before.Documents[id]
+		if !existed {
+			p.add("record_ids", id, "document")
+		}
+		if !existed || doc.RetiredAt != prior.RetiredAt {
+			record := struct {
+				*DocumentCreate
+				CreatedAt uint64 `json:"createdAt"`
+				RetiredAt uint64 `json:"retiredAt,omitempty"`
+			}{storageDocumentCreate(doc), doc.CreatedAt, doc.RetiredAt}
+			raw, err := upstreamJSON(record)
+			if err != nil {
 				return err
 			}
+			p.add("documents", id, upstreamIndexedString(doc.Kind), documentFamily(doc), upstreamIndexedString(doc.Key), doc.Scope, doc.Owner, doc.CreatedAt, sqliteOptionalSeq(doc.RetiredAt), raw)
 		}
-		record := struct {
-			*DocumentCreate
-			CreatedAt uint64 `json:"createdAt"`
-			RetiredAt uint64 `json:"retiredAt,omitempty"`
-		}{storageDocumentCreate(doc), doc.CreatedAt, doc.RetiredAt}
-		raw, err := upstreamJSON(record)
-		if err != nil {
-			return err
-		}
-		if err = s.insertUpstreamRow("documents", "id,kind,family,key_value,scope_kind,owner_id,created_at,retired_at,record", "ON CONFLICT(id) DO UPDATE SET retired_at=excluded.retired_at,record=excluded.record", id, upstreamIndexedString(doc.Kind), documentFamily(doc), upstreamIndexedString(doc.Key), doc.Scope, doc.Owner, doc.CreatedAt, sqliteOptionalSeq(doc.RetiredAt), raw); err != nil {
-			return err
-		}
-		revisions := after.DocumentRevisions[id]
-		if documentHistory(doc) != "rewindable" && (doc.Retired || (len(revisions) > 0 && revisions[len(revisions)-1].Kind != "delta")) {
-			if err := s.exec("DELETE FROM "+s.upstreamTable("document_revisions")+" WHERE document_id=?", id); err != nil {
-				return err
+		if documentHistory(doc) != "rewindable" {
+			if doc.Retired || bases[id] {
+				p.clearRevisions(id)
 			}
 			if doc.Retired {
 				continue
 			}
+			if bases[id] {
+				// The native current-only image may retain only the current base
+				// value. The original schema always stores an explicit revision.
+				if err := p.revision(id, after.Seq, "base", doc.Version, doc.Value); err != nil {
+					return err
+				}
+				continue
+			}
 		}
-		for _, r := range revisions {
+		for _, r := range after.DocumentRevisions[id] {
 			if r.Seq <= before.Seq {
 				continue
 			}
-			var value any = r.Value
-			kind := r.Kind
-			if kind == "delta" {
-				value = r.Ops
-			} else {
-				kind = "base"
-			}
-			raw, err := upstreamJSON(value)
-			if err != nil {
-				return err
-			}
-			if err = s.insertUpstreamRow("document_revisions", "document_id,seq,kind,version,content", "", id, r.Seq, kind, r.Version, raw); err != nil {
+			if r.Kind == "delta" {
+				if err := p.revision(id, r.Seq, "delta", r.Version, r.Ops); err != nil {
+					return err
+				}
+			} else if err := p.revision(id, r.Seq, "base", r.Version, r.Value); err != nil {
 				return err
 			}
 		}
