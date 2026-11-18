@@ -45,10 +45,14 @@ type RequestSettings struct {
 	CacheRetention  goai.CacheRetention `json:"cacheRetention,omitempty"`
 }
 type AgentChange struct {
-	ModelTools *ExtensionFilter `json:"modelTools,omitempty"`
-	Name       string
-	Cwd        string
-	Model      ModelRef
+	// Compaction replaces the stored per-conversation policy. A nil value with
+	// CompactionSet clears it; otherwise nil leaves the field unchanged.
+	Compaction    *CompactionSettings
+	CompactionSet bool
+	ModelTools    *ExtensionFilter `json:"modelTools,omitempty"`
+	Name          string
+	Cwd           string
+	Model         ModelRef
 	// Empty or off disables reasoning; other values map to pi-ai Reasoning.
 	ThinkingLevel goai.ModelThinkingLevel
 	SystemPrompt  string  // Native raw prompt prefix; reference instructions use a section.

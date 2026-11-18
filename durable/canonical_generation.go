@@ -221,7 +221,7 @@ func canonicalGenerationPrepare(ctx context.Context, task TaskRecord, r *TaskRun
 	}
 	// Rendering can await user code. Source settings are live getters at this
 	// decision, so the earlier agent snapshot must not freeze threshold policy.
-	policy := compactionPolicy(r.harness.resolvedSettings(RequestSettings{}), state.Model)
+	policy := compactionPolicy(r.harness.resolvedSettings(RequestSettings{}), state.Model, state.Compaction)
 	blocking, background := false, false
 	if compacted == 0 && policy.Enabled && model.ContextWindow > 0 && compactionCut(view, policy.KeepRecentTokens) > 0 {
 		tokens := estimateContextTokens(view)
@@ -702,12 +702,12 @@ func canonicalGenerationClassify(ctx context.Context, r *TaskRuntime, cp JSON, m
 	settings := r.harness.resolvedSettings(RequestSettings{})
 	attempt := int(submissionEntryID(cp["attempt"]))
 	retry := message.StopReason == goai.StopReasonError && !message.ContextOverflow && message.Retryable && settings.Retry.Enabled && attempt <= settings.Retry.MaxRetries
-	if message.ContextOverflow && cp["compacted"] == nil && compactionPolicy(settings, agent.Model).Enabled {
+	if message.ContextOverflow && cp["compacted"] == nil && compactionPolicy(settings, agent.Model, agent.Compaction).Enabled {
 		view, err := r.ContextView(ctx, r.conversation, submissionEntryID(cp["cutoff"]))
 		if err != nil {
 			return err
 		}
-		if compactionCut(view, compactionPolicy(settings, agent.Model).KeepRecentTokens) > 0 {
+		if compactionCut(view, compactionPolicy(settings, agent.Model, agent.Compaction).KeepRecentTokens) > 0 {
 			return r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
 				if _, err := canonicalAppendAssistant(tx, r.conversation, message); err != nil {
 					return nil, err

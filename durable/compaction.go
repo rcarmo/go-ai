@@ -110,7 +110,7 @@ func newCompactionDefinition() (*TaskDefinition, error) {
 				return reject("compaction model identity mismatch")
 			}
 			input := task.Input.Value.(map[string]any)
-			policy := compactionPolicy(agent.Settings, agent.Model)
+			policy := compactionPolicy(agent.Settings, agent.Model, agent.Compaction)
 			keep := policy.KeepRecentTokens
 			cut := compactionCut(view, keep)
 			if cut <= 0 {

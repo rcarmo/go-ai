@@ -10,6 +10,7 @@ import (
 // nil fields are unchanged. Configure remains the native full replacement API.
 // Clearing model leaves the conversation unconfigured until a later patch.
 type AgentPatch struct {
+	Compaction      *CompactionSettings
 	ModelTools      *ExtensionFilter
 	Model           *ModelRef
 	ThinkingLevel   *goai.ModelThinkingLevel
@@ -49,7 +50,7 @@ func (c *ConversationHandle) ConfigurePatch(ctx context.Context, patch AgentPatc
 				return nil, err
 			}
 		}
-		supplied := map[string]bool{"modelTools": patch.ModelTools != nil, "model": patch.Model != nil, "thinkingLevel": patch.ThinkingLevel != nil, "name": patch.Name != nil, "cwd": patch.Cwd != nil, "systemPrompt": patch.SystemPrompt != nil, "instructions": patch.Instructions != nil, "settings": patch.Settings != nil, "extensions": patch.Extensions != nil || patch.ExtensionFilter != nil, "tools": patch.Tools != nil || patch.ToolsRemoved != nil}
+		supplied := map[string]bool{"compaction": patch.Compaction != nil, "modelTools": patch.ModelTools != nil, "model": patch.Model != nil, "thinkingLevel": patch.ThinkingLevel != nil, "name": patch.Name != nil, "cwd": patch.Cwd != nil, "systemPrompt": patch.SystemPrompt != nil, "instructions": patch.Instructions != nil, "settings": patch.Settings != nil, "extensions": patch.Extensions != nil || patch.ExtensionFilter != nil, "tools": patch.Tools != nil || patch.ToolsRemoved != nil}
 		seen := map[string]bool{}
 		for _, field := range patch.Clear {
 			if seen[field] || supplied[field] {
@@ -57,6 +58,8 @@ func (c *ConversationHandle) ConfigurePatch(ctx context.Context, patch AgentPatc
 			}
 			seen[field] = true
 			switch field {
+			case "compaction":
+				state.Compaction = nil
 			case "model":
 				state.Model = ModelRef{}
 			case "thinkingLevel":
@@ -82,6 +85,9 @@ func (c *ConversationHandle) ConfigurePatch(ctx context.Context, patch AgentPatc
 			default:
 				return nil, reject("invalid agent clear field")
 			}
+		}
+		if patch.Compaction != nil {
+			state.Compaction = patch.Compaction
 		}
 		if patch.Model != nil {
 			state.Model = *patch.Model
@@ -126,7 +132,7 @@ func (c *ConversationHandle) ConfigurePatch(ctx context.Context, patch AgentPatc
 			state.ToolsRemoved = patch.ToolsRemoved
 			state.Tools = nil
 		}
-		validated, err := h.agent(AgentChange{ModelTools: state.ModelTools, Name: state.Name, Cwd: state.Cwd, Model: state.Model, ThinkingLevel: state.ThinkingLevel, SystemPrompt: state.SystemPrompt, Instructions: state.Instructions, Settings: state.Settings, Extensions: state.Extensions, Tools: state.Tools, ExtensionFilter: state.ExtensionFilter, ToolsRemoved: state.ToolsRemoved})
+		validated, err := h.agent(AgentChange{Compaction: state.Compaction, ModelTools: state.ModelTools, Name: state.Name, Cwd: state.Cwd, Model: state.Model, ThinkingLevel: state.ThinkingLevel, SystemPrompt: state.SystemPrompt, Instructions: state.Instructions, Settings: state.Settings, Extensions: state.Extensions, Tools: state.Tools, ExtensionFilter: state.ExtensionFilter, ToolsRemoved: state.ToolsRemoved})
 		if err != nil {
 			return nil, err
 		}

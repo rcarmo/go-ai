@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	goai "github.com/rcarmo/go-ai"
+	"reflect"
 	"sort"
 	"strconv"
 	"sync"
@@ -37,6 +38,7 @@ type ConversationHandle struct {
 	id ID
 }
 type agentState struct {
+	Compaction      *CompactionSettings     `json:"compaction,omitempty"`
 	ModelTools      *ExtensionFilter        `json:"modelTools,omitempty"`
 	Model           ModelRef                `json:"model"`
 	Name            string                  `json:"name"`
@@ -380,7 +382,10 @@ func (h *Harness) agent(c AgentChange) (agentState, error) {
 	if e == nil && (len(c.Model.ID) > h.session.limits.MaxStringBytes || len(c.SystemPrompt) > h.session.limits.MaxStringBytes || len(c.Cwd) > h.session.limits.MaxStringBytes) {
 		return agentState{}, reject("agent string limit")
 	}
-	state := agentState{ModelTools: c.ModelTools, Model: c.Model, Name: c.Name, Cwd: c.Cwd, SystemPrompt: c.SystemPrompt, Settings: settings, ThinkingLevel: c.ThinkingLevel}
+	if err := validateConversationCompaction(c.Compaction); err != nil {
+		return agentState{}, err
+	}
+	state := agentState{Compaction: c.Compaction, ModelTools: c.ModelTools, Model: c.Model, Name: c.Name, Cwd: c.Cwd, SystemPrompt: c.SystemPrompt, Settings: settings, ThinkingLevel: c.ThinkingLevel}
 	if c.Instructions != nil {
 		if len(*c.Instructions) > h.session.limits.MaxStringBytes {
 			return agentState{}, reject("agent string limit")
@@ -541,6 +546,11 @@ func (h *Harness) configureLockedWithInit(ctx context.Context, id ID, c AgentCha
 			return nil, nil
 		}
 		if found {
+			if c.Compaction == nil && !c.CompactionSet {
+				if prior, ok := doc.Value["compaction"]; ok {
+					value["compaction"] = prior
+				}
+			}
 			handle, e := tx.documentRecord(doc.ID)
 			if e != nil {
 				return nil, e
@@ -559,8 +569,20 @@ func (h *Harness) configureLockedWithInit(ctx context.Context, id ID, c AgentCha
 	})
 	return e
 }
+func compactionOnly(change AgentChange) bool {
+	change.Compaction, change.CompactionSet = nil, false
+	return reflect.DeepEqual(change, AgentChange{})
+}
+
 func (c *ConversationHandle) ID() ID { return c.id }
 func (c *ConversationHandle) Configure(ctx context.Context, change AgentChange) error {
+	if (change.Compaction != nil || change.CompactionSet) && compactionOnly(change) {
+		patch := AgentPatch{Compaction: change.Compaction}
+		if change.Compaction == nil {
+			patch.Clear = []string{"compaction"}
+		}
+		return c.ConfigurePatch(ctx, patch)
+	}
 	c.h.mu.Lock()
 	defer c.h.mu.Unlock()
 	if c.h.closing.Load() {
