@@ -1,7 +1,7 @@
 package goai
 
 func convertSchemaLiteral(literal, value interface{}) (interface{}, bool) {
-	if schemaLiteralEqual(literal, value) {
+	if SchemaEqual(literal, value) {
 		return value, false
 	}
 	kind := ""
@@ -16,7 +16,7 @@ func convertSchemaLiteral(literal, value interface{}) (interface{}, bool) {
 		return value, false
 	}
 	candidate, err := convertJSONSchemaPrimitive(value, kind)
-	if err == nil && schemaLiteralEqual(candidate, literal) {
+	if err == nil && SchemaEqual(candidate, literal) {
 		return candidate, true
 	}
 	return value, false

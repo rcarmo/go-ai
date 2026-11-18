@@ -246,7 +246,7 @@ func (v *toolSchemaValidator) issue(value interface{}, schema map[string]interfa
 	if values, ok := schema["enum"].([]interface{}); ok {
 		found := false
 		for _, member := range values {
-			if schemaLiteralEqual(value, member) {
+			if SchemaEqual(value, member) {
 				found = true
 				break
 			}
@@ -255,7 +255,7 @@ func (v *toolSchemaValidator) issue(value interface{}, schema map[string]interfa
 			return &toolSchemaIssue{path, "expected one of " + v.literalEnumList(values)}
 		}
 	}
-	if literal, exists := schema["const"]; exists && !schemaLiteralEqual(value, literal) {
+	if literal, exists := schema["const"]; exists && !SchemaEqual(value, literal) {
 		return &toolSchemaIssue{path, "expected " + v.literalJSON(literal)}
 	}
 	if reason := schemaNumericBoundsReason(value, schema); reason != "" {

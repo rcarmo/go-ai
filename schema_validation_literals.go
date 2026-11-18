@@ -2,15 +2,24 @@ package goai
 
 import (
 	"encoding/json"
+	"errors"
 	"math"
 	"reflect"
 	"strconv"
 )
 
-// JSON value equality, not Go representation equality: numeric values share a
+// SchemaUndefined represents an in-memory undefined schema value. It is
+// distinct from nil (JSON null) and is not a JSON wire value.
+type SchemaUndefined struct{}
+
+func (SchemaUndefined) MarshalJSON() ([]byte, error) {
+	return nil, errors.New("undefined schema value is not JSON")
+}
+
+// SchemaEqual compares JSON values, not their Go representations: numeric values share a
 // domain, booleans do not; member order is irrelevant, array order is not.
 // Exact native integers/decimals are never rounded through float64.
-func schemaLiteralEqual(a, b interface{}) bool {
+func SchemaEqual(a, b interface{}) bool {
 	type pair struct {
 		a, b  uintptr
 		array bool
@@ -22,6 +31,9 @@ func schemaLiteralEqual(a, b interface{}) bool {
 			return a == nil && b == nil
 		}
 		switch a := a.(type) {
+		case SchemaUndefined:
+			_, ok := b.(SchemaUndefined)
+			return ok
 		case string:
 			b, ok := b.(string)
 			return ok && a == b
@@ -109,12 +121,12 @@ func schemaLiteralNumber(value interface{}) (string, bool) {
 }
 
 func schemaLiteralsMatch(value interface{}, schema map[string]interface{}) bool {
-	if constant, exists := schema["const"]; exists && !schemaLiteralEqual(value, constant) {
+	if constant, exists := schema["const"]; exists && !SchemaEqual(value, constant) {
 		return false
 	}
 	if values, ok := schema["enum"].([]interface{}); ok {
 		for _, member := range values {
-			if schemaLiteralEqual(value, member) {
+			if SchemaEqual(value, member) {
 				return true
 			}
 		}

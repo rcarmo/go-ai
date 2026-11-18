@@ -28,10 +28,10 @@ func TestValidationLiteralNativePrecision(t *testing.T) {
 		{map[string]interface{}{"x": true}, map[string]interface{}{"x": float64(1)}, false},
 		{[]interface{}{true}, []interface{}{float64(1)}, false},
 	} {
-		if got := schemaLiteralEqual(tc.a, tc.b); got != tc.want {
+		if got := SchemaEqual(tc.a, tc.b); got != tc.want {
 			t.Fatalf("%#v vs %#v: %v want %v", tc.a, tc.b, got, tc.want)
 		}
-		if got := schemaLiteralEqual(tc.b, tc.a); got != tc.want {
+		if got := SchemaEqual(tc.b, tc.a); got != tc.want {
 			t.Fatal("asymmetric equality")
 		}
 	}
@@ -54,7 +54,7 @@ func TestValidationLiteralNativePrecision(t *testing.T) {
 		if !ok {
 			t.Fatal(b)
 		}
-		if got, want := schemaLiteralEqual(a, b), x.Cmp(y) == 0; got != want {
+		if got, want := SchemaEqual(a, b), x.Cmp(y) == 0; got != want {
 			t.Fatalf("%s vs %s: %v want %v", a, b, got, want)
 		}
 	}
@@ -65,13 +65,13 @@ func TestValidationLiteralContainerGuards(t *testing.T) {
 	a["self"] = a
 	b := map[string]interface{}{}
 	b["self"] = b
-	if schemaLiteralEqual(a, b) {
+	if SchemaEqual(a, b) {
 		t.Fatal("distinct cyclic non-JSON values must fail closed")
 	}
 	shared := map[string]interface{}{"n": float64(1)}
 	left := []interface{}{shared, shared}
 	right := []interface{}{map[string]interface{}{"n": int64(1)}, map[string]interface{}{"n": json.Number("1.0")}}
-	if !schemaLiteralEqual(left, right) {
+	if !SchemaEqual(left, right) {
 		t.Fatal("noncyclic alias reuse is not inequality")
 	}
 	if !reflect.DeepEqual(shared, map[string]interface{}{"n": float64(1)}) {
