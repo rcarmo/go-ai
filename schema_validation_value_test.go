@@ -95,3 +95,32 @@ func TestSourceV152SchemaOptionalNullsFollowTuplePrefix(t *testing.T) {
 		t.Fatal("parse mutated its input", original)
 	}
 }
+
+// Draft-7 additionalItems participates in validation, not coercion. This is
+// the result of the source pi-ai parser, including its complete diagnostic.
+func TestSourceV152SchemaLegacyTupleTailValidatesWithoutCoercing(t *testing.T) {
+	tool := Tool{Name: "source", Parameters: json.RawMessage(`{"properties":{"a":{"items":[{"type":"number"}],"additionalItems":{"type":"string"}}}}`)}
+	for _, tail := range []any{"2", 2} {
+		original := map[string]any{"a": []any{1, tail}}
+		got, err := ValidateToolArguments(&tool, ToolCall{Name: tool.Name, Arguments: original})
+		if tail == "2" {
+			if err != nil || !SchemaEqual(got, original) {
+				t.Fatal(got, err)
+			}
+			continue
+		}
+		const want = `Validation failed for tool "source":
+  - a.1: expected string, got integer
+
+Received arguments:
+{
+  "a": [
+    1,
+    2
+  ]
+}`
+		if got != nil || err == nil || err.Error() != want {
+			t.Fatalf("parsed = %#v, %v; want %s", got, err, want)
+		}
+	}
+}

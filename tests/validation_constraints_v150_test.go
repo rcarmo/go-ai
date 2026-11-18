@@ -26,7 +26,7 @@ func TestV150ValidationConstraintControls(t *testing.T) {
 		{"unevaluated-allOf", `{"allOf":[{"properties":{"a":{"type":"number"}}},{"properties":{"b":{"type":"string"}}}],"unevaluatedProperties":false}`, `{"a":1,"b":"x"}`, `ok {"a":1,"b":"x"}`},
 		{"unevaluated-allOf-extra", `{"allOf":[{"properties":{"a":true}}],"unevaluatedProperties":false}`, `{"a":1,"b":2}`, `REJECT - b: unknown field`},
 		{"unevaluated-ref", `{"$defs":{"A":{"properties":{"a":true}}},"$ref":"#/$defs/A","unevaluatedProperties":false}`, `{"a":1}`, `ok {"a":1}`},
-		{"tuple-rest-schema", `{"properties":{"a":{"items":[{"type":"number"}],"additionalItems":{"type":"string"}}}}`, `{"a":[1,2]}`, `ok {"a":[1,"2"]}`},
+		{"tuple-rest-schema", `{"properties":{"a":{"items":[{"type":"number"}],"additionalItems":{"type":"string"}}}}`, `{"a":[1,2]}`, `REJECT - a.1: expected string, got integer`},
 		{"bool-item", `{"properties":{"a":{"items":false}}}`, `{"a":[1]}`, `REJECT - a.0: no value is allowed here`},
 		{"unicode-length-valid", `{"properties":{"s":{"minLength":1,"maxLength":1}}}`, `{"s":"😀"}`, `ok {"s":"😀"}`},
 	} {

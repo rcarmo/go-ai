@@ -87,7 +87,7 @@ func (v *toolSchemaValidator) coerceValidationTypes(value interface{}, schema ma
 					out = []interface{}{}
 				}
 				for i, current := range out {
-					if child := validationItemSchema(schema, i); child != nil {
+					if child := coercionItemSchema(schema, i); child != nil {
 						out[i] = v.coerceValidationTypes(current, child)
 					}
 				}

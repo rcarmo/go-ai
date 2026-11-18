@@ -178,17 +178,9 @@ func (validator *toolSchemaValidator) normalizeOptionalNulls(value interface{}, 
 		if v != nil && out == nil {
 			out = []interface{}{}
 		}
-		prefix, _ := validationTupleItems(schema)
-		// The source coercer visits tuple-prefix items first. Modern tuples
-		// use items for the remainder; legacy items arrays have no coercion
-		// rule for the remainder, even when additionalItems is a schema.
 		for i := range out {
-			raw := schema["items"]
-			if i < len(prefix) {
-				raw = prefix[i]
-			}
-			if itemSchema, ok := raw.(map[string]interface{}); ok {
-				out[i] = validator.normalizeOptionalNulls(out[i], itemSchema)
+			if child := coercionItemSchema(schema, i); child != nil {
+				out[i] = validator.normalizeOptionalNulls(out[i], child)
 			}
 		}
 		return out
@@ -399,7 +391,7 @@ func (v *toolSchemaValidator) convertValidationMembers(value interface{}, schema
 		}
 		out := make([]interface{}, len(value))
 		for i, current := range value {
-			if item := validationItemSchema(schema, i); item != nil {
+			if item := coercionItemSchema(schema, i); item != nil {
 				current = v.convertValidationValue(current, item)
 			}
 			out[i] = current
@@ -418,8 +410,14 @@ func validationTupleItems(schema map[string]interface{}) ([]interface{}, bool) {
 	return items, ok
 }
 
-func validationItemSchema(schema map[string]interface{}, index int) map[string]interface{} {
-	item, _ := validationItemRaw(schema, index).(map[string]interface{})
+// coercionItemSchema follows the source traversal. Legacy additionalItems
+// constrains validation, but never coerces the value in a tuple tail.
+func coercionItemSchema(schema map[string]interface{}, index int) map[string]interface{} {
+	raw := schema["items"]
+	if prefix, _ := validationTupleItems(schema); index < len(prefix) {
+		raw = prefix[index]
+	}
+	item, _ := raw.(map[string]interface{})
 	return item
 }
 
