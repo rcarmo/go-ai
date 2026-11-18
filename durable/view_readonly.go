@@ -26,7 +26,9 @@ func (v ConversationView) Copy(limits Limits) (ConversationViewCopy, error) {
 }
 
 func freezeConversationView(value ConversationViewCopy, limits Limits) (ConversationView, error) {
-	body, err := dtoObject(value, limits)
+	// Public entry objects already own their canonical UTF-16 values. Keep
+	// their sealed scope through freezing instead of a lossy generic decode.
+	body, err := conversationViewObject(value, limits)
 	if err != nil {
 		return ConversationView{}, err
 	}
@@ -151,19 +153,8 @@ func conversationRecordObject(value Conversation, limits Limits) (JSON, error) {
 	}
 	return object, nil
 }
-func conversationEntryObject(value Entry, limits Limits) (JSON, error) {
-	if _, err := encodeBounded(value, limits, limits.MaxRecordBytes); err != nil {
-		return nil, err
-	}
-	wire, err := value.MarshalJSON()
-	if err != nil {
-		return nil, err
-	}
-	var object JSON
-	if err := decodeStrict(wire, limits, limits.MaxRecordBytes, &object); err != nil {
-		return nil, err
-	}
-	return object, nil
+func conversationEntryObject(value Entry, limits Limits) (sourcePublicEntry, error) {
+	return publicEntryObject(value, limits)
 }
 func conversationViewObject(value ConversationViewCopy, limits Limits) (JSON, error) {
 	if _, err := encodeBounded(value, limits, limits.MaxDocumentBytes); err != nil {

@@ -4,6 +4,8 @@ The oracle runs original pi-durable v1.5.0 tests at `f9a26365568127461c47a07a37d
 
 ## Latest bounded reference packet
 
+A preparation error containing an isolated UTF-16 unit is checked against the exact source model result and diagnostic list. Unchanged tools42 and view23 pass;114 separate probes (90+24) pass zero skipped. Native direct/decorated public entry/value/JSON/observer/view assertions pass. [Mapping](canonical-builtin-execution.md#canonical-public-entry-diagnostics-and-utf-16-preparation-errors).
+
 Public-only Storage proxy probes now cover reservation/commit/refusal/close and a real model/tool chain. They use the actual Storage.entry envelope and reopen SQLite after refusal closes the Session. Source group-commit40 and113 separate probes (89+24) pass zero skipped. Native selected wrappers pass; complete Storage interface, cold-read, grouped-prefix and database compatibility remain unaccepted. [Mapping](canonical-builtin-execution.md#public-storage-decorators-and-receipted-session-images).
 
 Unchanged harness-restart-failure18 and harness-tools42 pass with111 separate probes zero skipped. The native focused batch preserves poll cancellation/retry/clock/cutoff assertions and ports the exact throwing-repair result, successful repaired arguments and unchanged model call. No whole native corpus acceptance is implied. [Mapping](canonical-builtin-execution.md#poll-recovery-checkpoints-and-prepare-error-text).

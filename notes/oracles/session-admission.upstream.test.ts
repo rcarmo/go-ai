@@ -1288,3 +1288,14 @@ it("executes a model/tool chain through a public Storage decorator",async()=>{
  const {harness,root}=await openChat(storage,setup);
  try{expect((await(await root.submit({type:"input",content:"go"},context)).wait(context)).status).toBe("done");expect(effects).toBe(1);expect(setup.faux.state.callCount).toBe(2);expect(mints).toBeGreaterThan(0);expect(commits).toBeGreaterThan(0);expect(await allEntries(root)).toHaveLength(5)}finally{await harness.close(context)}
 });
+
+it("retains an isolated UTF-16 preparation error in an own invalid-arguments result",async()=>{
+ const {MemoryStorage,defineTool}=await import("@earendil-works/pi-durable");
+ const {chatSetup,openChat,allEntries}=await import("@pinned/chat"),{addTool}=await import("@pinned/harness-support");
+ const {fauxAssistantMessage,fauxText}=await import("@reference/pi-ai");
+ const setup=chatSetup();let effects=0;
+ addTool(setup.registry,defineTool({name:"unicode_error",description:"unicode",parameters:{type:"object"}as any,prepareArguments:()=>{throw new Error("\ud800")},execute:async()=>{effects++;return{output:[]}}}));
+ setup.faux.setResponses([fauxAssistantMessage([{type:"toolCall",id:"unicode-error-call",name:"unicode_error",arguments:{}}],{stopReason:"toolUse"}),fauxAssistantMessage([fauxText("answer")])]);
+ const {harness,root}=await openChat(new MemoryStorage(),setup);
+ try{expect((await(await root.submit({type:"input",content:"go"},context)).wait(context)).status).toBe("done");expect(effects).toBe(0);expect(setup.faux.state.callCount).toBe(2);const entry=(await allEntries(root)).find(entry=>entry.kind==="pi.tool-result")!;expect(entry.model).toEqual([expect.objectContaining({toolCallId:"unicode-error-call",isError:true,content:[{type:"text",text:"<harness>\n[error] \ud800\n</harness>"}]})]);expect((entry.data as any).diagnostics).toEqual([{severity:"error",code:"invalid_arguments",message:"\ud800"}])}finally{await harness.close(context)}
+});

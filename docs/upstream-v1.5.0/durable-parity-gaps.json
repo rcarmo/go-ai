@@ -1137,7 +1137,7 @@
     "historical": true
   },
   "currentCheckpoint": {
-    "scope": "Migration through74f88c3 plus focused delegated Storage grouped-prefix/after-receipt tests. Focused4.279s/two controls pass. Full D10 and broader acceptance open; last complete baseline39 remains32 failed groups.",
+    "scope": "Migration through46e9aa0 plus canonical public entry diagnostics/UTF-16 preparation errors. Source-first red0.658s, focused10.641s/three compiled controls/static pass. Original tools42/view23+114 probes pass; no sweep.",
     "baseRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
     "lastVerifiedPushed": {
       "revision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
@@ -1983,6 +1983,25 @@
         "runtimeEdits": false,
         "fullSuite": "Not run; focused-only until parity sweeps",
         "mapping": "notes/canonical-builtin-execution.md#decorated-storage-grouped-prefix-and-after-receipt-errors"
+      },
+      "publicEntryDiagnosticPacket": {
+        "sourceFirstRedSeconds": 0.658,
+        "scope": "Exact preparation error units through direct/decorated model context, public entry data/JSON, commit observer and readonly view; no native witness envelope in public JSON",
+        "expandedThreeShuffleSeconds": 13.854,
+        "finalFocusedThreeShuffleSeconds": 10.641,
+        "semanticFaults": 3,
+        "unchangedOriginalTests": {
+          "harnessTools": 42,
+          "harnessView": 23
+        },
+        "separateSupplementalProbes": 114,
+        "skipped": 0,
+        "open": "Public entry JSON input/copy and all broader Unicode domains",
+        "fullSuite": "Not run; focused-only until parity sweeps",
+        "vet": "pass",
+        "staticcheck": "v0.8.2 pass",
+        "logging": "pass",
+        "mapping": "notes/canonical-builtin-execution.md#canonical-public-entry-diagnostics-and-utf-16-preparation-errors"
       }
     },
     "reference": {

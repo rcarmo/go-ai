@@ -189,6 +189,10 @@ func scanEntries(state Snapshot, q EntryQuery, limit int, cursor Cursor, l Limit
 		if err != nil {
 			return Page[Entry]{}, err
 		}
+		entry, err = exposeEntryDiagnostics(entry)
+		if err != nil {
+			return Page[Entry]{}, err
+		}
 		page.Items = append(page.Items, entry)
 	}
 	return page, nil

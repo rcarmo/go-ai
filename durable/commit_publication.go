@@ -49,6 +49,12 @@ func (s *Session) preparePublicCommit(publication sessionPublication, state Snap
 				return fail(err)
 			}
 			object = JSON{"type": "task", "value": value}
+		} else if entry, ok := command.Value.(Entry); ok {
+			value, err := publicEntryObject(entry, s.limits)
+			if err != nil {
+				return fail(err)
+			}
+			object = JSON{"type": "entry", "value": value}
 		} else if err = decodeStrict(wire, s.limits, s.limits.MaxRecordBytes, &object); err != nil {
 			return fail(err)
 		}

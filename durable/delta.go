@@ -84,6 +84,9 @@ func cloneJSONValue(v reflect.Value) any {
 	if v.Type() == reflect.TypeOf(json.Number("")) || v.Type() == nativeUTF16Type {
 		return v.Interface()
 	}
+	if v.Type() == sourcePublicEntryType {
+		return sourcePublicEntry(cloneJSONValue(v.Convert(reflect.TypeFor[map[string]any]())).(map[string]any))
+	}
 	if v.Type() == sourceToolArgumentsType {
 		return sourceToolArguments{cloneJSONValue(reflect.ValueOf(v.Interface().(sourceToolArguments).value))}
 	}

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 )
 
 // ToolTask is the source pi.tool v3 token. Its durable state contains only the
@@ -109,7 +110,13 @@ func canonicalToolSelection(ctx context.Context, r *TaskRuntime, input canonical
 }
 
 func canonicalToolError(code, message string) ToolResult {
-	return ToolResult{IsError: true, Blocks: []goai.ContentBlock{}, harnessResult: true, Diagnostics: []ToolDiagnostic{{Severity: "error", Code: code, Message: message}}}
+	diagnostic := ToolDiagnostic{Severity: "error", Code: code, Message: message}
+	// Preparation/validation errors are generated in the same argument domain
+	// as parser diagnostics; preserve an original isolated UTF-16 message.
+	if code == "invalid_arguments" && !utf8.ValidString(message) {
+		diagnostic.argumentError = true
+	}
+	return ToolResult{IsError: true, Blocks: []goai.ContentBlock{}, harnessResult: true, Diagnostics: []ToolDiagnostic{diagnostic}}
 }
 
 func canonicalToolHooks(ctx context.Context, r *TaskRuntime, agent agentState, call goai.ToolCall, result ToolResult) (ToolResult, error) {

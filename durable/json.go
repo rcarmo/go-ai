@@ -100,6 +100,12 @@ func (b *jsonBudget) str(s string) error {
 	return nil
 }
 func (b *jsonBudget) walk(v reflect.Value, depth int, objectsOnly bool) error {
+	if value, ok := reflectedPublicEntry(v); ok {
+		previous := b.utf16Keys
+		b.utf16Keys = true
+		defer func() { b.utf16Keys = previous }()
+		return b.walk(reflect.ValueOf(map[string]any(value)), depth, objectsOnly)
+	}
 	if wrapped, ok := reflectedToolArgumentValue(v); ok {
 		previousArgument, previousKeys := b.nativeArgument, b.utf16Keys
 		b.nativeArgument, b.utf16Keys = true, true
@@ -416,6 +422,12 @@ func encodeString(b *limitedJSON, s string) error {
 	return emit(b, "\"")
 }
 func encodeValue(b *limitedJSON, v reflect.Value) error {
+	if value, ok := reflectedPublicEntry(v); ok {
+		previous := b.utf16Keys
+		b.utf16Keys = true
+		defer func() { b.utf16Keys = previous }()
+		return encodeValue(b, reflect.ValueOf(map[string]any(value)))
+	}
 	if wrapped, ok := reflectedToolArgumentValue(v); ok {
 		previous := b.utf16Keys
 		b.utf16Keys = true
@@ -623,6 +635,8 @@ func cloneDecodedJSON(v any) (any, bool) {
 		return value, true
 	case sourceToolArguments:
 		return sourceToolArguments{cloneJSONValue(reflect.ValueOf(value.value))}, true
+	case sourcePublicEntry:
+		return sourcePublicEntry(cloneJSONValue(reflect.ValueOf(map[string]any(value))).(map[string]any)), true
 	case JSON:
 		return cloneDecodedJSON(map[string]any(value))
 	case map[string]any:

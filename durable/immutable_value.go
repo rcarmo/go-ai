@@ -44,6 +44,12 @@ func freezeImmutableScoped(input any, arguments bool) (*ImmutableValue, error) {
 		return &ImmutableValue{kind: "string", string: value}, nil
 	case goai.UTF16String:
 		return &ImmutableValue{kind: "string", string: value.WTF8(), utf16: &value, arguments: true}, nil
+	case sourcePublicEntry:
+		node, err := freezeImmutableScoped(map[string]any(value), true)
+		if err == nil {
+			node.arguments = true
+		}
+		return node, err
 	case sourceToolArguments:
 		node, err := freezeImmutableScoped(value.value, true)
 		if err == nil {

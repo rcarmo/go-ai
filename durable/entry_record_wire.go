@@ -136,10 +136,20 @@ func (v Entry) MarshalJSON() ([]byte, error) {
 	out.field("conversationId", v.Conversation)
 	out.field("kind", v.Kind)
 	if v.Model != nil {
-		out.field("model", v.Model)
+		wire, err := publicEntryModelJSON(v.Model)
+		if err != nil {
+			return nil, err
+		}
+		out.raw("model", wire)
 	}
 	if v.HasData {
-		out.field("data", v.Data)
+		if wire, changed, err := publicEntryDataJSON(v); err != nil {
+			return nil, err
+		} else if changed {
+			out.raw("data", wire)
+		} else {
+			out.field("data", v.Data)
+		}
 	} else if v.Data != nil {
 		return nil, reject("entry data requires HasData")
 	}

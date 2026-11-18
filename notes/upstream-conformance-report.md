@@ -1,5 +1,7 @@
 # Upstream conformance completion report
 
+Latest focused entry/diagnostic packet preserves isolated preparation errors through execution and canonical public records, JSON, observation and readonly views. Direct/decorated cases, focused10.641s/three controls/static; original42/23 plus114 separate probes zero skipped. No full sweep; public input/copy and broader Unicode still open. [Mapping](canonical-builtin-execution.md#canonical-public-entry-diagnostics-and-utf-16-preparation-errors).
+
 Latest test-only delegated Storage cases verify grouped durable prefixes/own refusal outcomes and publication before an after-receipt backend failure. Focused3-shuffle4.279s/two controls; no new full sweep. [Mapping](canonical-builtin-execution.md#decorated-storage-grouped-prefix-and-after-receipt-errors).
 
 Latest selected Storage packet removes the public decorator constructor rejection and promoted-nativeCore write bypass. Real wrapped model/tool execution, reservations, refusal/close and durable reopen pass focused3-shuffle11.462s/four controls/static. Original group-commit40 and113 separate probes pass zero skipped. Legacy interface extras/snapshot initialization and full D10/readOnly/schema remain open. [Mapping](canonical-builtin-execution.md#public-storage-decorators-and-receipted-session-images).

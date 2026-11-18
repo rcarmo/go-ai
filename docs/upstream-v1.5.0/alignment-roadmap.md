@@ -6,6 +6,8 @@ Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Canonical m
 
 ## Current argument value union packet
 
+Current focused public-entry work removes diagnostic placeholders/native witness envelopes and retains exact isolated preparation-error units in readonly/public output. Focused10.641s/three controls/static and original42/23+114 probes pass. Public input/copy and wider Unicode contracts remain open; no sweep. [Mapping](../../notes/canonical-builtin-execution.md#canonical-public-entry-diagnostics-and-utf-16-preparation-errors).
+
 Selected delegated grouped-prefix and after-receipt-error cases now pass public-callback focused tests (4.279s, two controls). Full Storage/API/loader/readOnly/database acceptance remains open. [Mapping](../../notes/canonical-builtin-execution.md#decorated-storage-grouped-prefix-and-after-receipt-errors).
 
 The selected Storage decorator packet now routes reservations, grouped writes and close through the public object, including concrete embedding. Actual model/tool execution and refusal/reopen semantics pass; focused11.462s/four controls/static, original40 plus113 probes. Legacy interface extras and snapshot initialization remain D10 blockers; no full sweep was run. [Mapping](../../notes/canonical-builtin-execution.md#public-storage-decorators-and-receipted-session-images).

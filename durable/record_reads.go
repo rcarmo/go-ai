@@ -131,6 +131,10 @@ func lookupStoredEntry(state Snapshot, limits Limits, ids []ID) (StoredEntry, bo
 		return StoredEntry{}, false, err
 	}
 	owned.Seq, owned.Position = 0, 0
+	owned, err = exposeEntryDiagnostics(owned)
+	if err != nil {
+		return StoredEntry{}, false, err
+	}
 	return StoredEntry{Entry: owned, CommitSeq: sequence}, true, nil
 }
 

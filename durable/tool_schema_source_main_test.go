@@ -399,3 +399,133 @@ func TestSourceToolPrepareArgumentsErrorKeepsSourceMessage(t *testing.T) {
 		}
 	})
 }
+
+func TestSourceToolPrepareErrorPreservesIsolatedUTF16(t *testing.T) {
+	for _, decorated := range []bool{false, true} {
+		t.Run(map[bool]string{false: "direct", true: "decorated"}[decorated], func(t *testing.T) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+				scalar := toolUTF16Scalar(t, `"\ud800"`)
+				text := scalar.WTF8()
+				var effects, requests atomic.Int64
+				registry := NewRegistry()
+				if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "unicode_error", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "source.unicode-error", Version: 1, PrepareArguments: func(context.Context, any) (any, error) { return nil, errors.New(text) }, Execute: func(context.Context, any, *ToolAPI) (ToolResult, error) { effects.Add(1); return ToolResult{}, nil }}); err != nil {
+					t.Fatal(err)
+				}
+				ref, options := setupFakeAPI(t, func(_ context.Context, _ *goai.Model, input *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
+					events := make(chan goai.Event, 1)
+					if requests.Add(1) == 1 {
+						events <- toolAnswer("unicode-error-call", "unicode_error", JSON{})
+					} else {
+						results := 0
+						for _, message := range input.Messages {
+							if message.Role == goai.RoleToolResult {
+								results++
+								if !message.IsError || goai.ContentText(message.Content) != "<harness>\n[error] "+text+"\n</harness>" {
+									t.Error("source UTF-16 preparation error", message)
+								}
+							}
+						}
+						if results != 1 {
+							t.Error("missing UTF-16 preparation result", results)
+						}
+						events <- terminal("answer")
+					}
+					close(events)
+					return events
+				})
+				options.Registry = registry
+				store := b.store
+				if decorated {
+					store = &sourceStorageDecorator{Storage: b.store}
+				}
+				h := openHarness(t, store, options)
+				conversation := root(t, h, ref)
+				published := make(chan ReadonlyValue, 1)
+				observer, err := h.ObserveCommits(CommitObserver{Advance: func(_ context.Context, frame CommitPublication) error {
+					for index := range frame.Changes.Len() {
+						change, _ := frame.Changes.Index(index)
+						kind, _ := change.Get("type")
+						if kind.String() != "entry" {
+							continue
+						}
+						value, _ := change.Get("value")
+						entryKind, _ := value.Get("kind")
+						if entryKind.String() == "pi.tool-result" {
+							published <- value
+						}
+					}
+					return nil
+				}, End: func(WatchEnd) error { return nil }})
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer observer.Detach()
+				submission, err := conversation.Submit(bg, Input{Content: "go"})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if result := waitSubmission(t, submission); result.Record.Status != "done" || effects.Load() != 0 || requests.Load() != 2 {
+					t.Fatal("UTF-16 preparation settlement", result.Record, effects.Load(), requests.Load())
+				}
+				entries, err := conversation.Entries(bg, EntryQuery{}, 20, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				found := false
+				for _, entry := range entries.Items {
+					if entry.Kind != "pi.tool-result" {
+						continue
+					}
+					found = true
+					diagnostics, ok := generationObject(entry.Data)["diagnostics"].([]any)
+					if !ok || len(diagnostics) != 1 {
+						t.Fatal("UTF-16 stored diagnostic absent", entry.Data)
+					}
+					diagnostic := generationObject(diagnostics[0])
+					if diagnostic["code"] != "invalid_arguments" {
+						t.Error("UTF-16 stored diagnostic code", diagnostic)
+					}
+					requireToolUTF16(t, diagnostic["message"], 0xd800)
+					wire, err := json.Marshal(entry)
+					if err != nil || !strings.Contains(string(wire), `\ud800`) || strings.Contains(string(wire), "�") || strings.Contains(string(wire), `"utf16Arguments"`) {
+						t.Error("UTF-16 preparation public JSON", string(wire), err)
+					}
+				}
+				if !found {
+					t.Error("UTF-16 preparation result not stored")
+				}
+				value := watchReceive(t, published)
+				data, _ := value.Get("data")
+				diagnostics, _ := data.Get("diagnostics")
+				diagnostic, _ := diagnostics.Index(0)
+				message, _ := diagnostic.Get("message")
+				requireToolUTF16(t, message.Copy(), 0xd800)
+				view, err := conversation.View(bg)
+				if err != nil {
+					t.Fatal(err)
+				}
+				viewFound := false
+				for index := range view.Entries.Len() {
+					entry, _ := view.Entries.Index(index)
+					kind, _ := entry.Get("kind")
+					if kind.String() != "pi.tool-result" {
+						continue
+					}
+					viewFound = true
+					data, _ := entry.Get("data")
+					diagnostics, _ := data.Get("diagnostics")
+					diagnostic, _ := diagnostics.Index(0)
+					message, _ := diagnostic.Get("message")
+					requireToolUTF16(t, message.Copy(), 0xd800)
+				}
+				if !viewFound {
+					t.Error("UTF-16 preparation result absent from readonly view")
+				}
+				viewJSON, err := json.Marshal(view)
+				if err != nil || !strings.Contains(string(viewJSON), `\ud800`) || strings.Contains(string(viewJSON), `"utf16Arguments"`) {
+					t.Error("UTF-16 readonly public JSON", string(viewJSON), err)
+				}
+			})
+		})
+	}
+}
