@@ -461,7 +461,6 @@ type StoragePublicationScope interface {
 
 type Storage interface {
 	MintID(context.Context) (ID, error)
-	Apply(context.Context, Batch) (uint64, error)
 	// Commit is the original public grouped persistence boundary: it stores the
 	// batched command union in order and delivers one durability receipt per
 	// stored batch before it resolves. It is not Session publication.
@@ -479,6 +478,5 @@ type Storage interface {
 	Submission(context.Context, ID) (SubmissionRecord, bool, error)
 	Documents(context.Context, Query) ([]Document, error)
 	SubmissionByRequest(context.Context, ID, string) (SubmissionRecord, bool, error)
-	Limits() (Limits, error)
 	Close(context.Context) error
 }

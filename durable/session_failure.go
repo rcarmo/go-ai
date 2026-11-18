@@ -233,11 +233,6 @@ func (g *sessionStorage) Snapshot(ctx context.Context) (Snapshot, error) {
 	}
 	return v, nil
 }
-func (g *sessionStorage) Limits() (Limits, error) {
-	v, e := g.Storage.Limits()
-	e = g.s.backendResult(context.Background(), e, false)
-	return v, e
-}
 func (g *sessionStorage) ScanConversations(ctx context.Context, q ConversationQuery, n int, c Cursor) (Page[Conversation], error) {
 	v, e := g.Storage.ScanConversations(ctx, q, n, c)
 	e = g.s.backendResult(ctx, e, false)

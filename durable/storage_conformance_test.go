@@ -20,9 +20,16 @@ import (
 
 var bg = context.Background()
 
+// Native fixture helpers still exercise SQLite's non-Storage entry points.
+type nativeTestStorage interface {
+	Storage
+	Apply(context.Context, Batch) (uint64, error)
+	Limits() (Limits, error)
+}
+
 type sqliteFixture struct {
-	store  Storage
-	reopen func() Storage
+	store  nativeTestStorage
+	reopen func() nativeTestStorage
 }
 
 type sqliteFixtureFile struct{ path string }
@@ -97,7 +104,7 @@ func sqliteStoreFresh(t *testing.T, fn func(*testing.T, sqliteFixture), configur
 			}
 		}
 		t.Cleanup(closeStore)
-		fn(t, sqliteFixture{store: store, reopen: func() Storage { closeStore(); store = open(); return store }})
+		fn(t, sqliteFixture{store: store, reopen: func() nativeTestStorage { closeStore(); store = open(); return store }})
 	})
 }
 
@@ -113,7 +120,7 @@ func seedRootConversation(t testing.TB, s Storage) {
 	if _, ok := state.Conversations[1]; ok {
 		return
 	}
-	if _, err := s.Apply(bg, Batch{[]Write{{Op: "create-conversation", Conversation: &Conversation{ID: 1}}}}); err != nil {
+	if _, err := s.(nativeTestStorage).Apply(bg, Batch{[]Write{{Op: "create-conversation", Conversation: &Conversation{ID: 1}}}}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -145,7 +152,7 @@ func apply(t *testing.T, s Storage, ws ...Write) uint64 {
 	if references && !creates {
 		seedRootConversation(t, s)
 	}
-	seq, e := s.Apply(bg, Batch{ws})
+	seq, e := s.(nativeTestStorage).Apply(bg, Batch{ws})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -472,7 +479,7 @@ func TestLimitsPreAdmissionSQLite(t *testing.T) {
 						ws = []Write{entry(id, JSON{"v": strings.Repeat("x", 128)})}
 					}
 					before := snap(t, s)
-					_, e = s.Apply(bg, Batch{ws})
+					_, e = s.(nativeTestStorage).Apply(bg, Batch{ws})
 					rejected(t, e)
 					if name == "MaxStringBytes" && !strings.Contains(e.Error(), "string") {
 						t.Fatalf("string budget not exercised: %v", e)

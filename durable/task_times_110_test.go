@@ -82,7 +82,7 @@ func TestTaskTimes110SessionLifecycleLegacyAndReopen(t *testing.T) {
 		if e = s.Close(bg); e != nil {
 			t.Fatal(e)
 		}
-		b.store = reopenStoreAfterHarnessClose(t, b.store)
+		b.store = reopenStoreAfterHarnessClose(t, b.store).(nativeTestStorage)
 		if e != nil {
 			t.Fatal(e)
 		}

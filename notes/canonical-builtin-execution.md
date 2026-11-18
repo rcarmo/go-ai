@@ -859,3 +859,9 @@ Pinned `session/cached-storage.ts` forwards global and conversation-scoped `entr
 The public Session and Tx now route uncached entry lookups and scans through the guarded decorator after admission. Callback-scoped line readers also delegate scans and bounded marker lookups; direct SQLite still uses the adopted image. The test checks exact public records, call order, both entry overloads and the inclusive marker bound. This does not implement the source's separate conversation-tail cache or replace the snapshot bootstrap.
 
 Focused three-shuffle: 9.137s. Two compiled controls restored: bypassing public `Entry` and bypassing public marker lookup. Unchanged source tables: 12; separate probes: 116 (92 + 24), zero skipped. Vet, Staticcheck, logging, register and diff checks passed. No full suite.
+
+## Public Storage no longer requires native Apply or Limits
+
+Neither method belongs to pinned `Storage`. Source `Session.unloadDocuments` stores held changes and clears the caches, without probing backend configuration. The Go interface check failed for both required methods (0.146s). `OpenSession` now takes the configured limits directly from the concrete SQLite backend; a public decorator uses Session defaults and does not expose or answer a native limits call. `UnloadDocuments` no longer inserts that extra backend call. SQLite retains `Apply` and `Limits` as native methods; test fixtures exercise them separately.
+
+Focused three-shuffle: 38.694s. The final focused rerun was 2.002s, including the test that rejects even an incidental backend `Limits` method being invoked. One compiled control detected and restored that legacy probe. Unchanged source deferred commits: 25; separate supplemental probes: 116 (92 + 24), zero skipped. Vet, Staticcheck, logging, register and diff checks passed. No full suite. Public snapshot bootstrap and remaining document-read seams still need refactoring.

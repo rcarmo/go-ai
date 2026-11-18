@@ -29,7 +29,7 @@ func TestStorage120InvalidCursorTypedRecoverableRead(t *testing.T) {
 func storageRequestMatrix120(t *testing.T, store Storage) {
 	t.Helper()
 	history := store.(DocumentHistoryStorage)
-	limits, e := store.Limits()
+	limits, e := store.(nativeTestStorage).Limits()
 	if e != nil {
 		t.Fatal(e)
 	}

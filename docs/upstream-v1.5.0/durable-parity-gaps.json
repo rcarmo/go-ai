@@ -1137,7 +1137,7 @@
     "historical": true
   },
   "currentCheckpoint": {
-    "scope": "Through fb263fd plus public uncached history routing. Focused 9.137s, two controls; source tables 12 plus 116 separate probes. Last full sweep remains 39 (32 failures); full parity incomplete.",
+    "scope": "Through 98b523e plus removal of mandatory native Apply/Limits. Focused 38.694s; final 2.002s, one control; source deferred commits 25 plus 116 separate probes. Last full sweep remains 39 (32 failures); full parity incomplete.",
     "baseRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
     "lastVerifiedPushed": {
       "revision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
@@ -2048,6 +2048,17 @@
         "separateSupplementalProbes": 116,
         "skipped": 0,
         "mapping": "notes/canonical-builtin-execution.md#public-storage-receives-uncached-history-reads"
+      },
+      "publicStorageNativeMethodsPacket": {
+        "sourceFirstRedSeconds": 0.146,
+        "scope": "Remove mandatory native Apply and Limits from Storage, including fake Limits probe during unload",
+        "focusedThreeShuffleSeconds": 38.694,
+        "finalFocusedSeconds": 2.002,
+        "semanticFaults": 1,
+        "unchangedOriginalDeferredTests": 25,
+        "separateSupplementalProbes": 116,
+        "skipped": 0,
+        "mapping": "notes/canonical-builtin-execution.md#public-storage-no-longer-requires-native-apply-or-limits"
       }
     },
     "reference": {

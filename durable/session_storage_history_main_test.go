@@ -101,3 +101,40 @@ func TestSourcePublicStorageForwardsHistoryReads(t *testing.T) {
 		}
 	})
 }
+
+type sourceWithoutNativeLimits struct{ *sourceStorageDecorator }
+
+func (s sourceWithoutNativeLimits) Limits() (Limits, error) {
+	return Limits{}, fmt.Errorf("native Limits is not a Session operation")
+}
+
+func TestSourcePublicStorageDoesNotRequireNativeApplyOrLimits(t *testing.T) {
+	for _, name := range []string{"Apply", "Limits"} {
+		if _, required := reflect.TypeFor[Storage]().MethodByName(name); required {
+			t.Errorf("public Storage requires native %s", name)
+		}
+	}
+	bg := context.Background()
+	sqliteStore(t, func(t *testing.T, f sqliteFixture) {
+		// Embedding the public interface does not promote native extras.
+		store := &sourceStorageDecorator{Storage: f.store}
+		// A decorator may coincidentally expose Limits for another client;
+		// that endpoint is not used by Session.
+		session, err := OpenSession(sourceWithoutNativeLimits{store})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = session.Close(bg) }()
+		if err := session.UnloadDocuments(bg); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := session.Commit(bg, func(tx *Tx) (any, error) {
+			return tx.AppendEntry(1, EntryDraft{"kind": "note"})
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if calls := store.commits.Load(); calls != 1 {
+			t.Fatalf("got %d public commits; want 1", calls)
+		}
+	})
+}

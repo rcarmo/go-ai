@@ -98,10 +98,7 @@ func OpenSessionWithOptions(store Storage, options SessionOptions) (*Session, er
 	if store == nil {
 		return nil, reject("nil storage")
 	}
-	l, e := store.Limits()
-	if e != nil {
-		return nil, e
-	}
+	l := DefaultLimits()
 	var core *storeCore
 	// Only the concrete backend may use its internal settlement fast path.
 	// Decorators can promote nativeCore by embedding SQLiteStorage; their
@@ -109,6 +106,7 @@ func OpenSessionWithOptions(store Storage, options SessionOptions) (*Session, er
 	native, nativeBackend := store.(*SQLiteStorage)
 	if nativeBackend {
 		core = native.nativeCore()
+		l = core.limits
 	} else {
 		image, err := store.Snapshot(context.Background())
 		if err != nil {

@@ -606,7 +606,7 @@ func TestV150StorageFreshRootAbsent(t *testing.T) {
 }
 
 func secondCreateRoot(s Storage) error {
-	_, err := s.Apply(bg, Batch{[]Write{{Op: "create-conversation", Conversation: &Conversation{ID: 1}}}})
+	_, err := s.(nativeTestStorage).Apply(bg, Batch{[]Write{{Op: "create-conversation", Conversation: &Conversation{ID: 1}}}})
 	return err
 }
 

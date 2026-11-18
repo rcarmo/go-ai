@@ -373,7 +373,7 @@ func interruptedStore140(t *testing.T, store Storage, id ID) Storage {
 	if task.Execution != nil && task.Execution.Native != nil {
 		task.Execution.Native.State.Status = "running"
 	}
-	if _, err := store.Apply(bg, Batch{Writes: []Write{{Op: "put-task", Task: &task}}}); err != nil {
+	if _, err := store.(nativeTestStorage).Apply(bg, Batch{Writes: []Write{{Op: "put-task", Task: &task}}}); err != nil {
 		t.Fatal(err)
 	}
 	return store

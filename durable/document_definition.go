@@ -182,10 +182,6 @@ func (s *Session) UnloadDocuments(ctx context.Context) error {
 	if err := s.touchAll(ctx); err != nil {
 		return err
 	}
-	// Poisoned storage must not appear usable even for a cache operation.
-	if _, err := s.guardedStorage().Limits(); err != nil {
-		return err
-	}
 	if err := s.storeHeldDocuments(context.Background(), nil); err != nil {
 		return s.backendResult(ctx, err, true)
 	}

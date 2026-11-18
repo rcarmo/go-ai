@@ -170,7 +170,7 @@ func TestMainCutoffSafeToolKeepsStoredOutput(t *testing.T) {
 		if err := h.Resume(bg); err != nil {
 			t.Fatal(err)
 		}
-		store := b.store
+		var store Storage = b.store
 		for crash := 0; crash < 2; crash++ {
 			var run *mainToolRun
 			select {

@@ -218,7 +218,7 @@ func TestMainRunFailureAbortHandlerCutoffProjectionDerived(t *testing.T) {
 		seed := markTask(state.Tasks[task.ID])
 
 		seed.Restarts = limit - 1
-		if _, err := store.Apply(bg, Batch{Writes: []Write{{Op: "put-task", Task: &seed}}}); err != nil {
+		if _, err := store.(nativeTestStorage).Apply(bg, Batch{Writes: []Write{{Op: "put-task", Task: &seed}}}); err != nil {
 			t.Fatal(err)
 		}
 		h = openHarness(t, interruptedStore140(t, store, task.ID), options)

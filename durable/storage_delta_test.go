@@ -147,7 +147,7 @@ func TestStorageDeltaBudgetAndSourceFence(t *testing.T) {
 			}
 			apply(t, s, deltaWrite(id, 1, Operation{"a", []any{"s"}, body}))
 			before := snap(t, s)
-			if _, err = s.Apply(bg, Batch{Writes: []Write{deltaWrite(id, 1, Operation{"a", []any{"s"}, "x"})}}); err == nil {
+			if _, err = s.(nativeTestStorage).Apply(bg, Batch{Writes: []Write{deltaWrite(id, 1, Operation{"a", []any{"s"}, "x"})}}); err == nil {
 				t.Fatal("513 budget")
 			}
 			if !reflect.DeepEqual(before, snap(t, s)) {
@@ -162,7 +162,7 @@ func TestStorageDeltaBudgetAndSourceFence(t *testing.T) {
 			target.Value = nil
 			target.Version = 0
 			before = snap(t, s)
-			if _, err = s.Apply(bg, Batch{Writes: []Write{deltaWrite(id, 1, Operation{"t", []any{"s"}, 1}), {Op: "copy-document", Document: &target, Source: &DocumentCopySource{ID: id, At: CurrentDocumentPoint()}}}}); err == nil {
+			if _, err = s.(nativeTestStorage).Apply(bg, Batch{Writes: []Write{deltaWrite(id, 1, Operation{"t", []any{"s"}, 1}), {Op: "copy-document", Document: &target, Source: &DocumentCopySource{ID: id, At: CurrentDocumentPoint()}}}}); err == nil {
 				t.Fatal("delta source copy fence")
 			}
 			if !reflect.DeepEqual(before, snap(t, s)) {

@@ -165,7 +165,7 @@ func TestMainCutoffDropsPartialPastLimit(t *testing.T) {
 		}
 		task := state.Tasks[id]
 		task.Restarts = 2
-		if _, err := store.Apply(bg, Batch{Writes: []Write{{Op: "put-task", Task: &task}}}); err != nil {
+		if _, err := store.(nativeTestStorage).Apply(bg, Batch{Writes: []Write{{Op: "put-task", Task: &task}}}); err != nil {
 			t.Fatal(err)
 		}
 		h, c := mainSalvageOpen(t, store, options, f.c.ID())
@@ -273,7 +273,7 @@ func TestMainCutoffDeferredSalvagePhasesDerived(t *testing.T) {
 					if past {
 						task.Restarts = 1
 					}
-					if _, err := store.Apply(bg, Batch{Writes: []Write{{Op: "put-task", Task: &task}}}); err != nil {
+					if _, err := store.(nativeTestStorage).Apply(bg, Batch{Writes: []Write{{Op: "put-task", Task: &task}}}); err != nil {
 						t.Fatal(err)
 					}
 					h, c := mainSalvageOpen(t, store, options, f.c.ID())

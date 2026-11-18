@@ -434,7 +434,7 @@ func TestSourceToolPrepareErrorPreservesIsolatedUTF16(t *testing.T) {
 					return events
 				})
 				options.Registry = registry
-				store := b.store
+				var store Storage = b.store
 				if decorated {
 					store = &sourceStorageDecorator{Storage: b.store}
 				}

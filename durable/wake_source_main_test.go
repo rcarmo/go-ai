@@ -28,7 +28,7 @@ func mainWakeSourceSeed(t *testing.T, store Storage, tasks ...Task) {
 	for i := range tasks {
 		writes[i] = Write{Op: "put-task", Task: &tasks[i]}
 	}
-	if _, err := store.Apply(bg, Batch{Writes: writes}); err != nil {
+	if _, err := store.(nativeTestStorage).Apply(bg, Batch{Writes: writes}); err != nil {
 		t.Fatal(err)
 	}
 }
