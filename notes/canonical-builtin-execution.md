@@ -851,3 +851,11 @@ Pinned `session/writer.ts` records the backend's `receive(index, seq)` value and
 Public settlement now replays detached logical writes only for received parts, at the backend's actual sequences. Group publication reconstructs each exact prefix; a refusal leaves the unreceived suffix unapplied. Native SQLite frames retain contiguous replay checks. The focused serial and grouped regressions compare public observer sequences to exact stored entry sequences, including reopened entries, and keep the refusal and later `SessionFailed` outcomes distinct.
 
 Focused three-shuffle: 7.511s. Two compiled controls detected and restored: requiring contiguous public receipts and publishing the final group image for an earlier receipt. Unchanged source: group-commit 40; separate supplemental probes: 116 (92 + 24), zero skipped. Vet, Staticcheck, logging, register and diff checks passed. No full sweep. Legacy snapshot bootstrap, cold reads and the between-part caller continuation still need work.
+
+## Public Storage receives uncached history reads
+
+Pinned `session/cached-storage.ts` forwards global and conversation-scoped `entry`, `scanEntries`, and `findLatestHeadMarker` to Storage. Pinned `session-tables.test.ts` checks table-read fencing, scan arguments and the stored self-headed record. The focused Go decorator saw no calls before the change (red: 0.179s), even though the validation image produced the same records.
+
+The public Session and Tx now route uncached entry lookups and scans through the guarded decorator after admission. Callback-scoped line readers also delegate scans and bounded marker lookups; direct SQLite still uses the adopted image. The test checks exact public records, call order, both entry overloads and the inclusive marker bound. This does not implement the source's separate conversation-tail cache or replace the snapshot bootstrap.
+
+Focused three-shuffle: 9.137s. Two compiled controls restored: bypassing public `Entry` and bypassing public marker lookup. Unchanged source tables: 12; separate probes: 116 (92 + 24), zero skipped. Vet, Staticcheck, logging, register and diff checks passed. No full suite.

@@ -268,6 +268,10 @@ func (g *sessionStorage) Entry(ctx context.Context, ids ...ID) (StoredEntry, boo
 	e = g.s.backendResult(ctx, e, false)
 	return v, found, e
 }
+func (g *sessionStorage) FindLatestHeadMarker(ctx context.Context, conversation, at ID) (Entry, bool, error) {
+	v, found, err := g.Storage.FindLatestHeadMarker(ctx, conversation, at)
+	return v, found, g.s.backendResult(ctx, err, false)
+}
 func (g *sessionStorage) Task(ctx context.Context, id ID) (TaskRecord, bool, error) {
 	v, ok, e := g.Storage.Task(ctx, id)
 	e = g.s.backendResult(ctx, e, false)

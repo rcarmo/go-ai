@@ -1137,7 +1137,7 @@
     "historical": true
   },
   "currentCheckpoint": {
-    "scope": "Through 7d139ed plus Storage receipt sequence authority. Focused 7.511s, two controls; source group-commit 40 plus 116 separate probes. Last full sweep remains 39 (32 failures); full parity incomplete.",
+    "scope": "Through fb263fd plus public uncached history routing. Focused 9.137s, two controls; source tables 12 plus 116 separate probes. Last full sweep remains 39 (32 failures); full parity incomplete.",
     "baseRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
     "lastVerifiedPushed": {
       "revision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
@@ -2038,6 +2038,16 @@
         "separateSupplementalProbes": 116,
         "skipped": 0,
         "mapping": "notes/canonical-builtin-execution.md#public-storage-receipts-own-the-commit-sequence"
+      },
+      "publicStorageHistoryPacket": {
+        "sourceFirstRedSeconds": 0.179,
+        "scope": "Decorated Session, Tx and ReadLine forward uncached Entry overloads, entry scans and bounded line marker lookup",
+        "focusedThreeShuffleSeconds": 9.137,
+        "semanticFaults": 2,
+        "unchangedOriginalTablesTests": 12,
+        "separateSupplementalProbes": 116,
+        "skipped": 0,
+        "mapping": "notes/canonical-builtin-execution.md#public-storage-receives-uncached-history-reads"
       }
     },
     "reference": {

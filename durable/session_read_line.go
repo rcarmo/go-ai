@@ -29,7 +29,7 @@ func (s *Session) ReadOnLine(ctx context.Context, read func(*ReadLine) error) (e
 	if err != nil {
 		return err
 	}
-	tx := &Tx{ctx: ctx, state: state, limits: s.limits}
+	tx := &Tx{ctx: ctx, state: state, limits: s.limits, session: s}
 	defer tx.seal()
 	return read(&ReadLine{tx: tx})
 }
@@ -50,7 +50,23 @@ func (r *ReadLine) FindLatestHeadMarker(conversation, at ID) (Entry, bool, error
 	if err := r.check(); err != nil {
 		return Entry{}, false, err
 	}
+	if storage := r.tx.delegatedHistoryStorage(); storage != nil {
+		if err := r.tx.enterTableRead("findLatestHeadMarker", ALL_KEYS); err != nil {
+			return Entry{}, false, err
+		}
+		defer r.tx.leave()
+		return storage.FindLatestHeadMarker(r.tx.ctx, conversation, at)
+	}
 	return r.tx.latestHeadMarkerAt(conversation, at)
+}
+
+// Keep the adopted image for validation; uncached history reads on a public
+// backend still use the backend's public methods after crossing the line gate.
+func (t *Tx) delegatedHistoryStorage() *sessionStorage {
+	if t.session == nil || !t.session.delegatedStorage {
+		return nil
+	}
+	return t.session.guardedStorage()
 }
 
 // LatestEntryID reads the newest committed visible entry, including fork history.

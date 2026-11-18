@@ -195,7 +195,7 @@ func (s *Session) Entry(ctx context.Context, ids ...ID) (record StoredEntry, fou
 	if err = s.touch(ctx, entryKey(ids[len(ids)-1])); err != nil {
 		return
 	}
-	if !s.hasNativeReadImage() {
+	if s.delegatedStorage || !s.hasNativeReadImage() {
 		return s.guardedStorage().Entry(ctx, ids...)
 	}
 	state, e := s.taskSnapshot(ctx)
@@ -222,6 +222,10 @@ func (t *Tx) Entry(id ID) (Entry, bool, error) {
 		return Entry{}, false, err
 	}
 	defer t.leave()
+	if storage := t.delegatedHistoryStorage(); storage != nil {
+		stored, found, err := storage.Entry(t.ctx, id)
+		return stored.Entry, found, err
+	}
 	stored, found, err := lookupStoredEntry(t.state, t.limits, []ID{id})
 	return stored.Entry, found, err
 }

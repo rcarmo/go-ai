@@ -474,6 +474,7 @@ type Storage interface {
 	ScanSubmissions(context.Context, SubmissionQuery, int, Cursor) (Page[SubmissionRecord], error)
 	Conversation(context.Context, ID) (Conversation, bool, error)
 	Entry(context.Context, ...ID) (StoredEntry, bool, error)
+	FindLatestHeadMarker(context.Context, ID, ID) (Entry, bool, error)
 	Task(context.Context, ID) (TaskRecord, bool, error)
 	Submission(context.Context, ID) (SubmissionRecord, bool, error)
 	Documents(context.Context, Query) ([]Document, error)

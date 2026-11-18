@@ -272,6 +272,9 @@ func (t *Tx) ScanEntries(q EntryQuery, limit int, cursor Cursor) (Page[Entry], e
 	if e := checkPage(t.limits, limit); e != nil {
 		return Page[Entry]{}, e
 	}
+	if storage := t.delegatedHistoryStorage(); storage != nil {
+		return storage.ScanEntries(t.ctx, q, limit, cursor)
+	}
 	return scanEntries(t.state, q, limit, cursor, t.limits)
 }
 func (t *Tx) ScanTasks(q TaskQuery, limit int, cursor Cursor) (Page[TaskRecord], error) {
@@ -339,7 +342,7 @@ func (s *Session) ScanEntries(ctx context.Context, q EntryQuery, limit int, curs
 	if e := s.touchAll(ctx); e != nil {
 		return Page[Entry]{}, e
 	}
-	if !s.hasNativeReadImage() {
+	if s.delegatedStorage || !s.hasNativeReadImage() {
 		return s.guardedStorage().ScanEntries(ctx, q, limit, cursor)
 	}
 	image, err := s.taskSnapshot(ctx)
