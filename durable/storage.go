@@ -859,7 +859,7 @@ func validateState(candidate *Snapshot, l Limits, final bool, prior Snapshot, wr
 		if !v.Retired {
 			key := documentAddress(v)
 			if _, ok := addresses[key]; ok {
-				return reject("duplicate current document address")
+				return reject("Document address already has a current incarnation")
 			}
 			addresses[key] = v.ID
 		}

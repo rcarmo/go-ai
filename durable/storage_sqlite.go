@@ -17,11 +17,20 @@ import (
 // The engine is CGO-free; one connection owns all SQL settlement for its lifetime.
 type SQLiteStorage struct {
 	*storeCore
-	db     *sql.Conn
+	db     sqliteConnection
 	pool   *sql.DB
 	prefix string
 	path   string
 }
+
+// sqliteConnection is the database boundary used by the native store.
+type sqliteConnection interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+	Close() error
+}
+
 type SQLiteOptions struct {
 	Limits *Limits
 	// Prefix namespaces all native tables. Empty preserves the original schema.
@@ -240,14 +249,7 @@ func (s *SQLiteStorage) appendSeries(frames []storageFrame) error {
 	if err := s.exec("BEGIN IMMEDIATE"); err != nil {
 		return reject("SQLite write admission unavailable")
 	}
-	var err error
-	for _, frame := range frames {
-		err = s.exec("INSERT INTO frames(ordinal,kind,highwater,payload) VALUES(?,?,?,?)", int64(frame.ordinal), int64(frame.kind), int64(frame.high), frame.payload)
-		if err != nil {
-			break
-		}
-	}
-	if err != nil {
+	if err := s.insertFrames(frames); err != nil {
 		if rollback := s.exec("ROLLBACK"); rollback != nil {
 			return rollback
 		}
