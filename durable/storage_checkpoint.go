@@ -97,7 +97,7 @@ func restoreCheckpoint(value storageCheckpoint, limits Limits) (Snapshot, error)
 		state.DocumentRevisions[record.ID] = record.Values
 	}
 	deriveConversationOwners(&state, nil)
-	if err := validateState(&state, limits, true, Snapshot{}, nil, false); err != nil {
+	if err := validateState(&state, limits, true, Snapshot{}, nil, false, true); err != nil {
 		return Snapshot{}, ErrCorrupt
 	}
 	return state, nil

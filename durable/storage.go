@@ -696,7 +696,7 @@ func prepareRecord(s Snapshot, r commitRecord, l Limits, final, explicit, contig
 		}
 	}
 	deriveConversationOwners(&n, created)
-	if err = validateState(&n, l, final, s, r.Writes, !explicit); err != nil {
+	if err = validateState(&n, l, final, s, r.Writes, !explicit, explicit); err != nil {
 		return Snapshot{}, err
 	}
 	return n, nil
@@ -724,7 +724,7 @@ func validStatus(s string) bool {
 	}
 	return false
 }
-func validateState(candidate *Snapshot, l Limits, final bool, prior Snapshot, writes []Write, runtimeTasks bool) error {
+func validateState(candidate *Snapshot, l Limits, final bool, prior Snapshot, writes []Write, runtimeTasks, rawEntries bool) error {
 	s := *candidate
 	changed := map[retainedKey]bool{}
 	for _, write := range writes {
@@ -777,11 +777,14 @@ func validateState(candidate *Snapshot, l Limits, final bool, prior Snapshot, wr
 	if err := validateAncestry(s, final); err != nil {
 		return err
 	}
+	// Storage treats entry links as raw IDs; only Session owns their
+	// visibility and referential checks.
+	checkEntryLinks := final && !rawEntries
 	for _, v := range s.Entries {
 		// EntryRecord.kind is any string, including empty. Only defineEntry's
 		// typed token requires a non-empty kind. model/data are optional and
 		// there is no required native Value payload.
-		if uint64(v.Conversation) > MaxID || uint64(v.Head) > MaxID || (final && !existsConv(v.Conversation)) {
+		if uint64(v.Conversation) > MaxID || uint64(v.Head) > MaxID || (checkEntryLinks && !existsConv(v.Conversation)) {
 			return reject("invalid entry")
 		}
 		if prior.retained == nil || changedEntries[v.ID] {
@@ -789,15 +792,15 @@ func validateState(candidate *Snapshot, l Limits, final bool, prior Snapshot, wr
 				return e
 			}
 		}
-		if uint64(v.ByTask) > MaxID || (final && v.ByTask != 0 && !existsTask(v.ByTask)) {
+		if uint64(v.ByTask) > MaxID || (checkEntryLinks && v.ByTask != 0 && !existsTask(v.ByTask)) {
 			return reject("entry task missing")
 		}
 		for _, edit := range v.Edits {
-			if final && (!entryVisible(s, v.Conversation, edit.Target) || edit.Target > v.ID) {
+			if checkEntryLinks && (!entryVisible(s, v.Conversation, edit.Target) || edit.Target > v.ID) {
 				return reject("context edit target not visible")
 			}
 		}
-		if v.Head != 0 && (v.Head > v.ID || (final && !entryVisible(s, v.Conversation, v.Head))) {
+		if !rawEntries && v.Head != 0 && (v.Head > v.ID || (final && !entryVisible(s, v.Conversation, v.Head))) {
 			return reject("entry head is not visible at marker")
 		}
 	}
