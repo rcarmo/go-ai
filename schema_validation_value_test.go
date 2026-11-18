@@ -75,3 +75,23 @@ func TestSchemaToolArgumentsDetachUnconstrainedDescendants(t *testing.T) {
 		}
 	}
 }
+
+// coerce.ts dropOptionalNulls traverses prefixItems before considering the
+// schema for remaining items. This probes that traversal through pi-ai's
+// public argument parser, including a null the tuple child actually allows.
+func TestSourceV152SchemaOptionalNullsFollowTuplePrefix(t *testing.T) {
+	tool := Tool{Name: "tuple", Parameters: json.RawMessage(`{
+		"type":"array",
+		"prefixItems":[{"type":"object","properties":{"drop":{"type":"string"},"keep":{"type":["string","null"]}},"additionalProperties":false}],
+		"items":{"type":"object","properties":{"tail":{"type":"number"}},"additionalProperties":false}
+	}`)}
+	original := []any{map[string]any{"drop": nil, "keep": nil}, map[string]any{"tail": nil}}
+	got, err := ValidateToolArguments(&tool, ToolCall{Name: tool.Name, Arguments: original})
+	want := []any{map[string]any{"keep": nil}, map[string]any{}}
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Fatalf("parsed = %#v, %v; want %#v", got, err, want)
+	}
+	if !reflect.DeepEqual(original, []any{map[string]any{"drop": nil, "keep": nil}, map[string]any{"tail": nil}}) {
+		t.Fatal("parse mutated its input", original)
+	}
+}

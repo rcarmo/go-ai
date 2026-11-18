@@ -178,17 +178,16 @@ func (validator *toolSchemaValidator) normalizeOptionalNulls(value interface{}, 
 		if v != nil && out == nil {
 			out = []interface{}{}
 		}
-		if itemSchemas, ok := schema["items"].([]interface{}); ok {
-			for i := range out {
-				if i >= len(itemSchemas) {
-					break
-				}
-				if itemSchema, ok := itemSchemas[i].(map[string]interface{}); ok {
-					out[i] = validator.normalizeOptionalNulls(out[i], itemSchema)
-				}
+		prefix, _ := validationTupleItems(schema)
+		// The source coercer visits tuple-prefix items first. Modern tuples
+		// use items for the remainder; legacy items arrays have no coercion
+		// rule for the remainder, even when additionalItems is a schema.
+		for i := range out {
+			raw := schema["items"]
+			if i < len(prefix) {
+				raw = prefix[i]
 			}
-		} else if itemSchema, ok := schema["items"].(map[string]interface{}); ok {
-			for i := range out {
+			if itemSchema, ok := raw.(map[string]interface{}); ok {
 				out[i] = validator.normalizeOptionalNulls(out[i], itemSchema)
 			}
 		}
