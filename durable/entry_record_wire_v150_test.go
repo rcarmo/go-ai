@@ -1,6 +1,7 @@
 package durable
 
 import (
+	"bytes"
 	"encoding/json"
 	goai "github.com/rcarmo/go-ai"
 	"os"
@@ -217,5 +218,23 @@ func TestSourcePublicEntryDiagnosticDataMutationKeepsModel(t *testing.T) {
 		if goai.ContentText(decoded.Model[0].Content) != goai.ContentText(entry.Model[0].Content) {
 			t.Error("data mutation changed model content")
 		}
+	}
+}
+
+// Source prompt replay uses Object.entries(message.sections); a public Entry
+// JSON roundtrip must not replace insertion order with Go's map order.
+func TestSourceV152EntrySystemSectionOrder(t *testing.T) {
+	raw := []byte(`{"id":3,"conversationId":1,"kind":"pi.system","model":[{"role":"system","content":[],"timestamp":1,"sections":{"second":"two","9":"nine","first":"one","2":"two index"}}]}`)
+	var entry Entry
+	if err := json.Unmarshal(raw, &entry); err != nil {
+		t.Fatal(err)
+	}
+	want := []RenderedSection{{Key: "2", Text: "two index"}, {Key: "9", Text: "nine"}, {Key: "second", Text: "two"}, {Key: "first", Text: "one"}}
+	if got := ReplayPromptSections(entry.Model); !reflect.DeepEqual(got, want) {
+		t.Fatal(got, want)
+	}
+	output, err := json.Marshal(entry)
+	if err != nil || !bytes.Contains(output, []byte(`"sections":{"2":"two index","9":"nine","second":"two","first":"one"}`)) || bytes.Contains(output, []byte(`"sectionOrder"`)) {
+		t.Fatal(string(output), err)
 	}
 }

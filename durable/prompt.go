@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	goai "github.com/rcarmo/go-ai"
+	"github.com/rcarmo/go-ai/internal/jsonparse"
 	"regexp"
-	"sort"
 	"strings"
 )
 
@@ -39,20 +39,7 @@ func ReplayPromptSections(messages []MessageReceipt) []RenderedSection {
 		if message.Role != goai.RoleSystem {
 			continue
 		}
-		keys := append([]string(nil), message.SectionOrder...)
-		seen := map[string]bool{}
-		for _, key := range keys {
-			seen[key] = true
-		}
-		extra := []string{}
-		for key := range message.Sections {
-			if !seen[key] {
-				extra = append(extra, key)
-			}
-		}
-		sort.Strings(extra)
-		keys = append(keys, extra...)
-		for _, key := range keys {
+		for _, key := range jsonparse.PropertyKeys(message.SectionOrder, message.Sections) {
 			value, exists := message.Sections[key]
 			if !exists {
 				continue

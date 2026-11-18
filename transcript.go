@@ -1,9 +1,9 @@
 package goai
 
 import (
-	"sort"
-	"strconv"
 	"strings"
+
+	"github.com/rcarmo/go-ai/internal/jsonparse"
 )
 
 // TranscriptToolSupport describes how a transport expresses tool changes.
@@ -195,7 +195,7 @@ func currentTranscriptSystemText(messages []Message) string {
 		}
 	}
 	parts := append([]string{}, base...)
-	for _, name := range orderTranscriptPropertyKeys(sectionOrder) {
+	for _, name := range jsonparse.OrderPropertyKeys(sectionOrder) {
 		if value, ok := sections[name]; ok && value != "" {
 			parts = append(parts, value)
 		}
@@ -317,40 +317,5 @@ func RenderSystemMessageText(msg Message) string {
 // Decoded messages retain source property order. A host-built Go map has no
 // insertion order, so only unspecified keys use deterministic lexical order.
 func transcriptSectionKeys(message Message) []string {
-	keys := make([]string, 0, len(message.Sections))
-	seen := make(map[string]bool, len(message.Sections))
-	for _, key := range message.SectionOrder {
-		if _, exists := message.Sections[key]; exists && !seen[key] {
-			keys = append(keys, key)
-			seen[key] = true
-		}
-	}
-	var extra []string
-	for key := range message.Sections {
-		if !seen[key] {
-			extra = append(extra, key)
-		}
-	}
-	sort.Strings(extra)
-	keys = append(keys, extra...)
-	return orderTranscriptPropertyKeys(keys)
-}
-
-func orderTranscriptPropertyKeys(keys []string) []string {
-	// Object.entries enumerates array-index property names first, regardless
-	// of their position in the JSON text; other strings keep insertion order.
-	sort.SliceStable(keys, func(i, j int) bool {
-		a, aIndex := transcriptPropertyIndex(keys[i])
-		b, bIndex := transcriptPropertyIndex(keys[j])
-		if aIndex && bIndex {
-			return a < b
-		}
-		return aIndex && !bIndex
-	})
-	return keys
-}
-
-func transcriptPropertyIndex(key string) (uint64, bool) {
-	index, err := strconv.ParseUint(key, 10, 32)
-	return index, err == nil && index < 1<<32-1 && strconv.FormatUint(index, 10) == key
+	return jsonparse.PropertyKeys(message.SectionOrder, message.Sections)
 }

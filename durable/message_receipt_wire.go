@@ -36,6 +36,7 @@ func (r *MessageReceipt) UnmarshalJSON(data []byte) error {
 		*plain
 		Content      json.RawMessage `json:"content"`
 		ErrorMessage json.RawMessage `json:"errorMessage"`
+		Sections     json.RawMessage `json:"sections"`
 	}{plain: &value}
 	decode := func(data []byte, target any) error {
 		decoder := json.NewDecoder(bytes.NewReader(data))
@@ -57,6 +58,23 @@ func (r *MessageReceipt) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		value.ErrorMessagePresent = value.ErrorMessage == ""
+	}
+	sections := bytes.TrimSpace(wire.Sections)
+	if len(sections) != 0 && !bytes.Equal(sections, []byte("null")) {
+		if err := decode(sections, &value.Sections); err != nil {
+			return err
+		}
+		// Public system messages carry property order in the object itself.
+		// Older native receipts may already supply a detached ordering field.
+		if len(value.SectionOrder) == 0 {
+			fields, err := rangeObject(sections, 0)
+			if err != nil {
+				return err
+			}
+			for _, field := range fields {
+				value.SectionOrder = append(value.SectionOrder, field.name)
+			}
+		}
 	}
 	content := bytes.TrimSpace(wire.Content)
 	if len(content) > 0 && content[0] == '"' {
