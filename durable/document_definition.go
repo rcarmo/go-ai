@@ -201,20 +201,72 @@ func (s *Session) watchDefinitionValue(ctx context.Context, def *DocumentDefinit
 	if e != nil {
 		return Document{}, nil, false, e
 	}
-	state, e := s.guardedStorage().Snapshot(ctx)
-	if e != nil {
-		return Document{}, nil, false, e
+	return s.loadCurrentDefinition(ctx, def, address)
+}
+
+// A cold definition read first resolves address occupancy, then materializes
+// the exact incarnation by ID. The native validation image is not a substitute
+// for the decorator's reads. Warm trackers and unstored changes stay local.
+func (s *Session) loadCurrentDefinition(ctx context.Context, def *DocumentDefinition, address DocumentAddress) (Document, JSON, bool, error) {
+	var record Document
+	var found bool
+	var err error
+	if s.delegatedStorage {
+		s.sweepDocumentCache()
+		key := definitionCacheKey{address}
+		if cached, ok := s.definitionCache[key]; ok && cached.valueVersion == def.options.Version {
+			if err := checkDefinition(def, cached.record); err != nil {
+				return Document{}, nil, false, err
+			}
+			cached.lastUsed = s.now()
+			s.definitionCache[key] = cached
+			s.scheduleDocumentExpiry()
+			value, err := copyReadonlyDocument(cached.value, s.limits)
+			return cached.record, value, err == nil, err
+		}
+		for _, held := range s.heldDocuments {
+			if documentAddress(held.record) != address {
+				continue
+			}
+			if held.record.Version == def.options.Version {
+				value, err := s.definitionValue(def, held.record)
+				return held.record, value, err == nil, err
+			}
+			if _, err := s.reloadHeldDefinition(ctx, def, held.record); err != nil {
+				return Document{}, nil, false, err
+			}
+			break
+		}
+		storage := s.guardedStorage()
+		point := CurrentDocumentPoint()
+		addressRecord, ok, err := storage.FindDocument(ctx, address, point)
+		if err != nil || !ok {
+			return Document{}, nil, false, err
+		}
+		record, found, err = storage.DocumentAt(ctx, addressRecord.ID, point)
+		if err != nil {
+			return Document{}, nil, false, err
+		}
+		if !found {
+			//lint:ignore ST1005 Preserve the upstream diagnostic verbatim.
+			return Document{}, nil, false, fmt.Errorf("Current document %d (%s) cannot be read", addressRecord.ID, addressRecord.Kind)
+		}
+	} else {
+		var state Snapshot
+		state, err = s.guardedStorage().Snapshot(ctx)
+		if err != nil {
+			return Document{}, nil, false, err
+		}
+		record, found = findDocumentState(state, address, CurrentDocumentPoint())
+		if found {
+			record, err = s.reloadHeldDefinition(ctx, def, record)
+		}
 	}
-	record, ok := findDocumentState(state, address, CurrentDocumentPoint())
-	if !ok {
-		return Document{}, nil, false, nil
+	if err != nil || !found {
+		return Document{}, nil, false, err
 	}
-	record, e = s.reloadHeldDefinition(ctx, def, record)
-	if e != nil {
-		return Document{}, nil, false, e
-	}
-	value, e := s.definitionValue(def, record)
-	return record, value, e == nil, e
+	value, err := s.definitionValue(def, record)
+	return record, value, err == nil, err
 }
 
 // touchDefinition ports #loadDocument and GatedStorage's address/incarnation
@@ -292,20 +344,8 @@ func (s *Session) snapshotDefinition(ctx context.Context, def *DocumentDefinitio
 	if err != nil {
 		return nil, false, err
 	}
-	state, err := s.guardedStorage().Snapshot(ctx)
-	if err != nil {
-		return nil, false, err
-	}
-	d, ok := findDocumentState(state, address, CurrentDocumentPoint())
-	if !ok {
-		return nil, false, nil
-	}
-	d, err = s.reloadHeldDefinition(ctx, def, d)
-	if err != nil {
-		return nil, false, err
-	}
-	value, err := s.definitionValue(def, d)
-	if err != nil {
+	d, value, found, err := s.loadCurrentDefinition(ctx, def, address)
+	if err != nil || !found {
 		return nil, false, err
 	}
 	if cached := s.cachedReadonlyDocument(d.ID, def.options.Version); cached != nil {

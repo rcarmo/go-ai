@@ -1137,7 +1137,7 @@
     "historical": true
   },
   "currentCheckpoint": {
-    "scope": "Through 98b523e plus removal of mandatory native Apply/Limits. Focused 38.694s; final 2.002s, one control; source deferred commits 25 plus 116 separate probes. Last full sweep remains 39 (32 failures); full parity incomplete.",
+    "scope": "Through 9ac77c9 plus cold public current-definition loading. Focused 2.417s, three controls; source documents 27 plus 116 separate probes. Last full sweep remains 39 (32 failures); full parity incomplete.",
     "baseRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
     "lastVerifiedPushed": {
       "revision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
@@ -2059,6 +2059,16 @@
         "separateSupplementalProbes": 116,
         "skipped": 0,
         "mapping": "notes/canonical-builtin-execution.md#public-storage-no-longer-requires-native-apply-or-limits"
+      },
+      "publicStorageDefinitionReadPacket": {
+        "sourceFirstRedSeconds": 0.173,
+        "scope": "Current cold definition snapshots and watch baselines use guarded address lookup and incarnation materialization; warm loads and missing-content diagnostic tested",
+        "focusedTwoShuffleSeconds": 2.417,
+        "semanticFaults": 3,
+        "unchangedOriginalDocumentTests": 27,
+        "separateSupplementalProbes": 116,
+        "skipped": 0,
+        "mapping": "notes/canonical-builtin-execution.md#cold-definition-reads-resolve-address-then-incarnation"
       }
     },
     "reference": {

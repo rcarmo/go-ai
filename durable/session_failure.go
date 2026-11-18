@@ -277,6 +277,18 @@ func (g *sessionStorage) Submission(ctx context.Context, id ID) (SubmissionRecor
 	err = g.s.backendResult(ctx, err, false)
 	return v, found, err
 }
+func (g *sessionStorage) FindDocument(ctx context.Context, address DocumentAddress, at DocumentPoint) (Document, bool, error) {
+	v, found, err := g.Storage.FindDocument(ctx, address, at)
+	return v, found, g.s.backendResult(ctx, err, false)
+}
+func (g *sessionStorage) DocumentAt(ctx context.Context, id ID, at DocumentPoint) (Document, bool, error) {
+	v, found, err := g.Storage.DocumentAt(ctx, id, at)
+	return v, found, g.s.backendResult(ctx, err, false)
+}
+func (g *sessionStorage) ScanDocuments(ctx context.Context, q DocumentQuery, limit int, cursor Cursor) (Page[Document], error) {
+	v, err := g.Storage.ScanDocuments(ctx, q, limit, cursor)
+	return v, g.s.backendResult(ctx, err, false)
+}
 func (g *sessionStorage) Documents(ctx context.Context, q Query) ([]Document, error) {
 	v, e := g.Storage.Documents(ctx, q)
 	e = g.s.backendResult(ctx, e, false)

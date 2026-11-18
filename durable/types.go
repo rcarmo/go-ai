@@ -460,6 +460,7 @@ type StoragePublicationScope interface {
 }
 
 type Storage interface {
+	DocumentHistoryStorage
 	MintID(context.Context) (ID, error)
 	// Commit is the original public grouped persistence boundary: it stores the
 	// batched command union in order and delivers one durability receipt per
