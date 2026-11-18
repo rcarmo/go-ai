@@ -412,12 +412,13 @@ func buildRequestBody(model *goai.Model, convCtx *goai.Context, opts *goai.Strea
 	if opts != nil {
 		cacheRetention = goai.ResolveCacheRetention(opts.CacheRetention, opts.Env)
 	}
-	if opts != nil && opts.SessionID != "" && cacheRetention != goai.CacheRetentionNone {
-		if (strings.Contains(model.BaseURL, "api.openai.com") && cacheRetention != goai.CacheRetentionNone) || (cacheRetention == goai.CacheRetentionLong && (compat.SupportsLongCacheRetention == nil || *compat.SupportsLongCacheRetention)) {
-			req.PromptCacheKey = goai.ClampOpenAIPromptCacheKey(opts.SessionID)
-		}
+	longRetention := cacheRetention == goai.CacheRetentionLong && (compat.SupportsLongCacheRetention == nil || *compat.SupportsLongCacheRetention)
+	mode := compat.PromptCacheKeyMode
+	supportsPromptCacheKey := mode == "enabled" || ((mode == "" || mode == "auto") && (strings.Contains(model.BaseURL, "api.openai.com") || longRetention))
+	if opts != nil && opts.SessionID != "" && cacheRetention != goai.CacheRetentionNone && supportsPromptCacheKey {
+		req.PromptCacheKey = goai.ClampOpenAIPromptCacheKey(opts.SessionID)
 	}
-	if cacheRetention == goai.CacheRetentionLong && (compat.SupportsLongCacheRetention == nil || *compat.SupportsLongCacheRetention) {
+	if longRetention {
 		req.PromptCacheRetention = "24h"
 	}
 

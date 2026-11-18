@@ -563,7 +563,7 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 	if opts != nil {
 		cacheRetention = goai.ResolveCacheRetention(opts.CacheRetention, opts.Env)
 	}
-	if opts != nil && opts.SessionID != "" && cacheRetention != goai.CacheRetentionNone {
+	if opts != nil && opts.SessionID != "" && cacheRetention != goai.CacheRetentionNone && compat.promptCacheKeyMode != "disabled" {
 		req.PromptCacheKey = goai.ClampOpenAIPromptCacheKey(opts.SessionID)
 	}
 	if model.Api != goai.ApiAzureOpenAIResponses && cacheRetention == goai.CacheRetentionLong && compat.supportsLongCacheRetention && !compat.supportsExplicitPromptCacheMode && !chatGPTSignIn {
@@ -591,6 +591,7 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 }
 
 type responsesCompat struct {
+	promptCacheKeyMode              string
 	supportsMidConvoEffort          bool
 	sessionAffinityFormat           string
 	supportsLongCacheRetention      bool
@@ -640,6 +641,7 @@ func getResponsesCompat(model *goai.Model) responsesCompat {
 		c.supportsLongCacheRetention = false
 	}
 	if model.ResponsesCompat != nil {
+		c.promptCacheKeyMode = model.ResponsesCompat.PromptCacheKeyMode
 		if model.ResponsesCompat.SupportsMidConvoEffort != nil {
 			c.supportsMidConvoEffort = *model.ResponsesCompat.SupportsMidConvoEffort
 		}

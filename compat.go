@@ -27,6 +27,9 @@ type AnthropicAllowedFallbackModel struct {
 // These control wire-format differences across Ollama, Groq, xAI, OpenRouter,
 // vLLM, LM Studio, z.ai, and other providers.
 type OpenAICompletionsCompat struct {
+	// PromptCacheKeyMode is "auto" (default), "enabled", or "disabled".
+	PromptCacheKeyMode string `json:"promptCacheKeyMode,omitempty"`
+
 	// Whether the provider supports the `store` field. Default: auto-detected from URL.
 	SupportsStore *bool `json:"supportsStore,omitempty"`
 
@@ -123,6 +126,10 @@ type OpenAICompletionsCompat struct {
 
 // OpenAIResponsesCompat holds compatibility overrides for OpenAI Responses APIs.
 type OpenAIResponsesCompat struct {
+	// PromptCacheKeyMode is "auto" (default), "enabled", or "disabled". It
+	// controls the request-body key independently of session-affinity headers.
+	PromptCacheKeyMode string `json:"promptCacheKeyMode,omitempty"`
+
 	// Retained from official catalogue metadata; Responses request behaviour is unchanged.
 	SupportsReasoningEffort *bool `json:"supportsReasoningEffort,omitempty"`
 	SupportsMidConvoEffort  *bool `json:"supportsMidConvoEffort,omitempty"`
@@ -306,6 +313,9 @@ func DetectCompatForModel(model *Model) OpenAICompletionsCompat {
 	}
 	if o.DeferredToolsMode != "" {
 		c.DeferredToolsMode = o.DeferredToolsMode
+	}
+	if o.PromptCacheKeyMode != "" {
+		c.PromptCacheKeyMode = o.PromptCacheKeyMode
 	}
 	if o.SupportsLongCacheRetention != nil {
 		c.SupportsLongCacheRetention = o.SupportsLongCacheRetention
