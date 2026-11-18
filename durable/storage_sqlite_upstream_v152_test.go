@@ -2,9 +2,11 @@ package durable
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -445,5 +447,136 @@ func TestSourceV152UpstreamSQLiteMintPersistsOnlyWithAcceptedCommit(t *testing.T
 	store = open()
 	if id, err := store.MintID(bg); err != nil || id != 10 {
 		t.Fatal(id, err)
+	}
+}
+
+func writeSQLiteMigrationFixture(t *testing.T, path string, statements ...string) {
+	t.Helper()
+	uri := url.URL{Scheme: "file", Path: path}
+	connector, err := newSQLiteConnector(uri.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	db := sql.OpenDB(connector)
+	defer db.Close()
+	for _, statement := range statements {
+		if _, err := db.ExecContext(bg, statement); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func copySQLiteV152Fixture(t *testing.T, name string) string {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join("testdata", "pi-durable-v152", name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "session.sqlite")
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+// sqlite-migrations.test.ts: an unsupported version rejects through the
+// storage opener, rather than applying any older migrations.
+func TestSourceV152SQLiteRejectsNewerSchema(t *testing.T) {
+	path := copySQLiteV152Fixture(t, "viewer.sqlite")
+	writeSQLiteMigrationFixture(t, path, "UPDATE durable_schema SET version=3 WHERE singleton=1")
+	store, err := OpenSQLite(path, SQLiteOptions{})
+	if store != nil {
+		_ = store.Close(bg)
+	}
+	if store != nil || err == nil || err.Error() != "SQLite schema version 3 is newer than supported version 2" {
+		t.Fatalf("future schema: storage %p, error %v", store, err)
+	}
+}
+
+// Supplemental: inject a late DDL failure into the real v1→v2 migration.
+// Failing after the DROP/ALTER must restore the original version and rows.
+func TestSourceV152SQLiteMigrationFailureCanRetry(t *testing.T) {
+	path := copySQLiteV152Fixture(t, "schema-v1.sqlite")
+	writeSQLiteMigrationFixture(t, path,
+		"DROP INDEX tasks_by_background",
+		"CREATE INDEX tasks_by_background ON conversations(id)")
+	store, err := OpenSQLite(path, SQLiteOptions{})
+	if store != nil {
+		_ = store.Close(bg)
+	}
+	if store != nil || err == nil || !strings.Contains(err.Error(), "index tasks_by_background already exists") {
+		t.Fatalf("migration did not reach the injected failure: storage %p, error %v", store, err)
+	}
+	view, err := OpenSQLite(path, SQLiteOptions{ReadOnly: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer view.Close(bg)
+	var version, leftover int
+	if err := view.db.QueryRowContext(bg, "SELECT version FROM durable_schema WHERE singleton=1").Scan(&version); err != nil || version != 1 {
+		t.Fatal(version, err)
+	}
+	if err := view.db.QueryRowContext(bg, "SELECT count(*) FROM sqlite_schema WHERE name='tasks_v2'").Scan(&leftover); err != nil || leftover != 0 {
+		t.Fatal(leftover, err)
+	}
+	original, found, err := view.Task(bg, 2)
+	if err != nil || !found || original.State.Status != "running" {
+		t.Fatal(original, found, err)
+	}
+	writeSQLiteMigrationFixture(t, path, "DROP INDEX tasks_by_background")
+	writer, err := OpenSQLite(path, SQLiteOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer writer.Close(bg)
+	if err := writer.db.QueryRowContext(bg, "SELECT version FROM durable_schema WHERE singleton=1").Scan(&version); err != nil || version != 2 {
+		t.Fatal(version, err)
+	}
+	task, found, err := writer.Task(bg, 2)
+	if err != nil || !found || !reflect.DeepEqual(task, original) {
+		t.Fatal(task, original, found, err)
+	}
+}
+
+// A schema metadata row at version zero is the initialization state of the
+// source migration runner; all migration statements must run on writer open.
+func TestSourceV152SQLiteMigratesVersionZeroWithPrefix(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "session.sqlite")
+	const prefix = "unit_"
+	if err := os.WriteFile(path, nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	writeSQLiteMigrationFixture(t, path,
+		"CREATE TABLE unit_durable_schema (singleton INTEGER PRIMARY KEY CHECK (singleton = 1), version INTEGER NOT NULL CHECK (version >= 0)) STRICT",
+		"INSERT INTO unit_durable_schema (singleton, version) VALUES (1, 0)")
+	writer, err := OpenSQLite(path, SQLiteOptions{Prefix: prefix})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer writer.Close(bg)
+	var version int
+	if err := writer.db.QueryRowContext(bg, "SELECT version FROM unit_durable_schema WHERE singleton=1").Scan(&version); err != nil || version != 2 {
+		t.Fatal(version, err)
+	}
+	var id string
+	var seq uint64
+	if err := writer.db.QueryRowContext(bg, "SELECT next_id,next_seq FROM unit_durable_metadata WHERE singleton=1").Scan(&id, &seq); err != nil || id != "2" || seq != 1 {
+		t.Fatal(id, seq, err)
+	}
+	result, err := writer.Commit(bg, [][]StorageWrite{{{Type: "conversation", Value: Conversation{ID: 1}}, {Type: "entry", Value: Entry{ID: 2, Conversation: 1, Kind: "retained", HasData: true, Data: JSON{"retained": true}}}}}, nil)
+	if err != nil || result.Stored != 1 || result.Refused != nil {
+		t.Fatal(result, err)
+	}
+	if err := writer.Close(bg); err != nil {
+		t.Fatal(err)
+	}
+	writer, err = OpenSQLite(path, SQLiteOptions{Prefix: prefix})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer writer.Close(bg)
+	entry, ok, err := writer.Entry(bg, 2)
+	if err != nil || !ok || entry.CommitSeq != 1 || !reflect.DeepEqual(entry.Entry.Data, map[string]any{"retained": true}) {
+		t.Fatal(entry, ok, err)
 	}
 }

@@ -184,13 +184,13 @@ func OpenSQLite(path string, options SQLiteOptions) (store *SQLiteStorage, err e
 			return nil, ErrCorrupt
 		}
 	}
-	if err = store.readSQLitePrefix(); err != nil {
-		return nil, err
-	}
 	if store.upstreamSchema && !options.ReadOnly {
 		if err = store.migrateUpstreamSQLite(); err != nil {
 			return nil, err
 		}
+	}
+	if err = store.readSQLitePrefix(); err != nil {
+		return nil, err
 	}
 	if options.ReadOnly || store.upstreamSchema {
 		if err = store.exec("COMMIT"); err != nil {

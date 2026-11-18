@@ -1,0 +1,46 @@
+[
+  {
+    "version": 1,
+    "statements": [
+      "CREATE TABLE pi_schema_durable_metadata (\n\t\t\tsingleton INTEGER PRIMARY KEY CHECK (singleton = 1),\n\t\t\tnext_id TEXT NOT NULL,\n\t\t\tnext_seq INTEGER NOT NULL\n\t\t) STRICT",
+      "INSERT INTO pi_schema_durable_metadata (singleton, next_id, next_seq) VALUES (1, '2', 1)",
+      "CREATE TABLE pi_schema_record_ids (\n\t\t\tid INTEGER PRIMARY KEY,\n\t\t\trecord_type TEXT NOT NULL CHECK (record_type IN ('conversation', 'entry', 'task', 'submission', 'document'))\n\t\t) STRICT",
+      "CREATE TABLE pi_schema_conversations (\n\t\t\tid INTEGER PRIMARY KEY,\n\t\t\towner_conversation_id INTEGER,\n\t\t\towner_task_id INTEGER,\n\t\t\trecord TEXT NOT NULL CHECK (json_valid(record))\n\t\t) STRICT",
+      "CREATE INDEX pi_schema_conversations_by_owner_conversation ON pi_schema_conversations (owner_conversation_id, id)",
+      "CREATE INDEX pi_schema_conversations_by_owner_task ON pi_schema_conversations (owner_task_id, id)",
+      "CREATE TABLE pi_schema_entries (\n\t\t\tid INTEGER PRIMARY KEY,\n\t\t\tconversation_id INTEGER NOT NULL,\n\t\t\thead INTEGER,\n\t\t\tcommit_seq INTEGER NOT NULL,\n\t\t\trecord TEXT NOT NULL CHECK (json_valid(record))\n\t\t) STRICT",
+      "CREATE INDEX pi_schema_entries_by_conversation ON pi_schema_entries (conversation_id, id DESC)",
+      "CREATE INDEX pi_schema_entry_heads_by_conversation ON pi_schema_entries (conversation_id, id DESC) WHERE head IS NOT NULL",
+      "CREATE TABLE pi_schema_tasks (\n\t\t\tid INTEGER PRIMARY KEY,\n\t\t\tconversation_id INTEGER NOT NULL,\n\t\t\tkind TEXT NOT NULL,\n\t\t\tstatus TEXT NOT NULL CHECK (status IN ('pending', 'running', 'waiting', 'completing', 'terminal')),\n\t\t\tabort_requested INTEGER NOT NULL CHECK (abort_requested IN (0, 1)),\n\t\t\tbackground INTEGER NOT NULL CHECK (background IN (0, 1)),\n\t\t\trecord TEXT NOT NULL CHECK (json_valid(record))\n\t\t) STRICT",
+      "CREATE INDEX pi_schema_tasks_by_status ON pi_schema_tasks (status, id)",
+      "CREATE INDEX pi_schema_tasks_by_conversation ON pi_schema_tasks (conversation_id, id)",
+      "CREATE INDEX pi_schema_tasks_by_kind ON pi_schema_tasks (kind, id)",
+      "CREATE INDEX pi_schema_tasks_by_abort_requested ON pi_schema_tasks (abort_requested, id)",
+      "CREATE INDEX pi_schema_tasks_by_background ON pi_schema_tasks (background, id)",
+      "CREATE TABLE pi_schema_submissions (\n\t\t\tid INTEGER PRIMARY KEY,\n\t\t\tconversation_id INTEGER NOT NULL,\n\t\t\trequest_id TEXT,\n\t\t\tstatus TEXT NOT NULL CHECK (status IN ('queued', 'placed', 'done', 'unanswered')),\n\t\t\trecord TEXT NOT NULL CHECK (json_valid(record))\n\t\t) STRICT",
+      "CREATE INDEX pi_schema_submissions_by_request ON pi_schema_submissions (conversation_id, request_id)",
+      "CREATE INDEX pi_schema_submissions_by_conversation ON pi_schema_submissions (conversation_id, id)",
+      "CREATE INDEX pi_schema_submissions_by_status ON pi_schema_submissions (status, id)",
+      "CREATE TABLE pi_schema_documents (\n\t\t\tid INTEGER PRIMARY KEY,\n\t\t\tkind TEXT NOT NULL,\n\t\t\tfamily INTEGER NOT NULL CHECK (family IN (0, 1)),\n\t\t\tkey_value TEXT NOT NULL,\n\t\t\tscope_kind TEXT NOT NULL CHECK (scope_kind IN ('session', 'conversation', 'task')),\n\t\t\towner_id INTEGER NOT NULL,\n\t\t\tcreated_at INTEGER NOT NULL,\n\t\t\tretired_at INTEGER,\n\t\t\trecord TEXT NOT NULL CHECK (json_valid(record))\n\t\t) STRICT",
+      "CREATE INDEX pi_schema_documents_by_address\n\t\t\tON pi_schema_documents (kind, scope_kind, owner_id, family, key_value, created_at DESC, retired_at)",
+      "CREATE INDEX pi_schema_documents_by_scope ON pi_schema_documents (scope_kind, owner_id, id)",
+      "CREATE INDEX pi_schema_documents_by_scope_kind ON pi_schema_documents (scope_kind, owner_id, kind, id)",
+      "CREATE TABLE pi_schema_document_revisions (\n\t\t\tdocument_id INTEGER NOT NULL,\n\t\t\tseq INTEGER NOT NULL,\n\t\t\tkind TEXT NOT NULL CHECK (kind IN ('base', 'delta')),\n\t\t\tversion INTEGER NOT NULL,\n\t\t\tcontent TEXT NOT NULL CHECK (json_valid(content)),\n\t\t\tPRIMARY KEY (document_id, seq)\n\t\t) STRICT",
+      "CREATE INDEX pi_schema_document_revisions_by_kind ON pi_schema_document_revisions (document_id, kind, seq DESC)"
+    ]
+  },
+  {
+    "version": 2,
+    "statements": [
+      "CREATE TABLE pi_schema_tasks_v2 (\n\t\t\tid INTEGER PRIMARY KEY,\n\t\t\tconversation_id INTEGER NOT NULL,\n\t\t\tkind TEXT NOT NULL,\n\t\t\tstatus TEXT NOT NULL CHECK (status IN ('pending', 'running', 'waiting', 'sleeping', 'completing', 'terminal')),\n\t\t\tabort_requested INTEGER NOT NULL CHECK (abort_requested IN (0, 1)),\n\t\t\tbackground INTEGER NOT NULL CHECK (background IN (0, 1)),\n\t\t\trecord TEXT NOT NULL CHECK (json_valid(record))\n\t\t) STRICT",
+      "INSERT INTO pi_schema_tasks_v2 (id, conversation_id, kind, status, abort_requested, background, record)\n\t\t\tSELECT id, conversation_id, kind, status, abort_requested, background, record FROM pi_schema_tasks",
+      "DROP TABLE pi_schema_tasks",
+      "ALTER TABLE pi_schema_tasks_v2 RENAME TO pi_schema_tasks",
+      "CREATE INDEX pi_schema_tasks_by_status ON pi_schema_tasks (status, id)",
+      "CREATE INDEX pi_schema_tasks_by_conversation ON pi_schema_tasks (conversation_id, id)",
+      "CREATE INDEX pi_schema_tasks_by_kind ON pi_schema_tasks (kind, id)",
+      "CREATE INDEX pi_schema_tasks_by_abort_requested ON pi_schema_tasks (abort_requested, id)",
+      "CREATE INDEX pi_schema_tasks_by_background ON pi_schema_tasks (background, id)"
+    ]
+  }
+]

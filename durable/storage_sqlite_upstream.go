@@ -24,7 +24,7 @@ func (s *SQLiteStorage) hasUpstreamSQLiteSchema() (bool, error) {
 func (s *SQLiteStorage) readUpstreamSQLitePrefix() error {
 	ctx := context.Background()
 	var version uint64
-	if err := s.db.QueryRowContext(ctx, "SELECT version FROM "+s.upstreamTable("durable_schema")+" WHERE singleton=1").Scan(&version); err != nil || version < 1 || version > 2 {
+	if err := s.db.QueryRowContext(ctx, "SELECT version FROM "+s.upstreamTable("durable_schema")+" WHERE singleton=1").Scan(&version); err != nil || version < 1 || version > upstreamSQLiteSchemaVersion {
 		return fmt.Errorf("durable: unsupported upstream SQLite schema: %w", ErrCorrupt)
 	}
 	var nextID string
