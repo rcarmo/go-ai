@@ -917,8 +917,20 @@ func readOfflineCatalog(dir string) (map[string]map[string]modelEntry, error) {
 	if err = json.Unmarshal(data, &manifest); err != nil {
 		return nil, err
 	}
-	if manifest.SchemaVersion != 6 || len(manifest.Files) != 42 || manifest.StructureHash != "4a18066209dbb48dee5fc8d9ca253ea98d5e085ba8dd5e8fef4207bce0ffaa54" {
-		return nil, fmt.Errorf("invalid v1.5.0 catalog manifest")
+	if manifest.SchemaVersion != 6 {
+		return nil, fmt.Errorf("unsupported catalog schema version %d", manifest.SchemaVersion)
+	}
+	switch manifest.StructureHash {
+	case "4a18066209dbb48dee5fc8d9ca253ea98d5e085ba8dd5e8fef4207bce0ffaa54": // v1.5.0
+		if len(manifest.Files) != 42 {
+			return nil, fmt.Errorf("invalid v1.5.0 catalog manifest")
+		}
+	case "b000db3651d082f3ea87239d65139d76b71656c1b2713944bb4c1cee29b1bb98": // v1.5.2
+		if len(manifest.Files) != 43 || fmt.Sprintf("%x", sha256.Sum256(data)) != "71375843feaa116c7d928e74e0500a22cc267e12bfb6869efb92dfd39acf7fee" {
+			return nil, fmt.Errorf("invalid v1.5.2 catalog manifest digest")
+		}
+	default:
+		return nil, fmt.Errorf("unsupported catalog structure hash %q", manifest.StructureHash)
 	}
 	if _, err := time.Parse(time.RFC3339Nano, manifest.GeneratedAt); err != nil {
 		return nil, fmt.Errorf("invalid catalog generation timestamp")

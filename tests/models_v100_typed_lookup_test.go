@@ -65,14 +65,14 @@ func TestV100UnifiedTypedLookupAndImageCompatibility(t *testing.T) {
 		t.Fatalf("classifier lookup=%#v", classifier)
 	}
 
-	// Current v1.5.0 catalogue: independently checked against all published records.
-	if got := len(goai.ListTypedModels(goai.ModelTypeChat, "")); got != 1592 {
+	// Current v1.5.2 catalogue: independently checked against all published records.
+	if got := len(goai.ListTypedModels(goai.ModelTypeChat, "")); got != 1643 {
 		t.Fatalf("typed chat list=%d", got)
 	}
-	if got := len(goai.ListTypedModels(goai.ModelTypeImage, "")); got != 64 {
+	if got := len(goai.ListTypedModels(goai.ModelTypeImage, "")); got != 66 {
 		t.Fatalf("typed image list=%d", got)
 	}
-	if got := len(goai.ListTypedModels(goai.ModelTypeClassifier, "")); got != 56 {
+	if got := len(goai.ListTypedModels(goai.ModelTypeClassifier, "")); got != 64 {
 		t.Fatalf("typed classifier list=%d", got)
 	}
 }

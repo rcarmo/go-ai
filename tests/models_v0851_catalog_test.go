@@ -13,29 +13,25 @@ func TestV0851GPT6AstraDirectCatalogAndCompat(t *testing.T) {
 		provider         goai.Provider
 		id               string
 		api              goai.Api
-		expectTier       bool
+		context          int
 		expectResponses  bool
 		expectExplicitPC bool
 		minimalMapsToLow bool
 	}{
-		{goai.ProviderOpenAI, "gpt-6-astra", goai.ApiOpenAIResponses, true, true, true, false},
-		{goai.ProviderOpenAICodex, "gpt-6-astra", goai.ApiOpenAICodexResponses, true, false, false, true},
-		{goai.ProviderAzureOpenAI, "gpt-6-astra", goai.ApiAzureOpenAIResponses, false, true, false, false},
+		{goai.ProviderOpenAI, "gpt-6-astra", goai.ApiOpenAIResponses, 272000, true, true, false},
+		{goai.ProviderOpenAICodex, "gpt-6-astra", goai.ApiOpenAICodexResponses, 272000, false, false, true},
+		{goai.ProviderAzureOpenAI, "gpt-6-astra", goai.ApiAzureOpenAIResponses, 1050000, true, false, false},
 	} {
 		t.Run(string(tc.provider)+"/"+tc.id, func(t *testing.T) {
 			model := goai.GetModel(tc.provider, tc.id)
 			if model == nil {
 				t.Fatalf("missing model %s/%s", tc.provider, tc.id)
 			}
-			if model.Api != tc.api || model.ContextWindow != 272000 || model.MaxTokens != 128000 {
+			if model.Api != tc.api || model.ContextWindow != tc.context || model.MaxTokens != 128000 {
 				t.Fatalf("model api/context/max mismatch: %#v", model)
 			}
 			assertV0851GPT6BaseCostInputAndThinking(t, model, tc.minimalMapsToLow)
-			if tc.expectTier {
-				assertV0851GPT6LongContextTier(t, model)
-			} else if len(model.Cost.Tiers) != 0 {
-				t.Fatalf("unexpected tier for %s/%s: %#v", model.Provider, model.ID, model.Cost.Tiers)
-			}
+			assertV0851GPT6LongContextTier(t, model)
 			if tc.expectResponses {
 				if model.ResponsesCompat == nil {
 					t.Fatal("missing responses compat")

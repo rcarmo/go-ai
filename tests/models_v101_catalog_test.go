@@ -15,8 +15,8 @@ func TestV101CatalogTypedCountsAndNewClassifierPrices(t *testing.T) {
 	goai.RegisterBuiltinModels()
 	goai.RegisterBuiltinImageModels()
 	goai.RegisterBuiltinClassifierModels()
-	// Current v1.5.0 catalogue: independently checked against all published records.
-	for kind, count := range map[goai.ModelType]int{goai.ModelTypeChat: 1592, goai.ModelTypeImage: 64, goai.ModelTypeClassifier: 56} {
+	// Current v1.5.2 catalogue: independently checked against all published records.
+	for kind, count := range map[goai.ModelType]int{goai.ModelTypeChat: 1643, goai.ModelTypeImage: 66, goai.ModelTypeClassifier: 64} {
 		if got := len(goai.ListTypedModels(kind, "")); got != count {
 			t.Fatalf("%s count=%d want=%d", kind, got, count)
 		}

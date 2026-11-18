@@ -23,7 +23,7 @@ Compact index. Read a linked note only when it is relevant to the current task.
 
 - [Typed model results](typed-model-results.md) — original internal metadata/envelopes/text, optional result JSON and actual paid QuickJS/task replay, original evidence and remaining tool/API gaps.
 
-- [Upstream v1.5.2 restart](upstream-v1.5.2-restart.md) — verified release delta, revised parity order and initial submission lookup evidence.
+- [Upstream v1.5.2 restart](upstream-v1.5.2-restart.md) — verified release delta, focused implementation evidence and remaining parity gaps.
 - [Upstream v1.5.2 source delta](../docs/upstream-v1.5.2/README.md) — immutable tag, checked file blobs and review inventory.
 
 
