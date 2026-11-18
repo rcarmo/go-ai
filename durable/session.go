@@ -20,6 +20,7 @@ type Session struct {
 	failureValue          *Failure        // the first failure value exactly as reported
 	now                   func() int64    // line-owned wall clock for lifecycle stamps
 	core                  *storeCore
+	delegatedStorage      bool     // public decorator owns persistence; core is only a validation image
 	readImage             Snapshot // immutable receipted image; owned by the Session line
 	heldDocuments         map[ID]heldDocument
 	memoryImage           *Snapshot // immutable document overlay, never a durable receipt
@@ -97,17 +98,30 @@ func OpenSessionWithOptions(store Storage, options SessionOptions) (*Session, er
 	if store == nil {
 		return nil, reject("nil storage")
 	}
-	var core *storeCore
-	native, ok := store.(nativeStorage)
-	if !ok {
-		return nil, reject("session requires native storage")
-	}
-	core = native.nativeCore()
-	if e := core.claim(); e != nil {
-		return nil, e
-	}
 	l, e := store.Limits()
 	if e != nil {
+		return nil, e
+	}
+	var core *storeCore
+	// Only the concrete backend may use its internal settlement fast path.
+	// Decorators can promote nativeCore by embedding SQLiteStorage; their
+	// overriding public methods must remain authoritative nevertheless.
+	native, nativeBackend := store.(*SQLiteStorage)
+	if nativeBackend {
+		core = native.nativeCore()
+	} else {
+		image, err := store.Snapshot(context.Background())
+		if err != nil {
+			return nil, err
+		}
+		owned, err := cloneState(image, l)
+		if err != nil {
+			return nil, err
+		}
+		core = newCore(l)
+		core.state, core.readHighWater = owned, owned.HighWater
+	}
+	if e := core.claim(); e != nil {
 		return nil, e
 	}
 	now := options.Now
@@ -119,7 +133,7 @@ func OpenSessionWithOptions(store Storage, options SessionOptions) (*Session, er
 	}
 	image := core.state
 	core.leave()
-	s := &Session{store: store, core: core, readImage: image, now: now, line: newSessionLine(), jobs: newSessionLine(), outcomeSlots: make(chan struct{}, 256), done: make(chan struct{}), limits: l, setTimer: options.SetTimer, timerReport: options.OnReport, clockReport: options.OnReport}
+	s := &Session{store: store, core: core, delegatedStorage: !nativeBackend, readImage: image, now: now, line: newSessionLine(), jobs: newSessionLine(), outcomeSlots: make(chan struct{}, 256), done: make(chan struct{}), limits: l, setTimer: options.SetTimer, timerReport: options.OnReport, clockReport: options.OnReport}
 	if options.Now != nil {
 		s.now = func() int64 {
 			value, err := callClock(options.Now)
@@ -297,7 +311,7 @@ func (s *Session) MintID(ctx context.Context) (ID, error) {
 		return 0, e
 	}
 	defer s.leave()
-	id, err := s.core.mintID(ctx, true)
+	id, err := s.reserveStorageID(ctx)
 	return id, s.backendResult(ctx, err, true)
 }
 
@@ -638,10 +652,11 @@ func (s *Session) readTaskView(ctx context.Context, read func(Snapshot, bool) er
 	return read(state, published)
 }
 
-// hasNativeReadImage recognises only concrete native stores. Adapters remain
-// authoritative, including replacements installed on the Session line after Open.
+// The read image is receipted either by the concrete backend or through public
+// Storage receipts. Native test adapters installed after Open still retain their
+// existing direct-read boundary.
 func (s *Session) hasNativeReadImage() bool {
-	return directSQLiteTaskSnapshot(s.store)
+	return s.delegatedStorage || directSQLiteTaskSnapshot(s.store)
 }
 
 // taskSnapshot is an internal view captured while the Session line is owned.
@@ -721,7 +736,7 @@ func (s *Session) Close(ctx context.Context) error {
 			}
 			s.definitionCache = nil
 			s.definitionCacheBytes = 0
-			if closeErr := s.core.close(context.Background(), true); s.closeErr == nil {
+			if closeErr := s.closeStorage(context.Background()); s.closeErr == nil {
 				s.closeErr = closeErr
 			}
 			s.leave()

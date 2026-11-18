@@ -283,9 +283,13 @@ func (t *Tx) mintID() (ID, error) {
 // mintIDEntered is shared by constructors already holding the Tx guard.
 // Every backend reservation is a mutation: failures latch even if caught.
 func (t *Tx) mintIDEntered() (ID, error) {
-	id, e := t.store.mintID(t.ctx, true)
+	var id ID
+	var e error
 	if t.session != nil {
+		id, e = t.session.reserveStorageID(t.ctx)
 		e = t.session.backendResult(t.ctx, e, true)
+	} else {
+		id, e = t.store.mintID(t.ctx, true)
 	}
 	if e == nil {
 		t.state.HighWater = uint64(id)

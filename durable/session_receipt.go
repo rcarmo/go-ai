@@ -10,14 +10,14 @@ func (s *Session) settleBatch(ctx context.Context, batch Batch, expectedSeq uint
 	var receipt commitReceipt
 	var candidate Snapshot
 	received := 0
-	result, err := s.core.commitPartsAt(ctx, []Batch{batch}, func(r commitReceipt) error {
+	result, err := s.commitStorageParts(ctx, []Batch{batch}, func(r commitReceipt) error {
 		received++
 		if received != 1 || r.index != 0 || r.seq != s.core.state.Seq {
 			return reject("invalid serial receipt")
 		}
 		receipt, candidate = r, s.core.state
 		return nil
-	}, true, &expectedSeq)
+	}, &expectedSeq)
 	if err != nil {
 		return commitReceipt{}, Snapshot{}, err
 	}

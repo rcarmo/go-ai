@@ -2,6 +2,8 @@
 
 Compact index of repository notes; history/evidence, not new instructions.
 
+- Public Storage decorators: interface-only and concrete embedding now route mint/Commit/Close through the decorator. Refusal cause/presence, actual model/tool execution, persisted reopen and no unacknowledged publication verified; four controls, focused3-shuffle11.462s/static; original40 plus113 separate probes. Legacy interface extras/snapshot initialization and full D10/readOnly/schema remain open. [Mapping](../notes/canonical-builtin-execution.md#public-storage-decorators-and-receipted-session-images).
+
 - User testing cadence: FOCUSED TESTS ONLY until designated parity sweeps. No full ./... per fix or checkpoint. Batch shared causes and retain the last sweep inventory separately.
 
 - Poll/repair batch: five old recovery/poll groups focused-green after public Generation2 checkpoint reconciliation and a real exhausted-poll cancellation fix. Tool prepare errors preserve exact source text. Focused3-shuffle14.945s/two controls/static; original18/42 plus111 separate probes. Last full sweep remains39/32 failures. [Mapping](../canonical-builtin-execution.md#poll-recovery-checkpoints-and-prepare-error-text).

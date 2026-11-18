@@ -25,9 +25,14 @@ type commitGroupResult struct {
 // carry null, undefined, any falsy value or an error whose identity is retained.
 type Refusal struct{ refusal *commitRefusal }
 
-func newCommitRefusal(value any) *Refusal {
+// NewRefusal represents a present Storage.Commit refusal. Value may be nil or
+// any falsy value; callers can implement public Storage decorators without
+// relying on private constructors or losing an original error identity.
+func NewRefusal(value any) *Refusal {
 	return &Refusal{refusal: &commitRefusal{value: value}}
 }
+
+func newCommitRefusal(value any) *Refusal { return NewRefusal(value) }
 
 // Value returns the refused value exactly as the store reported it.
 func (r *Refusal) Value() any {

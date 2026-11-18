@@ -4,6 +4,8 @@ The oracle runs original pi-durable v1.5.0 tests at `f9a26365568127461c47a07a37d
 
 ## Latest bounded reference packet
 
+Public-only Storage proxy probes now cover reservation/commit/refusal/close and a real model/tool chain. They use the actual Storage.entry envelope and reopen SQLite after refusal closes the Session. Source group-commit40 and113 separate probes (89+24) pass zero skipped. Native selected wrappers pass; complete Storage interface, cold-read, grouped-prefix and database compatibility remain unaccepted. [Mapping](canonical-builtin-execution.md#public-storage-decorators-and-receipted-session-images).
+
 Unchanged harness-restart-failure18 and harness-tools42 pass with111 separate probes zero skipped. The native focused batch preserves poll cancellation/retry/clock/cutoff assertions and ports the exact throwing-repair result, successful repaired arguments and unchanged model call. No whole native corpus acceptance is implied. [Mapping](canonical-builtin-execution.md#poll-recovery-checkpoints-and-prepare-error-text).
 
 Two new abort probes verify caller-wait cancellation with retained model/tool ownership, zero late offered-tool effects, a waiting generation parent, strict child-before-owner terminal adoption, committed prefix/details and absent late returned usage. Source public status is unanswered(reason:aborted); a retired native completing/Hold probe was corrected after timing out. Original generation26/tool-hooks18/recovery10 and111 separate probes (87+24) pass zero skipped. [Mapping](canonical-builtin-execution.md#public-abort-ownership-results-and-usage).

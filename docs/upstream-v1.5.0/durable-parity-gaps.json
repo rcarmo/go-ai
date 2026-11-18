@@ -1137,7 +1137,7 @@
     "historical": true
   },
   "currentCheckpoint": {
-    "scope": "Migration through59ef137 plus focused public poll checkpoints, exhausted-poll cancellation and preparation error text. Five old failed groups focused-green; no new sweep. Last complete baseline39 fails32 groups;89c031e last fully verified tree.",
+    "scope": "Migration through524fae3 plus selected public Storage decorator authority. Constructor/embedded-core bypass reds, four controls, focused11.462s/static pass. Original group40 plus113 probes pass. No new sweep; baseline39 remains last complete32 failed groups.",
     "baseRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
     "lastVerifiedPushed": {
       "revision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
@@ -1949,6 +1949,32 @@
         "fullSuite": "Not run; focused-only guideline until parity sweeps",
         "nativeSupplement": "Conversion/charge raw writer-batch observation; original database/Storage boundary remains open",
         "mapping": "notes/canonical-builtin-execution.md#poll-recovery-checkpoints-and-prepare-error-text"
+      },
+      "publicStorageDecoratorPacket": {
+        "sourceFirst": {
+          "publicDecoratorRedSeconds": 0.133,
+          "concreteEmbeddingRedSeconds": 0.148
+        },
+        "scope": "Public mint/grouped commit/refusal/close authority; actual wrapped Harness model/tool execution and SQLite reopen",
+        "decoratorThreeShuffleSeconds": 2.959,
+        "focusedRegressionThreeShuffleSeconds": 11.462,
+        "semanticFaults": 4,
+        "unchangedOriginalGroupCommitTests": 40,
+        "separateSupplementalProbes": 113,
+        "skipped": 0,
+        "supplemental": "Malformed missing-receipt backend: no publication and no invented rollback",
+        "open": [
+          "Legacy Snapshot/Apply/Limits interface requirements",
+          "Native snapshot initialization instead of canonical scan-only loading",
+          "All cold-read interception and wrapper combinations",
+          "Full grouped-prefix/uncertain-outcome parity",
+          "ReadOnly/viewers and original database schema"
+        ],
+        "backend": "Modernc SQLite only; core for decorated sessions is a validation image without a sink",
+        "vet": "pass",
+        "staticcheck": "v0.8.2 pass",
+        "logging": "pass",
+        "mapping": "notes/canonical-builtin-execution.md#public-storage-decorators-and-receipted-session-images"
       }
     },
     "reference": {
@@ -1964,7 +1990,7 @@
     },
     "profiling": "Pre-release CPU/alloc_space/alloc_objects analysis, measured tuning and equivalent-workload remeasurement required.",
     "reviewOnly": "No runtime tests rerun by the planning review; structural register/hash checks are separate.",
-    "execution": "Step2 active. FOCUSED TESTS ONLY until designated parity sweeps. Batch shared-cause fixes; preserve baseline39 inventory separately from focused progress. Wider acceptance incomplete."
+    "execution": "Focused-only implementation. Selected decorator authority passes; full D10/API/readOnly/schema, scan-only initialization and broader acceptance remain open. No full-suite runs before parity sweeps."
   },
   "review": {
     "basisRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",

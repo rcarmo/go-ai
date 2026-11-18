@@ -1257,3 +1257,34 @@ it("joins an aborted noncooperative tool before its owner without adopting its l
   expect((await harness.getTask(generation.id,context))?.state).toEqual({status:"terminal",outcome:{status:"aborted"}});
  }finally{release.resolve();guard.detach();await harness.close(context)}
 });
+
+it("uses a public-only Storage decorator for reservations, commits, refusal and close",async()=>{
+ const {openNodeSqliteStorage}=await import("@earendil-works/pi-durable/storage/sqlite/node");
+ const {mkdtemp,rm}=await import("node:fs/promises"),{tmpdir}=await import("node:os"),{join}=await import("node:path");
+ const directory=await mkdtemp(join(tmpdir(),"storage-wrapper-")),path=join(directory,"state.sqlite");
+ const raw=await openNodeSqliteStorage(path);let mints=0,commits=0,closes=0,refusal:any,conversation:any,entry:any;
+ const storage=new Proxy(raw,{get(target,key){if(key==="mintId")return async()=>{mints++;return target.mintId()};if(key==="commit")return async(...args:any[])=>{commits++;if(refusal!==undefined)return{stored:0,refused:refusal};return(target.commit as any)(...args)};if(key==="close")return async(...args:any[])=>{closes++;return(target.close as any)(...args)};const value=Reflect.get(target,key);return typeof value==="function"?value.bind(target):value}});
+ const session=new SessionImpl(storage,Date.now,()=>600000);
+ try{
+  conversation=await session.commit(tx=>tx.createConversation({ownership:{kind:"ownerless"}}),context);
+  entry=await session.commit(tx=>tx.appendEntry(conversation.id,{kind:"note",data:{kept:true}}),context);
+  expect((await raw.entry(entry.id,context))?.entry).toMatchObject({kind:"note",data:{kept:true}});expect({mints,commits}).toEqual({mints:2,commits:2});
+  const cause=new Error("decorator refuses this write");refusal=cause;
+  await expect(session.commit(tx=>tx.appendEntry(conversation.id,{kind:"must-not-store"}),context)).rejects.toBe(cause);
+ }finally{await session.close(context)}
+ expect(closes).toBe(1);
+ const reopened=await openNodeSqliteStorage(path);
+ try{expect((await reopened.scanEntries({conversationId:conversation.id},10,undefined,context)).items.map(entry=>entry.id)).toEqual([entry.id])}finally{await reopened.close(context);await rm(directory,{recursive:true,force:true})}
+});
+
+it("executes a model/tool chain through a public Storage decorator",async()=>{
+ const {MemoryStorage,defineTool}=await import("@earendil-works/pi-durable");
+ const {chatSetup,openChat,allEntries}=await import("@pinned/chat"),{addTool}=await import("@pinned/harness-support");
+ const {fauxAssistantMessage,fauxText}=await import("@reference/pi-ai");
+ const raw=new MemoryStorage();let mints=0,commits=0,effects=0;
+ const storage=new Proxy(raw,{get(target,key){if(key==="mintId")return async()=>{mints++;return target.mintId()};if(key==="commit")return async(...args:any[])=>{commits++;return(target.commit as any)(...args)};const value=Reflect.get(target,key);return typeof value==="function"?value.bind(target):value}});
+ const setup=chatSetup();addTool(setup.registry,defineTool({name:"wrapped",description:"wrapped",parameters:{type:"object"}as any,execute:async()=>{effects++;return{output:[{type:"text"as const,text:"wrapped result"}]}}}));
+ setup.faux.setResponses([fauxAssistantMessage([{type:"toolCall",id:"wrapped-call",name:"wrapped",arguments:{}}],{stopReason:"toolUse"}),fauxAssistantMessage([fauxText("answer")])]);
+ const {harness,root}=await openChat(storage,setup);
+ try{expect((await(await root.submit({type:"input",content:"go"},context)).wait(context)).status).toBe("done");expect(effects).toBe(1);expect(setup.faux.state.callCount).toBe(2);expect(mints).toBeGreaterThan(0);expect(commits).toBeGreaterThan(0);expect(await allEntries(root)).toHaveLength(5)}finally{await harness.close(context)}
+});

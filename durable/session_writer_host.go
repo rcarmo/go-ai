@@ -36,7 +36,7 @@ func (s *Session) writerCommit(ctx context.Context, batches []Batch, receive fun
 	for seq := range s.flushImages {
 		delete(s.flushImages, seq)
 	}
-	return s.core.commitParts(ctx, batches, func(r commitReceipt) error {
+	return s.commitStorageParts(ctx, batches, func(r commitReceipt) error {
 		if single {
 			image := s.core.state
 			s.flushImages[r.seq] = &image
@@ -45,7 +45,7 @@ func (s *Session) writerCommit(ctx context.Context, batches []Batch, receive fun
 			receive(r)
 		}
 		return nil
-	}, true)
+	}, nil)
 }
 
 // writerFailure returns the first failure CAUSE, not a SessionFailed wrapper: the
