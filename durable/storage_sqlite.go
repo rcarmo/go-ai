@@ -17,11 +17,12 @@ import (
 // The engine is CGO-free; one connection owns all SQL settlement for its lifetime.
 type SQLiteStorage struct {
 	*storeCore
-	db           sqliteConnection
-	pool         *sql.DB
-	prefix       string
-	path         string
-	implicitRoot bool
+	db             sqliteConnection
+	pool           *sql.DB
+	prefix         string
+	path           string
+	implicitRoot   bool
+	upstreamSchema bool
 }
 
 // sqliteConnection is the database boundary used by the native store.
@@ -127,6 +128,13 @@ func OpenSQLite(path string, options SQLiteOptions) (store *SQLiteStorage, err e
 	}()
 	store = &SQLiteStorage{storeCore: newCore(limits), db: db, pool: pool, path: path, prefix: options.Prefix}
 	var readVersion int64
+	store.upstreamSchema, err = store.hasUpstreamSQLiteSchema()
+	if err != nil {
+		return nil, err
+	}
+	if store.upstreamSchema && !options.ReadOnly {
+		return nil, fmt.Errorf("durable: upstream SQLite schema: %w", ErrReadOnlyStorage)
+	}
 	if options.ReadOnly {
 		store.readOnly = true
 		if err = store.exec("PRAGMA busy_timeout=5000"); err != nil {
@@ -143,34 +151,36 @@ func OpenSQLite(path string, options SQLiteOptions) (store *SQLiteStorage, err e
 			return nil, err
 		}
 	}
-	var data []byte
-	err = store.db.QueryRowContext(context.Background(), store.schemaSQL("SELECT value FROM config WHERE id=1")).Scan(&data)
-	switch {
-	case err == nil:
-		var config sqliteConfig
-		if decodeStrict(data, DefaultLimits(), 16<<10, &config) != nil || (config.Version != 1 && config.Version != sqliteConfigVersion) || config.Limits.validate() != nil {
+	if !store.upstreamSchema {
+		var data []byte
+		err = store.db.QueryRowContext(context.Background(), store.schemaSQL("SELECT value FROM config WHERE id=1")).Scan(&data)
+		switch {
+		case err == nil:
+			var config sqliteConfig
+			if decodeStrict(data, DefaultLimits(), 16<<10, &config) != nil || (config.Version != 1 && config.Version != sqliteConfigVersion) || config.Limits.validate() != nil {
+				return nil, ErrCorrupt
+			}
+			if options.Limits != nil && *options.Limits != config.Limits {
+				return nil, reject("persisted SQLite limits conflict")
+			}
+			store.limits = config.Limits
+			// Version 1 predates the raw/fresh root split and never persisted a root
+			// conversation write, so the reserved root stays implicit there.
+			store.implicitRoot = config.Version == 1
+		case errors.Is(err, sql.ErrNoRows):
+			if options.ReadOnly {
+				return nil, ErrCorrupt
+			}
+			data, err = encodeBounded(sqliteConfig{Version: sqliteConfigVersion, Sync: true, Limits: limits}, DefaultLimits(), 16<<10)
+			if err != nil {
+				return nil, err
+			}
+			if err = store.exec("INSERT INTO config(id,value) VALUES(1,?)", data); err != nil {
+				return nil, err
+			}
+		default:
 			return nil, ErrCorrupt
 		}
-		if options.Limits != nil && *options.Limits != config.Limits {
-			return nil, reject("persisted SQLite limits conflict")
-		}
-		store.limits = config.Limits
-		// Version 1 predates the raw/fresh root split and never persisted a root
-		// conversation write, so the reserved root stays implicit there.
-		store.implicitRoot = config.Version == 1
-	case errors.Is(err, sql.ErrNoRows):
-		if options.ReadOnly {
-			return nil, ErrCorrupt
-		}
-		data, err = encodeBounded(sqliteConfig{Version: sqliteConfigVersion, Sync: true, Limits: limits}, DefaultLimits(), 16<<10)
-		if err != nil {
-			return nil, err
-		}
-		if err = store.exec("INSERT INTO config(id,value) VALUES(1,?)", data); err != nil {
-			return nil, err
-		}
-	default:
-		return nil, ErrCorrupt
 	}
 	if err = store.readSQLitePrefix(); err != nil {
 		return nil, err
@@ -214,6 +224,9 @@ func ownSQLiteWriter(path string) (func() error, error) {
 }
 
 func (s *SQLiteStorage) readSQLitePrefix() error {
+	if s.upstreamSchema {
+		return s.readUpstreamSQLitePrefix()
+	}
 	if s.implicitRoot {
 		s.state.Conversations[1] = Conversation{ID: 1}
 	}
@@ -251,7 +264,7 @@ func (s *SQLiteStorage) refreshSQLitePrefix(stamp *int64) error {
 	if err := s.exec("BEGIN"); err != nil {
 		return err
 	}
-	candidate := &SQLiteStorage{storeCore: &storeCore{state: initialState(), limits: s.limits, ordinal: 1}, db: s.db, prefix: s.prefix, implicitRoot: s.implicitRoot}
+	candidate := &SQLiteStorage{storeCore: &storeCore{state: initialState(), limits: s.limits, ordinal: 1}, db: s.db, prefix: s.prefix, implicitRoot: s.implicitRoot, upstreamSchema: s.upstreamSchema}
 	if err := candidate.readSQLitePrefix(); err != nil {
 		return errors.Join(err, s.exec("ROLLBACK"))
 	}

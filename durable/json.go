@@ -671,6 +671,10 @@ func cloneDecodedJSON(v any) (any, bool) {
 }
 
 func decodeStrict(p []byte, l Limits, max int, target any) error {
+	return decodeStrictRoot(p, l, max, target, '{')
+}
+
+func decodeStrictRoot(p []byte, l Limits, max int, target any, root byte) error {
 	if len(p) > max || !utf8.Valid(p) {
 		return reject("invalid or oversized JSON bytes")
 	}
@@ -686,7 +690,10 @@ func decodeStrict(p []byte, l Limits, max int, target any) error {
 		sc.utf16Ranges = ranges
 	}
 	sc.space()
-	if sc.pos == len(p) || p[sc.pos] != '{' {
+	if sc.pos == len(p) || p[sc.pos] != root {
+		if root == '[' {
+			return reject("JSON root must be array")
+		}
 		return reject("JSON root must be object")
 	}
 	if err := sc.value(1); err != nil {
