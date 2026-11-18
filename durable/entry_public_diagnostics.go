@@ -11,6 +11,9 @@ import (
 // Native storage keeps diagnostic witnesses on the model receipt. Public entry
 // data must expose the original diagnostic strings, never their placeholders.
 func publicEntryDiagnosticData(entry Entry) (any, bool, error) {
+	if entry.publicDiagnosticData {
+		return entry.Data, true, nil
+	}
 	if entry.Kind != toolResultEntryKind || len(entry.Model) != 1 || !entry.HasData {
 		return entry.Data, false, nil
 	}
@@ -62,6 +65,7 @@ func exposeEntryDiagnostics(entry Entry) (Entry, error) {
 	}
 	if changed {
 		entry.Data = data
+		entry.publicDiagnosticData = true
 	}
 	return entry, nil
 }
@@ -205,7 +209,24 @@ func nativeEntryDiagnosticData(entry Entry) Entry {
 	}
 	copied := append([]any(nil), diagnostics...)
 	changed := false
+	entry.Model = append([]MessageReceipt(nil), entry.Model...)
+	entry.Model[0].Diagnostics = append([]ToolDiagnostic(nil), entry.Model[0].Diagnostics...)
 	for index, diagnostic := range entry.Model[0].Diagnostics {
+		if entry.publicDiagnosticData {
+			item := generationObject(diagnostics[index])
+			var text string
+			switch value := item["message"].(type) {
+			case string:
+				text = value
+			case jsonparse.UTF16String:
+				text = value.WTF8()
+			default:
+				continue
+			}
+			diagnostic.Message = text
+			diagnostic.argumentError = !utf8.ValidString(text) && diagnostic.Severity == "error" && diagnostic.Code == "invalid_arguments"
+			entry.Model[0].Diagnostics[index] = diagnostic
+		}
 		if !diagnostic.argumentError || utf8.ValidString(diagnostic.Message) {
 			continue
 		}
@@ -225,5 +246,6 @@ func nativeEntryDiagnosticData(entry Entry) Entry {
 		out["diagnostics"] = copied
 		entry.Data = out
 	}
+	entry.publicDiagnosticData = false
 	return entry
 }

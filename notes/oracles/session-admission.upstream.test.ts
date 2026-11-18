@@ -1312,3 +1312,8 @@ it("imports canonical UTF-16 diagnostic entry JSON without a native witness enve
   expect(JSON.stringify(entry)).toContain('\\ud800');expect(JSON.stringify(entry)).not.toContain('"utf16Arguments"');
  }finally{await storage.close(context)}
 });
+
+it("keeps copied diagnostic data independent of model text",()=>{
+ const original={kind:"pi.tool-result",model:[{role:"toolResult",content:[{type:"text",text:"<harness>\n[error] \ud800\n</harness>"}]}],data:{diagnostics:[{severity:"error",code:"invalid_arguments",message:"\ud800"}]}};
+ for(const message of ["changed","","\ud801"]){const copy=JSON.parse(JSON.stringify(original));copy.data.diagnostics[0].message=message;const decoded=JSON.parse(JSON.stringify(copy));expect(decoded.data.diagnostics[0].message).toBe(message);expect(decoded.model).toEqual(original.model);expect(original.data.diagnostics[0].message).toBe("\ud800")}
+});

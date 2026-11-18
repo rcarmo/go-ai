@@ -193,3 +193,29 @@ func TestSourcePublicEntryUnicodeDiagnosticStorageImport(t *testing.T) {
 		requireToolUTF16(t, generationObject(diagnostics[0])["message"], 0xd800)
 	})
 }
+
+func TestSourcePublicEntryDiagnosticDataMutationKeepsModel(t *testing.T) {
+	for _, message := range []any{"changed", "", toolUTF16Scalar(t, `"\ud801"`)} {
+		var entry Entry
+		if err := json.Unmarshal([]byte(sourceUnicodeDiagnosticEntryJSON), &entry); err != nil {
+			t.Fatal(err)
+		}
+		diagnostics := generationObject(entry.Data)["diagnostics"].([]any)
+		generationObject(diagnostics[0])["message"] = message
+		wire, err := json.Marshal(entry)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var decoded Entry
+		if err := json.Unmarshal(wire, &decoded); err != nil {
+			t.Fatal(err)
+		}
+		actual := generationObject(generationObject(decoded.Data)["diagnostics"].([]any)[0])["message"]
+		if !equalJSONValue(actual, message) {
+			t.Error("public data mutation overwritten by native witness", actual, message)
+		}
+		if goai.ContentText(decoded.Model[0].Content) != goai.ContentText(entry.Model[0].Content) {
+			t.Error("data mutation changed model content")
+		}
+	}
+}

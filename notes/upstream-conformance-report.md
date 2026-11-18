@@ -1,5 +1,7 @@
 # Upstream conformance completion report
 
+Latest focused copy fix preserves edited diagnostic data independently of model text, including empty and isolated-unit messages. Focused8.691s/one control/static; source12+116 probes zero skipped. No sweep. [Mapping](canonical-builtin-execution.md#detached-entry-data-is-independent-of-model-witnesses).
+
 Latest focused entry packet accepts canonical Unicode diagnostic JSON, imports it through Storage and preserves readonly-copy fidelity. Caller witness envelopes are unnecessary. Focused10.693s/three controls/static; original tables12 plus115 separate probes zero skipped. Wider unions and mutable-copy interactions remain open; no sweep. [Mapping](canonical-builtin-execution.md#canonical-entry-unicode-input-storage-import-and-view-copy).
 
 Latest focused entry/diagnostic packet preserves isolated preparation errors through execution and canonical public records, JSON, observation and readonly views. Direct/decorated cases, focused10.641s/three controls/static; original42/23 plus114 separate probes zero skipped. No full sweep; public input/copy and broader Unicode still open. [Mapping](canonical-builtin-execution.md#canonical-public-entry-diagnostics-and-utf-16-preparation-errors).

@@ -1137,7 +1137,7 @@
     "historical": true
   },
   "currentCheckpoint": {
-    "scope": "Migration through53ea3c8 plus selected canonical Unicode entry input/Storage import and readonly-copy fidelity. Red0.016s, focused10.693s/three controls/static pass; tables12+115 probes; no new sweep.",
+    "scope": "Migration through12889fe plus detached entry-data authority fix. Focused8.691s/one control/static; source12+116 probes pass. Last full sweep remains39/32 failures; full parity incomplete.",
     "baseRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
     "lastVerifiedPushed": {
       "revision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
@@ -2017,6 +2017,17 @@
         "staticcheck": "v0.8.2 pass",
         "logging": "pass",
         "mapping": "notes/canonical-builtin-execution.md#canonical-entry-unicode-input-storage-import-and-view-copy"
+      },
+      "detachedEntryDataPacket": {
+        "sourceFirstRedSeconds": 0.045,
+        "scope": "ASCII/empty/isolated-unit data edits roundtrip without model mutation or stale witness overwrite",
+        "focusedThreeShuffleSeconds": 8.691,
+        "semanticFaults": 1,
+        "unchangedOriginalTablesTests": 12,
+        "separateSupplementalProbes": 116,
+        "skipped": 0,
+        "fullSuite": "Not run; focused-only until parity sweeps",
+        "mapping": "notes/canonical-builtin-execution.md#detached-entry-data-is-independent-of-model-witnesses"
       }
     },
     "reference": {

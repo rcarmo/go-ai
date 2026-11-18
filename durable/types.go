@@ -142,12 +142,13 @@ type StoredEntry struct {
 }
 
 type Entry struct {
-	ID           ID     `json:"id"`
-	Conversation ID     `json:"conversation"`
-	Kind         string `json:"kind"`
-	Value        JSON   `json:"value"`
-	Seq          uint64 `json:"seq,omitempty"`
-	Position     uint64 `json:"position,omitempty"`
+	publicDiagnosticData bool   `json:"-"` // detached public data, not a native placeholder
+	ID                   ID     `json:"id"`
+	Conversation         ID     `json:"conversation"`
+	Kind                 string `json:"kind"`
+	Value                JSON   `json:"value"`
+	Seq                  uint64 `json:"seq,omitempty"`
+	Position             uint64 `json:"position,omitempty"`
 	// Head is the first visible entry contributing to active model context.
 	// A marker may select itself; zero leaves the preceding marker unchanged.
 	Head    ID               `json:"head,omitempty"`

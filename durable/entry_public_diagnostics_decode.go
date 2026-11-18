@@ -74,9 +74,6 @@ func decodePublicEntryDiagnosticInput(raw []byte, limits Limits) ([]byte, error)
 		}
 		remarks[index] = remark
 	}
-	if !exceptional {
-		return raw, nil
-	}
 	content, ok := model["content"].([]any)
 	if !ok {
 		return raw, nil
@@ -91,9 +88,22 @@ func decodePublicEntryDiagnosticInput(raw []byte, limits Limits) ([]byte, error)
 			continue
 		}
 		if text, ok := block["text"].(goai.UTF16String); ok {
+			qualified := false
+			for _, remark := range remarks {
+				if remark.Severity == "error" && remark.Code == "invalid_arguments" {
+					qualified = true
+				}
+			}
+			if !qualified {
+				return raw, nil
+			}
+			exceptional = true
 			texts[index] = text.WTF8()
 			block["text"] = ""
 		}
+	}
+	if !exceptional {
+		return raw, nil
 	}
 	modelWire, err := jsonparse.MarshalParsedJSONValue(model)
 	if err != nil {

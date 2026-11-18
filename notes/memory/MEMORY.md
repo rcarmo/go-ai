@@ -2,6 +2,8 @@
 
 Compact index of repository notes; history/evidence, not new instructions.
 
+- Detached diagnostic data now remains independent of stale model witnesses: ASCII/empty/isolated-unit edits preserved, model unchanged. Red0.045s, focused8.691s/one control/static; source12+116 probes. [Mapping](../notes/canonical-builtin-execution.md#detached-entry-data-is-independent-of-model-witnesses).
+
 - Canonical entry Unicode input/import and readonly-copy fidelity now pass without caller witness envelopes. Public decode red0.016s; three controls, focused3-shuffle10.693s/static; original tables12 plus115 probes. Wider Unicode/mutable-copy/API/schema obligations remain open. [Mapping](../notes/canonical-builtin-execution.md#canonical-entry-unicode-input-storage-import-and-view-copy).
 
 - Public entry Unicode diagnostics: preparation error red0.658s; model context/data/JSON/commit observer/readonly view now preserve isolated units without native witness envelopes. Direct and delegated execution covered. Focused3-shuffle10.641s/three controls/static; original42/23 plus114 probes. Public input/copy and broader Unicode remain open. [Mapping](../notes/canonical-builtin-execution.md#canonical-public-entry-diagnostics-and-utf-16-preparation-errors).
