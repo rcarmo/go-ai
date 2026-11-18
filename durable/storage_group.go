@@ -184,14 +184,14 @@ func (c *storeCore) commitParts(ctx context.Context, batches []Batch, receive fu
 // admission, before preparation or persistence. Nil retains raw storage Apply
 // semantics. This is a conservative barrier, not keyed/disjoint admission.
 func (c *storeCore) commitPartsAt(ctx context.Context, batches []Batch, receive func(commitReceipt) error, owned bool, expectedSeq *uint64) (commitGroupResult, error) {
-	return c.commitResolvedParts(ctx, len(batches), func(_ Snapshot, index int) (Batch, error) { return batches[index], nil }, receive, owned, expectedSeq)
+	return c.commitResolvedParts(ctx, len(batches), func(_ Snapshot, index int) (Batch, error) { return batches[index], nil }, receive, owned, expectedSeq, nil)
 }
 
 // commitResolvedParts is commitPartsAt with a per-batch resolver evaluated while
 // the core line is held, so a caller-supplied command union can consult the
 // running base image (for example to fill a document address from the stored
 // incarnation a change applies to). The resolver must not reenter storage.
-func (c *storeCore) commitResolvedParts(ctx context.Context, count int, resolve func(Snapshot, int) (Batch, error), receive func(commitReceipt) error, owned bool, expectedSeq *uint64) (commitGroupResult, error) {
+func (c *storeCore) commitResolvedParts(ctx context.Context, count int, resolve func(Snapshot, int) (Batch, error), receive func(commitReceipt) error, owned bool, expectedSeq *uint64, begin func() (func() error, error)) (result commitGroupResult, err error) {
 	if err := c.enter(ctx); err != nil {
 		return commitGroupResult{}, err
 	}
@@ -205,10 +205,22 @@ func (c *storeCore) commitResolvedParts(ctx context.Context, count int, resolve 
 	if expectedSeq != nil && c.state.Seq != *expectedSeq {
 		return commitGroupResult{}, reject("stale prepared storage baseline")
 	}
-	result := commitGroupResult{lastSeq: c.state.Seq}
+	result = commitGroupResult{lastSeq: c.state.Seq}
 	if count > c.limits.MaxWrites {
 		result.refused = &commitRefusal{reject("invalid batch count")}
 		return result, nil
+	}
+	if begin != nil {
+		finish, beginErr := begin()
+		if beginErr != nil {
+			return commitGroupResult{}, c.settlementError(beginErr)
+		}
+		defer func() {
+			if endErr := finish(); endErr != nil {
+				result = commitGroupResult{}
+				err = c.settlementError(endErr)
+			}
+		}()
 	}
 	if count == 0 {
 		return result, nil

@@ -19,15 +19,52 @@ func (s *SQLiteStorage) execUpstream(text string, args ...any) error {
 	return err
 }
 
-func (s *SQLiteStorage) appendUpstreamSeries(frames []storageFrame) error {
-	if err := s.execUpstream("BEGIN IMMEDIATE"); err != nil {
-		return &confirmedSQLiteAbort{cause: err}
+func (s *SQLiteStorage) Commit(ctx context.Context, batches [][]StorageWrite, receive func(int, uint64)) (CommitResult, error) {
+	if !s.upstreamSchema {
+		return s.storeCore.Commit(ctx, batches, receive)
 	}
-	if err := s.storeUpstreamSeries(frames); err != nil {
-		if rollback := s.execUpstream("ROLLBACK"); rollback != nil {
-			return errors.Join(err, rollback)
+	return s.storeCore.commitPublic(ctx, batches, receive, func() (func() error, error) { return s.beginUpstreamPublicGroup(batches) })
+}
+
+func (s *SQLiteStorage) beginUpstreamPublicGroup(batches [][]StorageWrite) (func() error, error) {
+	if err := s.execUpstream("BEGIN IMMEDIATE"); err != nil {
+		return nil, &confirmedSQLiteAbort{cause: err}
+	}
+	if err := s.checkUpstreamMetadata(); err != nil {
+		return nil, s.rollbackUpstream(err)
+	}
+	basis := s.publicWriteBasis(batches)
+	if err := s.checkUpstreamWriteBasis(s.state, basis); err != nil {
+		return nil, s.rollbackUpstream(err)
+	}
+	s.upstreamPublicTx = true
+	return func() error {
+		if !s.upstreamPublicTx {
+			return nil
 		}
-		return &confirmedSQLiteAbort{cause: err}
+		s.upstreamPublicTx = false
+		// Empty or fully refused group: release the transaction without changing metadata.
+		return s.execUpstream("COMMIT")
+	}, nil
+}
+
+func (s *SQLiteStorage) rollbackUpstream(cause error) error {
+	if rollback := s.execUpstream("ROLLBACK"); rollback != nil {
+		return errors.Join(cause, rollback)
+	}
+	return &confirmedSQLiteAbort{cause: cause}
+}
+
+func (s *SQLiteStorage) appendUpstreamSeries(frames []storageFrame) error {
+	preflight := s.upstreamPublicTx
+	s.upstreamPublicTx = false
+	if !preflight {
+		if err := s.execUpstream("BEGIN IMMEDIATE"); err != nil {
+			return &confirmedSQLiteAbort{cause: err}
+		}
+	}
+	if err := s.storeUpstreamSeries(frames, preflight); err != nil {
+		return s.rollbackUpstream(err)
 	}
 	if err := s.execUpstream("COMMIT"); err != nil {
 		return err
@@ -36,18 +73,27 @@ func (s *SQLiteStorage) appendUpstreamSeries(frames []storageFrame) error {
 	return nil
 }
 
-func (s *SQLiteStorage) storeUpstreamSeries(frames []storageFrame) error {
-	base := s.state
+func (s *SQLiteStorage) checkUpstreamMetadata() error {
 	table := s.upstreamTable("durable_metadata")
 	var nextId string
 	var nextSeq uint64
 	if err := s.db.QueryRowContext(context.Background(), "SELECT next_id,next_seq FROM "+table+" WHERE singleton=1").Scan(&nextId, &nextSeq); err != nil {
 		return err
 	}
-	if nextSeq != base.Seq+1 || nextId != strconv.FormatUint(s.upstreamHighWater+1, 10) {
+	if nextSeq != s.state.Seq+1 || nextId != strconv.FormatUint(s.upstreamHighWater+1, 10) {
 		return reject("upstream SQLite prefix changed externally")
 	}
-	basis := sqliteWriteBasis{claims: map[ID]bool{}, documents: map[ID]bool{}, deltas: map[ID]bool{}, seenAddresses: map[DocumentAddress]bool{}}
+	return nil
+}
+
+func (s *SQLiteStorage) storeUpstreamSeries(frames []storageFrame, preflight bool) error {
+	base := s.state
+	if !preflight {
+		if err := s.checkUpstreamMetadata(); err != nil {
+			return err
+		}
+	}
+	basis := newSQLiteWriteBasis()
 	patch := upstreamWritePatch{rows: map[string][][]any{}, revisions: map[ID][][]any{}, cleared: map[ID]bool{}}
 	for _, frame := range frames {
 		switch frame.kind {
@@ -58,7 +104,9 @@ func (s *SQLiteStorage) storeUpstreamSeries(frames []storageFrame) error {
 			if err := decodeStrict(frame.payload, s.limits, s.limits.MaxFramePayloadBytes, &record); err != nil {
 				return err
 			}
-			basis.collect(base, record.Writes)
+			if !preflight {
+				basis.collect(base, record.Writes)
+			}
 			next, err := prepareExplicit(base, record, s.limits)
 			if err != nil {
 				return err
@@ -74,13 +122,15 @@ func (s *SQLiteStorage) storeUpstreamSeries(frames []storageFrame) error {
 			return ErrCorrupt
 		}
 	}
-	if err := s.checkUpstreamWriteBasis(s.state, basis); err != nil {
-		return err
+	if !preflight {
+		if err := s.checkUpstreamWriteBasis(s.state, basis); err != nil {
+			return err
+		}
 	}
 	if err := s.flushUpstreamPatch(patch); err != nil {
 		return err
 	}
-	return s.execUpstream("UPDATE "+table+" SET next_id=?,next_seq=? WHERE singleton=1", strconv.FormatUint(base.HighWater+1, 10), base.Seq+1)
+	return s.execUpstream("UPDATE "+s.upstreamTable("durable_metadata")+" SET next_id=?,next_seq=? WHERE singleton=1", strconv.FormatUint(base.HighWater+1, 10), base.Seq+1)
 }
 
 func sqliteOptionalID(id ID) any {

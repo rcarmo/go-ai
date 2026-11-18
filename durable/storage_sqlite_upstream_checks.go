@@ -224,3 +224,51 @@ func queryUpstreamParts[T any](s *SQLiteStorage, text string, parts []T, visit f
 	}
 	return query()
 }
+
+func newSQLiteWriteBasis() sqliteWriteBasis {
+	return sqliteWriteBasis{claims: map[ID]bool{}, documents: map[ID]bool{}, deltas: map[ID]bool{}, seenAddresses: map[DocumentAddress]bool{}}
+}
+
+// Read keys of the original public commands, before staging any of the
+// batches. Omit malformed command fields; publicBatch still diagnoses them.
+func (s *SQLiteStorage) publicWriteBasis(batches [][]StorageWrite) sqliteWriteBasis {
+	b := newSQLiteWriteBasis()
+	for _, writes := range batches {
+		if len(writes) > s.limits.MaxWrites {
+			continue
+		}
+		for _, w := range writes {
+			if id, kind, _ := publicRecordClaim(w); kind != "" && id > 0 && uint64(id) <= MaxID {
+				b.claims[id] = true
+			}
+			switch w.Type {
+			case "document.create", "document.copy":
+				if w.Record == nil || w.Record.ID == 0 || uint64(w.Record.ID) > MaxID {
+					continue
+				}
+				b.documents[w.Record.ID] = true
+				if len(w.Record.Kind) > s.limits.MaxStringBytes || (w.Record.Key != nil && len(*w.Record.Key) > s.limits.MaxStringBytes) {
+					continue
+				}
+				d, err := nativeDocumentAddress(*w.Record, 1, JSON{})
+				if err != nil {
+					continue
+				}
+				addr := documentAddress(d)
+				if !b.seenAddresses[addr] {
+					b.seenAddresses[addr] = true
+					b.addresses = append(b.addresses, addr)
+				}
+			case "document.change", "document.retire":
+				if w.ID == 0 || uint64(w.ID) > MaxID {
+					continue
+				}
+				b.documents[w.ID] = true
+				if w.Type == "document.change" && w.Content != nil && w.Content.Kind == "delta" {
+					b.deltas[w.ID] = true
+				}
+			}
+		}
+	}
+	return b
+}

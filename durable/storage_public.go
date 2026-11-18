@@ -29,6 +29,10 @@ type CommitResult struct {
 // it applies to. Records the native store cannot represent are refused before
 // they become durable rather than written in a different shape.
 func (c *storeCore) Commit(ctx context.Context, batches [][]StorageWrite, receive func(index int, seq uint64)) (CommitResult, error) {
+	return c.commitPublic(ctx, batches, receive, nil)
+}
+
+func (c *storeCore) commitPublic(ctx context.Context, batches [][]StorageWrite, receive func(int, uint64), begin func() (func() error, error)) (CommitResult, error) {
 	var sink func(commitReceipt) error
 	if receive != nil {
 		sink = func(receipt commitReceipt) error {
@@ -38,7 +42,7 @@ func (c *storeCore) Commit(ctx context.Context, batches [][]StorageWrite, receiv
 	}
 	result, err := c.commitResolvedParts(ctx, len(batches), func(base Snapshot, index int) (Batch, error) {
 		return publicBatch(base, batches[index], c.limits)
-	}, sink, false, nil)
+	}, sink, false, nil, begin)
 	if err != nil {
 		return CommitResult{Stored: result.stored}, err
 	}

@@ -12,8 +12,8 @@ import (
 	"strings"
 )
 
-// SQLiteStorage keeps validated reservation/commit frames in atomic SQLite WAL
-// transactions. It uses native Go record semantics, not upstream file formats.
+// SQLiteStorage settles original-table batches or legacy frame groups in
+// atomic SQLite WAL transactions.
 // The engine is CGO-free; one connection owns all SQL settlement for its lifetime.
 type SQLiteStorage struct {
 	*storeCore
@@ -24,6 +24,7 @@ type SQLiteStorage struct {
 	implicitRoot      bool
 	upstreamSchema    bool
 	upstreamHighWater uint64
+	upstreamPublicTx  bool // only accessed under the core line
 }
 
 // sqliteConnection is the database boundary used by the native store.

@@ -325,3 +325,39 @@ func TestSourceV152SQLiteReadsAndWritesThroughIndexes(t *testing.T) {
 		}
 	}
 }
+
+func TestSourceV152SQLitePreflightsRefusedAndUnvisitedParts(t *testing.T) {
+	s, err := OpenSQLite(filepath.Join(t.TempDir(), "order.sqlite"), SQLiteOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close(bg)
+	seedRootConversation(t, s)
+	raw := s.db
+	cause := errors.New("check read for the refused part")
+	s.db = &upstreamCheckFault{sqliteConnection: raw, cause: cause}
+	received := false
+	r, err := s.Commit(bg, [][]StorageWrite{{{Type: "conversation", Value: Conversation{ID: 1}}}, {{Type: "entry", Value: Entry{ID: 2, Conversation: 1, Kind: "note"}}}}, func(int, uint64) { received = true })
+	if err != cause || r.Stored != 0 || r.Refused != nil || received {
+		t.Fatalf("expected check failure before logical refusal: %+v %v", r, err)
+	}
+	recording := &recordingSQLiteConnection{sqliteConnection: raw}
+	s.db = recording
+	receipts := []publicSQLiteReceipt{}
+	r, err = s.Commit(bg, [][]StorageWrite{{{Type: "entry", Value: Entry{ID: 2, Conversation: 1, Kind: "note"}}}, {{Type: "conversation", Value: Conversation{ID: 1}}}, {{Type: "entry", Value: Entry{ID: 3, Conversation: 1, Kind: "unvisited"}}}}, func(i int, seq uint64) { receipts = append(receipts, publicSQLiteReceipt{i, seq}) })
+	if err != nil || r.Stored != 1 || r.Refused == nil || !reflect.DeepEqual(receipts, []publicSQLiteReceipt{{0, 2}}) {
+		t.Fatal(r, receipts, err)
+	}
+	var claims []string
+	for _, call := range recording.calls {
+		if strings.Contains(call.text, `FROM "record_ids"`) {
+			claims = append(claims, call.args[0].(string))
+		}
+	}
+	if !reflect.DeepEqual(claims, []string{`[1,2,3]`}) {
+		t.Fatalf("expected one preflight of all claims, got %v", claims)
+	}
+	if _, found, err := s.Entry(bg, 3); err != nil || found {
+		t.Fatal(found, err)
+	}
+}
