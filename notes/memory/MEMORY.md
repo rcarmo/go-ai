@@ -2,6 +2,8 @@
 
 Compact index of repository notes; history/evidence, not new instructions.
 
+- Decorated grouped Storage: two confirmed parts before refusal retain own outcomes; later no-write job gets SessionFailed; after-receipt backend errors still publish confirmed data. Public callbacks/gates, SQLite reopen, focused3-shuffle4.279s/two controls; no runtime edit or full sweep. [Mapping](../notes/canonical-builtin-execution.md#decorated-storage-grouped-prefix-and-after-receipt-errors).
+
 - Public Storage decorators: interface-only and concrete embedding now route mint/Commit/Close through the decorator. Refusal cause/presence, actual model/tool execution, persisted reopen and no unacknowledged publication verified; four controls, focused3-shuffle11.462s/static; original40 plus113 separate probes. Legacy interface extras/snapshot initialization and full D10/readOnly/schema remain open. [Mapping](../notes/canonical-builtin-execution.md#public-storage-decorators-and-receipted-session-images).
 
 - User testing cadence: FOCUSED TESTS ONLY until designated parity sweeps. No full ./... per fix or checkpoint. Batch shared causes and retain the last sweep inventory separately.

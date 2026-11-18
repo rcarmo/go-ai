@@ -17,6 +17,7 @@ type sourceStorageDecorator struct {
 	mints, commits, closes atomic.Int64
 	refusal                error
 	dropReceipts           bool
+	rejectAfter            error
 }
 
 func (s *sourceStorageDecorator) MintID(ctx context.Context) (ID, error) {
@@ -31,7 +32,11 @@ func (s *sourceStorageDecorator) Commit(ctx context.Context, batches [][]Storage
 	if s.refusal != nil {
 		return CommitResult{Refused: NewRefusal(s.refusal)}, nil
 	}
-	return s.Storage.Commit(ctx, batches, receive)
+	result, err := s.Storage.Commit(ctx, batches, receive)
+	if err == nil && s.rejectAfter != nil {
+		err = s.rejectAfter
+	}
+	return result, err
 }
 func (s *sourceStorageDecorator) Close(ctx context.Context) error {
 	s.closes.Add(1)
@@ -234,6 +239,179 @@ func TestPublicStorageMissingReceiptDoesNotInventRollback(t *testing.T) {
 		stored, found, err := reopened.Entry(bg, entryID)
 		if err != nil || !found || stored.Entry.Kind != "stored-without-receipt" {
 			t.Fatal("unconfirmed outcome was falsely rolled back", stored, err)
+		}
+	})
+}
+
+// Selected source group-commit assertion: delivered receipts are published even
+// when the storage call rejects afterwards, and that call still rejects its job.
+func TestSourceDecoratedReceiptPublishesBeforeBackendFailure(t *testing.T) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+		store := &sourceStorageDecorator{Storage: b.store}
+		session, err := OpenSession(store)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer session.Close(bg)
+		value, err := session.Commit(bg, func(tx *Tx) (any, error) { return tx.CreateConversation(JSON{"ownership": JSON{"kind": "ownerless"}}) })
+		if err != nil {
+			t.Fatal(err)
+		}
+		conversation := value.(Conversation)
+		var observations atomic.Int64
+		guard, err := session.ObserveCommits(CommitObserver{Advance: func(context.Context, CommitPublication) error { observations.Add(1); return nil }, End: func(WatchEnd) error { return nil }})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer guard.Detach()
+		cause := errors.New("connection lost after receipt")
+		store.rejectAfter = cause
+		var entryID ID
+		_, err = session.Commit(bg, func(tx *Tx) (any, error) {
+			entry, err := tx.AppendEntry(conversation.ID, JSON{"kind": "confirmed-before-error"})
+			entryID = entry.ID
+			return entry, err
+		})
+		if !errors.Is(err, cause) {
+			t.Fatal("received storage call lost its own failure", err)
+		}
+		if observations.Load() != 1 {
+			t.Fatal("confirmed prefix was not published", observations.Load())
+		}
+		if err := session.Close(bg); err != nil {
+			t.Fatal(err)
+		}
+		reopened := utf16ReopenStore(t, b.store)
+		stored, found, err := reopened.Entry(bg, entryID)
+		if err != nil || !found || stored.Entry.Kind != "confirmed-before-error" {
+			t.Fatal("confirmed prefix did not survive reopen", stored, err)
+		}
+	})
+}
+
+type sourcePrefixStorageDecorator struct {
+	Storage
+	hold             atomic.Bool
+	entered, release chan struct{}
+	cause            error
+	sizes            chan int
+}
+
+func (s *sourcePrefixStorageDecorator) Commit(ctx context.Context, batches [][]StorageWrite, receive func(int, uint64)) (CommitResult, error) {
+	s.sizes <- len(batches)
+	if s.hold.CompareAndSwap(true, false) {
+		close(s.entered)
+		<-s.release
+	}
+	for index, batch := range batches {
+		for _, command := range batch {
+			if command.Type == "entry" {
+				entry, ok := command.Value.(Entry)
+				if ok && entry.Kind == "refused" {
+					result, err := s.Storage.Commit(ctx, batches[:index], receive)
+					if err != nil {
+						return result, err
+					}
+					result.Refused = NewRefusal(s.cause)
+					return result, nil
+				}
+			}
+		}
+	}
+	return s.Storage.Commit(ctx, batches, receive)
+}
+
+// Port of the source grouped-prefix/own-refusal ordering scenario, driven only
+// through public Session callbacks and the public Storage commit decorator.
+func TestSourceDecoratedGroupedPrefixRefusalAndOwnOutcomes(t *testing.T) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+		cause := errors.New("refused last grouped part")
+		store := &sourcePrefixStorageDecorator{Storage: b.store, entered: make(chan struct{}), release: make(chan struct{}), cause: cause, sizes: make(chan int, 8)}
+		session, err := OpenSession(store)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { releaseTaskGate(store.release); _ = session.Close(bg) }()
+		value, err := session.Commit(bg, func(tx *Tx) (any, error) { return tx.CreateConversation(JSON{"ownership": JSON{"kind": "ownerless"}}) })
+		if err != nil {
+			t.Fatal(err)
+		}
+		conversation := value.(Conversation)
+		watchReceive(t, store.sizes)
+		var observations atomic.Int64
+		guard, err := session.ObserveCommits(CommitObserver{Advance: func(context.Context, CommitPublication) error { observations.Add(1); return nil }, End: func(WatchEnd) error { return nil }})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer guard.Detach()
+		type outcome struct {
+			value any
+			err   error
+		}
+		appendEntry := func(kind string, entered chan struct{}) <-chan outcome {
+			done := make(chan outcome, 1)
+			go func() {
+				value, err := session.Commit(bg, func(tx *Tx) (any, error) {
+					if entered != nil {
+						close(entered)
+					}
+					return tx.AppendEntry(conversation.ID, JSON{"kind": kind})
+				})
+				done <- outcome{value, err}
+			}()
+			return done
+		}
+		store.hold.Store(true)
+		first := appendEntry("first", nil)
+		awaitTaskSignal(t, store.entered)
+		secondEntered := make(chan struct{})
+		second := appendEntry("second", secondEntered)
+		awaitTaskSignal(t, secondEntered)
+		thirdEntered := make(chan struct{})
+		third := appendEntry("third", thirdEntered)
+		awaitTaskSignal(t, thirdEntered)
+		refusedEntered := make(chan struct{})
+		refused := appendEntry("refused", refusedEntered)
+		awaitTaskSignal(t, refusedEntered)
+		// The next callback's admission witnesses that the refused callback has
+		// returned and its part was queued; no scheduling sleeps or polling.
+		noopEntered := make(chan struct{})
+		noop := make(chan error, 1)
+		go func() {
+			_, err := session.Commit(bg, func(*Tx) (any, error) { close(noopEntered); return nil, nil })
+			noop <- err
+		}()
+		awaitTaskSignal(t, noopEntered)
+		releaseTaskGate(store.release)
+		if result := watchReceive(t, first); result.err != nil {
+			t.Fatal(result.err)
+		}
+		if result := watchReceive(t, second); result.err != nil {
+			t.Fatal("durable prefix lost its outcome", result.err)
+		}
+		if result := watchReceive(t, third); result.err != nil {
+			t.Fatal("second durable grouped part lost its outcome", result.err)
+		}
+		if result := watchReceive(t, refused); !errors.Is(result.err, cause) {
+			t.Fatal("refused part lost its own cause", result.err)
+		}
+		var failed *SessionFailed
+		if err := watchReceive(t, noop); !errors.As(err, &failed) || !errors.Is(err, cause) {
+			t.Fatal("later no-write outcome must be SessionFailed", err)
+		}
+		if firstSize, secondSize := watchReceive(t, store.sizes), watchReceive(t, store.sizes); firstSize != 1 || secondSize != 3 {
+			t.Fatal("expected actual public grouped Storage call", firstSize, secondSize)
+		}
+		if observations.Load() != 3 {
+			t.Fatal("must publish only the durable prefix", observations.Load())
+		}
+		if err := session.Close(bg); err != nil {
+			t.Fatal(err)
+		}
+		reopened := utf16ReopenStore(t, b.store)
+		entries, err := reopened.ScanEntries(bg, EntryQuery{Conversation: conversation.ID}, 10, nil)
+		if err != nil || len(entries.Items) != 3 || entries.Items[0].Kind != "third" || entries.Items[1].Kind != "second" || entries.Items[2].Kind != "first" {
+			t.Fatal("wrong durable grouped prefix", entries, err)
 		}
 	})
 }

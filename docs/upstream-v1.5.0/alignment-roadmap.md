@@ -6,6 +6,8 @@ Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Canonical m
 
 ## Current argument value union packet
 
+Selected delegated grouped-prefix and after-receipt-error cases now pass public-callback focused tests (4.279s, two controls). Full Storage/API/loader/readOnly/database acceptance remains open. [Mapping](../../notes/canonical-builtin-execution.md#decorated-storage-grouped-prefix-and-after-receipt-errors).
+
 The selected Storage decorator packet now routes reservations, grouped writes and close through the public object, including concrete embedding. Actual model/tool execution and refusal/reopen semantics pass; focused11.462s/four controls/static, original40 plus113 probes. Legacy interface extras and snapshot initialization remain D10 blockers; no full sweep was run. [Mapping](../../notes/canonical-builtin-execution.md#public-storage-decorators-and-receipted-session-images).
 
 Current focused batch resolves five old poll/recovery consumers plus real no-retry cancellation and preparation error-text defects. Focused14.945s/two compiled controls/static pass. Full suites are reserved for designated parity sweeps, per explicit user direction; baseline39 remains the last complete failure inventory. [Mapping](../../notes/canonical-builtin-execution.md#poll-recovery-checkpoints-and-prepare-error-text).

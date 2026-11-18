@@ -1137,7 +1137,7 @@
     "historical": true
   },
   "currentCheckpoint": {
-    "scope": "Migration through524fae3 plus selected public Storage decorator authority. Constructor/embedded-core bypass reds, four controls, focused11.462s/static pass. Original group40 plus113 probes pass. No new sweep; baseline39 remains last complete32 failed groups.",
+    "scope": "Migration through74f88c3 plus focused delegated Storage grouped-prefix/after-receipt tests. Focused4.279s/two controls pass. Full D10 and broader acceptance open; last complete baseline39 remains32 failed groups.",
     "baseRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
     "lastVerifiedPushed": {
       "revision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
@@ -1975,6 +1975,14 @@
         "staticcheck": "v0.8.2 pass",
         "logging": "pass",
         "mapping": "notes/canonical-builtin-execution.md#public-storage-decorators-and-receipted-session-images"
+      },
+      "decoratedStoragePrefixTests": {
+        "scope": "Public Session/Storage grouped prefix with two received batches then refusal; own outcomes and later SessionFailed; received part published before backend error; reopen durability",
+        "focusedThreeShuffleSeconds": 4.279,
+        "semanticFaults": 2,
+        "runtimeEdits": false,
+        "fullSuite": "Not run; focused-only until parity sweeps",
+        "mapping": "notes/canonical-builtin-execution.md#decorated-storage-grouped-prefix-and-after-receipt-errors"
       }
     },
     "reference": {
