@@ -93,39 +93,54 @@ func (s *SQLiteStorage) storeUpstreamSeries(frames []storageFrame, preflight boo
 			return err
 		}
 	}
+	records := make([]commitRecord, len(frames))
 	basis := newSQLiteWriteBasis()
-	patch := upstreamWritePatch{rows: map[string][][]any{}, revisions: map[ID][][]any{}, cleared: map[ID]bool{}}
-	for _, frame := range frames {
-		switch frame.kind {
-		case 1:
-			base.HighWater = frame.high
-		case 2:
-			var record commitRecord
-			if err := decodeStrict(frame.payload, s.limits, s.limits.MaxFramePayloadBytes, &record); err != nil {
-				return err
-			}
-			if !preflight {
-				basis.collect(base, record.Writes)
-			}
-			next, err := prepareExplicit(base, record, s.limits)
-			if err != nil {
-				return err
-			}
-			if next.HighWater != frame.high {
-				return ErrCorrupt
-			}
-			if err := patch.collect(base, next, record.Writes, s.limits); err != nil {
-				return err
-			}
-			base = next
-		default:
+	for i, frame := range frames {
+		if frame.kind == 1 {
+			continue
+		}
+		if frame.kind != 2 {
 			return ErrCorrupt
+		}
+		if err := decodeStrict(frame.payload, s.limits, s.limits.MaxFramePayloadBytes, &records[i]); err != nil {
+			return err
+		}
+		if !preflight {
+			basis.collect(base, records[i].Writes)
 		}
 	}
 	if !preflight {
-		if err := s.checkUpstreamWriteBasis(s.state, basis); err != nil {
+		if err := s.checkUpstreamWriteBasis(base, basis); err != nil {
 			return err
 		}
+	}
+	patch := newUpstreamWritePatch()
+	for i, frame := range frames {
+		if frame.kind == 1 {
+			base.HighWater = frame.high
+			continue
+		}
+		record := records[i]
+		if batchHasDocumentCopy(record.Writes) {
+			if err := s.flushUpstreamPatch(patch); err != nil {
+				return err
+			}
+			patch = newUpstreamWritePatch()
+			if err := s.checkUpstreamCopySources(base, record.Writes); err != nil {
+				return err
+			}
+		}
+		next, err := prepareExplicit(base, record, s.limits)
+		if err != nil {
+			return err
+		}
+		if next.HighWater != frame.high {
+			return ErrCorrupt
+		}
+		if err := patch.collect(base, next, record.Writes, s.limits); err != nil {
+			return err
+		}
+		base = next
 	}
 	if err := s.flushUpstreamPatch(patch); err != nil {
 		return err
@@ -188,6 +203,10 @@ type upstreamWritePatch struct {
 	positions map[string]map[ID]int
 	revisions map[ID][][]any
 	cleared   map[ID]bool
+}
+
+func newUpstreamWritePatch() upstreamWritePatch {
+	return upstreamWritePatch{rows: map[string][][]any{}, revisions: map[ID][][]any{}, cleared: map[ID]bool{}}
 }
 
 func (p *upstreamWritePatch) add(table string, values ...any) {
