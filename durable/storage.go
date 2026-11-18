@@ -178,7 +178,18 @@ func (c *storeCore) settle(typ byte, high uint64, payload []byte) error {
 	c.ordinal++
 	return nil
 }
+
+// confirmedSQLiteAbort separates unsettled writes from failures that did not
+// begin or were rolled back by SQLite. Only the caller needs the cause.
+type confirmedSQLiteAbort struct{ cause error }
+
+func (e *confirmedSQLiteAbort) Error() string { return e.cause.Error() }
+
 func (c *storeCore) settlementError(err error) error {
+	var aborted *confirmedSQLiteAbort
+	if errors.As(err, &aborted) {
+		return aborted.cause
+	}
 	var rejected *StorageRejected
 	if errors.As(err, &rejected) {
 		return err

@@ -1,7 +1,10 @@
 package durable
 
 import (
+	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"reflect"
@@ -153,5 +156,45 @@ func TestSourceV152SQLiteCoalescesTaskRowsBeforePacking(t *testing.T) {
 	got, found, err := s.Task(bg, 2)
 	if err != nil || !found || got.State.Status != "running" || !equalJSONValue(got.State.Checkpoint, JSON{"text": "last"}) {
 		t.Fatal(got, found, err)
+	}
+}
+
+// Supplemental to the pinned database-error identity cases: fail a statement
+// after earlier table writes, then retry on the same writer after rollback.
+type upstreamWriteFault struct {
+	sqliteConnection
+	err error
+}
+
+func (f *upstreamWriteFault) ExecContext(ctx context.Context, text string, args ...any) (sql.Result, error) {
+	if strings.HasPrefix(text, `INSERT INTO "entries"`) {
+		return nil, f.err
+	}
+	return f.sqliteConnection.ExecContext(ctx, text, args...)
+}
+
+func TestSourceV152SQLiteDatabaseWriteErrorIdentity(t *testing.T) {
+	s, err := OpenSQLite(filepath.Join(t.TempDir(), "fault.sqlite"), SQLiteOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close(bg)
+	raw := s.db
+	cause := errors.New("test database write failure")
+	s.db = &upstreamWriteFault{sqliteConnection: raw, err: cause}
+	batches := [][]StorageWrite{{{Type: "conversation", Value: Conversation{ID: 1}}}, {{Type: "entry", Value: Entry{ID: 2, Conversation: 1, Kind: "note"}}}}
+	var seqs []uint64
+	receive := func(_ int, seq uint64) { seqs = append(seqs, seq) }
+	r, err := s.Commit(bg, batches, receive)
+	if err != cause || r.Stored != 0 || r.Refused != nil || len(seqs) != 0 {
+		t.Fatalf("want original write error, zero receipts, no refusal; got result=%+v receipts=%v err=%v", r, seqs, err)
+	}
+	s.db = raw
+	if _, found, err := s.Conversation(bg, 1); err != nil || found {
+		t.Fatal(found, err)
+	}
+	r, err = s.Commit(bg, batches, receive)
+	if err != nil || r.Stored != 2 || r.Refused != nil || !reflect.DeepEqual(seqs, []uint64{1, 2}) {
+		t.Fatal(r, seqs, err)
 	}
 }

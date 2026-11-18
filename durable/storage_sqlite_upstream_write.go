@@ -12,17 +12,24 @@ import (
 // No side tables are written into an upstream file. The native serial
 // validator has already accepted a prefix; convert its writes to the source
 // tables within one SQLite transaction, then let the caller deliver receipts.
+// SQL for original tables is already namespaced, and the database's original
+// failure must reach the caller rather than be translated to a logical refusal.
+func (s *SQLiteStorage) execUpstream(text string, args ...any) error {
+	_, err := s.db.ExecContext(context.Background(), text, args...)
+	return err
+}
+
 func (s *SQLiteStorage) appendUpstreamSeries(frames []storageFrame) error {
-	if err := s.exec("BEGIN IMMEDIATE"); err != nil {
-		return reject("SQLite write admission unavailable")
+	if err := s.execUpstream("BEGIN IMMEDIATE"); err != nil {
+		return &confirmedSQLiteAbort{cause: err}
 	}
 	if err := s.storeUpstreamSeries(frames); err != nil {
-		if rollback := s.exec("ROLLBACK"); rollback != nil {
+		if rollback := s.execUpstream("ROLLBACK"); rollback != nil {
 			return errors.Join(err, rollback)
 		}
-		return reject("upstream SQLite write rejected: " + err.Error())
+		return &confirmedSQLiteAbort{cause: err}
 	}
-	if err := s.exec("COMMIT"); err != nil {
+	if err := s.execUpstream("COMMIT"); err != nil {
 		return err
 	}
 	s.upstreamHighWater = frames[len(frames)-1].high
@@ -68,7 +75,7 @@ func (s *SQLiteStorage) storeUpstreamSeries(frames []storageFrame) error {
 	if err := s.flushUpstreamPatch(patch); err != nil {
 		return err
 	}
-	return s.exec("UPDATE "+table+" SET next_id=?,next_seq=? WHERE singleton=1", strconv.FormatUint(base.HighWater+1, 10), base.Seq+1)
+	return s.execUpstream("UPDATE "+table+" SET next_id=?,next_seq=? WHERE singleton=1", strconv.FormatUint(base.HighWater+1, 10), base.Seq+1)
 }
 
 func sqliteOptionalID(id ID) any {

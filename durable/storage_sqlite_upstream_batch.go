@@ -31,7 +31,7 @@ func (s *SQLiteStorage) flushUpstreamPatch(p upstreamWritePatch) error {
 		if err != nil {
 			return err
 		}
-		if err := s.exec("DELETE FROM "+s.upstreamTable("document_revisions")+" WHERE document_id IN (SELECT value FROM json_each(?))", raw); err != nil {
+		if err := s.execUpstream("DELETE FROM "+s.upstreamTable("document_revisions")+" WHERE document_id IN (SELECT value FROM json_each(?))", raw); err != nil {
 			return err
 		}
 		cleared = cleared[n:]
@@ -83,7 +83,7 @@ func (s *SQLiteStorage) insertUpstreamRows(prefix, conflict string, rows [][]any
 			return nil
 		}
 		buf.WriteByte(']')
-		if err := s.exec(compactSQL, buf.String()); err != nil {
+		if err := s.execUpstream(compactSQL, buf.String()); err != nil {
 			return err
 		}
 		buf.Reset()
@@ -133,7 +133,7 @@ func (s *SQLiteStorage) insertUpstreamRows(prefix, conflict string, rows [][]any
 		for _, row := range large[:n] {
 			args = append(args, row...)
 		}
-		if err := s.exec(prefix+"VALUES "+values+strings.Repeat(", "+values, n-1)+" "+conflict, args...); err != nil {
+		if err := s.execUpstream(prefix+"VALUES "+values+strings.Repeat(", "+values, n-1)+" "+conflict, args...); err != nil {
 			return err
 		}
 		large = large[n:]

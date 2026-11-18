@@ -229,8 +229,8 @@ func TestSourceV152UpstreamSQLiteWriteFailureRollsBackAllAcceptedParts(t *testin
 	batches := [][]StorageWrite{{{Type: "entry", Value: Entry{ID: 8, Conversation: 1, Kind: "first"}}}, {{Type: "entry", Value: Entry{ID: 9, Conversation: 1, Kind: "second"}}}}
 	var receipts []publicSQLiteReceipt
 	result, err := writer.Commit(bg, batches, func(i int, seq uint64) { receipts = append(receipts, publicSQLiteReceipt{i, seq}) })
-	var rejection *StorageRejected
-	if !errors.As(err, &rejection) || errors.Is(err, ErrPoisoned) || result.Stored != 0 || len(receipts) != 0 {
+	var driverError interface{ Code() int }
+	if !errors.As(err, &driverError) || errors.Is(err, ErrPoisoned) || result.Stored != 0 || result.Refused != nil || len(receipts) != 0 {
 		t.Fatal(result, receipts, err)
 	}
 	if err := writer.Close(bg); err != nil {
