@@ -1,6 +1,9 @@
 package durable
 
-import "context"
+import (
+	"context"
+	"fmt"
+)
 
 // CommitResult reports what one public grouped Storage.Commit call stored and
 // which batch was refused, if one was. Refused is nil when every batch in the
@@ -52,6 +55,9 @@ func publicBatch(base Snapshot, writes []StorageWrite, l Limits) (Batch, error) 
 	if len(writes) > l.MaxWrites {
 		return Batch{}, reject("invalid batch count")
 	}
+	if err := checkDocumentCommandMultiplicity(writes); err != nil {
+		return Batch{}, err
+	}
 	batch := Batch{Writes: make([]Write, 0, len(writes))}
 	for _, command := range writes {
 		write, err := publicWrite(base, command, l)
@@ -61,6 +67,44 @@ func publicBatch(base Snapshot, writes []StorageWrite, l Limits) (Batch, error) 
 		batch.Writes = append(batch.Writes, write)
 	}
 	return batch, nil
+}
+
+// Stage document actions before resolving any incarnation, as SQLite does
+// for each accepted part. A missing document does not mask duplicate commands.
+func checkDocumentCommandMultiplicity(writes []StorageWrite) error {
+	type action uint8
+	const (
+		content action = 1 << iota
+		retire
+	)
+	var seen map[ID]action
+	for _, write := range writes {
+		id := write.ID
+		command := content
+		switch write.Type {
+		case "document.create", "document.copy":
+			if write.Record == nil {
+				continue // the union decoder reports malformed Go commands
+			}
+			id = write.Record.ID
+		case "document.change":
+		case "document.retire":
+			command = retire
+		default:
+			continue
+		}
+		if seen[id]&command != 0 {
+			if command == retire {
+				return reject(fmt.Sprintf("Document %d is retired more than once", id))
+			}
+			return reject(fmt.Sprintf("Document %d has more than one content command", id))
+		}
+		if seen == nil {
+			seen = make(map[ID]action)
+		}
+		seen[id] |= command
+	}
+	return nil
 }
 
 func publicWrite(base Snapshot, command StorageWrite, l Limits) (Write, error) {

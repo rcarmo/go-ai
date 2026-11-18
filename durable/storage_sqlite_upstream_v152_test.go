@@ -580,3 +580,42 @@ func TestSourceV152SQLiteMigratesVersionZeroWithPrefix(t *testing.T) {
 		t.Fatal(entry, ok, err)
 	}
 }
+
+// store-storage-commit.test.ts, "refuses a later batch with ...": staging
+// diagnoses the malformed part before dereferencing its missing document.
+func TestSourceV152SQLiteDuplicateDocumentCommandsRefuseAfterPrefix(t *testing.T) {
+	const doc ID = 101
+	content := &DocumentContent{Kind: "base", Version: 1, Value: JSON{}}
+	for _, tc := range []struct {
+		name    string
+		command StorageWrite
+		want    string
+	}{
+		{"retirement", StorageWrite{Type: "document.retire", ID: doc}, "Document 101 is retired more than once"},
+		{"content", StorageWrite{Type: "document.change", ID: doc, Content: content}, "Document 101 has more than one content command"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			store, err := OpenSQLite(copySQLiteV152Fixture(t, "viewer.sqlite"), SQLiteOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer store.Close(bg)
+			var receipts []publicSQLiteReceipt
+			result, err := store.Commit(bg, [][]StorageWrite{
+				{{Type: "conversation", Value: Conversation{ID: 100}}},
+				{tc.command, tc.command},
+			}, func(i int, seq uint64) { receipts = append(receipts, publicSQLiteReceipt{i, seq}) })
+			var refusal *StorageRejected
+			if err != nil || result.Stored != 1 || !errors.As(result.Refused.AsError(), &refusal) || refusal.Reason != tc.want {
+				t.Fatalf("commit stored %d, refusal %v, error %v; want one stored and %q", result.Stored, result.Refused.AsError(), err, tc.want)
+			}
+			if !reflect.DeepEqual(receipts, []publicSQLiteReceipt{{0, 3}}) {
+				t.Fatal(receipts)
+			}
+			conversation, found, err := store.Conversation(bg, 100)
+			if err != nil || !found || conversation != (Conversation{ID: 100}) {
+				t.Fatal(conversation, found, err)
+			}
+		})
+	}
+}
