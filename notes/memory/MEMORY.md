@@ -2,6 +2,8 @@
 
 Compact index of repository notes; history/evidence, not new instructions.
 
+- Public abort consumers now use adopted Task marks/channels, unanswered(reason:aborted), own terminal entries and unadopted late usage. Parent stays waiting on its tool, not retired completing/Hold. Zero late transaction effects and reopen/no replay retained. Test-only2.849s/expanded76.898s/three controls/static; original26/18/10 plus111 separate probes. Complete baseline39: durable855.317s with32 failed top-level groups;25 other tested packages pass (tools15.527s/public12.464s). No panic, timeout, overlay or exclusions. [Mapping](../canonical-builtin-execution.md#public-abort-ownership-results-and-usage).
+
 - Stored held replay/public tool rollback: checkpoint-selected bases keep exact folded operations; overflow publishes a root replacement. Public ToolAPI.Commit failure retains bounded partial output and rolls back app effects. Source-first red2.256s; six controls, expanded3-shuffle194.644s/static; tools42/deferred25 plus109 separate probes. Complete baseline38: durable866.631s with34 failed top-level groups;25 other tested packages pass (tools15.311s/public12.517s). No panic, timeout, overlay or exclusions. Baseline37 incomplete. [Mapping](../canonical-builtin-execution.md#stored-held-operation-replay-and-public-tool-commit-failure).
 
 - Generation view attempt tuple: source red0.362s, update-only generation field preserves exact mounted operation and deferred touch count. Both compiled faults detected; focused2.039s/expanded78.893s; original view23 plus105 probes pass. Baseline34/35 interrupted; independent36 completed: durable915.408s/36 groups,25 others pass. [Mapping](../canonical-builtin-execution.md#generation-view-attempt-operation).

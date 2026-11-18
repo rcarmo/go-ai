@@ -4,6 +4,8 @@ The oracle runs original pi-durable v1.5.0 tests at `f9a26365568127461c47a07a37d
 
 ## Latest bounded reference packet
 
+Two new abort probes verify caller-wait cancellation with retained model/tool ownership, zero late offered-tool effects, a waiting generation parent, strict child-before-owner terminal adoption, committed prefix/details and absent late returned usage. Source public status is unanswered(reason:aborted); a retired native completing/Hold probe was corrected after timing out. Original generation26/tool-hooks18/recovery10 and111 separate probes (87+24) pass zero skipped. [Mapping](canonical-builtin-execution.md#public-abort-ownership-results-and-usage).
+
 Public rollback, partial-output bounds/current-tool phase selection, and held checkpoint-base operation retention have independent probes. Selected bases keep folded append/set operations; overflow uses a root replacement. Unchanged tools42 and session-deferred25 pass; separate probes109 (85+24) pass zero skipped. Go map-diff write-order equivalence remains open. [Mapping](canonical-builtin-execution.md#stored-held-operation-replay-and-public-tool-commit-failure).
 
 Unchanged harness-view23 and105 supplemental probes pass zero skipped. Native selected attempt tuple, deferred stored-touch count and replay assertions now pass. This remains a selected source mapping; complete native acceptance is open. [Mapping](canonical-builtin-execution.md#generation-view-attempt-operation).

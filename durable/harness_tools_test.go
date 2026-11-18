@@ -327,156 +327,205 @@ func TestM1cNotOfferedAndInvalidArgumentsZeroEffects(t *testing.T) {
 	}
 }
 
+// Source generation.ts tools/abort and scheduler.abortConversation retain the
+// waiting owner until its ordinary child ends. Late returned usage is unadopted.
 func TestM1cAbortDrainsChildBeforeParentAndFencesEscapedAPI(t *testing.T) {
-	var effects atomic.Int64
+	var effects, appEffects, requests atomic.Int64
 	entered, release := make(chan struct{}), make(chan struct{})
 	var escaped *ToolAPI
 	registry := NewRegistry()
-	if e := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "block", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "block.impl", Version: 1, Execute: func(ctx context.Context, args any, api *ToolAPI) (ToolResult, error) {
+	if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "block", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "block.impl", Version: 1, Execute: func(ctx context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 		effects.Add(1)
 		escaped = api
-		if e := api.Output("retained prefix"); e != nil {
-			return ToolResult{}, e
+		if err := api.Output("retained prefix"); err != nil {
+			return ToolResult{}, err
 		}
-		if err := api.Details(JSON{"progress": true}); err != nil {
+		if err := api.Details(JSON{"retained": true}); err != nil {
 			return ToolResult{}, err
 		}
 		close(entered)
 		<-release
-		return ToolResult{Content: "ignored afterabort", Usage: &goai.Usage{Input: 1, TotalTokens: 1}, Commit: func(*Tx) error { t.Error("aborted application effect"); return nil }}, nil
-	}}); e != nil {
-		t.Fatal(e)
+		if _, err := api.Commit(ctx, func(tx *Tx) (any, error) {
+			appEffects.Add(1)
+			record, found, err := tx.Task(api.TaskID())
+			if err != nil || !found {
+				return nil, fmt.Errorf("own task absent: %w", err)
+			}
+			return tx.AppendEntry(record.Conversation, JSON{"kind": "test.late-abort-effect"})
+		}); err == nil {
+			t.Error("aborted public application commit succeeded")
+		}
+		return ToolResult{Content: "ignored afterabort", Usage: &goai.Usage{Input: 1, TotalTokens: 1}}, nil
+	}}); err != nil {
+		t.Fatal(err)
 	}
 	ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
-		ch := make(chan goai.Event, 1)
-		ch <- toolAnswer("call", "block", JSON{})
-		close(ch)
-		return ch
+		requests.Add(1)
+		events := make(chan goai.Event, 1)
+		events <- toolAnswer("call", "block", JSON{})
+		close(events)
+		return events
 	})
 	options.Registry = registry
-	s, dir := newSQLiteTestStore(t)
-	h := openHarness(t, s, options)
+	store, dir := newSQLiteTestStore(t)
+	h := openHarness(t, store, options)
 	cleanupTaskGates(t, release)
-	r := root(t, h, ref)
-	sub, e := r.Submit(bg, Input{Content: "block"})
-	if e != nil {
-		t.Fatal(e)
+	conversation := root(t, h, ref)
+	var mu sync.Mutex
+	marked := make(chan struct{}, 1)
+	marks := map[string]bool{}
+	terminal := map[string]uint64{}
+	var parentID ID
+	observer, err := h.ObserveCommits(CommitObserver{Advance: func(_ context.Context, frame CommitPublication) error {
+		mu.Lock()
+		defer mu.Unlock()
+		for index := range frame.Changes.Len() {
+			node, _ := frame.Changes.Index(index)
+			change := generationObject(node.Copy())
+			if change["type"] != "task" {
+				continue
+			}
+			record := generationObject(change["value"])
+			kind, _ := record["kind"].(string)
+			if kind != "pi.generation" && kind != "pi.tool" {
+				continue
+			}
+			if kind == "pi.generation" {
+				parentID = submissionEntryID(record["id"])
+			}
+			if record["abortRequested"] == true {
+				marks[kind] = true
+			}
+			if generationObject(record["state"])["status"] == "terminal" {
+				terminal[kind] = frame.Seq
+			}
+		}
+		if len(marks) == 2 {
+			select {
+			case marked <- struct{}{}:
+			default:
+			}
+		}
+		return nil
+	}, End: func(WatchEnd) error { return nil }})
+	if err != nil {
+		t.Fatal(err)
 	}
-	<-entered
+	defer observer.Detach()
+	submission, err := conversation.Submit(bg, Input{Content: "block"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	awaitTaskSignal(t, entered)
 	ctx, cancel := context.WithCancel(bg)
 	defer cancel()
 	aborted := make(chan error, 1)
-	go func() { aborted <- r.Abort(ctx) }()
-	// Observe durable marks and the parent Hold before cancelling the caller.
-	// A short elapsed-time deadline can expire BEFORE admission under -race.
-	deadline, stop := context.WithTimeout(bg, 3*time.Second)
-	defer stop()
-	for {
-		state, err := h.Snapshot(deadline)
+	go func() { aborted <- conversation.Abort(ctx) }()
+	watchReceive(t, marked)
+	cancel()
+	if err := watchReceive(t, aborted); !errors.Is(err, context.Canceled) {
+		t.Fatal("caller cancellation must stop only its own wait", err)
+	}
+	mu.Lock()
+	parent := parentID
+	mu.Unlock()
+	generation, found, err := h.Task(bg, parent)
+	if err != nil || !found || !generation.AbortRequested || generation.State.Status != "waiting" || taskCheckpointMap(generation.State.Checkpoint)["phase"] != "tools" {
+		t.Fatal("owner must remain waiting before child drain", generation, err)
+	}
+	child, found, err := h.Task(bg, escaped.TaskID())
+	if err != nil || !found || !child.AbortRequested || child.State.Status == "terminal" {
+		t.Fatal("noncooperative child lost ownership", child, err)
+	}
+	releaseTaskGate(release)
+	settled := waitSubmission(t, submission)
+	if settled.Record.Status != "unanswered" || settled.Record.Reason != "aborted" || effects.Load() != 1 || appEffects.Load() != 0 || requests.Load() != 1 {
+		t.Fatal("abort settlement/effects", settled.Record, effects.Load(), appEffects.Load(), requests.Load())
+	}
+	// Supplemental native capability error; the source guarantee checked below
+	// is that no late commit or returned usage reaches the public record.
+	if err := escaped.Output("postreturn"); !errors.Is(err, ErrSealed) {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	childSeq, parentSeq := terminal["pi.tool"], terminal["pi.generation"]
+	mu.Unlock()
+	if childSeq == 0 || parentSeq <= childSeq {
+		t.Fatal("terminal adoption must be child before owner", childSeq, parentSeq)
+	}
+	check := func(h *Harness) {
+		t.Helper()
+		child, found, err := h.Task(bg, escaped.TaskID())
+		if err != nil || !found || child.State.Status != "terminal" || child.State.Outcome == nil || child.State.Outcome.Status != "aborted" || child.State.Outcome.Result == nil {
+			t.Fatal("own aborted tool", child, err)
+		}
+		result := generationObject(child.State.Outcome.Result.Value)
+		entry, found, err := h.Entry(bg, submissionEntryID(result["entryId"]))
+		if err != nil || !found || len(result) != 2 || result["kind"] != "model" || entry.Kind != "pi.tool-result" || entry.ByTask != child.ID || len(entry.Model) != 1 {
+			t.Fatal("own aborted result entry", result, entry, err)
+		}
+		message := entry.Model[0]
+		if !message.IsError || message.ToolCallID != "call" || message.ToolName != "block" || message.Usage != nil || !message.HasDetails || !equalJSONValue(message.DetailsValue, JSON{"retained": true}) || len(message.Content) != 2 || message.Content[0].Type != "text" || message.Content[0].Text != "retained prefix" || message.Content[1].Type != "text" || message.Content[1].Text != "<harness>\n[error] Tool block was aborted\n</harness>" {
+			t.Fatal("aborted retained result", message)
+		}
+		if !equalJSONValue(generationObject(entry.Data)["diagnostics"], []any{JSON{"severity": "error", "code": "aborted", "message": "Tool block was aborted"}}) {
+			t.Fatal("aborted result diagnostics", entry.Data)
+		}
+		generation, found, err := h.Task(bg, parent)
+		if err != nil || !found || generation.State.Status != "terminal" || generation.State.Outcome == nil || generation.State.Outcome.Status != "aborted" || generation.State.Outcome.Result != nil {
+			t.Fatal("own aborted generation", generation, err)
+		}
+		handle, err := h.Conversation(bg, conversation.ID())
 		if err != nil {
 			t.Fatal(err)
 		}
-		parentHeld, childMarked := false, false
-		for _, task := range state.Tasks {
-			if task.Kind == "pi.generation" {
-				parentHeld = task.Status == "completing" && taskAborted(task)
-			} else if task.Kind == "pi.tool" {
-				childMarked = taskAborted(task)
+		view, err := handle.View(bg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		usage, ok := view.Docs.Get("pi.usage")
+		if !ok {
+			t.Fatal("usage absent")
+		}
+		tools, ok := usage.Get("tools")
+		if !ok {
+			t.Fatal("tool ledger absent")
+		}
+		if _, found := tools.Get("block"); found {
+			t.Fatal("uncommitted returned usage billed", usage.Copy())
+		}
+		toolResults := 0
+		for index := range view.Entries.Len() {
+			entry, _ := view.Entries.Index(index)
+			kind, _ := entry.Get("kind")
+			if kind.String() == "test.late-abort-effect" {
+				t.Error("late app effect committed", entry.Copy())
+			}
+			if kind.String() == "pi.tool-result" {
+				toolResults++
 			}
 		}
-		if parentHeld && childMarked {
-			break
-		}
-		select {
-		case err := <-aborted:
-			t.Fatal("Abort returned before noncooperative host", err)
-		case <-deadline.Done():
-			t.Fatal("Abort marks/Hold not adopted", deadline.Err())
-		default:
-			runtime.Gosched()
+		if toolResults != 1 {
+			t.Fatal("abort duplicated result", toolResults)
 		}
 	}
-	cancel()
-	if e = <-aborted; !errors.Is(e, context.Canceled) {
-		t.Fatal("Abort failed towaitnoncooperative", e)
+	check(h)
+	if err := h.Close(bg); err != nil {
+		t.Fatal(err)
 	}
-	state, e := h.Snapshot(bg)
-	if e != nil {
-		t.Fatal(e)
+	store, err = openSQLiteTestDirectory(dir, SQLiteOptions{})
+	if err != nil {
+		t.Fatal(err)
 	}
-	var parent Task
-	for _, task := range state.Tasks {
-		if task.Kind == "pi.generation" {
-			parent = task
-			if task.Status != "completing" {
-				t.Fatal("prematureparentterminal")
-			}
-		} else {
-			var cp toolCheckpoint
-			_ = fromObject(task.Checkpoint, &cp, h.session.limits)
-			cp, e = toolPresentation(state, task, cp, h.session.limits)
-			if e != nil {
-				t.Fatal(e)
-			}
-			if !cp.Abort || cp.Output != "retained prefix" {
-				t.Fatal("abort/prefix notcommitted")
-			}
-		}
+	h2 := openHarness(t, store, options)
+	resumed, err := h2.Submission(bg, submission.ID())
+	if err != nil {
+		t.Fatal(err)
 	}
-	if parent.ID == 0 {
-		t.Fatal("parentmissing")
+	if result := waitSubmission(t, resumed); result.Record.Status != "unanswered" || result.Record.Reason != "aborted" || effects.Load() != 1 {
+		t.Fatal("reopened abort changed or replayed", result.Record, effects.Load())
 	}
-	if e = escaped.Output("late"); e == nil {
-		t.Fatal("outputafterabort")
-	}
-	close(release)
-	if waitSubmission(t, sub).Submission.Status != "aborted" {
-		t.Fatal("abort notsettled")
-	}
-	if e = escaped.Output("postreturn"); !errors.Is(e, ErrSealed) {
-		t.Fatal(e)
-	}
-	state, e = h.Snapshot(bg)
-	if e != nil {
-		t.Fatal(e)
-	}
-	childTerminalSeq := uint64(0)
-	for _, entry := range state.Entries {
-		if legacyEntryValue(entry)["role"] == string(goai.RoleToolResult) {
-			childTerminalSeq = entry.Seq
-		}
-		if legacyEntryValue(entry)["role"] == string(goai.RoleAssistant) && legacyEntryValue(entry)["errorCode"] == "aborted" {
-			t.Fatal("abort invented assistant receipt", entry)
-		}
-	}
-	parentTerminalSeq := state.Seq // Last commit settles generation/submission after tool receipt.
-	if childTerminalSeq == 0 || parentTerminalSeq <= childTerminalSeq || state.Tasks[parent.ID].Status != "aborted" {
-		t.Fatal("notbottomup", childTerminalSeq, parentTerminalSeq)
-	}
-	if effects.Load() != 1 {
-		t.Fatal("extraeffect")
-	}
-	assertToolUsageReceipts(t, h, state, "block", &goai.Usage{Input: 1, TotalTokens: 1}, h.session.limits)
-	if e = h.Close(bg); e != nil {
-		t.Fatal(e)
-	}
-	s, e = openSQLiteTestDirectory(dir, SQLiteOptions{})
-	if e != nil {
-		t.Fatal(e)
-	}
-	h2 := openHarness(t, s, options)
-	resumed, e := h2.Submission(bg, sub.ID())
-	if e != nil {
-		t.Fatal(e)
-	}
-	if waitSubmission(t, resumed).Submission.Status != "aborted" || effects.Load() != 1 {
-		t.Fatal("aborted tool replay")
-	}
-	state, e = h2.Snapshot(bg)
-	if e != nil {
-		t.Fatal(e)
-	}
-	assertToolUsageReceipts(t, h2, state, "block", &goai.Usage{Input: 1, TotalTokens: 1}, h2.session.limits)
+	check(h2)
 }
 
 func TestM1cCloseNoncooperativeToolKeepsOwnershipAndRecoveryOutcome(t *testing.T) {
@@ -1138,83 +1187,105 @@ func TestM1cProviderPartialPointersObservedDetachedAtBoundary(t *testing.T) {
 	}
 }
 
+// Source scheduler.abortConversation joins ownership; a late response is neither
+// an answer nor an offered tool execution. Marks are observed at public adoption.
 func TestM1cAbortAtOfferedCallBoundaryStartsNoTool(t *testing.T) {
 	var effects atomic.Int64
 	registry := NewRegistry()
-	if e := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "effect", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "effect.impl", Version: 1, Execute: func(context.Context, any, *ToolAPI) (ToolResult, error) { effects.Add(1); return ToolResult{}, nil }}); e != nil {
-		t.Fatal(e)
+	if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "effect", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "effect.impl", Version: 1, Execute: func(context.Context, any, *ToolAPI) (ToolResult, error) { effects.Add(1); return ToolResult{}, nil }}); err != nil {
+		t.Fatal(err)
 	}
 	entered, release := make(chan struct{}), make(chan struct{})
-	ref, options := setupFakeAPI(t, func(ctx context.Context, _ *goai.Model, _ *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
+	ref, options := setupFakeAPI(t, func(_ context.Context, _ *goai.Model, _ *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
 		ch := make(chan goai.Event)
 		go func() { close(entered); <-release; ch <- toolAnswer("call", "effect", JSON{}); close(ch) }()
 		return ch
 	})
 	options.Registry = registry
-	s, _ := newTestSQLite(t)
-	h := openHarness(t, s, options)
-	var releaseOnce sync.Once
-	t.Cleanup(func() { releaseOnce.Do(func() { close(release) }) })
-	r := root(t, h, ref)
-	sub, e := r.Submit(bg, Input{Content: "abortboundary"})
-	if e != nil {
-		t.Fatal(e)
+	store, _ := newTestSQLite(t)
+	h := openHarness(t, store, options)
+	cleanupTaskGates(t, release)
+	conversation := root(t, h, ref)
+	marked := make(chan ID, 1)
+	observer, err := h.ObserveCommits(CommitObserver{Advance: func(_ context.Context, frame CommitPublication) error {
+		for index := range frame.Changes.Len() {
+			node, _ := frame.Changes.Index(index)
+			change := generationObject(node.Copy())
+			if change["type"] != "task" {
+				continue
+			}
+			record := generationObject(change["value"])
+			if record["kind"] == "pi.generation" && record["abortRequested"] == true {
+				select {
+				case marked <- submissionEntryID(record["id"]):
+				default:
+				}
+			}
+		}
+		return nil
+	}, End: func(WatchEnd) error { return nil }})
+	if err != nil {
+		t.Fatal(err)
 	}
-	<-entered
+	defer observer.Detach()
+	submission, err := conversation.Submit(bg, Input{Content: "abortboundary"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	awaitTaskSignal(t, entered)
 	ctx, cancel := context.WithCancel(bg)
 	defer cancel()
 	aborted := make(chan error, 1)
-	go func() { aborted <- r.Abort(ctx) }()
-	deadline, stop := context.WithTimeout(bg, 3*time.Second)
-	defer stop()
-	for {
-		state, err := h.Snapshot(deadline)
-		if err != nil {
-			t.Fatal(err)
-		}
-		marked := false
-		for _, task := range state.Tasks {
-			if task.Kind == "pi.generation" && taskAborted(task) {
-				marked = true
-			}
-		}
-		if marked {
-			break
-		}
-		select {
-		case err := <-aborted:
-			t.Fatal("Abort returned before provider return", err)
-		case <-deadline.Done():
-			t.Fatal("Abort mark not adopted", deadline.Err())
-		default:
-			runtime.Gosched()
-		}
+	go func() { aborted <- conversation.Abort(ctx) }()
+	taskID := watchReceive(t, marked)
+	task, found, err := h.Task(bg, taskID)
+	if err != nil || !found || !task.AbortRequested || task.State.Status == "terminal" {
+		t.Fatal("abort mark/host ownership", task, err)
 	}
 	cancel()
-	if e = <-aborted; !errors.Is(e, context.Canceled) {
-		t.Fatal(e)
+	if err := watchReceive(t, aborted); !errors.Is(err, context.Canceled) {
+		t.Fatal("caller cancellation must stop only its own wait", err)
 	}
-	releaseOnce.Do(func() { close(release) })
-	result := waitSubmission(t, sub)
-	if result.Submission.Status != "aborted" || effects.Load() != 0 {
-		t.Fatal("tool dispatchedafterabort")
+	task, found, err = h.Task(bg, taskID)
+	if err != nil || !found || task.State.Status == "terminal" {
+		t.Fatal("caller cancellation detached the provider", task, err)
 	}
-	state, e := h.Snapshot(bg)
-	if e != nil {
-		t.Fatal(e)
+	releaseTaskGate(release)
+	settled := waitSubmission(t, submission)
+	if settled.Record.Status != "unanswered" || settled.Record.Reason != "aborted" || settled.Record.Answer != 0 || effects.Load() != 0 {
+		t.Fatal("late response dispatched or answered", settled.Record, effects.Load())
 	}
-	// The terminal response arrived after abort was adopted. The reference
-	// converts only a committed partial; it does not bill/publish this response.
-	if result.Message != nil {
-		t.Fatal("aborted terminal response published", result)
+	task, found, err = h.Task(bg, taskID)
+	if err != nil || !found || task.State.Status != "terminal" || task.State.Outcome == nil || task.State.Outcome.Status != "aborted" || task.State.Outcome.Result != nil {
+		t.Fatal("own generation abort outcome", task, err)
 	}
-	for _, doc := range state.Documents {
-		if doc.Kind == "pi.usage" {
-			models := doc.Value["models"].(map[string]any)
-			if _, exists := models["openai/durable-test"]; exists {
-				t.Fatal("uncommitted abort response billed", models)
-			}
+	value, err := h.Commit(bg, func(tx *Tx) (any, error) {
+		return tx.ScanTasks(TaskQuery{Conversation: conversation.ID(), Kind: "pi.tool"}, 20, nil)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tasks := value.(Page[TaskRecord]).Items; len(tasks) != 0 {
+		t.Fatal("late call started a tool task", tasks)
+	}
+	view, err := conversation.View(bg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for index := range view.Entries.Len() {
+		entry, _ := view.Entries.Index(index)
+		kind, _ := entry.Get("kind")
+		if kind.String() == "pi.assistant" || kind.String() == "pi.tool-result" {
+			t.Error("uncommitted abort response published", entry.Copy())
 		}
+	}
+	usage, found := view.Docs.Get("pi.usage")
+	if !found {
+		t.Fatal("usage doc absent")
+	}
+	models, found := usage.Get("models")
+	if !found || models.Len() != 0 {
+		t.Fatal("uncommitted abort response billed", usage.Copy())
 	}
 }
 

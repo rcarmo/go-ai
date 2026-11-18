@@ -1206,3 +1206,54 @@ it.each(["dependent","unload","close"])("retains held operations when a deferred
   expect(changes[0].value).toBe(value);expect(changes[0].ops).toEqual([["a",["text"],"xy"],["s",["base"],true]]);
  }finally{guard.detach();await session.close(context)}
 });
+
+it("keeps abort ownership until a late model response returns and starts no offered tool",async()=>{
+ const {MemoryStorage,defineTool,UsageDoc}=await import("@earendil-works/pi-durable");
+ const {chatSetup,openChat,allEntries}=await import("@pinned/chat"),{addTool}=await import("@pinned/harness-support");
+ const {fauxAssistantMessage}=await import("@reference/pi-ai");
+ const setup=chatSetup(),entered=Promise.withResolvers<void>(),release=Promise.withResolvers<void>(),marked=Promise.withResolvers<any>();let effects=0;
+ addTool(setup.registry,defineTool({name:"boundary_effect",description:"effect",parameters:{type:"object"}as any,execute:async()=>{effects++;return{output:[]}}}));
+ setup.faux.setResponses([async()=>{entered.resolve();await release.promise;return fauxAssistantMessage([{type:"toolCall",id:"boundary-call",name:"boundary_effect",arguments:{}}],{stopReason:"toolUse"})}]);
+ const {harness,root}=await openChat(new MemoryStorage(),setup);
+ const guard=harness.observeCommits({advance:frame=>{for(const change of frame.changes)if(change.type==="task"&&change.value.kind==="pi.generation"&&change.value.abortRequested)marked.resolve(change.value)},end:()=>{}});
+ try{
+  const submission=await root.submit({type:"input",content:"go"},context);await entered.promise;
+  const controller=new AbortController(),gone=new Error("caller stopped waiting");
+  const abort=root.abort({...context,abortSignal:controller.signal}).then(()=>({resolved:true}),error=>({error}));
+  const record=await marked.promise;expect(record.state.status).not.toBe("terminal");controller.abort(gone);expect(await abort).toEqual({error:gone});
+  expect((await harness.getTask(record.id,context))?.state.status).not.toBe("terminal");
+  release.resolve();
+  expect(await submission.wait(context)).toMatchObject({status:"unanswered",reason:"aborted"});expect(effects).toBe(0);expect(setup.faux.state.callCount).toBe(1);
+  expect((await harness.getTask(record.id,context))?.state).toEqual({status:"terminal",outcome:{status:"aborted"}});
+  const tasks=await harness.commit(tx=>tx.scanTasks({conversationId:root.id,kind:"pi.tool"},20),context);expect(tasks.items).toHaveLength(0);
+  const entries=await allEntries(root);expect(entries.filter(entry=>entry.kind==="pi.assistant"||entry.kind==="pi.tool-result")).toHaveLength(0);
+  expect((await harness.snapshot(UsageDoc,root.id,context))?.models).toEqual({});
+ }finally{release.resolve();guard.detach();await harness.close(context)}
+});
+
+it("joins an aborted noncooperative tool before its owner without adopting its late returned usage",async()=>{
+ const {MemoryStorage,defineTool,UsageDoc}=await import("@earendil-works/pi-durable");
+ const {chatSetup,openChat,allEntries}=await import("@pinned/chat"),{addTool}=await import("@pinned/harness-support");
+ const {fauxAssistantMessage}=await import("@reference/pi-ai");
+ const setup=chatSetup(),entered=Promise.withResolvers<any>(),release=Promise.withResolvers<void>(),marked=Promise.withResolvers<void>();let effects=0,staged=0;
+ const usage={input:1,output:0,cacheRead:0,cacheWrite:0,totalTokens:1,cost:{input:0,output:0,cacheRead:0,cacheWrite:0,total:0}};
+ addTool(setup.registry,defineTool({name:"owned_block",description:"block",parameters:{type:"object"}as any,execute:async(_args,api,ctx)=>{effects++;api.output("retained prefix");await api.details({retained:true},ctx);entered.resolve(api.taskId);await release.promise;try{await api.commit(async tx=>{staged++;return tx.appendEntry(api.conversationId,{kind:"test.late-abort-effect"})},ctx)}catch{}return{output:[{type:"text"as const,text:"late"}],usage}}}));
+ setup.faux.setResponses([fauxAssistantMessage([{type:"toolCall",id:"owned-call",name:"owned_block",arguments:{}}],{stopReason:"toolUse"})]);
+ const {harness,root}=await openChat(new MemoryStorage(),setup);const seen=new Set<string>(),terminal:any[]=[];
+ const guard=harness.observeCommits({advance:frame=>{for(const change of frame.changes)if(change.type==="task"&&(change.value.kind==="pi.tool"||change.value.kind==="pi.generation")){if(change.value.abortRequested)seen.add(change.value.kind);if(change.value.state.status==="terminal")terminal.push({id:change.value.id,kind:change.value.kind,seq:frame.seq});}if(seen.size===2)marked.resolve()},end:()=>{}});
+ try{
+  const submission=await root.submit({type:"input",content:"go"},context),toolId=await entered.promise;
+  const controller=new AbortController(),gone=new Error("caller stopped waiting");const abort=root.abort({...context,abortSignal:controller.signal}).then(()=>({resolved:true}),error=>({error}));
+  await marked.promise;controller.abort(gone);expect(await abort).toEqual({error:gone});
+  const tasks=await harness.commit(tx=>tx.scanTasks({conversationId:root.id},20),context),generation=tasks.items.find(task=>task.kind==="pi.generation")!;
+  expect(generation.abortRequested).toBe(true);expect(generation.state.status).toBe("waiting");expect((generation.state as any).checkpoint.phase).toBe("tools");expect((await harness.getTask(toolId,context))?.state.status).not.toBe("terminal");
+  release.resolve();expect(await submission.wait(context)).toMatchObject({status:"unanswered",reason:"aborted"});expect(effects).toBe(1);expect(staged).toBe(0);
+  expect(terminal.map(task=>task.kind)).toEqual(["pi.tool","pi.generation"]);expect(terminal[0].seq).toBeLessThan(terminal[1].seq);
+  const entries=await allEntries(root),results=entries.filter(entry=>entry.kind==="pi.tool-result");expect(results).toHaveLength(1);expect(entries.filter(entry=>entry.kind==="test.late-abort-effect")).toHaveLength(0);
+  expect(results[0].model).toEqual([expect.objectContaining({toolCallId:"owned-call",toolName:"owned_block",isError:true,content:[{type:"text",text:"retained prefix"},{type:"text",text:"<harness>\n[error] Tool owned_block was aborted\n</harness>"}],details:{retained:true}})]);
+  expect((results[0].data as any).diagnostics).toEqual([{severity:"error",code:"aborted",message:"Tool owned_block was aborted"}]);
+  expect(results[0].model![0]).not.toHaveProperty("usage");expect((await harness.snapshot(UsageDoc,root.id,context))?.tools).not.toHaveProperty("owned_block");
+  expect((await harness.getTask(toolId,context))?.state).toEqual({status:"terminal",outcome:{status:"aborted",result:{kind:"model",entryId:results[0].id}}});
+  expect((await harness.getTask(generation.id,context))?.state).toEqual({status:"terminal",outcome:{status:"aborted"}});
+ }finally{release.resolve();guard.detach();await harness.close(context)}
+});
