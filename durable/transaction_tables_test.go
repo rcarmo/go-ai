@@ -467,14 +467,14 @@ func TestTxSubmissionLookupFencesAfterTableWrite(t *testing.T) {
 	}
 	defer session.Close(bg)
 	_, err = session.Commit(bg, func(tx *Tx) (any, error) {
-		actual, found, err := tx.submissionRecord(id)
+		actual, found, err := tx.Submission(id)
 		if err != nil || !found || actual.Status != "queued" {
 			t.Fatal(actual, found, err)
 		}
 		if err := tx.putSubmissionRecord(Submission{ID: id, Conversation: 1, Type: "follow-up", Status: "pending", Value: JSON{}}); err != nil {
 			return nil, err
 		}
-		_, _, err = tx.submissionRecord(id)
+		_, _, err = tx.Submission(id)
 		var fenced *ReadAfterWrite
 		if !errors.As(err, &fenced) || fenced.Method != "submission" {
 			t.Fatalf("submission read bypassed source table fence: %v", err)
@@ -654,7 +654,7 @@ func TestSubmissionTransactionCurrentRecordPlacementFirstSettlementAndDetached(t
 			if err := tx.SettleSubmission(placed, SubmissionSettlement{Status: "unanswered", Reason: "late"}); err != nil {
 				return nil, err
 			}
-			if _, _, err := tx.submissionRecord(placed); err == nil {
+			if _, _, err := tx.Submission(placed); err == nil {
 				t.Fatal("staged submission read")
 			}
 			if err := tx.PlaceSubmission(input, entry); err != nil {
@@ -685,7 +685,7 @@ func TestSubmissionTransactionCurrentRecordPlacementFirstSettlementAndDetached(t
 			if err := tx.SettleSubmission(unanswered, SubmissionSettlement{Status: "unanswered", Reason: "host", Detail: &TaskValue{Present: true, Value: nil}}); err != nil {
 				return nil, err
 			}
-			if _, _, err := tx.submissionRecord(unanswered); err == nil {
+			if _, _, err := tx.Submission(unanswered); err == nil {
 				t.Fatal("staged submission read")
 			}
 			return nil, nil
@@ -797,7 +797,7 @@ func TestTxSubmissionFailedCreateRequiresConversationBeforeMint(t *testing.T) {
 		if tx.state.HighWater != high {
 			t.Fatal("failed conversation lookup minted an ID")
 		}
-		_, _, err := tx.submissionRecord(1)
+		_, _, err := tx.Submission(1)
 		var fenced *ReadAfterWrite
 		if !errors.As(err, &fenced) {
 			t.Fatal("failed creation did not fence table reads", err)
@@ -1000,7 +1000,7 @@ func TestTxSubmissionReadersUseInstalledWrapperAuthority(t *testing.T) {
 		if err != nil || !found || record.ID != 44 {
 			t.Fatal("transaction request read bypassed wrapper", record, found, err)
 		}
-		record, found, err = tx.submissionRecord(2)
+		record, found, err = tx.Submission(2)
 		if err != nil || !found || record.ID != 44 {
 			t.Fatal("transaction record read bypassed wrapper", record, found, err)
 		}

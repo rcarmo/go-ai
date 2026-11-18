@@ -122,7 +122,7 @@ func (h *Harness) abortSubmission(ctx context.Context, id ID, scope *ID, binding
 				return nil, ErrSealed
 			}
 		}
-		record, found, err := tx.submissionRecord(id)
+		record, found, err := tx.Submission(id)
 		if err != nil {
 			return nil, err
 		}

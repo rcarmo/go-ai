@@ -348,7 +348,10 @@ func (s *Session) SubmissionByRequest(ctx context.Context, conversation ID, requ
 	}
 	return lookupSubmissionByRequest(state, s.limits, conversation, request)
 }
-func (t *Tx) submissionRecord(id ID) (SubmissionRecord, bool, error) {
+
+// Submission looks up a committed submission before the first table write.
+// A placed input carries the ID of its transcript entry.
+func (t *Tx) Submission(id ID) (SubmissionRecord, bool, error) {
 	if err := t.enterTableRead("submission", submissionKey(id)); err != nil {
 		return SubmissionRecord{}, false, err
 	}

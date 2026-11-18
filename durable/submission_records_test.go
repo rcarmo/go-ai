@@ -583,7 +583,7 @@ func TestV150SubmissionRequestPresenceSessionAndHarness(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = h.Commit(bg, func(tx *Tx) (any, error) {
-		record, ok, err := tx.submissionRecord(id)
+		record, ok, err := tx.Submission(id)
 		if err != nil {
 			return nil, err
 		}
