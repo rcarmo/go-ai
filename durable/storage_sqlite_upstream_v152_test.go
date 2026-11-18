@@ -619,3 +619,83 @@ func TestSourceV152SQLiteDuplicateDocumentCommandsRefuseAfterPrefix(t *testing.T
 		})
 	}
 }
+
+// sqlite-storage.test.ts, "reclaims current-only revisions only after a base
+// or retirement", plus reopening the real Harness over the pruned database.
+func TestSourceV152SQLitePrunedDocumentAllowsHarnessReopen(t *testing.T) {
+	path := copySQLiteV152Fixture(t, "viewer.sqlite")
+	writer, err := OpenSQLite(path, SQLiteOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer writer.Close(bg)
+	id, err := writer.MintID(bg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	commit := func(write StorageWrite) {
+		t.Helper()
+		result, err := writer.Commit(bg, [][]StorageWrite{{write}}, nil)
+		if err != nil || result.Stored != 1 || result.Refused != nil {
+			t.Fatal(result, err)
+		}
+	}
+	checkCount := func(want int) {
+		t.Helper()
+		var count int
+		if err := writer.db.QueryRowContext(bg, "SELECT count(*) FROM document_revisions WHERE document_id=?", id).Scan(&count); err != nil || count != want {
+			t.Fatalf("revision count = %d, %v; want %d", count, err, want)
+		}
+	}
+	change := func(content *DocumentContent) {
+		commit(StorageWrite{Type: "document.change", ID: id, Content: content})
+	}
+	commit(v152SessionDocument(id, "latest", nil, JSON{"count": 0}))
+	for i := 1; i <= 10; i++ {
+		change(&DocumentContent{Kind: "delta", Version: 1, Ops: []Operation{{"s", []any{"count"}, i}}})
+	}
+	checkCount(11)
+	var latest string
+	if err := writer.db.QueryRowContext(bg, "SELECT content FROM document_revisions WHERE document_id=? AND kind='delta' ORDER BY seq DESC LIMIT 1", id).Scan(&latest); err != nil || latest != `[["s",["count"],10]]` {
+		t.Fatal(latest, err)
+	}
+	change(&DocumentContent{Kind: "base", Version: 1, Value: JSON{"count": 11}})
+	checkCount(1)
+	change(&DocumentContent{Kind: "delta", Version: 1, Ops: []Operation{{"r", JSON{"count": 12}}}})
+	checkCount(2)
+	commit(StorageWrite{Type: "document.retire", ID: id})
+	checkCount(0)
+	// The released fixture supplies a rewindable incarnation. Retirement
+	// must not drop its earlier revisions or recreate a current value.
+	commit(StorageWrite{Type: "document.retire", ID: 6})
+	if err := writer.Close(bg); err != nil {
+		t.Fatal(err)
+	}
+	view, err := OpenSQLite(path, SQLiteOptions{ReadOnly: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer view.Close(bg)
+	if doc, found, err := view.DocumentAt(bg, id, CurrentDocumentPoint()); err != nil || found {
+		t.Fatal(doc, found, err)
+	}
+	if err := view.Close(bg); err != nil {
+		t.Fatal(err)
+	}
+	writer, err = OpenSQLite(path, SQLiteOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer writer.Close(bg)
+	h, err := Open(bg, writer, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer h.Close(bg)
+	if _, err := h.Root(bg, AgentChange{}); err != nil {
+		t.Fatal(err)
+	}
+	if doc, found, err := writer.DocumentAt(bg, 6, DocumentPoint{Seq: 2}); err != nil || !found || doc.Version != 1 || !equalJSONValue(doc.Value, JSON{"text": "after"}) {
+		t.Fatal(doc, found, err)
+	}
+}

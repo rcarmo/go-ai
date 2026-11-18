@@ -336,6 +336,12 @@ func candidateTables(s Snapshot) Snapshot {
 }
 
 // cloneState is the strict deep-detachment boundary for public reads and images.
+// Original SQLite retains retired document identity without a current value
+// or version. Rewindable revisions, if any, remain a separate history.
+func documentMetadataOnly(d Document) bool {
+	return d.Retired && d.Value == nil && d.Version == 0
+}
+
 func cloneState(s Snapshot, l Limits) (Snapshot, error) {
 	n := candidateTables(s)
 	n.retained = nil // detached public maps cannot retain a trusted immutable cache
@@ -363,11 +369,13 @@ func cloneState(s Snapshot, l Limits) (Snapshot, error) {
 		n.Submissions[id] = v
 	}
 	for id, v := range s.Documents {
-		x, e := copyObject(v.Value, l)
-		if e != nil {
-			return Snapshot{}, e
+		if !documentMetadataOnly(v) {
+			x, e := copyObject(v.Value, l)
+			if e != nil {
+				return Snapshot{}, e
+			}
+			v.Value = x
 		}
-		v.Value = x
 		n.Documents[id] = v
 	}
 	for id, revisions := range s.DocumentRevisions {
@@ -838,7 +846,11 @@ func validateState(candidate *Snapshot, l Limits, final bool, prior Snapshot, wr
 	}
 	addresses := map[DocumentAddress]ID{}
 	for _, v := range s.Documents {
-		if !validKind(v.Kind) || v.Version < 1 || v.Version > MaxID || v.Value == nil || v.CreatedAt == 0 || v.CreatedAt > s.Seq || v.RetiredAt > s.Seq || (v.Retired != (v.RetiredAt != 0)) || (v.RetiredAt != 0 && v.RetiredAt < v.CreatedAt) {
+		// A commit may carry forward a metadata-only tombstone loaded from
+		// SQLite, but cannot create one or introduce one via a frame checkpoint.
+		old := prior.Documents[v.ID]
+		metadataOnly := documentMetadataOnly(v) && documentMetadataOnly(old) && v.RetiredAt == old.RetiredAt && v.CreatedAt == old.CreatedAt && sameAddress(v, old)
+		if !validKind(v.Kind) || (!metadataOnly && (v.Version < 1 || v.Version > MaxID || v.Value == nil)) || v.CreatedAt == 0 || v.CreatedAt > s.Seq || v.RetiredAt > s.Seq || (v.Retired != (v.RetiredAt != 0)) || (v.RetiredAt != 0 && v.RetiredAt < v.CreatedAt) {
 			return reject("invalid document")
 		}
 		if err := validDocumentPolicy(v); err != nil {
@@ -860,12 +872,12 @@ func validateState(candidate *Snapshot, l Limits, final bool, prior Snapshot, wr
 		default:
 			return reject("invalid scope")
 		}
-		if final && (v.Kind == codemodeRunKind || v.Kind == codemodeJournalKind) {
+		if final && !metadataOnly && (v.Kind == codemodeRunKind || v.Kind == codemodeJournalKind) {
 			if err := validateCodemodeDocuments(s, v, l); err != nil {
 				return err
 			}
 		}
-		if prior.retained == nil || changedDocuments[v.ID] {
+		if !metadataOnly && (prior.retained == nil || changedDocuments[v.ID]) {
 			if _, err := encodeBounded(v.Value, l, l.MaxDocumentBytes); err != nil {
 				return err
 			}
@@ -996,8 +1008,7 @@ func validateState(candidate *Snapshot, l Limits, final bool, prior Snapshot, wr
 				return e
 			}
 		}
-		if len(revisions) > 0 {
-			d := s.Documents[id]
+		if d := s.Documents[id]; len(revisions) > 0 && !documentMetadataOnly(d) {
 			left, e := ownJSONValue(d.Value, l)
 			if e != nil {
 				return e
