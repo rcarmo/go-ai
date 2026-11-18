@@ -184,3 +184,46 @@ func publicEntryObject(entry Entry, limits Limits) (sourcePublicEntry, error) {
 	}
 	return result, nil
 }
+
+// Public entry reads expose the restored strings. Returning such a record to
+// Storage uses the existing receipt witness for physical diagnostic encoding.
+func nativeEntryDiagnosticData(entry Entry) Entry {
+	if entry.Kind != toolResultEntryKind || len(entry.Model) != 1 || !entry.HasData {
+		return entry
+	}
+	data := generationObject(entry.Data)
+	if data == nil {
+		return entry
+	}
+	diagnostics, ok := data["diagnostics"].([]any)
+	if !ok || len(diagnostics) != len(entry.Model[0].Diagnostics) {
+		return entry
+	}
+	out := JSON{}
+	for key, value := range data {
+		out[key] = value
+	}
+	copied := append([]any(nil), diagnostics...)
+	changed := false
+	for index, diagnostic := range entry.Model[0].Diagnostics {
+		if !diagnostic.argumentError || utf8.ValidString(diagnostic.Message) {
+			continue
+		}
+		original := generationObject(diagnostics[index])
+		if original == nil {
+			continue
+		}
+		value := JSON{}
+		for key, member := range original {
+			value[key] = member
+		}
+		value["message"] = ""
+		copied[index] = value
+		changed = true
+	}
+	if changed {
+		out["diagnostics"] = copied
+		entry.Data = out
+	}
+	return entry
+}

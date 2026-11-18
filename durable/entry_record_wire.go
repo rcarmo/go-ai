@@ -183,6 +183,13 @@ func (v *Entry) UnmarshalJSON(data []byte) error {
 		Value        JSON             `json:"value"`
 	}
 	limits := maximumDurableLimits()
+	if bytes.Contains(data, []byte(`\ud`)) || bytes.Contains(data, []byte(`\uD`)) {
+		var err error
+		data, err = decodePublicEntryDiagnosticInput(data, limits)
+		if err != nil {
+			return err
+		}
+	}
 	if err := decodeStrict(data, limits, limits.MaxRecordBytes, &wire); err != nil {
 		return err
 	}
@@ -201,6 +208,10 @@ func (v *Entry) UnmarshalJSON(data []byte) error {
 		result.Data, result.HasData = value, true
 	}
 	owned, err := copyEntry(result, limits)
+	if err != nil {
+		return err
+	}
+	owned, err = exposeEntryDiagnostics(owned)
 	if err != nil {
 		return err
 	}

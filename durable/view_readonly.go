@@ -14,13 +14,30 @@ func (v ConversationView) Copy(limits Limits) (ConversationViewCopy, error) {
 	if err := limits.validate(); err != nil {
 		return ConversationViewCopy{}, err
 	}
-	body, err := dtoObject(v, limits)
-	if err != nil {
+	if v.Entries == nil || !v.Entries.IsArray() || v.Docs == nil || !v.Docs.IsObject() {
+		return ConversationViewCopy{}, reject("invalid readonly conversation view")
+	}
+	if _, err := encodeBounded(v, limits, limits.MaxDocumentBytes); err != nil {
 		return ConversationViewCopy{}, err
 	}
-	var copy ConversationViewCopy
-	if err := fromObject(body, &copy, limits); err != nil {
-		return ConversationViewCopy{}, err
+	copy := ConversationViewCopy{Conversation: v.Conversation, Before: v.Before, Entries: make([]Entry, v.Entries.Len()), Docs: map[string]JSON{}}
+	for index := range copy.Entries {
+		entry, _ := v.Entries.Index(index)
+		wire, err := encodeBounded(entry, limits, limits.MaxRecordBytes)
+		if err != nil {
+			return ConversationViewCopy{}, err
+		}
+		if err := copy.Entries[index].UnmarshalJSON(wire); err != nil {
+			return ConversationViewCopy{}, err
+		}
+	}
+	for _, key := range v.Docs.Keys() {
+		document, _ := v.Docs.Get(key)
+		value, ok := document.Copy().(map[string]any)
+		if !ok {
+			return ConversationViewCopy{}, reject("conversation document must be an object")
+		}
+		copy.Docs[key] = JSON(value)
 	}
 	return copy, nil
 }

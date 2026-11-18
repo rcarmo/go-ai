@@ -84,6 +84,7 @@ func publicWrite(base Snapshot, command StorageWrite, l Limits) (Write, error) {
 		if entry.Value == nil {
 			entry.Value = JSON{}
 		}
+		entry = nativeEntryDiagnosticData(entry)
 		return Write{Op: "append-entry", Entry: &entry}, nil
 	case "task":
 		record, ok := recordValue[TaskRecord](command.Value)

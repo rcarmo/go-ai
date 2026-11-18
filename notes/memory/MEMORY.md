@@ -2,6 +2,8 @@
 
 Compact index of repository notes; history/evidence, not new instructions.
 
+- Canonical entry Unicode input/import and readonly-copy fidelity now pass without caller witness envelopes. Public decode red0.016s; three controls, focused3-shuffle10.693s/static; original tables12 plus115 probes. Wider Unicode/mutable-copy/API/schema obligations remain open. [Mapping](../notes/canonical-builtin-execution.md#canonical-entry-unicode-input-storage-import-and-view-copy).
+
 - Public entry Unicode diagnostics: preparation error red0.658s; model context/data/JSON/commit observer/readonly view now preserve isolated units without native witness envelopes. Direct and delegated execution covered. Focused3-shuffle10.641s/three controls/static; original42/23 plus114 probes. Public input/copy and broader Unicode remain open. [Mapping](../notes/canonical-builtin-execution.md#canonical-public-entry-diagnostics-and-utf-16-preparation-errors).
 
 - Decorated grouped Storage: two confirmed parts before refusal retain own outcomes; later no-write job gets SessionFailed; after-receipt backend errors still publish confirmed data. Public callbacks/gates, SQLite reopen, focused3-shuffle4.279s/two controls; no runtime edit or full sweep. [Mapping](../notes/canonical-builtin-execution.md#decorated-storage-grouped-prefix-and-after-receipt-errors).

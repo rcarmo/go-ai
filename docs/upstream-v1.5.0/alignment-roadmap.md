@@ -6,6 +6,8 @@ Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Canonical m
 
 ## Current argument value union packet
 
+Selected canonical entry input/Storage import/readonly-copy fidelity now passes (10.693s, three controls, tables12+115 probes). Wider public Unicode and mutable-copy behavior remain open. No full sweep. [Mapping](../../notes/canonical-builtin-execution.md#canonical-entry-unicode-input-storage-import-and-view-copy).
+
 Current focused public-entry work removes diagnostic placeholders/native witness envelopes and retains exact isolated preparation-error units in readonly/public output. Focused10.641s/three controls/static and original42/23+114 probes pass. Public input/copy and wider Unicode contracts remain open; no sweep. [Mapping](../../notes/canonical-builtin-execution.md#canonical-public-entry-diagnostics-and-utf-16-preparation-errors).
 
 Selected delegated grouped-prefix and after-receipt-error cases now pass public-callback focused tests (4.279s, two controls). Full Storage/API/loader/readOnly/database acceptance remains open. [Mapping](../../notes/canonical-builtin-execution.md#decorated-storage-grouped-prefix-and-after-receipt-errors).

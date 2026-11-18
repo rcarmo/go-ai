@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -135,4 +136,60 @@ func TestMessageContentUnionOwnershipBudgetsAndAuthority(t *testing.T) {
 	if _, err = encodeBounded(JSON{"message": MessageReceipt{Role: goai.RoleUser, ContentText: &large}}, limit, limit.MaxRecordBytes); err == nil {
 		t.Fatal("string content bypassed JSON byte limit")
 	}
+}
+
+// Source EntryRecord is ordinary lossless JS JSON; canonical public input must
+// not require SQLite's native UTF-16 witness envelope.
+func TestSourcePublicEntryUnicodeDiagnosticRoundTrip(t *testing.T) {
+	wire := []byte(sourceUnicodeDiagnosticEntryJSON)
+	var entry Entry
+	if err := json.Unmarshal(wire, &entry); err != nil {
+		t.Fatal("canonical source entry JSON rejected", err)
+	}
+	diagnostics, ok := generationObject(entry.Data)["diagnostics"].([]any)
+	if !ok || len(diagnostics) != 1 {
+		t.Fatal("canonical source diagnostic absent", entry.Data)
+	}
+	requireToolUTF16(t, generationObject(diagnostics[0])["message"], 0xd800)
+	if len(entry.Model) != 1 || goai.ContentText(entry.Model[0].Content) != "<harness>\n[error] "+toolUTF16Scalar(t, `"\ud800"`).WTF8()+"\n</harness>" {
+		t.Fatal("canonical source model error lost", entry.Model)
+	}
+	encoded, err := json.Marshal(entry)
+	if err != nil || !strings.Contains(string(encoded), `\ud800`) || strings.Contains(string(encoded), `"utf16Arguments"`) || strings.Contains(string(encoded), "�") {
+		t.Fatal("canonical entry round trip", string(encoded), err)
+	}
+}
+
+const sourceUnicodeDiagnosticEntryJSON = `{"id":5,"conversationId":1,"kind":"pi.tool-result","model":[{"role":"toolResult","content":[{"type":"text","text":"<harness>\n[error] \ud800\n</harness>"}],"timestamp":1,"toolCallId":"call","toolName":"tool","isError":true}],"data":{"diagnostics":[{"severity":"error","code":"invalid_arguments","message":"\ud800"}]},"byTaskId":3}`
+
+func TestSourcePublicEntryUnicodeDiagnosticStorageImport(t *testing.T) {
+	sqliteStoreFresh(t, func(t *testing.T, b sqliteFixture) {
+		var entry Entry
+		if err := json.Unmarshal([]byte(sourceUnicodeDiagnosticEntryJSON), &entry); err != nil {
+			t.Fatal(err)
+		}
+		for count := 0; count < 4; count++ {
+			if _, err := b.store.MintID(bg); err != nil {
+				t.Fatal(err)
+			}
+		}
+		task := TaskRecord{ID: 3, Conversation: 1, Kind: "source.import", Version: 1, Input: &TaskValue{Present: true}, State: TaskState{Status: "pending", Checkpoint: nil}}
+		result, err := b.store.Commit(bg, [][]StorageWrite{{{Type: "conversation", Value: Conversation{ID: 1}}, {Type: "task", Value: task}, {Type: "entry", Value: entry}}}, func(int, uint64) {})
+		if err != nil || result.Stored != 1 || result.Refused != nil {
+			var refused error
+			if result.Refused != nil {
+				refused = result.Refused.AsError()
+			}
+			t.Fatal("canonical Unicode entry storage import", result, refused, err)
+		}
+		stored, found, err := b.store.Entry(bg, entry.ID)
+		if err != nil || !found {
+			t.Fatal(stored, err)
+		}
+		diagnostics, _ := generationObject(stored.Entry.Data)["diagnostics"].([]any)
+		if len(diagnostics) != 1 {
+			t.Fatal("imported diagnostic absent", stored.Entry.Data)
+		}
+		requireToolUTF16(t, generationObject(diagnostics[0])["message"], 0xd800)
+	})
 }

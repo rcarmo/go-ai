@@ -1137,7 +1137,7 @@
     "historical": true
   },
   "currentCheckpoint": {
-    "scope": "Migration through46e9aa0 plus canonical public entry diagnostics/UTF-16 preparation errors. Source-first red0.658s, focused10.641s/three compiled controls/static pass. Original tools42/view23+114 probes pass; no sweep.",
+    "scope": "Migration through53ea3c8 plus selected canonical Unicode entry input/Storage import and readonly-copy fidelity. Red0.016s, focused10.693s/three controls/static pass; tables12+115 probes; no new sweep.",
     "baseRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
     "lastVerifiedPushed": {
       "revision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
@@ -2002,6 +2002,21 @@
         "staticcheck": "v0.8.2 pass",
         "logging": "pass",
         "mapping": "notes/canonical-builtin-execution.md#canonical-public-entry-diagnostics-and-utf-16-preparation-errors"
+      },
+      "publicEntryUnicodeInputPacket": {
+        "sourceFirstRedSeconds": 0.016,
+        "scope": "Canonical generated diagnostic JSON input, Storage import/read and readonly-copy fidelity without caller witness envelope",
+        "focusedThreeShuffleSeconds": 10.693,
+        "semanticFaults": 3,
+        "unchangedOriginalSessionTables": 12,
+        "separateSupplementalProbes": 115,
+        "skipped": 0,
+        "open": "Wider Unicode unions, all mutable-copy interactions, complete API/Storage/database compatibility",
+        "fullSuite": "Not run; focused-only until parity sweeps",
+        "vet": "pass",
+        "staticcheck": "v0.8.2 pass",
+        "logging": "pass",
+        "mapping": "notes/canonical-builtin-execution.md#canonical-entry-unicode-input-storage-import-and-view-copy"
       }
     },
     "reference": {

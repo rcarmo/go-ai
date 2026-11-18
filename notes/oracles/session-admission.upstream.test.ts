@@ -1299,3 +1299,16 @@ it("retains an isolated UTF-16 preparation error in an own invalid-arguments res
  const {harness,root}=await openChat(new MemoryStorage(),setup);
  try{expect((await(await root.submit({type:"input",content:"go"},context)).wait(context)).status).toBe("done");expect(effects).toBe(0);expect(setup.faux.state.callCount).toBe(2);const entry=(await allEntries(root)).find(entry=>entry.kind==="pi.tool-result")!;expect(entry.model).toEqual([expect.objectContaining({toolCallId:"unicode-error-call",isError:true,content:[{type:"text",text:"<harness>\n[error] \ud800\n</harness>"}]})]);expect((entry.data as any).diagnostics).toEqual([{severity:"error",code:"invalid_arguments",message:"\ud800"}])}finally{await harness.close(context)}
 });
+
+it("imports canonical UTF-16 diagnostic entry JSON without a native witness envelope",async()=>{
+ const {MemoryStorage}=await import("@earendil-works/pi-durable");
+ const storage=new MemoryStorage();
+ const entry=JSON.parse('{"id":5,"conversationId":1,"kind":"pi.tool-result","model":[{"role":"toolResult","content":[{"type":"text","text":"<harness>\\n[error] \\ud800\\n</harness>"}],"timestamp":1,"toolCallId":"call","toolName":"tool","isError":true}],"data":{"diagnostics":[{"severity":"error","code":"invalid_arguments","message":"\\ud800"}]},"byTaskId":3}');
+ try{
+  for(let index=0;index<4;index++)await storage.mintId();
+  const task={id:3,conversationId:1,kind:"source.import",version:1,input:null,background:false,abortRequested:false,state:{status:"pending",checkpoint:null}};
+  const result=await storage.commit([[{type:"conversation",value:{id:1}},{type:"task",value:task},{type:"entry",value:entry}]]as any,()=>{},context);
+  expect(result).toEqual({stored:1});expect((await storage.entry(5 as any,context))?.entry).toEqual(entry);
+  expect(JSON.stringify(entry)).toContain('\\ud800');expect(JSON.stringify(entry)).not.toContain('"utf16Arguments"');
+ }finally{await storage.close(context)}
+});

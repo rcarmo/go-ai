@@ -4,6 +4,8 @@ The oracle runs original pi-durable v1.5.0 tests at `f9a26365568127461c47a07a37d
 
 ## Latest bounded reference packet
 
+Canonical Unicode diagnostic EntryRecord JSON imports directly into original Storage and reads back unchanged. Original session-tables12 and115 separate probes (91+24) pass zero skipped. Native input, import and copy-fidelity assertions pass; wider Unicode/Storage/database acceptance remains open. [Mapping](canonical-builtin-execution.md#canonical-entry-unicode-input-storage-import-and-view-copy).
+
 A preparation error containing an isolated UTF-16 unit is checked against the exact source model result and diagnostic list. Unchanged tools42 and view23 pass;114 separate probes (90+24) pass zero skipped. Native direct/decorated public entry/value/JSON/observer/view assertions pass. [Mapping](canonical-builtin-execution.md#canonical-public-entry-diagnostics-and-utf-16-preparation-errors).
 
 Public-only Storage proxy probes now cover reservation/commit/refusal/close and a real model/tool chain. They use the actual Storage.entry envelope and reopen SQLite after refusal closes the Session. Source group-commit40 and113 separate probes (89+24) pass zero skipped. Native selected wrappers pass; complete Storage interface, cold-read, grouped-prefix and database compatibility remain unaccepted. [Mapping](canonical-builtin-execution.md#public-storage-decorators-and-receipted-session-images).

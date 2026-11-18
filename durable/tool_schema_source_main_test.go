@@ -525,6 +525,22 @@ func TestSourceToolPrepareErrorPreservesIsolatedUTF16(t *testing.T) {
 				if err != nil || !strings.Contains(string(viewJSON), `\ud800`) || strings.Contains(string(viewJSON), `"utf16Arguments"`) {
 					t.Error("UTF-16 readonly public JSON", string(viewJSON), err)
 				}
+				copy, err := view.Copy(DefaultLimits())
+				if err != nil {
+					t.Error("UTF-16 readonly view copy", err)
+				} else {
+					for _, entry := range copy.Entries {
+						if entry.Kind != "pi.tool-result" {
+							continue
+						}
+						diagnostics, _ := generationObject(entry.Data)["diagnostics"].([]any)
+						if len(diagnostics) != 1 {
+							t.Error("UTF-16 copied diagnostics absent")
+							continue
+						}
+						requireToolUTF16(t, generationObject(diagnostics[0])["message"], 0xd800)
+					}
+				}
 			})
 		})
 	}
