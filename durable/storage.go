@@ -29,6 +29,8 @@ type storeCore struct {
 	appendFrame   func(byte, uint64, uint64, []byte) error
 	appendFrames  func([]storageFrame) error
 	finish        func() error
+	readOnly      bool
+	refreshRead   func() error
 }
 
 // initialState is the original raw Storage state: it holds no records. The
@@ -66,6 +68,12 @@ func (c *storeCore) enter(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		c.leave()
 		return err
+	}
+	if c.refreshRead != nil {
+		if err := c.refreshRead(); err != nil {
+			c.leave()
+			return err
+		}
 	}
 	return nil
 }
@@ -205,6 +213,9 @@ func (c *storeCore) mintID(ctx context.Context, owned bool) (ID, error) {
 		return 0, err
 	}
 	defer c.leave()
+	if c.readOnly {
+		return 0, ErrReadOnlyStorage
+	}
 	if c.sessionOwned && !owned {
 		return 0, ErrOwned
 	}

@@ -22,6 +22,7 @@ type JSON map[string]any
 
 var (
 	ErrClosed           = errors.New("durable: closed")
+	ErrReadOnlyStorage  = errors.New("durable: read-only storage")
 	ErrPoisoned         = errors.New("durable: uncertain storage outcome; close and reopen required")
 	ErrCorrupt          = errors.New("durable: corrupt journal")
 	ErrUnsupported      = errors.New("durable: unsupported operation")

@@ -196,6 +196,9 @@ func (c *storeCore) commitResolvedParts(ctx context.Context, count int, resolve 
 		return commitGroupResult{}, err
 	}
 	defer c.leave()
+	if c.readOnly {
+		return commitGroupResult{}, ErrReadOnlyStorage
+	}
 	if c.sessionOwned && !owned {
 		return commitGroupResult{}, ErrOwned
 	}
