@@ -1439,7 +1439,7 @@ func TestTaskRecoveryGenerationPreparationFallbackWakeSequence(t *testing.T) {
 					t.Fatal(err)
 				}
 				reopened := reopenStoreAfterHarnessClose(t, b.store)
-				state, err := reopened.Snapshot(bg)
+				state, err := testStorageProjection(reopened).Snapshot(bg)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -1583,7 +1583,7 @@ func TestTaskRecoveryBoundReservationRejectionWaitCleanupNoRetry(t *testing.T) {
 					t.Fatal(err)
 				}
 				reopened := reopenStoreAfterHarnessClose(t, store)
-				state, err := reopened.Snapshot(bg)
+				state, err := testStorageProjection(reopened).Snapshot(bg)
 				if err != nil || state.Tasks[targetID].Status != "pending" || effects.Load() != 0 || attempts.Load() != 1 {
 					t.Fatal("failed target reservation adopted/dispatched", err)
 				}
@@ -1698,7 +1698,7 @@ func TestTaskRecoveryRejectedReconcileIgnoresStaleWakeAndRetainsNewWake(t *testi
 					t.Fatal(err)
 				}
 				reopened := reopenStoreAfterHarnessClose(t, b.store)
-				state, err := reopened.Snapshot(bg)
+				state, err := testStorageProjection(reopened).Snapshot(bg)
 				if err != nil || state.Tasks[parentID].Status != "completing" {
 					t.Fatal("rejected reconcile adopted subset", err, state.Tasks[parentID])
 				}
@@ -1860,7 +1860,7 @@ func TestTaskRecoveryOfflineGenerationPreparationFallbackWakeSequence(t *testing
 					t.Fatal(err)
 				}
 				reopened := reopenStoreAfterHarnessClose(t, b.store)
-				state, err := reopened.Snapshot(bg)
+				state, err := testStorageProjection(reopened).Snapshot(bg)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -2047,7 +2047,7 @@ func TestTaskRecoveryProvisionalReservationRollbackBeforeFrontierAdmission(t *te
 		}
 		reopened := reopenStoreAfterHarnessClose(t, store)
 		defer reopened.Close(bg)
-		state, err := reopened.Snapshot(bg)
+		state, err := testStorageProjection(reopened).Snapshot(bg)
 		if err != nil || state.Tasks[childID].Status != "pending" || state.Tasks[parentID].Status != "completing" {
 			t.Fatal("rejected provisional reservation adopted", err)
 		}
@@ -2225,7 +2225,7 @@ func TestTaskRecoveryToolDecidingHoldRejectedUncertainAndReopen(t *testing.T) {
 					}
 					deadline := time.Now().Add(3 * time.Second)
 					for {
-						stored, err := store.Snapshot(ctx)
+						stored, err := testStorageProjection(store).Snapshot(ctx)
 						if err != nil {
 							return ToolResult{}, err
 						}
@@ -2682,7 +2682,7 @@ func TestTaskRecoveryRejectedSchedulerFaultRunAbortLaterWake(t *testing.T) {
 						t.Fatal(err)
 					}
 					reopened := reopenStoreAfterHarnessClose(t, b.store)
-					state, err := reopened.Snapshot(bg)
+					state, err := testStorageProjection(reopened).Snapshot(bg)
 					if err != nil || state.Tasks[id].Status != "running" || taskHasDecidedOutcome(state.Tasks[id]) || state.Documents[docID].Retired || len(state.Entries) != 0 {
 						t.Fatal("rejected scheduler fault partially adopted", state.Tasks[id], err)
 					}
@@ -4491,7 +4491,7 @@ func TestTaskRecoveryRejectedLateEdgeCascadeNeedsGenuineWake(t *testing.T) {
 			t.Fatal(err)
 		}
 		reopened := reopenStoreAfterHarnessClose(t, store)
-		state, err := reopened.Snapshot(bg)
+		state, err := testStorageProjection(reopened).Snapshot(bg)
 		if err != nil || state.Tasks[ownerID].Status != "completing" || taskAborted(state.Tasks[childID]) || runs.Load() != 0 || aborts.Load() != 0 {
 			t.Fatal("rejected cascade partially adopted/dispatched", err)
 		}
@@ -4725,7 +4725,7 @@ func TestTaskRecoveryOpenFailurePrefixMixedMetadataPreserved(t *testing.T) {
 					if mode == "cancel-after-first" && !errors.Is(err, context.Canceled) {
 						t.Fatal("prefix cancellation cause", err)
 					}
-					if _, err := store.Snapshot(bg); !errors.Is(err, ErrClosed) {
+					if _, err := testStorageProjection(store).Snapshot(bg); !errors.Is(err, ErrClosed) {
 						t.Fatal("failed prefix retained storage ownership", err)
 					}
 				}
@@ -5046,7 +5046,7 @@ func TestTaskRecoveryRejectedCascadeExactOwnerVariants(t *testing.T) {
 					t.Fatal(err)
 				}
 				reopened := reopenStoreAfterHarnessClose(t, store)
-				state, err := reopened.Snapshot(bg)
+				state, err := testStorageProjection(reopened).Snapshot(bg)
 				if err != nil || taskAborted(state.Tasks[childID]) || terminalStatus(state.Tasks[childID].Status) {
 					t.Fatal("rejected cascade adopted subset", err)
 				}
@@ -6035,7 +6035,7 @@ func TestTaskRecoveryOpenReportsSecondaryCleanupFailureAndPreservesPrimary(t *te
 						if listeners != 0 {
 							t.Error("cleanup report before listener disposal")
 						}
-						if _, err := store.Snapshot(bg); !errors.Is(err, ErrClosed) {
+						if _, err := testStorageProjection(store).Snapshot(bg); !errors.Is(err, ErrClosed) {
 							t.Error("cleanup reported before store closure", err)
 						}
 						if reportMode == "panics" {
@@ -6262,7 +6262,7 @@ func TestTaskRecoverySuccessfulValidatorIntentStoragePrefixAndReopen(t *testing.
 				repeatRound.Store(false)
 				reopened := reopenStoreAfterHarnessClose(t, b.store)
 				if failure == "rejected" {
-					state, e := reopened.Snapshot(bg)
+					state, e := testStorageProjection(reopened).Snapshot(bg)
 					if e != nil {
 						t.Fatal(e)
 					}
@@ -6428,7 +6428,7 @@ type taskContinuationSnapshotGate struct {
 }
 
 func (s *taskContinuationSnapshotGate) Snapshot(ctx context.Context) (Snapshot, error) {
-	value, err := s.Storage.Snapshot(ctx)
+	value, err := testStorageProjection(s.Storage).Snapshot(ctx)
 	if err == nil && s.reads.Add(1) == s.target {
 		s.entered <- value
 		<-s.release

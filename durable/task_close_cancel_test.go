@@ -74,7 +74,7 @@ func TestTaskLifecyclePinnedCancelledCloseKeepsSharedShutdownAndStorageOwnership
 		}
 		store := reopenStoreAfterHarnessClose(t, b.store)
 		t.Cleanup(func() { _ = store.Close(bg) })
-		state, err := store.Snapshot(bg)
+		state, err := testStorageProjection(store).Snapshot(bg)
 		if err != nil || taskHasDecidedOutcome(state.Tasks[id]) {
 			t.Fatal("shutdown invented outcome", state.Tasks[id], err)
 		}

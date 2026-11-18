@@ -472,7 +472,6 @@ type Storage interface {
 	// batched command union in order and delivers one durability receipt per
 	// stored batch before it resolves. It is not Session publication.
 	Commit(context.Context, [][]StorageWrite, func(index int, seq uint64)) (CommitResult, error)
-	Snapshot(context.Context) (Snapshot, error)
 	// The 1.1.0 ordered scan contract is required of storage implementations.
 	ScanConversations(context.Context, ConversationQuery, int, Cursor) (Page[Conversation], error)
 	ScanEntries(context.Context, EntryQuery, int, Cursor) (Page[Entry], error)
@@ -483,7 +482,6 @@ type Storage interface {
 	FindLatestHeadMarker(context.Context, ID, ID) (Entry, bool, error)
 	Task(context.Context, ID) (TaskRecord, bool, error)
 	Submission(context.Context, ID) (SubmissionRecord, bool, error)
-	Documents(context.Context, Query) ([]Document, error)
 	SubmissionByRequest(context.Context, ID, string) (SubmissionRecord, bool, error)
 	Close(context.Context) error
 }

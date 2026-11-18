@@ -547,6 +547,9 @@ type v150PublicationScopeStorage struct {
 	completion <-chan struct{}
 }
 
+func (w *v150PublicationScopeStorage) Snapshot(ctx context.Context) (Snapshot, error) {
+	return testStorageProjection(w.Storage).Snapshot(ctx)
+}
 func (w *v150PublicationScopeStorage) nativeCore() *storeCore { return w.core }
 func (w *v150PublicationScopeStorage) Publishing(ctx context.Context, publish func()) <-chan struct{} {
 	w.scope(ctx, publish)

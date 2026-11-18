@@ -153,7 +153,7 @@ type mainPublicImageAdapter struct {
 
 func (a *mainPublicImageAdapter) Snapshot(ctx context.Context) (Snapshot, error) {
 	a.snapshots++
-	image, err := a.Storage.Snapshot(ctx)
+	image, err := testStorageProjection(a.Storage).Snapshot(ctx)
 	if err == nil {
 		image.Conversations[1] = Conversation{ID: 1, Name: "adapter"}
 	}

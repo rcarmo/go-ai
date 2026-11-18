@@ -145,7 +145,7 @@ func mainEligibilityProbe(t *testing.T, h *Harness, probe func(*Tx, Snapshot) er
 	if !visited || value != nil || !errors.Is(err, refusal) {
 		t.Fatal("boundary probe did not reach its deliberate rejection", visited, value, err)
 	}
-	for _, read := range []func(context.Context) (Snapshot, error){h.Snapshot, h.session.store.Snapshot} {
+	for _, read := range []func(context.Context) (Snapshot, error){h.Snapshot, testStorageProjection(h.session.store).Snapshot} {
 		after, err := read(bg)
 		if err != nil {
 			t.Fatal(err)

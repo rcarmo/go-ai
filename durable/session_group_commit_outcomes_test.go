@@ -384,7 +384,7 @@ func TestSessionV150RejectedCallKeepsEveryOwnPartOutcome(t *testing.T) {
 			}
 			reopened := reopenStoreAfterHarnessClose(t, s.store)
 			defer reopened.Close(bg)
-			state, err := reopened.Snapshot(bg)
+			state, err := testStorageProjection(reopened).Snapshot(bg)
 			if err != nil || len(state.Entries) != 1 || len(state.Documents) != 2 {
 				t.Fatal("receipted parts did not survive reopen", state, err)
 			}
@@ -571,7 +571,7 @@ func TestMainSessionConfirmedAppendRefusalLatches(t *testing.T) {
 	store.appendFrame = original
 	reopened := reopenStoreAfterHarnessClose(t, store)
 	defer reopened.Close(context.Background())
-	snapshot, err := reopened.Snapshot(ctx)
+	snapshot, err := testStorageProjection(reopened).Snapshot(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -680,7 +680,7 @@ func TestMainSessionSQLiteConfirmedRollbackLatches(t *testing.T) {
 	_ = s.Close(ctx)
 	reopened := reopenStoreAfterHarnessClose(t, store)
 	defer reopened.Close(context.Background())
-	snapshot, err := reopened.Snapshot(ctx)
+	snapshot, err := testStorageProjection(reopened).Snapshot(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}

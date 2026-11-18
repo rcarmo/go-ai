@@ -279,7 +279,7 @@ func TestRestartLimit140RejectedCutoffDoesNotReportFault(t *testing.T) {
 		}
 		reopened := reopenStoreAfterHarnessClose(t, h.session.store)
 		defer reopened.Close(bg)
-		snapshot, err := reopened.Snapshot(bg)
+		snapshot, err := testStorageProjection(reopened).Snapshot(bg)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -364,7 +364,7 @@ func TestRestartLimit140BuiltinGenerationAbortCutoffSettlesSubmission(t *testing
 // now requeues joined hosts without consuming the interruption budget.
 func interruptedStore140(t *testing.T, store Storage, id ID) Storage {
 	t.Helper()
-	snapshot, err := store.Snapshot(bg)
+	snapshot, err := testStorageProjection(store).Snapshot(bg)
 	if err != nil {
 		t.Fatal(err)
 	}

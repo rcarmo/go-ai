@@ -402,6 +402,10 @@ func TestMainSessionDeferredCancellationAndAdapterAdmission(t *testing.T) {
 
 type mainDeferredAdapter struct{ Storage }
 
+func (a *mainDeferredAdapter) Snapshot(ctx context.Context) (Snapshot, error) {
+	return testStorageProjection(a.Storage).Snapshot(ctx)
+}
+
 func (a *mainDeferredAdapter) nativeCore() *storeCore { return a.Storage.(nativeStorage).nativeCore() }
 
 func openMainDeferredSession(t *testing.T, b sqliteFixture) (*Session, ID, ID) {
@@ -465,7 +469,7 @@ func mainDeferredSet(id ID, text string) func(*Tx) error {
 }
 func mainDeferredSnapshot(t *testing.T, store Storage) Snapshot {
 	t.Helper()
-	v, err := store.Snapshot(bg)
+	v, err := testStorageProjection(store).Snapshot(bg)
 	if err != nil {
 		t.Fatal(err)
 	}

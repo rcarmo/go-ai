@@ -70,7 +70,7 @@ func TestCodemode120ImageChunkAppendFailureReopen(t *testing.T) {
 			t.Fatal(err)
 		}
 		store := reopenStoreAfterHarnessClose(t, b.store)
-		snapshot, err := store.Snapshot(bg)
+		snapshot, err := testStorageProjection(store).Snapshot(bg)
 		if err != nil {
 			t.Fatal(err)
 		}

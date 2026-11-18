@@ -87,7 +87,7 @@ func TestModels120PaidImageSettlementFailureNeverRepeatsPaidEffect(t *testing.T)
 					t.Fatal(e)
 				}
 				reopened := reopenStoreAfterHarnessClose(t, b.store)
-				state, e := reopened.Snapshot(bg)
+				state, e := testStorageProjection(reopened).Snapshot(bg)
 				if e != nil {
 					t.Fatal(e)
 				}
@@ -200,7 +200,7 @@ func TestModels120PaidClassifierSettlementFailureNeverRepeatsPaidEffect(t *testi
 					t.Fatal(e)
 				}
 				reopened := reopenStoreAfterHarnessClose(t, b.store)
-				state, e := reopened.Snapshot(bg)
+				state, e := testStorageProjection(reopened).Snapshot(bg)
 				if e != nil {
 					t.Fatal(e)
 				}

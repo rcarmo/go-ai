@@ -23,6 +23,8 @@ var bg = context.Background()
 // Native fixture helpers still exercise SQLite's non-Storage entry points.
 type nativeTestStorage interface {
 	Storage
+	Snapshot(context.Context) (Snapshot, error)
+	Documents(context.Context, Query) ([]Document, error)
 	Apply(context.Context, Batch) (uint64, error)
 	Limits() (Limits, error)
 }
@@ -113,15 +115,16 @@ func sqliteStoreFresh(t *testing.T, fn func(*testing.T, sqliteFixture), configur
 // fabricates it, so fixtures that address conversation 1 must create it first.
 func seedRootConversation(t testing.TB, s Storage) {
 	t.Helper()
-	state, err := s.Snapshot(bg)
+	_, exists, err := s.Conversation(bg, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := state.Conversations[1]; ok {
+	if exists {
 		return
 	}
-	if _, err := s.(nativeTestStorage).Apply(bg, Batch{[]Write{{Op: "create-conversation", Conversation: &Conversation{ID: 1}}}}); err != nil {
-		t.Fatal(err)
+	result, err := s.Commit(bg, [][]StorageWrite{{{Type: "conversation", Value: Conversation{ID: 1}}}}, nil)
+	if err != nil || result.Refused != nil || result.Stored != 1 {
+		t.Fatal(result, err)
 	}
 }
 
@@ -158,9 +161,25 @@ func apply(t *testing.T, s Storage, ws ...Write) uint64 {
 	}
 	return seq
 }
+
+// Native tests can inspect a legacy backend projection without requiring it
+// from public decorators. Wrappers with their own projection still own it.
+func testStorageProjection(store Storage) storageProjection {
+	if projection, ok := store.(storageProjection); ok {
+		return projection
+	}
+	return testStorageProjectionFunc(func(ctx context.Context) (Snapshot, error) {
+		return readStorageProjection(ctx, store, DefaultLimits())
+	})
+}
+
+type testStorageProjectionFunc func(context.Context) (Snapshot, error)
+
+func (f testStorageProjectionFunc) Snapshot(ctx context.Context) (Snapshot, error) { return f(ctx) }
+
 func snap(t *testing.T, s Storage) Snapshot {
 	t.Helper()
-	v, e := s.Snapshot(bg)
+	v, e := testStorageProjection(s).Snapshot(bg)
 	if e != nil {
 		t.Fatal(e)
 	}

@@ -80,7 +80,7 @@ func TestMainToolProgressDeferredMemoryAndPersistence(t *testing.T) {
 						t.Fatal(err)
 					}
 					store := utf16ReopenStore(t, f.store)
-					state, err := store.Snapshot(bg)
+					state, err := testStorageProjection(store).Snapshot(bg)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -108,7 +108,7 @@ func TestMainToolProgressCrashBeforeFirstStore(t *testing.T) {
 		text := "not stored before the process disappears"
 		mainWriteToolOutput(t, f, run, text, text)
 		store := f.crash()
-		state, err := store.Snapshot(bg)
+		state, err := testStorageProjection(store).Snapshot(bg)
 		if err != nil {
 			t.Fatal(err)
 		}

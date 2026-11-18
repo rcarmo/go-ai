@@ -77,7 +77,7 @@ func TestCodemode120LargeImageChunkResultReplay(t *testing.T) {
 		}
 		store := reopenStoreAfterHarnessClose(t, b.store)
 		defer store.Close(bg)
-		if _, err := store.Snapshot(bg); err != nil {
+		if _, err := testStorageProjection(store).Snapshot(bg); err != nil {
 			t.Fatal("chunk state did not reopen", err)
 		}
 	})

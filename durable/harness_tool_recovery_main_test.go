@@ -214,7 +214,7 @@ func TestMainUnsafeToolCrashUsesStoredOutput(t *testing.T) {
 		run := watchReceive(t, setup.runs)
 		stored := mainStoredToolPrefix(t, f, run)
 		store := f.crash()
-		state, err := store.Snapshot(bg)
+		state, err := testStorageProjection(store).Snapshot(bg)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -259,7 +259,7 @@ func TestMainSafeToolReplayClearsOutputThroughSecondCrash(t *testing.T) {
 			t.Error("safe replay did not store output removal before execute")
 		}
 		store = f.crash()
-		state, err := store.Snapshot(bg)
+		state, err := testStorageProjection(store).Snapshot(bg)
 		if err != nil {
 			t.Fatal(err)
 		}

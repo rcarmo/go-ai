@@ -113,7 +113,7 @@ func testRejectedDrainCommit120(t *testing.T, initial, parallel bool) {
 			t.Fatal(e)
 		}
 		reopened := reopenStoreAfterHarnessClose(t, b.store)
-		state, e := reopened.Snapshot(bg)
+		state, e := testStorageProjection(reopened).Snapshot(bg)
 		if e != nil {
 			t.Fatal(e)
 		}

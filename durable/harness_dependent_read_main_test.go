@@ -126,7 +126,7 @@ func TestMainHarnessThirdPartyCommitStoresDerivedPartialAtomically(t *testing.T)
 			t.Fatal("wrong derived partial", derived)
 		}
 		store := f.crash()
-		stored, err := store.Snapshot(bg)
+		stored, err := testStorageProjection(store).Snapshot(bg)
 		if err != nil {
 			t.Fatal(err)
 		}

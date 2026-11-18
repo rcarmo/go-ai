@@ -43,7 +43,7 @@ func TestMainSessionReadImageGapFailsClosed(t *testing.T) {
 		}
 		reopened := utf16ReopenStore(t, b.store)
 		defer reopened.Close(bg)
-		state, err := reopened.Snapshot(bg)
+		state, err := testStorageProjection(reopened).Snapshot(bg)
 		if err != nil || state.Seq != 3 || len(state.Entries) != 2 {
 			t.Fatal("gap appended stale legacy writes", state, err)
 		}

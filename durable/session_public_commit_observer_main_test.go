@@ -187,6 +187,9 @@ type endedPublicationScopeStorage struct {
 	scope func(context.Context, func()) <-chan struct{}
 }
 
+func (w *endedPublicationScopeStorage) Snapshot(ctx context.Context) (Snapshot, error) {
+	return testStorageProjection(w.Storage).Snapshot(ctx)
+}
 func (w *endedPublicationScopeStorage) nativeCore() *storeCore { return w.core }
 func (w *endedPublicationScopeStorage) Publishing(ctx context.Context, publish func()) <-chan struct{} {
 	return w.scope(ctx, publish)

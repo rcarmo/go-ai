@@ -96,7 +96,7 @@ func TestNestedTool120RejectedProgressFailsSessionWithoutAdoption(t *testing.T) 
 		}
 		reopened := reopenStoreAfterHarnessClose(t, b.store)
 		defer reopened.Close(bg)
-		state, e := reopened.Snapshot(bg)
+		state, e := testStorageProjection(reopened).Snapshot(bg)
 		if e != nil {
 			t.Fatal(e)
 		}

@@ -138,7 +138,7 @@ func TestSession120BackendMutationFailureIsFatalEvenRejected(t *testing.T) {
 				s.core.appendFrame = original
 				reopened := reopenStoreAfterHarnessClose(t, b.store)
 				defer reopened.Close(bg)
-				after, e := reopened.Snapshot(bg)
+				after, e := testStorageProjection(reopened).Snapshot(bg)
 				if e != nil || after.Seq != before.Seq || after.HighWater != before.HighWater || len(after.Entries) != len(before.Entries) {
 					t.Fatal("rejected mutation adopted", after, e)
 				}
@@ -189,7 +189,7 @@ func TestSession120HarnessFailureJoinsActualHostBeforeStorageClose(t *testing.T)
 		}
 		reopened := reopenStoreAfterHarnessClose(t, b.store)
 		defer reopened.Close(bg)
-		state, e := reopened.Snapshot(bg)
+		state, e := testStorageProjection(reopened).Snapshot(bg)
 		if e != nil || taskHasDecidedOutcome(state.Tasks[id]) {
 			t.Fatal("invented outcome on failure", state.Tasks[id], e)
 		}

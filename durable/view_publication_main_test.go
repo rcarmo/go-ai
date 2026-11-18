@@ -575,7 +575,7 @@ func TestMainTranscriptProjectionPreservesAdapterResnapshot(t *testing.T) {
 				if enabled, failed := fresh.projectionStatus(); !enabled || failed {
 					t.Fatal("fresh native window did not regain its witness")
 				}
-				raw, err := saved.Snapshot(bg)
+				raw, err := testStorageProjection(saved).Snapshot(bg)
 				if err != nil {
 					t.Fatal(err)
 				}

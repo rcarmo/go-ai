@@ -621,7 +621,7 @@ type submissionAdmissionInterleaveStorage struct {
 }
 
 func (a *submissionAdmissionInterleaveStorage) Snapshot(ctx context.Context) (Snapshot, error) {
-	state, err := a.Storage.Snapshot(ctx)
+	state, err := testStorageProjection(a.Storage).Snapshot(ctx)
 	if err != nil {
 		return state, err
 	}

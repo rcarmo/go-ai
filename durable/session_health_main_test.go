@@ -131,7 +131,7 @@ type mainHealthSnapshotAdapter struct {
 func (a *mainHealthSnapshotAdapter) Snapshot(ctx context.Context) (Snapshot, error) {
 	a.reads.Add(1)
 	a.readOnce.Do(func() { close(a.firstRead) })
-	return a.nativeStorage.Snapshot(ctx)
+	return testStorageProjection(a.nativeStorage).Snapshot(ctx)
 }
 
 func TestMainSessionWrappedReadRetainsWriterAdmission(t *testing.T) {

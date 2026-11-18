@@ -159,7 +159,7 @@ func TestMainCutoffKeepsCommittedPartialAtLimit(t *testing.T) {
 func TestMainCutoffDropsPartialPastLimit(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		f, options, _, sub, id, store, streams := mainSalvageCrash(t, b, 2)
-		state, err := store.Snapshot(bg)
+		state, err := testStorageProjection(store).Snapshot(bg)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -250,7 +250,7 @@ func TestMainCutoffDeferredSalvagePhasesDerived(t *testing.T) {
 						return nil
 					}
 					goai.RegisterApi(&provider)
-					state, err := store.Snapshot(bg)
+					state, err := testStorageProjection(store).Snapshot(bg)
 					if err != nil {
 						t.Fatal(err)
 					}

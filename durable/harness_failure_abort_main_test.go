@@ -199,7 +199,7 @@ func TestMainRunFailureAbortHandlerCutoffProjectionDerived(t *testing.T) {
 			t.Fatal(err)
 		}
 		store := reopenStoreAfterHarnessClose(t, h.session.store)
-		state, err := store.Snapshot(bg)
+		state, err := testStorageProjection(store).Snapshot(bg)
 		if err != nil {
 			t.Fatal(err)
 		}

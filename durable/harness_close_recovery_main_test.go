@@ -34,7 +34,7 @@ func TestMainHarnessCleanCloseStoresHeldGeneration(t *testing.T) {
 			t.Fatal(err)
 		}
 		store := utf16ReopenStore(t, f.store)
-		state, err := store.Snapshot(bg)
+		state, err := testStorageProjection(store).Snapshot(bg)
 		if err != nil {
 			t.Fatal(err)
 		}

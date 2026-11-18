@@ -177,7 +177,7 @@ func TestMainPollTerminalOnlyBoundaryDerived(t *testing.T) {
 					t.Fatal(err)
 				}
 				f.noPartial(t, state)
-				stored, err := f.store.Snapshot(bg)
+				stored, err := testStorageProjection(f.store).Snapshot(bg)
 				if err != nil {
 					t.Fatal(err)
 				}

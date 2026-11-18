@@ -64,7 +64,7 @@ func TestMainPreparedPublicationRejectsStaleBaselineBeforeStorage(t *testing.T) 
 				}
 				reopened := utf16ReopenStore(t, b.store)
 				defer reopened.Close(bg)
-				state, err := reopened.Snapshot(bg)
+				state, err := testStorageProjection(reopened).Snapshot(bg)
 				if err != nil || state.Seq != 2 || len(state.Entries) != 1 {
 					t.Fatal("stale write recovered", state, err)
 				}

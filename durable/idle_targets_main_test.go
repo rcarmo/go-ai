@@ -60,7 +60,7 @@ func (a *mainIdleTargetsAdapter) Snapshot(ctx context.Context) (Snapshot, error)
 	if a.failure != nil {
 		return Snapshot{}, a.failure
 	}
-	state, err := a.nativeStorage.Snapshot(ctx)
+	state, err := testStorageProjection(a.nativeStorage).Snapshot(ctx)
 	if err == nil && a.empty {
 		state.Tasks = map[ID]Task{}
 	}

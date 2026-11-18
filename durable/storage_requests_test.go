@@ -39,7 +39,7 @@ func storageRequestMatrix120(t *testing.T, store Storage) {
 	if _, found, err := store.SubmissionByRequest(bg, 1, ""); err != nil || found {
 		t.Fatalf("empty request lookup: %v %v", found, err)
 	}
-	initial, e := store.Snapshot(bg)
+	initial, e := testStorageProjection(store).Snapshot(bg)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -54,7 +54,10 @@ func storageRequestMatrix120(t *testing.T, store Storage) {
 		{"entry-id-range", func() error { _, _, e := store.Entry(bg, 1, ID(MaxID+1)); return e }},
 		{"request-owner-range", func() error { _, _, e := store.SubmissionByRequest(bg, ID(MaxID+1), "x"); return e }},
 		{"task-owner-range", func() error { _, e := store.ScanTasks(bg, TaskQuery{Conversation: ID(MaxID + 1)}, 1, nil); return e }},
-		{"query-after-range", func() error { _, e := store.Documents(bg, Query{After: ID(MaxID + 1), Limit: 1}); return e }},
+		{"query-after-range", func() error {
+			_, e := store.(nativeTestStorage).Documents(bg, Query{After: ID(MaxID + 1), Limit: 1})
+			return e
+		}},
 		{"entry-conversation-missing", func() error { _, e := store.ScanEntries(bg, EntryQuery{Conversation: 99}, 1, nil); return e }},
 		{"entry-bound-range", func() error {
 			_, e := store.ScanEntries(bg, EntryQuery{Conversation: 1, MaxEntryID: ID(MaxID + 1)}, 1, nil)
@@ -91,7 +94,7 @@ func storageRequestMatrix120(t *testing.T, store Storage) {
 			if !errors.As(e, &request) || !errors.As(e, &rejected) {
 				t.Fatal("invalid read missing taxonomy", e)
 			}
-			state, e := store.Snapshot(bg)
+			state, e := testStorageProjection(store).Snapshot(bg)
 			if e != nil || state.Seq != initial.Seq || state.HighWater != initial.HighWater {
 				t.Fatal("invalid read changed/poisoned storage", e)
 			}

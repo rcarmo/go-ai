@@ -92,7 +92,7 @@ func mainCutoffHooksStart(t *testing.T, f *mainCutoffHooks, store Storage) (*Har
 	}); err != nil {
 		t.Fatal(err)
 	}
-	snap, err := store.Snapshot(bg)
+	snap, err := testStorageProjection(store).Snapshot(bg)
 	if err != nil {
 		t.Fatal(err)
 	}

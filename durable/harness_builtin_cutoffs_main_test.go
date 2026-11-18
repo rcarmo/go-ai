@@ -198,7 +198,7 @@ func TestMainCutoffSafeToolKeepsStoredOutput(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			stored, err := store.Snapshot(bg)
+			stored, err := testStorageProjection(store).Snapshot(bg)
 			if err != nil {
 				t.Fatal(err)
 			}

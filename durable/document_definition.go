@@ -389,23 +389,46 @@ func (s *Session) snapshotDefinitionAsOf(ctx context.Context, def *DocumentDefin
 	if address.Scope != "conversation" || documentHistory(Document{Scope: def.options.Scope, History: def.options.History}) != "rewindable" {
 		return nil, false, reject("historical definition requires rewindable conversation scope")
 	}
-	state, err := s.guardedStorage().Snapshot(ctx)
-	if err != nil {
-		return nil, false, err
-	}
-	if at == 0 || uint64(at) > MaxID || !entryVisible(state, conversation, at) {
-		return nil, false, reject("historical entry is not visible")
-	}
-	entry := state.Entries[at]
-	address.Owner = entry.Conversation
-	point := DocumentPoint{Seq: entry.Seq}
-	record, ok := findDocumentState(state, address, point)
-	if !ok {
-		return nil, false, nil
-	}
-	d, ok, err := materializeDocument(state, record.ID, point, s.limits)
-	if err != nil || !ok {
-		return nil, ok, err
+	var d Document
+	var found bool
+	if s.delegatedStorage || s.readOnly {
+		storage := s.guardedStorage()
+		entry, ok, err := storage.Entry(ctx, conversation, at)
+		if err != nil {
+			return nil, false, err
+		}
+		if !ok {
+			return nil, false, reject("historical entry is not visible")
+		}
+		address.Owner = entry.Entry.Conversation
+		point := DocumentPoint{Seq: entry.CommitSeq}
+		record, ok, err := storage.FindDocument(ctx, address, point)
+		if err != nil || !ok {
+			return nil, false, err
+		}
+		d, found, err = storage.DocumentAt(ctx, record.ID, point)
+		if err != nil || !found {
+			return nil, found, err
+		}
+	} else {
+		state, err := s.guardedStorage().Snapshot(ctx)
+		if err != nil {
+			return nil, false, err
+		}
+		if at == 0 || uint64(at) > MaxID || !entryVisible(state, conversation, at) {
+			return nil, false, reject("historical entry is not visible")
+		}
+		entry := state.Entries[at]
+		address.Owner = entry.Conversation
+		point := DocumentPoint{Seq: entry.Seq}
+		record, ok := findDocumentState(state, address, point)
+		if !ok {
+			return nil, false, nil
+		}
+		d, found, err = materializeDocument(state, record.ID, point, s.limits)
+		if err != nil || !found {
+			return nil, found, err
+		}
 	}
 	if err = checkDefinition(def, d); err != nil {
 		return nil, false, err

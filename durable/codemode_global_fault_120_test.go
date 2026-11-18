@@ -87,7 +87,7 @@ func TestCodemode120CustomGlobalRejectedDeliveryRepeatsUnconfirmedCallback(t *te
 			t.Fatal(e)
 		}
 		reopened := reopenStoreAfterHarnessClose(t, b.store)
-		state, e := reopened.Snapshot(bg)
+		state, e := testStorageProjection(reopened).Snapshot(bg)
 		if e != nil {
 			t.Fatal(e)
 		}

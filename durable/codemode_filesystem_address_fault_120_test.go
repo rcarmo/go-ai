@@ -107,7 +107,7 @@ func TestCodemode120FilesystemAddressCommitFaultsNeverWriteBeforeConfirmation(t 
 				}
 				fs.mu.Unlock()
 				reopened := reopenStoreAfterHarnessClose(t, b.store)
-				state, err := reopened.Snapshot(bg)
+				state, err := testStorageProjection(reopened).Snapshot(bg)
 				if err != nil {
 					t.Fatal(err)
 				}

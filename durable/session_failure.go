@@ -226,7 +226,7 @@ func (g *sessionStorage) Snapshot(ctx context.Context) (Snapshot, error) {
 		}
 		return cloneState(image, g.s.core.limits)
 	}
-	v, e := g.Storage.Snapshot(ctx)
+	v, e := readStorageProjection(ctx, g.Storage, g.s.limits)
 	e = g.s.backendResult(ctx, e, false)
 	if e != nil {
 		return Snapshot{}, e
@@ -288,11 +288,6 @@ func (g *sessionStorage) DocumentAt(ctx context.Context, id ID, at DocumentPoint
 func (g *sessionStorage) ScanDocuments(ctx context.Context, q DocumentQuery, limit int, cursor Cursor) (Page[Document], error) {
 	v, err := g.Storage.ScanDocuments(ctx, q, limit, cursor)
 	return v, g.s.backendResult(ctx, err, false)
-}
-func (g *sessionStorage) Documents(ctx context.Context, q Query) ([]Document, error) {
-	v, e := g.Storage.Documents(ctx, q)
-	e = g.s.backendResult(ctx, e, false)
-	return v, e
 }
 func (g *sessionStorage) SubmissionByRequest(ctx context.Context, id ID, key string) (SubmissionRecord, bool, error) {
 	v, found, err := g.Storage.SubmissionByRequest(ctx, id, key)

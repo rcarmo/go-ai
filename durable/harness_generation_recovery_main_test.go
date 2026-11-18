@@ -123,7 +123,7 @@ func (f *mainRecoveryHarness) live(snapshot Snapshot) JSON {
 }
 func (f *mainRecoveryHarness) stored() Snapshot {
 	f.t.Helper()
-	state, err := f.store.Snapshot(bg)
+	state, err := testStorageProjection(f.store).Snapshot(bg)
 	if err != nil {
 		f.t.Fatal(err)
 	}
@@ -287,7 +287,7 @@ func TestMainHarnessRecoveryStoredPartialAndReplica(t *testing.T) {
 			t.Error("stored value never observed in memory")
 		}
 		store := f.crash()
-		afterCrash, err := store.Snapshot(bg)
+		afterCrash, err := testStorageProjection(store).Snapshot(bg)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -309,7 +309,7 @@ func TestMainHarnessRecoveryBeforeFirstStore(t *testing.T) {
 		stream := watchReceive(t, streams)
 		f.partial(stream, strings.Repeat("b", 64))
 		store := f.crash()
-		state, err := store.Snapshot(bg)
+		state, err := testStorageProjection(store).Snapshot(bg)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -344,7 +344,7 @@ func TestMainHarnessRecoveryRepeatedCrashes(t *testing.T) {
 		store := f.crash()
 		f = mainOpenSlowRecovery(t, store, ref, options, clock, 150)
 		store = f.crash()
-		state, err := store.Snapshot(bg)
+		state, err := testStorageProjection(store).Snapshot(bg)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -358,7 +358,7 @@ func TestMainHarnessRecoveryRepeatedCrashes(t *testing.T) {
 		stream = mainRecoveryRetryStream(t, f, streams)
 		f.partial(stream, strings.Repeat("d", 64))
 		store = f.crash()
-		state, err = store.Snapshot(bg)
+		state, err = testStorageProjection(store).Snapshot(bg)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -487,7 +487,7 @@ func TestMainHarnessRecoveryCrashAfterConversion(t *testing.T) {
 			t.Fatal("conversion fault did not close", end, err)
 		}
 		store = f.crash()
-		state, err := store.Snapshot(bg)
+		state, err := testStorageProjection(store).Snapshot(bg)
 		if err != nil {
 			t.Fatal(err)
 		}

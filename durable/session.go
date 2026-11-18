@@ -111,7 +111,7 @@ func OpenSessionWithOptions(store Storage, options SessionOptions) (*Session, er
 		l = core.limits
 		options.ReadOnly = options.ReadOnly || core.readOnly
 	} else {
-		image, err := store.Snapshot(context.Background())
+		image, err := readStorageProjection(context.Background(), store, l)
 		if err != nil {
 			return nil, err
 		}
