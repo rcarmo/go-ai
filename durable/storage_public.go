@@ -65,9 +65,21 @@ func publicBatch(base Snapshot, writes []StorageWrite, l Limits) (Batch, error) 
 	if err := checkPublicRecordClaims(base, writes); err != nil {
 		return Batch{}, err
 	}
+	// A creation and retirement in one part form an empty lifetime in
+	// either order. Resolve its address without exposing the new incarnation
+	// as a source for other commands in the part.
+	var created map[ID]*DocumentCreate
+	for _, command := range writes {
+		if (command.Type == "document.create" || command.Type == "document.copy") && command.Record != nil {
+			if created == nil {
+				created = map[ID]*DocumentCreate{}
+			}
+			created[command.Record.ID] = command.Record
+		}
+	}
 	batch := Batch{Writes: make([]Write, 0, len(writes))}
 	for _, command := range writes {
-		write, err := publicWrite(base, command, l)
+		write, err := publicWrite(base, command, created, l)
 		if err != nil {
 			return Batch{}, err
 		}
@@ -165,7 +177,7 @@ func checkDocumentCommandMultiplicity(writes []StorageWrite) error {
 	return nil
 }
 
-func publicWrite(base Snapshot, command StorageWrite, l Limits) (Write, error) {
+func publicWrite(base Snapshot, command StorageWrite, created map[ID]*DocumentCreate, l Limits) (Write, error) {
 	switch command.Type {
 	case "conversation":
 		conversation, ok := recordValue[Conversation](command.Value)
@@ -240,6 +252,14 @@ func publicWrite(base Snapshot, command StorageWrite, l Limits) (Write, error) {
 			return Write{}, reject("document retirement union")
 		}
 		old, ok := base.Documents[command.ID]
+		if !ok && created[command.ID] != nil {
+			var err error
+			old, err = nativeDocumentAddress(*created[command.ID], 0, nil)
+			if err != nil {
+				return Write{}, err
+			}
+			ok = true
+		}
 		if !ok || old.Retired {
 			return Write{}, reject("unknown document incarnation")
 		}

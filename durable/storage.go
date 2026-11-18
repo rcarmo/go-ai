@@ -724,7 +724,7 @@ func validStatus(s string) bool {
 	}
 	return false
 }
-func validateState(candidate *Snapshot, l Limits, final bool, prior Snapshot, writes []Write, runtimeTasks, rawEntries bool) error {
+func validateState(candidate *Snapshot, l Limits, final bool, prior Snapshot, writes []Write, runtimeTasks, rawLinks bool) error {
 	s := *candidate
 	changed := map[retainedKey]bool{}
 	for _, write := range writes {
@@ -779,7 +779,7 @@ func validateState(candidate *Snapshot, l Limits, final bool, prior Snapshot, wr
 	}
 	// Storage treats entry links as raw IDs; only Session owns their
 	// visibility and referential checks.
-	checkEntryLinks := final && !rawEntries
+	checkEntryLinks := final && !rawLinks
 	for _, v := range s.Entries {
 		// EntryRecord.kind is any string, including empty. Only defineEntry's
 		// typed token requires a non-empty kind. model/data are optional and
@@ -800,12 +800,12 @@ func validateState(candidate *Snapshot, l Limits, final bool, prior Snapshot, wr
 				return reject("context edit target not visible")
 			}
 		}
-		if !rawEntries && v.Head != 0 && (v.Head > v.ID || (final && !entryVisible(s, v.Conversation, v.Head))) {
+		if !rawLinks && v.Head != 0 && (v.Head > v.ID || (final && !entryVisible(s, v.Conversation, v.Head))) {
 			return reject("entry head is not visible at marker")
 		}
 	}
 	for _, v := range s.Tasks {
-		if (final && !existsConv(v.Conversation)) || (final && v.Owner != 0 && !existsTask(v.Owner)) {
+		if final && (!rawLinks || v.Execution == nil || v.Execution.Native == nil) && (!existsConv(v.Conversation) || (v.Owner != 0 && !existsTask(v.Owner))) {
 			return reject("invalid task")
 		}
 		if prior.retained == nil || changedTasks[v.ID] {
@@ -834,7 +834,7 @@ func validateState(candidate *Snapshot, l Limits, final bool, prior Snapshot, wr
 		}
 	}
 	for _, v := range s.Submissions {
-		if uint64(v.Conversation) > MaxID || (final && !existsConv(v.Conversation)) || (v.Type != "follow-up" && v.Type != "steer" && v.Type != "write" && v.Type != "continue") || !validStatus(v.Status) || v.Value == nil || len(v.RequestID) > l.MaxRequestIDBytes {
+		if uint64(v.Conversation) > MaxID || (final && !rawLinks && !existsConv(v.Conversation)) || (v.Type != "follow-up" && v.Type != "steer" && v.Type != "write" && v.Type != "continue") || !validStatus(v.Status) || v.Value == nil || len(v.RequestID) > l.MaxRequestIDBytes {
 			return reject("invalid submission")
 		}
 		if v.Trace != nil && *v.Trace == nil {
@@ -876,11 +876,11 @@ func validateState(candidate *Snapshot, l Limits, final bool, prior Snapshot, wr
 				return reject("session scope owner")
 			}
 		case "conversation":
-			if uint64(v.Owner) > MaxID || (final && !existsConv(v.Owner)) {
+			if uint64(v.Owner) > MaxID || (final && !rawLinks && !existsConv(v.Owner)) {
 				return reject("conversation document owner missing")
 			}
 		case "task":
-			if uint64(v.Owner) > MaxID || (final && !existsTask(v.Owner)) {
+			if uint64(v.Owner) > MaxID || (final && !rawLinks && !existsTask(v.Owner)) {
 				return reject("task document owner missing")
 			}
 		default:

@@ -283,10 +283,17 @@ func (p *upstreamWritePatch) collect(before, after Snapshot, writes []Write, l L
 			if err != nil {
 				return err
 			}
-			raw, err := upstreamJSON(r)
+			value, err := publicTaskRecordJSON(r)
 			if err != nil {
 				return err
 			}
+			// Encode the actual storage record deterministically; the same
+			// final row must not vary with grouping or Go map iteration.
+			encoded, err := encodeBoundedOrder(value, l, l.MaxRecordBytes, true)
+			if err != nil {
+				return err
+			}
+			raw := string(encoded)
 			p.upsert("tasks", id, r.Conversation, upstreamIndexedString(r.Kind), r.State.Status, r.AbortRequested, r.Background, raw)
 		case "put-submission":
 			id, kind = w.Submission.ID, "submission"

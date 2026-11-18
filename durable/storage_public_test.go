@@ -178,9 +178,9 @@ func TestPiDurableV150PublicStorageGroupedCommit(t *testing.T) {
 	}
 }
 
-// Native structural refusal control: this task names a conversation that was
-// never created. Its refusal is independent of builtin-name admission; full
-// source raw reference/replacement policy acceptance remains D12.
+// Native structural refusal control: this Go task omits the required input.
+// A raw conversation link may be unresolved; its presence is not a structural
+// error (see the exact upstream random corpus).
 func TestPiDurableV150PublicStorageCommitRefusesUnrepresentableCommand(t *testing.T) {
 	store, err := newTestSQLite(t)
 	if err != nil {
@@ -189,12 +189,13 @@ func TestPiDurableV150PublicStorageCommitRefusesUnrepresentableCommand(t *testin
 	defer store.Close(context.Background())
 	ctx := context.Background()
 	result, err := store.Commit(ctx, [][]StorageWrite{{
-		{Type: "task", Value: TaskRecord{ID: 2, Conversation: 1, Kind: "pi.generation", Version: 1, Input: &TaskValue{Present: true, Value: JSON{}}, State: TaskState{Status: "pending", Checkpoint: map[string]any{}}}},
+		{Type: "task", Value: TaskRecord{ID: 2, Conversation: 1, Kind: "pi.generation", Version: 1, State: TaskState{Status: "pending", Checkpoint: map[string]any{}}}},
 	}}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Stored != 0 || result.Refused == nil {
+	var refusal *StorageRejected
+	if result.Stored != 0 || !errors.As(result.Refused.AsError(), &refusal) || refusal.Reason != "task record input is absent" {
 		t.Fatalf("stored=%d refused=%v", result.Stored, result.Refused)
 	}
 	state, err := store.Snapshot(ctx)
