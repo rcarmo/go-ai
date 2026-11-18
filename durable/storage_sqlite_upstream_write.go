@@ -47,6 +47,7 @@ func (s *SQLiteStorage) storeUpstreamSeries(frames []storageFrame) error {
 	if nextSeq != base.Seq+1 || nextId != strconv.FormatUint(s.upstreamHighWater+1, 10) {
 		return reject("upstream SQLite prefix changed externally")
 	}
+	basis := sqliteWriteBasis{claims: map[ID]bool{}, documents: map[ID]bool{}, deltas: map[ID]bool{}, seenAddresses: map[DocumentAddress]bool{}}
 	patch := upstreamWritePatch{rows: map[string][][]any{}, revisions: map[ID][][]any{}, cleared: map[ID]bool{}}
 	for _, frame := range frames {
 		switch frame.kind {
@@ -57,6 +58,7 @@ func (s *SQLiteStorage) storeUpstreamSeries(frames []storageFrame) error {
 			if err := decodeStrict(frame.payload, s.limits, s.limits.MaxFramePayloadBytes, &record); err != nil {
 				return err
 			}
+			basis.collect(base, record.Writes)
 			next, err := prepareExplicit(base, record, s.limits)
 			if err != nil {
 				return err
@@ -71,6 +73,9 @@ func (s *SQLiteStorage) storeUpstreamSeries(frames []storageFrame) error {
 		default:
 			return ErrCorrupt
 		}
+	}
+	if err := s.checkUpstreamWriteBasis(s.state, basis); err != nil {
+		return err
 	}
 	if err := s.flushUpstreamPatch(patch); err != nil {
 		return err

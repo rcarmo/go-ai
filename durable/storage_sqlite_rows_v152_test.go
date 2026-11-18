@@ -66,6 +66,17 @@ func TestSourceV152SQLiteInsertPacking(t *testing.T) {
 			s.db = recording
 			var receipts []publicSQLiteReceipt
 			commitRows(batches, func(i int, seq uint64) { receipts = append(receipts, publicSQLiteReceipt{i, seq}) })
+			if tc.name == "100 compact" {
+				count := 0
+				for _, call := range recording.calls {
+					if call.text != "BEGIN IMMEDIATE" && call.text != "COMMIT" {
+						count++
+					}
+				}
+				if count != 9 {
+					t.Fatalf("compact group ran %d transaction statements, want 9", count)
+				}
+			}
 			var params []int
 			var compact []bool
 			for _, call := range recording.calls {
@@ -196,5 +207,121 @@ func TestSourceV152SQLiteDatabaseWriteErrorIdentity(t *testing.T) {
 	r, err = s.Commit(bg, batches, receive)
 	if err != nil || r.Stored != 2 || r.Refused != nil || !reflect.DeepEqual(seqs, []uint64{1, 2}) {
 		t.Fatal(r, seqs, err)
+	}
+}
+
+type upstreamCheckFault struct {
+	sqliteConnection
+	cause error
+}
+
+func (f *upstreamCheckFault) QueryContext(ctx context.Context, text string, args ...any) (*sql.Rows, error) {
+	if strings.Contains(text, `FROM "record_ids"`) {
+		return nil, f.cause
+	}
+	return f.sqliteConnection.QueryContext(ctx, text, args...)
+}
+
+func TestSourceV152SQLiteDatabaseCheckReadErrorIdentity(t *testing.T) {
+	s, err := OpenSQLite(filepath.Join(t.TempDir(), "check.sqlite"), SQLiteOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close(bg)
+	raw := s.db
+	cause := errors.New("test ID check read failure")
+	s.db = &upstreamCheckFault{sqliteConnection: raw, cause: cause}
+	batches := [][]StorageWrite{{{Type: "conversation", Value: Conversation{ID: 1}}}, {{Type: "entry", Value: Entry{ID: 2, Conversation: 1, Kind: "note"}}}}
+	var receipts []publicSQLiteReceipt
+	receive := func(i int, seq uint64) { receipts = append(receipts, publicSQLiteReceipt{i, seq}) }
+	got, err := s.Commit(bg, batches, receive)
+	if err != cause || got.Stored != 0 || got.Refused != nil || len(receipts) != 0 {
+		t.Fatalf("want original check-read error and no receipts: result=%+v receipts=%v error=%v", got, receipts, err)
+	}
+	s.db = raw
+	got, err = s.Commit(bg, batches, receive)
+	if err != nil || got.Refused != nil || got.Stored != 2 || !reflect.DeepEqual(receipts, []publicSQLiteReceipt{{0, 1}, {1, 2}}) {
+		t.Fatal(got, receipts, err)
+	}
+}
+
+func TestSourceV152SQLiteDeltaDoesNotAppendAgainstStaleVersion(t *testing.T) {
+	s, err := OpenSQLite(filepath.Join(t.TempDir(), "changed.sqlite"), SQLiteOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close(bg)
+	r, err := s.Commit(bg, [][]StorageWrite{{v152SessionDocument(2, "counter", nil, JSON{"n": 0})}}, nil)
+	if err != nil || r.Refused != nil || r.Stored != 1 {
+		t.Fatal(r, err)
+	}
+	// Local SQL fault: modify a touched row without changing allocator metadata.
+	if err := s.exec(`UPDATE document_revisions SET version=2 WHERE document_id=2`); err != nil {
+		t.Fatal(err)
+	}
+	received := false
+	r, err = s.Commit(bg, [][]StorageWrite{{{Type: "document.change", ID: 2, Content: &DocumentContent{Kind: "delta", Version: 1, Ops: []Operation{{"s", []any{"n"}, 1}}}}}}, func(int, uint64) { received = true })
+	if err == nil || err.Error() != "upstream SQLite document version changed externally" || r.Refused != nil || r.Stored != 0 || received {
+		t.Fatalf("want stale-version rollback: result=%+v received=%v error=%v", r, received, err)
+	}
+	var revisions int
+	if err := s.db.QueryRowContext(bg, `SELECT count(*) FROM document_revisions WHERE document_id=2`).Scan(&revisions); err != nil || revisions != 1 {
+		t.Fatal(revisions, err)
+	}
+}
+
+// The second sqlite-commit.test.ts workload exercises every check key and
+// mutation shape in the same call, including address reuse and revision drop.
+func TestSourceV152SQLiteReadsAndWritesThroughIndexes(t *testing.T) {
+	s, err := OpenSQLite(filepath.Join(t.TempDir(), "indexed.sqlite"), SQLiteOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close(bg)
+	first, second := mint(t, s), mint(t, s)
+	create := func(id ID, value JSON) StorageWrite {
+		return StorageWrite{Type: "document.create", Record: &DocumentCreate{ID: id, Kind: "plan", Scope: DocumentCreateScope{Kind: "conversation", ConversationID: 1}, History: "latest", Fork: "current"}, Content: &DocumentContent{Kind: "base", Version: 1, Value: value}}
+	}
+	commit := func(parts [][]StorageWrite, receive func(int, uint64)) {
+		t.Helper()
+		r, err := s.Commit(bg, parts, receive)
+		if err != nil || r.Refused != nil || r.Stored != len(parts) {
+			t.Fatalf("commit: %+v / %v", r, err)
+		}
+	}
+	commit([][]StorageWrite{{{Type: "conversation", Value: Conversation{ID: 1}}}, {create(first, JSON{"n": 0})}}, nil)
+	entry := mint(t, s)
+	recorder := &recordingSQLiteConnection{sqliteConnection: s.db}
+	s.db = recorder
+	var receipts []publicSQLiteReceipt
+	commit([][]StorageWrite{
+		{{Type: "document.change", ID: first, Content: &DocumentContent{Kind: "delta", Version: 1, Ops: []Operation{{"s", []any{"n"}, 1}}}}},
+		{{Type: "document.change", ID: first, Content: &DocumentContent{Kind: "base", Version: 1, Value: JSON{"n": 2}}}, {Type: "entry", Value: Entry{ID: entry, Conversation: 1, Kind: "note"}}},
+		{{Type: "document.retire", ID: first}, create(second, JSON{})},
+	}, func(i int, seq uint64) { receipts = append(receipts, publicSQLiteReceipt{i, seq}) })
+	if !reflect.DeepEqual(receipts, []publicSQLiteReceipt{{0, 3}, {1, 4}, {2, 5}}) {
+		t.Fatal(receipts)
+	}
+	checks := []string{`FROM "record_ids"`, `FROM "documents" WHERE id`, `ORDER BY seq DESC LIMIT 1`, `JOIN "documents" AS document`, `INSERT INTO "record_ids"`, `INSERT INTO "entries"`, `INSERT INTO "documents"`, `DELETE FROM "document_revisions"`, `INSERT INTO "document_revisions"`}
+	count := 0
+	for _, call := range recorder.calls {
+		if !strings.Contains(call.text, "json_each") {
+			continue
+		}
+		count++
+		checkCompactFramePlan(t, recorder.sqliteConnection, call)
+		for i, check := range checks {
+			if check != "" && strings.Contains(call.text, check) {
+				checks[i] = ""
+			}
+		}
+	}
+	if count <= 5 {
+		t.Fatalf("only %d batched statements", count)
+	}
+	for _, check := range checks {
+		if check != "" {
+			t.Fatalf("did not exercise %s", check)
+		}
 	}
 }

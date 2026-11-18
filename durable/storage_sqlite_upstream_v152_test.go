@@ -299,16 +299,17 @@ func TestSourceV152UpstreamSQLiteGroupReusesSQL(t *testing.T) {
 		}
 		var statements []string
 		for _, call := range capture.calls {
-			statements = append(statements, call.text)
-			if strings.Contains(call.text, "json_each") {
-				checkCompactFramePlan(t, capture.sqliteConnection, call)
+			if call.text == "BEGIN IMMEDIATE" || call.text == "COMMIT" {
+				continue
 			}
+			statements = append(statements, call.text)
+			checkCompactFramePlan(t, capture.sqliteConnection, call)
 		}
 		if count == 1 {
 			baseline = statements
 		}
-		if len(statements) != 7 || !reflect.DeepEqual(statements, baseline) {
-			t.Errorf("canonical group of %d used %d statements; want 7 with stable SQL", count, len(statements))
+		if len(statements) != 8 || !reflect.DeepEqual(statements, baseline) {
+			t.Errorf("canonical group of %d used %d statements; want 8 transaction statements with stable SQL", count, len(statements))
 		}
 		if err := store.Close(bg); err != nil {
 			t.Fatal(err)
