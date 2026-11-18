@@ -21,16 +21,17 @@ type storeCore struct {
 	sessionOwned bool
 	// ownershipMu also protects poison and the reservation scalar for Session
 	// read admission. It is never held across backend work.
-	ownershipMu   sync.Mutex
-	readHighWater uint64
-	state         Snapshot
-	limits        Limits
-	ordinal       uint64
-	appendFrame   func(byte, uint64, uint64, []byte) error
-	appendFrames  func([]storageFrame) error
-	finish        func() error
-	readOnly      bool
-	refreshRead   func() error
+	ownershipMu          sync.Mutex
+	readHighWater        uint64
+	state                Snapshot
+	limits               Limits
+	ordinal              uint64
+	appendFrame          func(byte, uint64, uint64, []byte) error
+	appendFrames         func([]storageFrame) error
+	finish               func() error
+	volatileReservations bool // canonical SQLite commits the allocator with accepted writes
+	readOnly             bool
+	refreshRead          func() error
 }
 
 // initialState is the original raw Storage state: it holds no records. The
@@ -223,12 +224,14 @@ func (c *storeCore) mintID(ctx context.Context, owned bool) (ID, error) {
 		return 0, reject("allocator exhausted")
 	}
 	id := c.state.HighWater + 1
-	p, err := encodeBounded(reservation{First: id, Last: id}, c.limits, c.limits.MaxFramePayloadBytes)
-	if err != nil {
-		return 0, err
-	}
-	if err = c.settle(1, id, p); err != nil {
-		return 0, err
+	if !c.volatileReservations {
+		p, err := encodeBounded(reservation{First: id, Last: id}, c.limits, c.limits.MaxFramePayloadBytes)
+		if err != nil {
+			return 0, err
+		}
+		if err := c.settle(1, id, p); err != nil {
+			return 0, err
+		}
 	}
 	c.ownershipMu.Lock()
 	c.state.HighWater = id

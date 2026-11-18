@@ -22,7 +22,11 @@ func (s *SQLiteStorage) appendUpstreamSeries(frames []storageFrame) error {
 		}
 		return reject("upstream SQLite write rejected: " + err.Error())
 	}
-	return s.exec("COMMIT")
+	if err := s.exec("COMMIT"); err != nil {
+		return err
+	}
+	s.upstreamHighWater = frames[len(frames)-1].high
+	return nil
 }
 
 func (s *SQLiteStorage) storeUpstreamSeries(frames []storageFrame) error {
@@ -33,7 +37,7 @@ func (s *SQLiteStorage) storeUpstreamSeries(frames []storageFrame) error {
 	if err := s.db.QueryRowContext(context.Background(), "SELECT next_id,next_seq FROM "+table+" WHERE singleton=1").Scan(&nextId, &nextSeq); err != nil {
 		return err
 	}
-	if nextSeq != base.Seq+1 || nextId != strconv.FormatUint(base.HighWater+1, 10) {
+	if nextSeq != base.Seq+1 || nextId != strconv.FormatUint(s.upstreamHighWater+1, 10) {
 		return reject("upstream SQLite prefix changed externally")
 	}
 	patch := upstreamWritePatch{rows: map[string][][]any{}, revisions: map[ID][][]any{}, cleared: map[ID]bool{}}

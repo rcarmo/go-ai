@@ -388,3 +388,62 @@ func TestSourceV152UpstreamSQLiteCurrentOnlyGroupPrunesBeforeNewBase(t *testing.
 		t.Fatal(revisions, rows.Err())
 	}
 }
+
+func TestSourceV152UpstreamSQLiteMintPersistsOnlyWithAcceptedCommit(t *testing.T) {
+	data, err := os.ReadFile("testdata/pi-durable-v152/viewer.sqlite")
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "session.sqlite")
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	open := func() *SQLiteStorage {
+		t.Helper()
+		s, err := OpenSQLite(path, SQLiteOptions{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = s.Close(bg) })
+		return s
+	}
+	metadata := func(s *SQLiteStorage, id string, seq int) {
+		t.Helper()
+		var nextId string
+		var nextSeq int
+		if err := s.db.QueryRowContext(bg, "SELECT next_id,next_seq FROM durable_metadata WHERE singleton=1").Scan(&nextId, &nextSeq); err != nil || nextId != id || nextSeq != seq {
+			t.Fatalf("metadata = %s/%d, %v; want %s/%d", nextId, nextSeq, err, id, seq)
+		}
+	}
+	store := open()
+	if id, err := store.MintID(bg); err != nil || id != 8 {
+		t.Fatal(id, err)
+	}
+	metadata(store, "8", 3)
+	refused, err := store.Commit(bg, [][]StorageWrite{{{Type: "entry", Value: Entry{ID: 3, Conversation: 1, Kind: "duplicate"}}}}, nil)
+	if err != nil || refused.Refused == nil || refused.Stored != 0 {
+		t.Fatal(refused, err)
+	}
+	metadata(store, "8", 3)
+	if err := store.Close(bg); err != nil {
+		t.Fatal(err)
+	}
+	store = open()
+	for _, want := range []ID{8, 9} {
+		if id, err := store.MintID(bg); err != nil || id != want {
+			t.Fatal(id, err, want)
+		}
+	}
+	accepted, err := store.Commit(bg, [][]StorageWrite{{{Type: "entry", Value: Entry{ID: 8, Conversation: 1, Kind: "committed"}}}}, nil)
+	if err != nil || accepted.Refused != nil || accepted.Stored != 1 {
+		t.Fatal(accepted, err)
+	}
+	metadata(store, "10", 4) // includes the other candidate minted during this open
+	if err := store.Close(bg); err != nil {
+		t.Fatal(err)
+	}
+	store = open()
+	if id, err := store.MintID(bg); err != nil || id != 10 {
+		t.Fatal(id, err)
+	}
+}

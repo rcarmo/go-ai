@@ -17,12 +17,13 @@ import (
 // The engine is CGO-free; one connection owns all SQL settlement for its lifetime.
 type SQLiteStorage struct {
 	*storeCore
-	db             sqliteConnection
-	pool           *sql.DB
-	prefix         string
-	path           string
-	implicitRoot   bool
-	upstreamSchema bool
+	db                sqliteConnection
+	pool              *sql.DB
+	prefix            string
+	path              string
+	implicitRoot      bool
+	upstreamSchema    bool
+	upstreamHighWater uint64
 }
 
 // sqliteConnection is the database boundary used by the native store.
@@ -199,6 +200,8 @@ func OpenSQLite(path string, options SQLiteOptions) (store *SQLiteStorage, err e
 	if options.ReadOnly {
 		store.refreshRead = func() error { return store.refreshSQLitePrefix(&readVersion) }
 	} else if store.upstreamSchema {
+		store.volatileReservations = true
+		store.upstreamHighWater = store.state.HighWater
 		store.appendFrames = store.appendUpstreamSeries
 		store.appendFrame = func(kind byte, ordinal, high uint64, payload []byte) error {
 			return store.appendUpstreamSeries([]storageFrame{{kind: kind, ordinal: ordinal, high: high, payload: payload}})
