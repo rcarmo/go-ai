@@ -326,7 +326,7 @@ func (s *sourcePrefixStorageDecorator) Commit(ctx context.Context, batches [][]S
 func TestSourceDecoratedGroupedPrefixRefusalAndOwnOutcomes(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		cause := errors.New("refused last grouped part")
-		store := &sourcePrefixStorageDecorator{Storage: b.store, entered: make(chan struct{}), release: make(chan struct{}), cause: cause, sizes: make(chan int, 8)}
+		store := &sourcePrefixStorageDecorator{Storage: sourceGappedStorage{b.store.(*SQLiteStorage)}, entered: make(chan struct{}), release: make(chan struct{}), cause: cause, sizes: make(chan int, 8)}
 		session, err := OpenSession(store)
 		if err != nil {
 			t.Fatal(err)
@@ -339,7 +339,14 @@ func TestSourceDecoratedGroupedPrefixRefusalAndOwnOutcomes(t *testing.T) {
 		conversation := value.(Conversation)
 		watchReceive(t, store.sizes)
 		var observations atomic.Int64
-		guard, err := session.ObserveCommits(CommitObserver{Advance: func(context.Context, CommitPublication) error { observations.Add(1); return nil }, End: func(WatchEnd) error { return nil }})
+		var seqs [3]uint64
+		guard, err := session.ObserveCommits(CommitObserver{Advance: func(_ context.Context, p CommitPublication) error {
+			if index := observations.Load(); index < int64(len(seqs)) {
+				seqs[index] = p.Seq
+			}
+			observations.Add(1)
+			return nil
+		}, End: func(WatchEnd) error { return nil }})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -412,6 +419,71 @@ func TestSourceDecoratedGroupedPrefixRefusalAndOwnOutcomes(t *testing.T) {
 		entries, err := reopened.ScanEntries(bg, EntryQuery{Conversation: conversation.ID}, 10, nil)
 		if err != nil || len(entries.Items) != 3 || entries.Items[0].Kind != "third" || entries.Items[1].Kind != "second" || entries.Items[2].Kind != "first" {
 			t.Fatal("wrong durable grouped prefix", entries, err)
+		}
+		for index, entry := range entries.Items {
+			stored, found, err := reopened.Entry(bg, entry.ID)
+			if err != nil || !found || stored.CommitSeq != seqs[2-index] {
+				t.Fatalf("prefix part %s: published %v, stored %+v, found %v, err %v", entry.Kind, seqs, stored, found, err)
+			}
+		}
+		if seqs[0]+1 >= seqs[1] || seqs[1]+1 != seqs[2] {
+			t.Fatalf("expected a gap before the grouped prefix, then one seq per part: %v", seqs)
+		}
+	})
+}
+
+// SQLite's empty native transaction stands in for a gap in an otherwise
+// ordinary Storage sequence; no extra public batch or visible row is created.
+type sourceGappedStorage struct{ *SQLiteStorage }
+
+func (s sourceGappedStorage) Commit(ctx context.Context, writes [][]StorageWrite, receive func(int, uint64)) (CommitResult, error) {
+	if _, err := s.SQLiteStorage.Apply(ctx, Batch{Writes: []Write{}}); err != nil {
+		return CommitResult{}, err
+	}
+	return s.SQLiteStorage.Commit(ctx, writes, receive)
+}
+
+func TestSourcePublicStorageReceiptSequenceIsAuthoritative(t *testing.T) {
+	bg := context.Background()
+	sqliteStore(t, func(t *testing.T, fixture sqliteFixture) {
+		store := fixture.store.(*SQLiteStorage)
+		before, err := store.Snapshot(bg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		session, err := OpenSession(sourceGappedStorage{store})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = session.Close(bg) })
+		observed := make(chan uint64, 2)
+		_, err = session.ObserveCommits(CommitObserver{
+			Advance: func(_ context.Context, p CommitPublication) error { observed <- p.Seq; return nil },
+			End:     func(WatchEnd) error { return nil },
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for i := uint64(1); i <= 2; i++ {
+			value, err := session.Commit(bg, func(tx *Tx) (any, error) {
+				return tx.AppendEntry(1, EntryDraft{"kind": "gapped"})
+			})
+			if err != nil {
+				t.Fatalf("Session rejected actual storage receipt: %v", err)
+			}
+			stored, found, err := store.Entry(bg, value.(Entry).ID)
+			want := before.Seq + 2*i
+			if err != nil || !found || stored.CommitSeq != want {
+				t.Fatalf("stored entry: %+v, %v, %v; want seq %d", stored, found, err, want)
+			}
+			select {
+			case got := <-observed:
+				if got != stored.CommitSeq {
+					t.Fatalf("published seq %d; stored seq %d", got, stored.CommitSeq)
+				}
+			default:
+				t.Fatal("durable part not published before its caller resumed")
+			}
 		}
 	})
 }

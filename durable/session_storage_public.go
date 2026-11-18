@@ -37,7 +37,7 @@ func storageDocumentCreate(document Document) *DocumentCreate {
 	return record
 }
 
-func publicSessionBatch(base Snapshot, batch Batch, limits Limits) ([]StorageWrite, error) {
+func publicSessionBatch(exists func(ID) bool, batch Batch, limits Limits) ([]StorageWrite, error) {
 	commands := make([]StorageWrite, 0, len(batch.Writes))
 	for _, write := range batch.Writes {
 		var command StorageWrite
@@ -57,7 +57,7 @@ func publicSessionBatch(base Snapshot, batch Batch, limits Limits) ([]StorageWri
 		case "put-document":
 			document := write.Document
 			content := &DocumentContent{Kind: "base", Version: document.Version, Value: document.Value}
-			if prior, exists := base.Documents[document.ID]; !exists || prior.Retired {
+			if !exists(document.ID) {
 				command = StorageWrite{Type: "document.create", Record: storageDocumentCreate(*document), Content: content}
 			} else {
 				command = StorageWrite{Type: "document.change", ID: document.ID, Content: content}
@@ -91,25 +91,42 @@ func (s *Session) commitStorageParts(ctx context.Context, batches []Batch, recei
 		return commitGroupResult{}, reject("stale storage sequence")
 	}
 	commands := make([][]StorageWrite, len(batches))
-	base := s.core.state
 	s.core.ownershipMu.Lock()
-	base.HighWater = s.core.readHighWater
+	high := s.core.readHighWater
 	s.core.ownershipMu.Unlock()
-	// Prepare each prefix before handing anything to the storage decorator.
-	frames := make([]storageFrame, len(batches))
-	images := make([]Snapshot, len(batches))
+	// Encode commands independently of settlement. Only received batches
+	// advance the projection, with the sequence assigned by Storage.
+	parts := make([]publicCommitPart, len(batches))
+	documents := make(map[ID]bool)
+	exists := func(id ID) bool {
+		if live, changed := documents[id]; changed {
+			return live
+		}
+		doc, found := s.core.state.Documents[id]
+		return found && !doc.Retired
+	}
 	for index, batch := range batches {
 		var err error
-		commands[index], err = publicSessionBatch(base, batch, s.limits)
+		commands[index], err = publicSessionBatch(exists, batch, s.limits)
 		if err != nil {
 			return commitGroupResult{}, err
 		}
-		frame, next, err := s.core.prepareCommit(base, batch, s.core.ordinal+uint64(index), true)
+		// Storage receives its own command envelopes. Keep the replay input
+		// detached, including nested values the host may retain or mutate.
+		payload, err := encodeBounded(batch, s.limits, s.limits.MaxFramePayloadBytes)
 		if err != nil {
 			return commitGroupResult{}, err
 		}
-		frames[index], images[index] = frame, next
-		base = next
+		part := &parts[index]
+		part.high = high
+		if err := decodeStrict(payload, s.limits, s.limits.MaxFramePayloadBytes, &part.batch); err != nil {
+			return commitGroupResult{}, err
+		}
+		for _, write := range batch.Writes {
+			if write.Document != nil {
+				documents[write.Document.ID] = write.Op != "retire-document"
+			}
+		}
 	}
 	result := commitGroupResult{}
 	var receiptError error
@@ -117,13 +134,17 @@ func (s *Session) commitStorageParts(ctx context.Context, batches []Batch, recei
 		if receiptError != nil {
 			return
 		}
-		if index != result.stored || index < 0 || index >= len(batches) || seq != images[index].Seq {
+		if index != result.stored || index < 0 || index >= len(parts) {
 			receiptError = reject("invalid public Storage receipt")
 			return
 		}
-		s.core.state = images[index]
-		s.core.ordinal = frames[index].ordinal
-		receipt := commitReceipt{index: index, seq: seq, frame: frames[index]}
+		receipt := commitReceipt{index: index, seq: seq, public: &parts[index]}
+		next, err := receipt.nextImage(s.core.state, s.limits)
+		if err != nil {
+			receiptError = err
+			return
+		}
+		s.core.state = next
 		result.stored++
 		result.lastSeq = seq
 		if receive != nil {

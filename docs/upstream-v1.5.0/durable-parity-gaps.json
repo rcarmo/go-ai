@@ -1137,7 +1137,7 @@
     "historical": true
   },
   "currentCheckpoint": {
-    "scope": "Migration through12889fe plus detached entry-data authority fix. Focused8.691s/one control/static; source12+116 probes pass. Last full sweep remains39/32 failures; full parity incomplete.",
+    "scope": "Through 7d139ed plus Storage receipt sequence authority. Focused 7.511s, two controls; source group-commit 40 plus 116 separate probes. Last full sweep remains 39 (32 failures); full parity incomplete.",
     "baseRevision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
     "lastVerifiedPushed": {
       "revision": "89c031ebcdc7374b28240ca09511bfcd7e9f8c22",
@@ -2028,6 +2028,16 @@
         "skipped": 0,
         "fullSuite": "Not run; focused-only until parity sweeps",
         "mapping": "notes/canonical-builtin-execution.md#detached-entry-data-is-independent-of-model-witnesses"
+      },
+      "publicStorageSequencePacket": {
+        "sourceFirstRedSeconds": 0.153,
+        "scope": "Public Storage supplies actual sequences for serial and grouped receipts, independently of native contiguous frames",
+        "focusedThreeShuffleSeconds": 7.511,
+        "semanticFaults": 2,
+        "unchangedOriginalGroupCommitTests": 40,
+        "separateSupplementalProbes": 116,
+        "skipped": 0,
+        "mapping": "notes/canonical-builtin-execution.md#public-storage-receipts-own-the-commit-sequence"
       }
     },
     "reference": {

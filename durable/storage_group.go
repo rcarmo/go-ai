@@ -71,18 +71,30 @@ type storageFrame struct {
 	payload []byte
 }
 
-// commitReceipt carries one detached encoded part, never a later raw image.
-// Its payload is private immutable storage-owned data. Holding receipts retains
-// encoded frames, not one full set of materialised tables per prefix.
+// commitReceipt carries one detached part, never a later raw image. The
+// native backend supplies a frame; public Storage receipts supply the sequence
+// and replay the admitted writes, without predicting a physical frame or seq.
 type commitReceipt struct {
-	index int
-	seq   uint64
-	frame storageFrame
+	index  int
+	seq    uint64
+	frame  storageFrame
+	public *publicCommitPart
+}
+
+type publicCommitPart struct {
+	batch Batch
+	high  uint64
 }
 
 // checkNext validates the receipt header against the published prefix. Both
 // trusted native candidates and frame reconstruction must pass this check.
 func (r commitReceipt) checkNext(base Snapshot) error {
+	if r.public != nil {
+		if r.index < 0 || r.seq <= base.Seq || r.seq > MaxID || r.public.high > MaxID {
+			return reject("invalid public Storage receipt")
+		}
+		return nil
+	}
 	if r.index < 0 || base.Seq >= MaxID || r.seq != base.Seq+1 || r.frame.kind != 2 || r.frame.ordinal == 0 || r.frame.ordinal > MaxID || r.frame.high > MaxID {
 		return reject("invalid publication receipt")
 	}
@@ -96,6 +108,10 @@ func (r commitReceipt) checkNext(base Snapshot) error {
 func (r commitReceipt) nextImage(base Snapshot, l Limits) (Snapshot, error) {
 	if err := r.checkNext(base); err != nil {
 		return Snapshot{}, err
+	}
+	if r.public != nil {
+		base.HighWater = max(base.HighWater, r.public.high)
+		return prepareRecord(base, commitRecord{Seq: r.seq, Writes: r.public.batch.Writes}, l, true, false, false)
 	}
 	var record commitRecord
 	if err := decodeStrict(r.frame.payload, l, l.MaxFramePayloadBytes, &record); err != nil {

@@ -688,8 +688,8 @@ func (s *Session) taskSnapshotView(ctx context.Context) (Snapshot, bool, error) 
 // A future group publisher must supply each part, never the final raw image
 // for an earlier receipt. Callers hold the Session line and poison on error.
 func (s *Session) adoptReadImage(image Snapshot, receipt uint64) error {
-	if s.readImage.Seq >= MaxID || receipt != s.readImage.Seq+1 || image.Seq != receipt {
-		return reject("non-contiguous publication image")
+	if receipt <= s.readImage.Seq || receipt > MaxID || image.Seq != receipt || (!s.delegatedStorage && receipt != s.readImage.Seq+1) {
+		return reject("invalid publication image sequence")
 	}
 	s.readImage = image
 	s.memoryImage = nil

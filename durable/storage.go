@@ -390,7 +390,7 @@ func prepare(s Snapshot, r commitRecord, l Limits) (Snapshot, error) {
 	return prepareWithReferences(s, r, l, true)
 }
 func prepareWithReferences(s Snapshot, r commitRecord, l Limits, final bool) (Snapshot, error) {
-	return prepareRecord(s, r, l, final, false)
+	return prepareRecord(s, r, l, final, false, true)
 }
 
 // prepareExplicit is the raw Storage rule from pi-durable v1.5.0: an unused
@@ -398,10 +398,10 @@ func prepareWithReferences(s Snapshot, r commitRecord, l Limits, final bool) (Sn
 // to the highest such ID in the same atomic commit. Session-owned writers keep
 // native reservation through prepare/prepareWithReferences.
 func prepareExplicit(s Snapshot, r commitRecord, l Limits) (Snapshot, error) {
-	return prepareRecord(s, r, l, true, true)
+	return prepareRecord(s, r, l, true, true, true)
 }
-func prepareRecord(s Snapshot, r commitRecord, l Limits, final, explicit bool) (Snapshot, error) {
-	if s.Seq >= MaxID || r.Seq != s.Seq+1 || r.Seq > MaxID {
+func prepareRecord(s Snapshot, r commitRecord, l Limits, final, explicit, contiguous bool) (Snapshot, error) {
+	if r.Seq <= s.Seq || r.Seq > MaxID || (contiguous && r.Seq != s.Seq+1) {
 		return Snapshot{}, reject("invalid commit sequence")
 	}
 	if r.Writes == nil || len(r.Writes) > l.MaxWrites {
