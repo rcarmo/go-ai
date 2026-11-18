@@ -51,3 +51,9 @@ The v1.5.2 output clamp reserves the larger of 4,096 tokens and 15% of estimated
 OpenAI completions now sends explicit `null` for tool-only assistant messages by default. A model can require `""` without inserting an extra turn; the separate after-tool-result switch still inserts the extra turn. The three Go cases inspect the real HTTP request, including the presence of `content`. The default was red (0.034s). The model generator now carries the optional field, but the pinned model schema and catalogue have not been regenerated for 1.5.2.
 
 Four packages compiled; the selected Go tests passed twice in `tests`, OpenAI completions and Responses. The two unchanged upstream files passed all 10 cases. Fault controls detected and restored a missing proportional reserve and an ignored non-null switch. Vet, Staticcheck, logging and diff checks passed. No full suite.
+
+## Codemode reference and guest output changes
+
+`ResolveCodemodeSchemaRef` now URI-decodes local pointer segments before JSON Pointer unescaping, preserves the returned object identity and rejects malformed escapes without fetching anything. Declaration expansion uses the same resolver. The unchanged v1.5.2 prelude extracted from the pinned source prints `NaN`, `Infinity` and `-Infinity` in console output and throws `NaN` with the source error message. Its embedded asset hash and SBOM provenance now reflect 1.5.2; the WASM asset is unchanged.
+
+The focused resolver and production QuickJS output tests were red on the escaped-space lookup and `null` output, then passed twice (Durable 2.038s, QuickJS 0.753s). Both deliberate faults were detected and restored. The unchanged upstream declarations and sandbox files passed 175 cases, zero skipped. Vet, Staticcheck, logging, guest SBOM self-tests and diff checks passed. Broader Codemode lifecycle and replay parity remain open.

@@ -9,3 +9,5 @@ On 2026-10-14, the published `quickjs-wasi@3.6.2` npm archive passed its SHA512 
 These hashes identify embedded assets; generated JS/image output acceptance does not use hashes. Guest assets are intentional installed source inputs, not disposable build output.
 
 On 2026-10-15, verified pi-codemode1.3.0 archive (official71023aec1546d6d677a65669c5665c0927ce0dd0) PRELUDE_SOURCE is byte-identical to the embedded1.2.0 source above. quickjs-wasi dependency remains3.6.2. Asset hashes/fingerprint therefore remain unchanged; SBOM prelude provenance now names1.3.0. This asset-integrity comparison does not gate generated-signal equivalence.
+
+The current embedded prelude is `PRELUDE_SOURCE` extracted from pi-codemode v1.5.2, commit `b4afdddf44e059c67ccf5097e5317d913521b470`, at the same source path. SHA256: `e64ad1a6afffbfb8f75a0d08434a9a3fec88d1e54206b03953bfc7b5820cc119`. The QuickJS WASM asset did not change. The runtime fingerprint includes the new prelude bytes.

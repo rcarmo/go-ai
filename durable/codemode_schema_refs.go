@@ -1,9 +1,10 @@
 package durable
 
 import (
+	"net/url"
 	"sort"
-	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 // Declaration reference resolution never fetches assets or changes validation.
@@ -45,45 +46,43 @@ func codemodeSchemaMap(value any) (map[string]any, bool) {
 	}
 	return nil, false
 }
-func codemodePointer(root JSON, ref string) (any, bool) {
-	if ref == "#" {
-		return root, true
-	}
-	if !strings.HasPrefix(ref, "#/") {
+
+// ResolveCodemodeSchemaRef resolves local schema pointers without fetching
+// resources. It returns the original object or boolean, not a detached copy.
+func ResolveCodemodeSchemaRef(ref string, root any) (any, bool) {
+	if ref != "#" && !strings.HasPrefix(ref, "#/") {
 		return nil, false
 	}
-	var value any = root
-	for _, part := range strings.Split(ref[2:], "/") {
-		// Reject malformed pointer escapes instead of inventing a target.
-		for i := 0; i < len(part); i++ {
-			if part[i] == '~' {
-				if i+1 >= len(part) || (part[i+1] != '0' && part[i+1] != '1') {
-					return nil, false
-				}
-				i++
+	value := root
+	if ref != "#" {
+		for _, part := range strings.Split(ref[2:], "/") {
+			if part == "" {
+				continue
 			}
-		}
-		key := strings.ReplaceAll(strings.ReplaceAll(part, "~1", "/"), "~0", "~")
-		if object, ok := codemodeSchemaMap(value); ok {
-			var found bool
-			value, found = object[key]
-			if !found {
+			decoded, err := url.PathUnescape(part)
+			if err != nil || !utf8.ValidString(decoded) {
 				return nil, false
 			}
-			continue
-		}
-		if array, ok := value.([]any); ok {
-			index, err := strconv.Atoi(key)
-			if err != nil || index < 0 || index >= len(array) || strconv.Itoa(index) != key {
+			object, ok := codemodeSchemaMap(value)
+			if !ok || object == nil {
 				return nil, false
 			}
-			value = array[index]
-			continue
+			key := strings.ReplaceAll(strings.ReplaceAll(decoded, "~1", "/"), "~0", "~")
+			value, ok = object[key]
+			if !ok {
+				return nil, false
+			}
 		}
-		return nil, false
 	}
-	return value, true
+	if _, ok := value.(bool); ok {
+		return value, true
+	}
+	if object, ok := codemodeSchemaMap(value); ok && object != nil {
+		return value, true
+	}
+	return nil, false
 }
+
 func expandCodemodeSchema(value any, root JSON, active map[string]bool, depth int, budget *int) (any, bool) {
 	*budget--
 	if *budget < 0 {
@@ -100,7 +99,7 @@ func expandCodemodeSchema(value any, root JSON, active map[string]bool, depth in
 		if active[ref] {
 			return true, true
 		}
-		target, found := codemodePointer(root, ref)
+		target, found := ResolveCodemodeSchemaRef(ref, root)
 		if !found {
 			return true, true
 		}
