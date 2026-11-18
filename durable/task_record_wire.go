@@ -27,9 +27,18 @@ func publicTaskRecordJSON(record TaskRecord) (map[string]any, error) {
 	if record.Input == nil || !record.Input.Present {
 		return nil, reject("task record input is absent")
 	}
-	state, err := publicTaskStateJSON(record.State)
-	if err != nil {
-		return nil, err
+	var state map[string]any
+	if record.State.OpaqueTerminal != nil {
+		if !validStorageTerminal(record.State) {
+			return nil, reject("invalid opaque terminal storage record")
+		}
+		state = map[string]any{"status": "terminal", "outcome": record.State.OpaqueTerminal}
+	} else {
+		var err error
+		state, err = publicTaskStateJSON(record.State)
+		if err != nil {
+			return nil, err
+		}
 	}
 	memos := map[string]any(nil)
 	if record.Memos != nil {
@@ -174,6 +183,12 @@ func (record *TaskRecord) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	state, err := parsePublicTaskState(wire.State)
+	if err != nil || (state.Status == "terminal" && state.Outcome != nil && state.Outcome.Status == "") {
+		if raw, ok := parseOpaqueTerminalStorage(wire.State); ok {
+			state = raw
+			err = nil
+		}
+	}
 	if err != nil {
 		return err
 	}
@@ -212,6 +227,27 @@ func (record *TaskRecord) UnmarshalJSON(data []byte) error {
 	}
 	*record = result
 	return nil
+}
+
+// Only stored records can retain an object without the typed outcome discriminator.
+func parseOpaqueTerminalStorage(data []byte) (TaskState, bool) {
+	var wire struct {
+		Status  string `json:"status"`
+		Outcome JSON   `json:"outcome"`
+	}
+	if err := decodePublicJSON(data, &wire); err != nil {
+		return TaskState{}, false
+	}
+	state := TaskState{Status: wire.Status, OpaqueTerminal: wire.Outcome}
+	if !validStorageTerminal(state) {
+		return TaskState{}, false
+	}
+	owned, err := copyObject(state.OpaqueTerminal, maximumDurableLimits())
+	if err != nil {
+		return TaskState{}, false
+	}
+	state.OpaqueTerminal = owned
+	return state, true
 }
 
 func parsePublicTaskState(data []byte) (TaskState, error) {

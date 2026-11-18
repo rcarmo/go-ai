@@ -161,3 +161,9 @@ Default SQLite public Commit now opens its transaction and checks all requested 
 Accepted copy parts now read their source document and revision range from SQLite in the committing transaction. Earlier accepted parts flush before that lookup. The query and staged view must agree before the writer publishes either receipts or data. The source-read fault probe witnesses the flushed entry inside the transaction, then verifies the original error, no receipts and no durable prefix. A successful group reads a preceding delta at the current point and the original base at the earlier point; both targets survive reopening.
 
 Compiled red: 0.111s. Focused shuffled regressions passed twice in 16.395s, and removing the SQL source lookup was detected. The unchanged SQLite storage suite passed all 83 tests. Vet, Staticcheck, logging and diff checks passed. This still does not establish source-read ordering for a copy already rejected by staging, or replace the in-memory validation projection.
+
+### Opaque terminal task records
+
+Raw Storage now preserves a terminal outcome object without a typed status discriminator. A record accepted by the upstream random corpus round-trips through public Commit, SQLite and a reopened reader with unchanged JSON, without fabricating a typed task result. Standalone task-state decoding and runtime transitions still reject opaque outcomes.
+
+Compiled red: 0.014s. The focused shuffled SQLite and task-recovery batch passed twice in 22.340s. Removing opaque storage decoding was detected; vet, Staticcheck, logging and diff checks passed. Diagnostic replay of the 720 source rounds now decodes these outcomes and reaches the next divergence: the source accepts raw task and document owner IDs that may refer to records not present in the store. That discrepancy is not resolved by this checkpoint.

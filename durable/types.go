@@ -212,6 +212,9 @@ type TaskOutcome struct {
 // TaskState is a strict union. Live states own an object checkpoint. Outcomes
 // have no checkpoint/memos; waiting additionally owns On and Policy.
 type TaskState struct {
+	// OpaqueTerminal holds an uninterpreted terminal payload from the storage
+	// record. It is not a valid outcome for a task phase to return.
+	OpaqueTerminal JSON `json:"opaqueTerminal,omitempty"`
 	// Source endedByCrashes marks the returned state, never its stored copy.
 	endedByCrashes string
 	Until          *int64       `json:"until,omitempty"` // required only for sleeping; epoch milliseconds

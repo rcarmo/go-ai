@@ -119,6 +119,9 @@ func (r *TaskRuntime) commit(ctx context.Context, change func(*Tx, TaskRecord) (
 		if next == nil {
 			return nil
 		}
+		if next.OpaqueTerminal != nil {
+			return reject("opaque terminal storage record is not a runtime outcome")
+		}
 		if task.Execution == nil || task.Execution.Native == nil {
 			return reject("builtin runtime cannot replace its execution state")
 		}

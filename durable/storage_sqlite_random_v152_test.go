@@ -102,3 +102,53 @@ func TestSourceV152SQLiteIDRefusalKeepsPrefix(t *testing.T) {
 		t.Fatal(r.Refused.AsError(), err)
 	}
 }
+
+// An accepted terminal task in the source random corpus has an opaque outcome.
+// Storage preserves its JSON without pretending it is a typed runtime result.
+func TestSourceV152SQLiteStoresOpaqueTerminalOutcome(t *testing.T) {
+	const wire = `{"type":"task","value":{"id":33,"conversationId":11,"kind":"t.one","version":1,"input":{"value":4},"state":{"status":"terminal","outcome":{"kind":"returned","value":1}},"background":false,"abortRequested":false}}`
+	var write StorageWrite
+	if err := json.Unmarshal([]byte(wire), &write); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "task.sqlite")
+	s, err := OpenSQLite(path, SQLiteOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close(bg)
+	r, err := s.Commit(bg, [][]StorageWrite{{{Type: "conversation", Value: Conversation{ID: 11}}, write}}, nil)
+	if err != nil || r.Refused != nil || r.Stored != 1 {
+		t.Fatal(r, r.Refused.AsError(), err)
+	}
+	if err := s.Close(bg); err != nil {
+		t.Fatal(err)
+	}
+	view, err := OpenSQLite(path, SQLiteOptions{ReadOnly: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer view.Close(bg)
+	task, found, err := view.Task(bg, 33)
+	if err != nil || !found || task.State.Status != "terminal" || task.State.Outcome != nil {
+		t.Fatal(task, found, err)
+	}
+	got, err := json.Marshal(StorageWrite{Type: "task", Value: task})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var original, encoded any
+	if err := decodePublicJSON([]byte(wire), &original); err != nil {
+		t.Fatal(err)
+	}
+	if err := decodePublicJSON(got, &encoded); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(encoded, original) {
+		t.Fatalf("round trip changed input: %s", got)
+	}
+	var state TaskState
+	if err := json.Unmarshal([]byte(`{"status":"terminal","outcome":{"kind":"returned","value":1}}`), &state); err == nil {
+		t.Fatal("opaque data became a typed runtime outcome")
+	}
+}

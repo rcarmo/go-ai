@@ -118,6 +118,13 @@ func copyTaskMemos(memos map[string]*TaskValue, l Limits) (map[string]*TaskValue
 
 func copyTaskState(state TaskState, l Limits) (TaskState, error) {
 	state.endedByCrashes = ""
+	if state.OpaqueTerminal != nil {
+		var err error
+		state.OpaqueTerminal, err = copyObject(state.OpaqueTerminal, l)
+		if err != nil {
+			return TaskState{}, err
+		}
+	}
 	if state.Until != nil {
 		until := *state.Until
 		state.Until = &until
@@ -209,7 +216,15 @@ func validateTaskOutcome(outcome *TaskOutcome) error {
 	return nil
 }
 
+func validStorageTerminal(state TaskState) bool {
+	_, typed := state.OpaqueTerminal["status"]
+	return state.OpaqueTerminal != nil && !typed && state.Status == "terminal" && state.Checkpoint == nil && state.On == nil && state.Policy == "" && state.Until == nil && state.Outcome == nil
+}
+
 func validateTaskState(state TaskState) error {
+	if state.OpaqueTerminal != nil {
+		return reject("opaque terminal storage record is not a runtime outcome")
+	}
 	if state.Status != "sleeping" && state.Until != nil {
 		return reject("nonsleeping task has deadline")
 	}
@@ -296,12 +311,19 @@ func validateTaskRecord(task Task, l Limits) error {
 		if native == nil || task.Execution.Builtin != nil || len(task.Checkpoint) != 0 || native.Version == 0 || native.Version > MaxID || native.Input == nil || !native.Input.Present {
 			return reject("invalid native task execution")
 		}
-		if err := validateTaskState(native.State); err != nil {
-			return err
-		}
 		status := native.State.Status
-		if status == "terminal" {
-			status = outcomeRawStatus(native.State.Outcome)
+		if native.State.OpaqueTerminal != nil {
+			if !validStorageTerminal(native.State) {
+				return reject("invalid opaque terminal storage record")
+			}
+			status = "done" // non-runnable; no typed completed result was inferred
+		} else {
+			if err := validateTaskState(native.State); err != nil {
+				return err
+			}
+			if status == "terminal" {
+				status = outcomeRawStatus(native.State.Outcome)
+			}
 		}
 		if status != task.Status {
 			return reject("native task status/ownership disagreement")

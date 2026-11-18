@@ -308,7 +308,9 @@ func nativeTask(record TaskRecord, l Limits) (Task, error) {
 	}
 	task := Task{ID: record.ID, Conversation: record.Conversation, Owner: record.Owner, Kind: record.Kind, Status: record.State.Status, Checkpoint: JSON{}, Trace: record.Trace, Links: record.Links, Restarts: record.Restarts, AbandonOnRestart: record.AbandonOnRestart, AbortReason: record.AbortReason, StartedAt: record.StartedAt, EndedAt: record.EndedAt}
 	task.Execution = &TaskExecution{Tag: nativeTaskTag, Native: &NativeTaskExecution{Version: record.Version, Input: record.Input, Background: record.Background, AbortRequested: record.AbortRequested, Memos: record.Memos, State: record.State}}
-	if record.State.Status == "terminal" && record.State.Outcome != nil {
+	if record.State.OpaqueTerminal != nil {
+		task.Status = "done"
+	} else if record.State.Status == "terminal" && record.State.Outcome != nil {
 		task.Status = outcomeRawStatus(record.State.Outcome)
 	}
 	return copyTask(task, l)
