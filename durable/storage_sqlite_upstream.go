@@ -14,7 +14,7 @@ func (s *SQLiteStorage) upstreamTable(name string) string { return `"` + s.prefi
 
 func (s *SQLiteStorage) hasUpstreamSQLiteSchema() (bool, error) {
 	var found int
-	err := s.db.QueryRowContext(context.Background(), "SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE type='table' AND name=?)", s.prefix+"durable_schema").Scan(&found)
+	err := s.db.QueryRowContext(context.Background(), "SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE type='table' AND name=? COLLATE NOCASE)", s.prefix+"durable_schema").Scan(&found)
 	return found != 0, err
 }
 

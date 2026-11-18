@@ -1,6 +1,23 @@
 package durable
 
-import "sync"
+import (
+	"os"
+	"sync"
+	"testing"
+)
+
+// openFrameSQLiteFixture constructs the historical namespace before using the
+// real opener. Only tests that explicitly exercise private frames use it.
+func openFrameSQLiteFixture(t testing.TB, path string, options SQLiteOptions) (*SQLiteStorage, error) {
+	t.Helper()
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		if err := os.WriteFile(path, nil, 0600); err != nil {
+			return nil, err
+		}
+		writeSQLiteMigrationFixture(t, path, `CREATE TABLE "`+options.Prefix+`config" (id INTEGER PRIMARY KEY CHECK(id=1), value BLOB NOT NULL)`)
+	}
+	return OpenSQLite(path, options)
+}
 
 // installSQLiteAcknowledgement injects transport acknowledgement behaviour
 // after a real atomic SQLite append. It is a test seam, not another store.

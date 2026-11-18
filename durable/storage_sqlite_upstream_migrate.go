@@ -18,6 +18,9 @@ const upstreamSQLiteSchemaVersion = 2
 func (s *SQLiteStorage) migrateUpstreamSQLite() error {
 	ctx := context.Background()
 	table := s.upstreamTable("durable_schema")
+	if err := s.exec("CREATE TABLE IF NOT EXISTS " + table + " (singleton INTEGER PRIMARY KEY CHECK (singleton = 1), version INTEGER NOT NULL CHECK (version >= 0)) STRICT"); err != nil {
+		return err
+	}
 	if err := s.exec("INSERT OR IGNORE INTO " + table + " (singleton, version) VALUES (1, 0)"); err != nil {
 		return err
 	}

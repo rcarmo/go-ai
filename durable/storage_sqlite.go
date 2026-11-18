@@ -38,7 +38,7 @@ type SQLiteOptions struct {
 	// ReadOnly opens an existing database without acquiring its writer lock.
 	ReadOnly bool
 	Limits   *Limits
-	// Prefix namespaces all native tables. Empty preserves the original schema.
+	// Prefix namespaces the tables and indexes. Empty uses unprefixed names.
 	// Changing the prefix opens a separate store; it never migrates existing data.
 	Prefix string
 }
@@ -134,6 +134,22 @@ func OpenSQLite(path string, options SQLiteOptions) (store *SQLiteStorage, err e
 		return nil, err
 	}
 	store.readOnly = options.ReadOnly
+	if !options.ReadOnly && !store.upstreamSchema {
+		// A file can contain independent prefixes. Never create source tables
+		// over an established native frame namespace.
+		var legacy bool
+		err = store.db.QueryRowContext(context.Background(), "SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE type='table' AND name COLLATE NOCASE IN (?, ?, ?))",
+			store.prefix+"config", store.prefix+"frames", store.prefix+"checkpoint").Scan(&legacy)
+		if err != nil {
+			return nil, err
+		}
+		store.upstreamSchema = !legacy
+		if store.upstreamSchema {
+			if err = store.exec("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL"); err != nil {
+				return nil, err
+			}
+		}
+	}
 	if options.ReadOnly || store.upstreamSchema {
 		if err = store.exec("PRAGMA busy_timeout=5000"); err != nil {
 			return nil, err

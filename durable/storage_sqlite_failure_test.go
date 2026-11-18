@@ -12,7 +12,7 @@ import (
 
 func TestSQLiteRealInsertFailureRollsBackAndKeepsReservation(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "session.sqlite")
-	store, err := OpenSQLite(path, SQLiteOptions{})
+	store, err := openFrameSQLiteFixture(t, path, SQLiteOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,7 +36,7 @@ func TestSQLiteRealInsertFailureRollsBackAndKeepsReservation(t *testing.T) {
 	if err := store.Close(bg); err != nil {
 		t.Fatal(err)
 	}
-	next, err := OpenSQLite(path, SQLiteOptions{})
+	next, err := openFrameSQLiteFixture(t, path, SQLiteOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,7 +48,7 @@ func TestSQLiteRealInsertFailureRollsBackAndKeepsReservation(t *testing.T) {
 }
 func TestSQLiteReclaimDeleteFailureRollsBackCheckpoint(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "session.sqlite")
-	store, err := OpenSQLite(path, SQLiteOptions{})
+	store, err := openFrameSQLiteFixture(t, path, SQLiteOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +63,7 @@ func TestSQLiteReclaimDeleteFailureRollsBackCheckpoint(t *testing.T) {
 	if err := store.Close(bg); err != nil {
 		t.Fatal(err)
 	}
-	next, err := OpenSQLite(path, SQLiteOptions{})
+	next, err := openFrameSQLiteFixture(t, path, SQLiteOptions{})
 	if err != nil {
 		t.Fatal("reclaim rollback left duplicate checkpoint+frames", err)
 	}
@@ -81,7 +81,7 @@ func TestSQLiteReclaimDeleteFailureRollsBackCheckpoint(t *testing.T) {
 }
 func TestSQLiteLostCommitAcknowledgementPoisonsThenReopenAdopts(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "session.sqlite")
-	store, err := OpenSQLite(path, SQLiteOptions{})
+	store, err := openFrameSQLiteFixture(t, path, SQLiteOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +104,7 @@ func TestSQLiteLostCommitAcknowledgementPoisonsThenReopenAdopts(t *testing.T) {
 	if err := store.Close(bg); err != nil {
 		t.Fatal(err)
 	}
-	next, err := OpenSQLite(path, SQLiteOptions{})
+	next, err := openFrameSQLiteFixture(t, path, SQLiteOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,7 +117,7 @@ func TestSQLiteLostCommitAcknowledgementPoisonsThenReopenAdopts(t *testing.T) {
 func TestSQLiteProcessExitWithoutClosePreservesCommittedPrefix(t *testing.T) {
 	if path := os.Getenv("DURABLE_SQLITE_CRASH_PATH"); path != "" {
 		stopProfiles := startSQLiteCrashProfiles(t, os.Getenv("DURABLE_SQLITE_CRASH_PROFILES"))
-		store, err := OpenSQLite(path, SQLiteOptions{})
+		store, err := openFrameSQLiteFixture(t, path, SQLiteOptions{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -148,7 +148,7 @@ func TestSQLiteProcessExitWithoutClosePreservesCommittedPrefix(t *testing.T) {
 		t.Fatalf("crash subprocess: %v\n%s", err, output)
 	}
 	analyseSQLiteChildProfiles(t, profiles)
-	store, err := OpenSQLite(path, SQLiteOptions{})
+	store, err := openFrameSQLiteFixture(t, path, SQLiteOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

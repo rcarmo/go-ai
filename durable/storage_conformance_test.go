@@ -76,6 +76,18 @@ func sqliteStore(t *testing.T, fn func(*testing.T, sqliteFixture), configured ..
 // sqliteStoreFresh provides a store in its untouched initial state.
 func sqliteStoreFresh(t *testing.T, fn func(*testing.T, sqliteFixture), configured ...Limits) {
 	t.Helper()
+	sqliteStoreFreshWith(t, func(_ testing.TB, path string, options SQLiteOptions) (*SQLiteStorage, error) {
+		return OpenSQLite(path, options)
+	}, fn, configured...)
+}
+
+func sqliteFrameStoreFresh(t *testing.T, fn func(*testing.T, sqliteFixture), configured ...Limits) {
+	t.Helper()
+	sqliteStoreFreshWith(t, openFrameSQLiteFixture, fn, configured...)
+}
+
+func sqliteStoreFreshWith(t *testing.T, opener func(testing.TB, string, SQLiteOptions) (*SQLiteStorage, error), fn func(*testing.T, sqliteFixture), configured ...Limits) {
+	t.Helper()
 	if len(configured) > 1 {
 		t.Fatal("multiple SQLite limit profiles")
 	}
@@ -86,7 +98,7 @@ func sqliteStoreFresh(t *testing.T, fn func(*testing.T, sqliteFixture), configur
 	t.Run("sqlite", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "store.sqlite")
 		open := func() *SQLiteStorage {
-			s, e := OpenSQLite(path, SQLiteOptions{Limits: limits})
+			s, e := opener(t, path, SQLiteOptions{Limits: limits})
 			if e != nil {
 				t.Fatal(e)
 			}
@@ -197,7 +209,7 @@ func rejected(t *testing.T, e error) {
 }
 
 func TestStorageConformance(t *testing.T) {
-	sqliteStoreFresh(t, runStorageConformance)
+	sqliteFrameStoreFresh(t, runStorageConformance)
 }
 func runStorageConformance(t *testing.T, b sqliteFixture) {
 	s := b.store

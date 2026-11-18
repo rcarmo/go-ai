@@ -35,7 +35,7 @@ func TestSQLite140SleepingTaskReopenAndReclaim(t *testing.T) {
 					t.Fatal(err)
 				}
 				open := func() *SQLiteStorage {
-					store, err := OpenSQLite(path, SQLiteOptions{Prefix: prefix})
+					store, err := openFrameSQLiteFixture(t, path, SQLiteOptions{Prefix: prefix})
 					if err != nil {
 						t.Fatal(err)
 					}

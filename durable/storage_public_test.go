@@ -351,7 +351,7 @@ func TestPiDurableV150PublicStorageCommitReplaysCapturedOriginalBatches(t *testi
 	// so the production legacy compatibility path supplies the implicit root, then
 	// reopen. This keeps every captured sequence number and document point intact.
 	path := filepath.Join(t.TempDir(), "store.sqlite")
-	store, err := OpenSQLite(path, SQLiteOptions{})
+	store, err := openFrameSQLiteFixture(t, path, SQLiteOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -361,7 +361,7 @@ func TestPiDurableV150PublicStorageCommitReplaysCapturedOriginalBatches(t *testi
 	if err := store.Close(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	store, err = OpenSQLite(path, SQLiteOptions{})
+	store, err = openFrameSQLiteFixture(t, path, SQLiteOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -786,7 +786,7 @@ func TestV150StorageEmptyBatchRollback(t *testing.T) {
 
 func TestV150StorageEmptyBatchRealRollback(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "store.sqlite")
-	store, err := OpenSQLite(path, SQLiteOptions{})
+	store, err := openFrameSQLiteFixture(t, path, SQLiteOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -802,7 +802,7 @@ func TestV150StorageEmptyBatchRealRollback(t *testing.T) {
 	if err := store.Close(bg); err != nil {
 		t.Fatal(err)
 	}
-	store, err = OpenSQLite(path, SQLiteOptions{})
+	store, err = openFrameSQLiteFixture(t, path, SQLiteOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -883,7 +883,7 @@ func TestV150StorageExplicitIDRaisesAllocator(t *testing.T) {
 		if _, ok := snap(t, reopened).Conversations[fixture.StoredConversation.ID]; !ok {
 			t.Fatal("explicit conversation lost on reopen")
 		}
-		if got := mint(t, reopened); got != fixture.NextMint+1 {
+		if got := mint(t, reopened); got != fixture.NextMint {
 			t.Fatalf("reopened mint %d", got)
 		}
 	})
@@ -918,7 +918,7 @@ func TestV150StorageExplicitIDGroupAndCollisions(t *testing.T) {
 		if err := b.reopen().(*SQLiteStorage).Reclaim(bg); err != nil {
 			t.Fatal(err)
 		}
-		if got := mint(t, b.reopen()); got != 52 {
+		if got := mint(t, b.reopen()); got != 51 {
 			t.Fatalf("checkpoint mint %d", got)
 		}
 	})
@@ -926,7 +926,7 @@ func TestV150StorageExplicitIDGroupAndCollisions(t *testing.T) {
 
 func TestV150StorageExplicitIDRealRollback(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "store.sqlite")
-	store, err := OpenSQLite(path, SQLiteOptions{})
+	store, err := openFrameSQLiteFixture(t, path, SQLiteOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -968,7 +968,7 @@ func TestV150SessionStillRequiresReservedIDs(t *testing.T) {
 func TestV150StorageExplicitIDReplayRejectsForgedHighWater(t *testing.T) {
 	for _, forged := range []int{98, 150} {
 		path := filepath.Join(t.TempDir(), "store.sqlite")
-		store, err := OpenSQLite(path, SQLiteOptions{})
+		store, err := openFrameSQLiteFixture(t, path, SQLiteOptions{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -979,7 +979,7 @@ func TestV150StorageExplicitIDReplayRejectsForgedHighWater(t *testing.T) {
 			t.Fatal(err)
 		}
 		_ = store.Close(bg)
-		if reopened, err := OpenSQLite(path, SQLiteOptions{}); err == nil {
+		if reopened, err := openFrameSQLiteFixture(t, path, SQLiteOptions{}); err == nil {
 			_ = reopened.Close(bg)
 			t.Fatalf("forged high water %d accepted", forged)
 		}
@@ -1062,7 +1062,7 @@ func TestSQLiteRootConfigVersionCompatibility(t *testing.T) {
 // a config the native reader cannot interpret is never upgraded implicitly.
 func TestSQLiteUnknownConfigVersionIsCorrupt(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "state.db")
-	store, err := OpenSQLite(path, SQLiteOptions{})
+	store, err := openFrameSQLiteFixture(t, path, SQLiteOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1072,7 +1072,7 @@ func TestSQLiteUnknownConfigVersionIsCorrupt(t *testing.T) {
 	if err := store.Close(bg); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := OpenSQLite(path, SQLiteOptions{}); !errors.Is(err, ErrCorrupt) {
+	if _, err := openFrameSQLiteFixture(t, path, SQLiteOptions{}); !errors.Is(err, ErrCorrupt) {
 		t.Fatalf("unknown config version: %v", err)
 	}
 }
@@ -1081,7 +1081,7 @@ func TestSQLiteUnknownConfigVersionIsCorrupt(t *testing.T) {
 // reopen can be observed through the production read path.
 func downgradeSQLiteConfigFile(t *testing.T, path string, version uint64) error {
 	t.Helper()
-	store, err := OpenSQLite(path, SQLiteOptions{})
+	store, err := openFrameSQLiteFixture(t, path, SQLiteOptions{})
 	if err != nil {
 		return err
 	}

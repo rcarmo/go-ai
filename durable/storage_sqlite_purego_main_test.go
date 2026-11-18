@@ -289,7 +289,16 @@ func TestMainSQLitePureGoContentionAdmittedCancellationAndCloseOverlap(t *testin
 		t.Run(name, func(t *testing.T) {
 			ctx := context.Background()
 			path := filepath.Join(t.TempDir(), "contended.sqlite")
-			s := mainPureGoSQLiteOpen(t, path)
+			s, err := openFrameSQLiteFixture(t, path, SQLiteOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			seedRootConversation(t, s)
+			t.Cleanup(func() {
+				if err := s.Close(ctx); err != nil {
+					t.Error("SQLite cleanup:", err)
+				}
+			})
 			id, err := s.MintID(ctx)
 			if err != nil {
 				t.Fatal(err)

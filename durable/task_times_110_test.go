@@ -12,7 +12,8 @@ import (
 )
 
 func TestTaskTimes110SessionLifecycleLegacyAndReopen(t *testing.T) {
-	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+	sqliteFrameStoreFresh(t, func(t *testing.T, b sqliteFixture) {
+		seedRootConversation(t, b.store)
 		root := mint(t, b.store)
 		taskID := mint(t, b.store)
 		apply(t, b.store, Write{Op: "create-conversation", Conversation: &Conversation{ID: root}}, Write{Op: "put-task", Task: &Task{ID: taskID, Conversation: root, Kind: "legacy", Status: "pending", Checkpoint: JSON{}}})
@@ -100,7 +101,8 @@ func TestTaskTimes110SessionLifecycleLegacyAndReopen(t *testing.T) {
 }
 
 func TestTaskTimes110StagedFirstAndRollback(t *testing.T) {
-	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+	sqliteFrameStoreFresh(t, func(t *testing.T, b sqliteFixture) {
+		seedRootConversation(t, b.store)
 		root := mint(t, b.store)
 		taskID := mint(t, b.store)
 		apply(t, b.store, Write{Op: "create-conversation", Conversation: &Conversation{ID: root}})

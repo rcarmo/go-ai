@@ -22,7 +22,7 @@ func TestGroupSQLiteCrashChild(t *testing.T) {
 	if !filepath.IsAbs(path) {
 		t.Fatal("child database path must be absolute")
 	}
-	s, err := OpenSQLite(path, SQLiteOptions{Prefix: os.Getenv("GO_AI_GROUP_CRASH_PREFIX")})
+	s, err := openFrameSQLiteFixture(t, path, SQLiteOptions{Prefix: os.Getenv("GO_AI_GROUP_CRASH_PREFIX")})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +100,7 @@ func TestInternalSQLiteGroupCrashRecovery(t *testing.T) {
 						t.Fatalf("receipt evidence=%q read=%v parse=%v", marker, err, parseErr)
 					}
 				}
-				s, err := OpenSQLite(path, SQLiteOptions{Prefix: prefix})
+				s, err := openFrameSQLiteFixture(t, path, SQLiteOptions{Prefix: prefix})
 				if err != nil {
 					t.Fatal(err)
 				}

@@ -22,7 +22,7 @@ func TestMainSQLiteStatementRollbackContinues(t *testing.T) {
 	for _, prefix := range []string{"", "worker_"} {
 		t.Run(prefix, func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "state.db")
-			s, err := OpenSQLite(path, SQLiteOptions{Prefix: prefix})
+			s, err := openFrameSQLiteFixture(t, path, SQLiteOptions{Prefix: prefix})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -59,7 +59,7 @@ func TestMainSQLiteStatementRollbackContinues(t *testing.T) {
 			if err = s.Close(context.Background()); err != nil {
 				t.Fatal(err)
 			}
-			reopened, err := OpenSQLite(path, SQLiteOptions{Prefix: prefix})
+			reopened, err := openFrameSQLiteFixture(t, path, SQLiteOptions{Prefix: prefix})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -81,7 +81,7 @@ func TestMainSQLiteStatementRollbackContinues(t *testing.T) {
 
 func TestMainSQLiteFailedCommitStillPoisons(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "state.db")
-	s, err := OpenSQLite(path, SQLiteOptions{})
+	s, err := openFrameSQLiteFixture(t, path, SQLiteOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +106,7 @@ func TestMainSQLiteFailedCommitStillPoisons(t *testing.T) {
 	if err = s.Close(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	reopened, err := OpenSQLite(path, SQLiteOptions{})
+	reopened, err := openFrameSQLiteFixture(t, path, SQLiteOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,7 +128,7 @@ func TestMainSQLiteFailedCommitStillPoisons(t *testing.T) {
 }
 
 func TestMainSQLiteUnconfirmedRollbackStillPoisons(t *testing.T) {
-	s, err := OpenSQLite(filepath.Join(t.TempDir(), "state.db"), SQLiteOptions{})
+	s, err := openFrameSQLiteFixture(t, filepath.Join(t.TempDir(), "state.db"), SQLiteOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

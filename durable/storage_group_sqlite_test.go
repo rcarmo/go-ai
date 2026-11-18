@@ -47,7 +47,7 @@ func TestInternalSQLiteGroupFaultSettlement(t *testing.T) {
 		for _, mode := range []string{"statement-rollback", "commit-unknown", "rollback-unconfirmed"} {
 			t.Run(prefix+mode, func(t *testing.T) {
 				path := filepath.Join(t.TempDir(), "state.db")
-				s, err := OpenSQLite(path, SQLiteOptions{Prefix: prefix})
+				s, err := openFrameSQLiteFixture(t, path, SQLiteOptions{Prefix: prefix})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -94,7 +94,7 @@ func TestInternalSQLiteGroupFaultSettlement(t *testing.T) {
 				if err := s.Close(bg); err != nil {
 					t.Fatal(err)
 				}
-				s, err = OpenSQLite(path, SQLiteOptions{Prefix: prefix})
+				s, err = openFrameSQLiteFixture(t, path, SQLiteOptions{Prefix: prefix})
 				if err != nil {
 					t.Fatal(err)
 				}

@@ -92,7 +92,7 @@ func TestSourceV152SQLiteRefusesThirdIncarnationAfterReplacement(t *testing.T) {
 // The frame-backed schema has a different SQL layout from upstream. Count
 // real connection calls, including BEGIN/COMMIT, without requiring its eight
 // statements over tables that do not yet exist in the native schema.
-func TestSourceV152SQLiteSmallGroupStatementCount(t *testing.T) {
+func TestLegacySQLiteSmallGroupStatementCount(t *testing.T) {
 	var three, many []string
 	for _, count := range []int{1, 3, 150} {
 		t.Run(strconv.Itoa(count), func(t *testing.T) {
@@ -117,7 +117,7 @@ func TestSourceV152SQLiteSmallGroupStatementCount(t *testing.T) {
 	}
 }
 
-func TestSourceV152SQLiteCompactChunksAndBoundRows(t *testing.T) {
+func TestLegacySQLiteCompactChunksAndBoundRows(t *testing.T) {
 	t.Run("compact arrays split at 512 KiB", func(t *testing.T) {
 		calls := v152SQLiteCommitGroup(t, 100, strings.Repeat("x", 7_000))
 		if len(calls) != 4 {
@@ -161,7 +161,7 @@ func v152SQLiteCommitGroup(t *testing.T, count int, data any) []recordedSQLiteCa
 	limits := DefaultLimits()
 	limits.MaxStringBytes = 512 << 10
 	limits.MaxRecordBytes = 1 << 20
-	sqliteStoreFresh(t, func(t *testing.T, f sqliteFixture) {
+	sqliteFrameStoreFresh(t, func(t *testing.T, f sqliteFixture) {
 		store := f.store.(*SQLiteStorage)
 		setup := []StorageWrite{{Type: "conversation", Value: Conversation{ID: 1}}}
 		documents := make([]ID, count)
@@ -238,7 +238,7 @@ func checkCompactFramePlan(t *testing.T, db sqliteConnection, call recordedSQLit
 	}
 }
 
-func TestSourceV152SQLiteCompactGroupRetainsEscapedData(t *testing.T) {
+func TestLegacySQLiteCompactGroupRetainsEscapedData(t *testing.T) {
 	calls := v152SQLiteCommitGroup(t, 3, "quoted \"text\" and \x00 \u2028 😀")
 	if len(calls) != 3 || !strings.Contains(calls[1].text, "json_each") {
 		t.Fatal("escaped input did not exercise compact frame transport")

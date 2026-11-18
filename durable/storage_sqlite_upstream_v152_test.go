@@ -450,7 +450,7 @@ func TestSourceV152UpstreamSQLiteMintPersistsOnlyWithAcceptedCommit(t *testing.T
 	}
 }
 
-func writeSQLiteMigrationFixture(t *testing.T, path string, statements ...string) {
+func writeSQLiteMigrationFixture(t testing.TB, path string, statements ...string) {
 	t.Helper()
 	uri := url.URL{Scheme: "file", Path: path}
 	connector, err := newSQLiteConnector(uri.String())
@@ -697,5 +697,89 @@ func TestSourceV152SQLitePrunedDocumentAllowsHarnessReopen(t *testing.T) {
 	}
 	if doc, found, err := writer.DocumentAt(bg, 6, DocumentPoint{Seq: 2}); err != nil || !found || doc.Version != 1 || !equalJSONValue(doc.Value, JSON{"text": "after"}) {
 		t.Fatal(doc, found, err)
+	}
+}
+
+func TestSourceV152FreshSQLiteUsesOriginalTables(t *testing.T) {
+	for _, prefix := range []string{"", "tenant_"} {
+		t.Run(prefix, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "fresh.sqlite")
+			store, err := OpenSQLite(path, SQLiteOptions{Prefix: prefix})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer store.Close(bg)
+			var version int
+			if err := store.db.QueryRowContext(bg, "SELECT version FROM "+store.upstreamTable("durable_schema")+" WHERE singleton=1").Scan(&version); err != nil || version != 2 {
+				t.Fatal(version, err)
+			}
+			var nativeTables int
+			if err := store.db.QueryRowContext(bg, "SELECT count(*) FROM sqlite_schema WHERE name IN (?,?,?)", prefix+"config", prefix+"frames", prefix+"checkpoint").Scan(&nativeTables); err != nil || nativeTables != 0 {
+				t.Fatal(nativeTables, err)
+			}
+			id, err := store.MintID(bg)
+			if err != nil || id != 2 {
+				t.Fatal(id, err)
+			}
+			var receipts []publicSQLiteReceipt
+			commit, err := store.Commit(bg, [][]StorageWrite{{{Type: "conversation", Value: Conversation{ID: 1}}, {Type: "entry", Value: Entry{ID: id, Conversation: 1, Kind: "retained", Data: JSON{"retained": true}, HasData: true}}}}, func(i int, seq uint64) { receipts = append(receipts, publicSQLiteReceipt{i, seq}) })
+			if err != nil || commit.Stored != 1 || commit.Refused != nil || !reflect.DeepEqual(receipts, []publicSQLiteReceipt{{0, 1}}) {
+				t.Fatal(commit, receipts, err)
+			}
+			if err := store.Close(bg); err != nil {
+				t.Fatal(err)
+			}
+			view, err := OpenSQLite(path, SQLiteOptions{Prefix: prefix, ReadOnly: true})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer view.Close(bg)
+			entry, found, err := view.Entry(bg, id)
+			if err != nil || !found || entry.CommitSeq != 1 || entry.Entry.Kind != "retained" || !equalJSONValue(entry.Entry.Data, JSON{"retained": true}) {
+				t.Fatal(entry, found, err)
+			}
+		})
+	}
+}
+
+// SQLite identifiers are ASCII-case-insensitive. A namespace already used by
+// a legacy writer must still be detected when its prefix is cased differently.
+func TestSQLiteReopenExistingNamespaceWithDifferentCase(t *testing.T) {
+	for _, legacy := range []bool{true, false} {
+		t.Run(fmt.Sprintf("legacy=%t", legacy), func(t *testing.T) {
+			p := filepath.Join(t.TempDir(), "store.sqlite")
+			var store *SQLiteStorage
+			var err error
+			if legacy {
+				store, err = openFrameSQLiteFixture(t, p, SQLiteOptions{Prefix: "tenant_"})
+			} else {
+				store, err = OpenSQLite(p, SQLiteOptions{Prefix: "tenant_"})
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer store.Close(bg)
+			result, err := store.Commit(bg, [][]StorageWrite{{{Type: "conversation", Value: Conversation{ID: 1}}, {Type: "entry", Value: Entry{ID: 2, Conversation: 1, Kind: "retained"}}}}, nil)
+			if err != nil || result.Refused != nil || result.Stored != 1 {
+				t.Fatal(result, err)
+			}
+			if err := store.Close(bg); err != nil {
+				t.Fatal(err)
+			}
+			for _, readOnly := range []bool{false, true} {
+				store, err = OpenSQLite(p, SQLiteOptions{Prefix: "TENANT_", ReadOnly: readOnly})
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer store.Close(bg)
+				entry, found, err := store.Entry(bg, 2)
+				if err != nil || !found || entry.Entry.Kind != "retained" || entry.CommitSeq != 1 {
+					t.Fatal(entry, found, err)
+				}
+				if err := store.Close(bg); err != nil {
+					t.Fatal(err)
+				}
+			}
+		})
 	}
 }
