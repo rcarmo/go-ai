@@ -3,6 +3,8 @@ package durable
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -67,5 +69,36 @@ func TestSourceV152SQLiteSeedSixPrefix(t *testing.T) {
 		if err != nil || !found || got.CommitSeq != 3 || got.Entry.ID != want.ID || got.Entry.Conversation != want.Conversation || got.Entry.Kind != want.Kind || got.Entry.Head != want.Head || !got.Entry.HasData || !equalJSONValue(got.Entry.Data, want.Data) {
 			t.Fatal(got, found, err, want)
 		}
+	}
+}
+
+// sqlite-storage.test.ts check-read fault recovery: a logical refusal after
+// a valid part retains the source's precise ID diagnostic and receipt.
+func TestSourceV152SQLiteIDRefusalKeepsPrefix(t *testing.T) {
+	s, err := OpenSQLite(filepath.Join(t.TempDir(), "claims.sqlite"), SQLiteOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close(bg)
+	seedRootConversation(t, s)
+	first, after := mint(t, s), mint(t, s)
+	entry := func(id ID) StorageWrite {
+		return StorageWrite{Type: "entry", Value: Entry{ID: id, Conversation: 1, Kind: "note"}}
+	}
+	var receipts []publicSQLiteReceipt
+	r, err := s.Commit(bg, [][]StorageWrite{{entry(first)}, {{Type: "conversation", Value: Conversation{ID: 1}}}, {entry(after)}}, func(i int, seq uint64) { receipts = append(receipts, publicSQLiteReceipt{i, seq}) })
+	var refused *StorageRejected
+	if err != nil || r.Stored != 1 || !errors.As(r.Refused.AsError(), &refused) || refused.Reason != "ID 1 already belongs to conversation" || !reflect.DeepEqual(receipts, []publicSQLiteReceipt{{0, 2}}) {
+		t.Fatalf("result=%+v refusal=%v receipts=%v err=%v", r, r.Refused.AsError(), receipts, err)
+	}
+	if got, found, err := s.Entry(bg, first); err != nil || !found || got.CommitSeq != 2 || got.Entry.Kind != "note" {
+		t.Fatal(got, found, err)
+	}
+	if got, found, err := s.Entry(bg, after); err != nil || found {
+		t.Fatal(got, found, err)
+	}
+	r, err = s.Commit(bg, [][]StorageWrite{{entry(after), entry(after)}}, nil)
+	if err != nil || r.Stored != 0 || !errors.As(r.Refused.AsError(), &refused) || refused.Reason != fmt.Sprintf("ID %d is written more than once", after) {
+		t.Fatal(r.Refused.AsError(), err)
 	}
 }

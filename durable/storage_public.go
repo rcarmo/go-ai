@@ -58,6 +58,9 @@ func publicBatch(base Snapshot, writes []StorageWrite, l Limits) (Batch, error) 
 	if err := checkDocumentCommandMultiplicity(writes); err != nil {
 		return Batch{}, err
 	}
+	if err := checkPublicRecordClaims(base, writes); err != nil {
+		return Batch{}, err
+	}
 	batch := Batch{Writes: make([]Write, 0, len(writes))}
 	for _, command := range writes {
 		write, err := publicWrite(base, command, l)
@@ -67,6 +70,57 @@ func publicBatch(base Snapshot, writes []StorageWrite, l Limits) (Batch, error) 
 		batch.Writes = append(batch.Writes, write)
 	}
 	return batch, nil
+}
+
+// Claims are checked before looking up the document actions. A repeated task
+// or submission is an upsert; conversations, entries and document creates
+// are immutable claims.
+func checkPublicRecordClaims(base Snapshot, writes []StorageWrite) error {
+	seen := make(map[ID]string)
+	for _, command := range writes {
+		id, kind, mutable := publicRecordClaim(command)
+		if kind == "" || id == 0 || uint64(id) > MaxID {
+			continue
+		}
+		existing := snapshotRecordKind(base, id)
+		earlier := seen[id]
+		switch {
+		case existing != "" && (!mutable || existing != kind):
+			return reject(fmt.Sprintf("ID %d already belongs to %s", id, existing))
+		case earlier != "" && !mutable:
+			return reject(fmt.Sprintf("ID %d is written more than once", id))
+		case earlier != "" && earlier != kind:
+			return reject(fmt.Sprintf("ID %d is written as two record types", id))
+		}
+		seen[id] = kind
+	}
+	return nil
+}
+
+func publicRecordClaim(write StorageWrite) (id ID, kind string, mutable bool) {
+	switch write.Type {
+	case "conversation":
+		if r, ok := recordValue[Conversation](write.Value); ok {
+			return r.ID, "conversation", false
+		}
+	case "entry":
+		if r, ok := recordValue[Entry](write.Value); ok {
+			return r.ID, "entry", false
+		}
+	case "task":
+		if r, ok := recordValue[TaskRecord](write.Value); ok {
+			return r.ID, "task", true
+		}
+	case "submission":
+		if r, ok := recordValue[SubmissionRecord](write.Value); ok {
+			return r.ID, "submission", true
+		}
+	case "document.create", "document.copy":
+		if write.Record != nil {
+			return write.Record.ID, "document", false
+		}
+	}
+	return 0, "", false
 }
 
 // Stage document actions before resolving any incarnation, as SQLite does
@@ -254,4 +308,23 @@ func nativeTask(record TaskRecord, l Limits) (Task, error) {
 		task.Status = outcomeRawStatus(record.State.Outcome)
 	}
 	return copyTask(task, l)
+}
+
+func snapshotRecordKind(base Snapshot, id ID) string {
+	if _, ok := base.Conversations[id]; ok {
+		return "conversation"
+	}
+	if _, ok := base.Entries[id]; ok {
+		return "entry"
+	}
+	if _, ok := base.Tasks[id]; ok {
+		return "task"
+	}
+	if _, ok := base.Submissions[id]; ok {
+		return "submission"
+	}
+	if _, ok := base.Documents[id]; ok {
+		return "document"
+	}
+	return ""
 }

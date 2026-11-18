@@ -50,27 +50,9 @@ func (b *sqliteWriteBasis) collect(before Snapshot, writes []Write) {
 }
 
 func (s *SQLiteStorage) checkUpstreamWriteBasis(base Snapshot, b sqliteWriteBasis) error {
-	kindAt := func(id ID) string {
-		if _, ok := base.Conversations[id]; ok {
-			return "conversation"
-		}
-		if _, ok := base.Entries[id]; ok {
-			return "entry"
-		}
-		if _, ok := base.Tasks[id]; ok {
-			return "task"
-		}
-		if _, ok := base.Submissions[id]; ok {
-			return "submission"
-		}
-		if _, ok := base.Documents[id]; ok {
-			return "document"
-		}
-		return ""
-	}
 	missing := 0
 	for id := range b.claims {
-		if kindAt(id) != "" {
+		if snapshotRecordKind(base, id) != "" {
 			missing++
 		}
 	}
@@ -81,7 +63,7 @@ func (s *SQLiteStorage) checkUpstreamWriteBasis(base Snapshot, b sqliteWriteBasi
 		if err := rows.Scan(&id, &kind); err != nil {
 			return err
 		}
-		if kindAt(id) != kind {
+		if snapshotRecordKind(base, id) != kind {
 			return idErr
 		}
 		missing--
