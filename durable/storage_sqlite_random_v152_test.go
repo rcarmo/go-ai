@@ -274,6 +274,7 @@ func TestSourceV152SQLiteSixSeedReceiptsAndTables(t *testing.T) {
 	if err := scanner.Err(); err != nil {
 		t.Fatal(err)
 	}
+	readRecords := randomReadRecords(t)
 	for i, rounds := range cases {
 		t.Run(fmt.Sprint(i+1), func(t *testing.T) {
 			if len(rounds) != 120 {
@@ -311,6 +312,7 @@ func TestSourceV152SQLiteSixSeedReceiptsAndTables(t *testing.T) {
 					}
 				}
 				compareRandomSQLiteTables(t, c.Round, grouped, single)
+				compareRandomReadRecords(t, grouped, readRecords(c.Seed, c.Round))
 				if c.Expected.Refused {
 					refusals++
 					if c.Expected.Stored > 0 {
@@ -371,5 +373,122 @@ func compareRandomSQLiteTables(t *testing.T, round int, grouped, single *SQLiteS
    SELECT MAX(seq) FROM document_revisions WHERE document_id = revision.document_id AND kind = 'base'))`)
 	if len(stale) != 0 {
 		t.Fatalf("round %d has stale current-only rows: %v", round, stale)
+	}
+}
+
+type randomReadRound struct {
+	Seed, Round                                int
+	EntryIDs                                   []ID
+	Conversations, Entries, Tasks, Submissions json.RawMessage
+}
+
+func randomReadRecords(t *testing.T) func(int, int) randomReadRound {
+	t.Helper()
+	f, err := os.Open("testdata/pi-durable-v152/sqlite-random-records.jsonl.gz")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = f.Close() })
+	gz, err := gzip.NewReader(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = gz.Close() })
+	scan := bufio.NewScanner(gz)
+	scan.Buffer(make([]byte, 64<<10), 1<<20)
+	t.Cleanup(func() {
+		if scan.Err() != nil {
+			t.Error(scan.Err())
+		}
+	})
+	cases := make(map[[2]int]randomReadRound, 720)
+	for scan.Scan() {
+		var r randomReadRound
+		if err := json.Unmarshal(scan.Bytes(), &r); err != nil {
+			t.Fatal(err)
+		}
+		key := [2]int{r.Seed, r.Round}
+		if _, ok := cases[key]; ok {
+			t.Fatal("duplicate source read round", key)
+		}
+		cases[key] = r
+	}
+	if err := scan.Err(); err != nil || len(cases) != 720 {
+		t.Fatal(len(cases), err)
+	}
+	return func(seed, round int) randomReadRound {
+		r, ok := cases[[2]int{seed, round}]
+		if !ok {
+			t.Fatalf("no source snapshot for %d/%d", seed, round)
+		}
+		return r
+	}
+}
+
+func collectRandomScan[T any](t *testing.T, scan func(Cursor) (Page[T], error)) []T {
+	t.Helper()
+	records := []T{}
+	var cursor Cursor
+	for {
+		page, err := scan(cursor)
+		if err != nil {
+			t.Fatal(err)
+		}
+		records = append(records, page.Items...)
+		if page.Next == nil {
+			return records
+		}
+		if len(page.Items) == 0 || reflect.DeepEqual(page.Next, cursor) {
+			t.Fatal("non-advancing public cursor")
+		}
+		cursor = page.Next
+	}
+}
+
+func compareRandomReadRecords(t *testing.T, s Storage, want randomReadRound) {
+	t.Helper()
+	conv := collectRandomScan(t, func(c Cursor) (Page[Conversation], error) {
+		return s.ScanConversations(bg, ConversationQuery{}, 128, c)
+	})
+	tasks := collectRandomScan(t, func(c Cursor) (Page[TaskRecord], error) { return s.ScanTasks(bg, TaskQuery{}, 128, c) })
+	subs := collectRandomScan(t, func(c Cursor) (Page[SubmissionRecord], error) {
+		return s.ScanSubmissions(bg, SubmissionQuery{}, 128, c)
+	})
+	entries := make([]map[string]any, 0, len(want.EntryIDs))
+	for _, id := range want.EntryIDs {
+		e, found, err := s.Entry(bg, id)
+		switch {
+		case err != nil:
+			entries = append(entries, map[string]any{"error": err.Error()})
+		case found:
+			entries = append(entries, map[string]any{"value": e})
+		default:
+			entries = append(entries, map[string]any{})
+		}
+	}
+	for _, p := range []struct {
+		name string
+		got  any
+		want json.RawMessage
+	}{{"conversations", conv, want.Conversations}, {"entries", entries, want.Entries}, {"tasks", tasks, want.Tasks}, {"submissions", subs, want.Submissions}} {
+		raw, err := json.Marshal(p.got)
+		if err != nil {
+			t.Fatal(want.Round, p.name, err)
+		}
+		var a, b []any
+		if err := decodePublicJSON(raw, &a); err != nil {
+			t.Fatal(err)
+		}
+		if err := decodePublicJSON(p.want, &b); err != nil {
+			t.Fatal(err)
+		}
+		if len(a) != len(b) {
+			t.Fatalf("round %d %s count %d want %d", want.Round, p.name, len(a), len(b))
+		}
+		for i := range a {
+			if !reflect.DeepEqual(a[i], b[i]) {
+				t.Fatalf("round %d %s[%d] got %#v want %#v", want.Round, p.name, i, a[i], b[i])
+			}
+		}
 	}
 }
