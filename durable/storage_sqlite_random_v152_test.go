@@ -274,7 +274,8 @@ func TestSourceV152SQLiteSixSeedReceiptsAndTables(t *testing.T) {
 	if err := scanner.Err(); err != nil {
 		t.Fatal(err)
 	}
-	readRecords := randomReadRecords(t)
+	readRecords := readRandomFixture[randomReadRound](t, "sqlite-random-records.jsonl.gz")
+	readLinks := readRandomFixture[randomLinkRound](t, "sqlite-random-links.jsonl.gz")
 	for i, rounds := range cases {
 		t.Run(fmt.Sprint(i+1), func(t *testing.T) {
 			if len(rounds) != 120 {
@@ -313,6 +314,7 @@ func TestSourceV152SQLiteSixSeedReceiptsAndTables(t *testing.T) {
 				}
 				compareRandomSQLiteTables(t, c.Round, grouped, single)
 				compareRandomReadRecords(t, grouped, readRecords(c.Seed, c.Round))
+				compareRandomReadLinks(t, grouped, readLinks(c.Seed, c.Round))
 				if c.Expected.Refused {
 					refusals++
 					if c.Expected.Stored > 0 {
@@ -382,41 +384,46 @@ type randomReadRound struct {
 	Conversations, Entries, Tasks, Submissions json.RawMessage
 }
 
-func randomReadRecords(t *testing.T) func(int, int) randomReadRound {
+type randomLinkRound struct {
+	Seed, Round                    int
+	ConversationIDs, SubmissionIDs []ID
+	Transcripts, Requests          json.RawMessage
+}
+
+func readRandomFixture[T any](t *testing.T, name string) func(int, int) T {
 	t.Helper()
-	f, err := os.Open("testdata/pi-durable-v152/sqlite-random-records.jsonl.gz")
+	f, err := os.Open(filepath.Join("testdata/pi-durable-v152", name))
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = f.Close() })
+	defer f.Close()
 	gz, err := gzip.NewReader(f)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = gz.Close() })
+	defer gz.Close()
 	scan := bufio.NewScanner(gz)
 	scan.Buffer(make([]byte, 64<<10), 1<<20)
-	t.Cleanup(func() {
-		if scan.Err() != nil {
-			t.Error(scan.Err())
-		}
-	})
-	cases := make(map[[2]int]randomReadRound, 720)
+	cases := make(map[[2]int]T, 720)
 	for scan.Scan() {
-		var r randomReadRound
+		var key struct{ Seed, Round int }
+		var r T
+		if err := json.Unmarshal(scan.Bytes(), &key); err != nil {
+			t.Fatal(err)
+		}
 		if err := json.Unmarshal(scan.Bytes(), &r); err != nil {
 			t.Fatal(err)
 		}
-		key := [2]int{r.Seed, r.Round}
-		if _, ok := cases[key]; ok {
-			t.Fatal("duplicate source read round", key)
+		k := [2]int{key.Seed, key.Round}
+		if _, ok := cases[k]; ok {
+			t.Fatal("duplicate source read round", k)
 		}
-		cases[key] = r
+		cases[k] = r
 	}
 	if err := scan.Err(); err != nil || len(cases) != 720 {
 		t.Fatal(len(cases), err)
 	}
-	return func(seed, round int) randomReadRound {
+	return func(seed, round int) T {
 		r, ok := cases[[2]int{seed, round}]
 		if !ok {
 			t.Fatalf("no source snapshot for %d/%d", seed, round)
@@ -471,24 +478,64 @@ func compareRandomReadRecords(t *testing.T, s Storage, want randomReadRound) {
 		got  any
 		want json.RawMessage
 	}{{"conversations", conv, want.Conversations}, {"entries", entries, want.Entries}, {"tasks", tasks, want.Tasks}, {"submissions", subs, want.Submissions}} {
-		raw, err := json.Marshal(p.got)
-		if err != nil {
-			t.Fatal(want.Round, p.name, err)
-		}
-		var a, b []any
-		if err := decodePublicJSON(raw, &a); err != nil {
-			t.Fatal(err)
-		}
-		if err := decodePublicJSON(p.want, &b); err != nil {
-			t.Fatal(err)
-		}
-		if len(a) != len(b) {
-			t.Fatalf("round %d %s count %d want %d", want.Round, p.name, len(a), len(b))
-		}
-		for i := range a {
-			if !reflect.DeepEqual(a[i], b[i]) {
-				t.Fatalf("round %d %s[%d] got %#v want %#v", want.Round, p.name, i, a[i], b[i])
-			}
+		compareRandomReadArray(t, want.Round, p.name, p.got, p.want)
+	}
+}
+
+func compareRandomReadArray(t *testing.T, round int, name string, got any, want json.RawMessage) {
+	t.Helper()
+	raw, err := json.Marshal(got)
+	if err != nil {
+		t.Fatal(round, name, err)
+	}
+	var a, b []any
+	if err := decodePublicJSON(raw, &a); err != nil {
+		t.Fatal(err)
+	}
+	if err := decodePublicJSON(want, &b); err != nil {
+		t.Fatal(err)
+	}
+	if len(a) != len(b) {
+		t.Fatalf("round %d %s count %d want %d", round, name, len(a), len(b))
+	}
+	for i := range a {
+		if !reflect.DeepEqual(a[i], b[i]) {
+			t.Fatalf("round %d %s[%d] got %#v want %#v", round, name, i, a[i], b[i])
 		}
 	}
+}
+
+func randomReadResult[T any](value T, found bool, err error) map[string]any {
+	if err != nil {
+		// Compare the typed request reason, not its Go error-class prefix.
+		var invalid *StorageRequestError
+		if errors.As(err, &invalid) {
+			return map[string]any{"error": invalid.Reason}
+		}
+		return map[string]any{"error": err.Error()}
+	}
+	if !found {
+		return map[string]any{}
+	}
+	return map[string]any{"value": value}
+}
+
+func compareRandomReadLinks(t *testing.T, s Storage, want randomLinkRound) {
+	t.Helper()
+	transcripts := make([]map[string]any, 0, len(want.ConversationIDs))
+	requests := make([]map[string]any, 0, len(want.ConversationIDs)*len(want.SubmissionIDs))
+	for _, owner := range want.ConversationIDs {
+		q := EntryQuery{Conversation: owner, Order: Ascending}
+		p, err := s.ScanEntries(bg, q, 128, nil)
+		if err == nil && p.Next != nil {
+			p = Page[Entry]{Items: collectRandomScan(t, func(c Cursor) (Page[Entry], error) { return s.ScanEntries(bg, q, 128, c) })}
+		}
+		transcripts = append(transcripts, randomReadResult(p, err == nil, err))
+		for _, id := range want.SubmissionIDs {
+			r, ok, err := s.SubmissionByRequest(bg, owner, fmt.Sprintf("r%d", id))
+			requests = append(requests, randomReadResult(r, ok, err))
+		}
+	}
+	compareRandomReadArray(t, want.Round, "transcripts", transcripts, want.Transcripts)
+	compareRandomReadArray(t, want.Round, "requests", requests, want.Requests)
 }
