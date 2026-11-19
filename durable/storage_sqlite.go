@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -39,6 +40,9 @@ type SQLiteOptions struct {
 	// ReadOnly opens an existing database without acquiring its writer lock.
 	ReadOnly bool
 	Limits   *Limits
+	// WALAutoCheckpointPages overrides SQLite's 1,000-page writer threshold.
+	// Zero disables automatic checkpoints. Readers ignore this option.
+	WALAutoCheckpointPages *int
 	// Prefix namespaces the tables and indexes. Empty uses unprefixed names.
 	// Changing the prefix opens a separate store; it never migrates existing data.
 	Prefix string
@@ -214,6 +218,11 @@ func OpenSQLite(path string, options SQLiteOptions) (store *SQLiteStorage, err e
 			return nil, err
 		}
 	}
+	if !options.ReadOnly && options.WALAutoCheckpointPages != nil {
+		if err = store.exec("PRAGMA wal_autocheckpoint=" + strconv.Itoa(*options.WALAutoCheckpointPages)); err != nil {
+			return nil, err
+		}
+	}
 	if options.ReadOnly {
 		store.refreshRead = func() error { return store.refreshSQLitePrefix(&readVersion) }
 	} else if store.upstreamSchema {
@@ -228,14 +237,18 @@ func OpenSQLite(path string, options SQLiteOptions) (store *SQLiteStorage, err e
 		store.appendFrames = store.appendSeries
 	}
 	store.finish = func() error {
+		var checkpointErr error
+		if store.upstreamSchema && !store.readOnly && !store.poisoned {
+			checkpointErr = store.exec("PRAGMA wal_checkpoint(TRUNCATE)")
+		}
 		// Conn.Close alone returns it to the pool. Retain the inode lock until
 		// the pool has physically closed the connection as well.
 		connErr := store.db.Close()
 		dbErr := store.pool.Close()
 		if releaseWriter != nil {
-			return errors.Join(connErr, dbErr, releaseWriter())
+			return errors.Join(checkpointErr, connErr, dbErr, releaseWriter())
 		}
-		return errors.Join(connErr, dbErr)
+		return errors.Join(checkpointErr, connErr, dbErr)
 	}
 	return store, nil
 }
