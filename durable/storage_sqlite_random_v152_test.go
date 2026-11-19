@@ -274,8 +274,9 @@ func TestSourceV152SQLiteSixSeedReceiptsAndTables(t *testing.T) {
 	if err := scanner.Err(); err != nil {
 		t.Fatal(err)
 	}
-	readRecords := readRandomFixture[randomReadRound](t, "sqlite-random-records.jsonl.gz")
-	readLinks := readRandomFixture[randomLinkRound](t, "sqlite-random-links.jsonl.gz")
+	readRecords := readRandomFixture[randomReadRound](t, "sqlite-random-records.jsonl.gz", 720)
+	readLinks := readRandomFixture[randomLinkRound](t, "sqlite-random-links.jsonl.gz", 720)
+	readDocuments := readRandomFixture[randomDocumentRound](t, "sqlite-random-documents.jsonl.gz", 726)
 	for i, rounds := range cases {
 		t.Run(fmt.Sprint(i+1), func(t *testing.T) {
 			if len(rounds) != 120 {
@@ -315,6 +316,7 @@ func TestSourceV152SQLiteSixSeedReceiptsAndTables(t *testing.T) {
 				compareRandomSQLiteTables(t, c.Round, grouped, single)
 				compareRandomReadRecords(t, grouped, readRecords(c.Seed, c.Round))
 				compareRandomReadLinks(t, grouped, readLinks(c.Seed, c.Round))
+				compareRandomReadDocuments(t, grouped, readDocuments(c.Seed, c.Round))
 				if c.Expected.Refused {
 					refusals++
 					if c.Expected.Stored > 0 {
@@ -324,6 +326,7 @@ func TestSourceV152SQLiteSixSeedReceiptsAndTables(t *testing.T) {
 					groups++
 				}
 			}
+			compareRandomReadDocuments(t, grouped, readDocuments(i+1, 120))
 			if refusals <= 10 || prefixes <= 10 || groups <= 10 {
 				t.Fatal(refusals, prefixes, groups)
 			}
@@ -390,7 +393,7 @@ type randomLinkRound struct {
 	Transcripts, Requests          json.RawMessage
 }
 
-func readRandomFixture[T any](t *testing.T, name string) func(int, int) T {
+func readRandomFixture[T any](t *testing.T, name string, count int) func(int, int) T {
 	t.Helper()
 	f, err := os.Open(filepath.Join("testdata/pi-durable-v152", name))
 	if err != nil {
@@ -403,8 +406,8 @@ func readRandomFixture[T any](t *testing.T, name string) func(int, int) T {
 	}
 	defer gz.Close()
 	scan := bufio.NewScanner(gz)
-	scan.Buffer(make([]byte, 64<<10), 1<<20)
-	cases := make(map[[2]int]T, 720)
+	scan.Buffer(make([]byte, 64<<10), 2<<20)
+	cases := make(map[[2]int]T, count)
 	for scan.Scan() {
 		var key struct{ Seed, Round int }
 		var r T
@@ -420,7 +423,7 @@ func readRandomFixture[T any](t *testing.T, name string) func(int, int) T {
 		}
 		cases[k] = r
 	}
-	if err := scan.Err(); err != nil || len(cases) != 720 {
+	if err := scan.Err(); err != nil || len(cases) != count {
 		t.Fatal(len(cases), err)
 	}
 	return func(seed, round int) T {
@@ -538,4 +541,82 @@ func compareRandomReadLinks(t *testing.T, s Storage, want randomLinkRound) {
 	}
 	compareRandomReadArray(t, want.Round, "transcripts", transcripts, want.Transcripts)
 	compareRandomReadArray(t, want.Round, "requests", requests, want.Requests)
+}
+
+type randomDocumentRound struct {
+	Seed, Round                       int
+	Points                            []uint64
+	ConversationIDs, TaskIDs          []ID
+	Addresses                         []DocumentCreate
+	Documents, Scopes, FoundAddresses json.RawMessage
+}
+
+// The Go document API exposes these fields flat; the source API nests the
+// lifecycle record within a materialized read and returns just that record for
+// a scope or address lookup. Compare each original field, including presence.
+type randomDocumentRecord struct {
+	*DocumentCreate
+	CreatedAt uint64 `json:"createdAt"`
+	RetiredAt uint64 `json:"retiredAt,omitempty"`
+}
+
+func randomDocumentWire(d Document) randomDocumentRecord {
+	return randomDocumentRecord{storageDocumentCreate(d), d.CreatedAt, d.RetiredAt}
+}
+
+func compareRandomReadDocuments(t *testing.T, s Storage, want randomDocumentRound) {
+	t.Helper()
+	points := []DocumentPoint{CurrentDocumentPoint()}
+	for _, seq := range want.Points {
+		points = append(points, DocumentPoint{Seq: seq})
+	}
+	contents := []map[string]any{}
+	addresses := make([]map[string]any, 0, len(want.Addresses))
+	seen := map[ID]bool{}
+	for _, a := range want.Addresses {
+		if !seen[a.ID] {
+			seen[a.ID] = true
+			for _, point := range points {
+				d, ok, err := s.DocumentAt(bg, a.ID, point)
+				contents = append(contents, randomReadResult(map[string]any{"record": randomDocumentWire(d), "version": d.Version, "value": d.Value, "deltasSinceBase": d.DeltasSinceBase}, ok, err))
+			}
+		}
+		query := DocumentAddress{Scope: a.Scope.Kind, Owner: a.Scope.ConversationID, Kind: a.Kind, Family: a.Key != nil}
+		if a.Scope.Kind == "task" {
+			query.Owner = a.Scope.TaskID
+		}
+		if a.Key != nil {
+			query.Key = *a.Key
+		}
+		d, ok, err := s.FindDocument(bg, query, CurrentDocumentPoint())
+		addresses = append(addresses, randomReadResult(randomDocumentWire(d), ok, err))
+	}
+	scopes := []map[string]any{}
+	addScope := func(kind string, owner ID) {
+		q := DocumentQuery{Scope: kind, Owner: owner, At: CurrentDocumentPoint()}
+		page, err := s.ScanDocuments(bg, q, 128, nil)
+		if err != nil {
+			scopes = append(scopes, randomReadResult(Page[randomDocumentRecord]{}, false, err))
+			return
+		}
+		records := page.Items
+		if page.Next != nil {
+			records = collectRandomScan(t, func(c Cursor) (Page[Document], error) { return s.ScanDocuments(bg, q, 128, c) })
+		}
+		items := make([]randomDocumentRecord, len(records))
+		for i, d := range records {
+			items[i] = randomDocumentWire(d)
+		}
+		scopes = append(scopes, randomReadResult(Page[randomDocumentRecord]{Items: items}, true, nil))
+	}
+	addScope("session", 0)
+	for _, id := range want.ConversationIDs {
+		addScope("conversation", id)
+	}
+	for _, id := range want.TaskIDs {
+		addScope("task", id)
+	}
+	compareRandomReadArray(t, want.Round, "documents", contents, want.Documents)
+	compareRandomReadArray(t, want.Round, "scopes", scopes, want.Scopes)
+	compareRandomReadArray(t, want.Round, "addresses", addresses, want.FoundAddresses)
 }

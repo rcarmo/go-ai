@@ -67,7 +67,7 @@ func (s *SQLiteStorage) readUpstreamCopySource(source DocumentCopySource) (d Doc
 	}
 	d.CreatedAt, d.RetiredAt, d.Retired = record.CreatedAt, record.RetiredAt, record.RetiredAt != 0
 	if !source.At.Current && documentHistory(d) != "rewindable" {
-		return d, false, storageRequest("document does not retain historical content")
+		return d, false, storageRequest("Document " + idText(source.ID) + " does not retain historical content")
 	}
 	if !aliveDocument(d, source.At) {
 		return d, false, nil

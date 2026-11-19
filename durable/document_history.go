@@ -93,7 +93,7 @@ func materializeDocument(s Snapshot, id ID, at DocumentPoint, l Limits) (Documen
 		return Document{}, false, nil
 	}
 	if !at.Current && documentHistory(d) != "rewindable" {
-		return Document{}, false, storageRequest("document does not retain historical content")
+		return Document{}, false, storageRequest("Document " + idText(id) + " does not retain historical content")
 	}
 	if !aliveDocument(d, at) {
 		return Document{}, false, nil

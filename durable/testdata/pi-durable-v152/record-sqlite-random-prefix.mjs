@@ -1,5 +1,5 @@
 // Generate the literal seed-6 prefix from pi v1.5.2 with its own vitest runner.
-// Usage: node record-sqlite-random-prefix.mjs <upstream checkout> <output> [--all|--records|--links]
+// Usage: node record-sqlite-random-prefix.mjs <upstream checkout> <output> [--all|--records|--links|--documents]
 // --all records commits; --records records selected public reads.
 import { createHash } from 'node:crypto';
 import { readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -9,10 +9,11 @@ import { spawnSync } from 'node:child_process';
 import { gzipSync } from "node:zlib";
 
 const [, , root, output, mode] = process.argv;
-if (mode !== undefined && !["--all", "--records", "--links"].includes(mode)) throw Error("unknown recording mode");
+if (mode !== undefined && !["--all", "--records", "--links", "--documents"].includes(mode)) throw Error("unknown recording mode");
 const all = mode !== undefined;
 const records = mode === "--records";
 const links = mode === "--links";
+const documents = mode === "--documents";
 if (!root || !output) throw Error('expected upstream checkout and output path');
 const pkg = join(resolve(root), 'packages/durable');
 const source = readFileSync(join(pkg, 'test/sqlite-commit.test.ts'), 'utf8');
@@ -26,12 +27,19 @@ if (source.split(snapshot).length !== 2 || source.split(anchor).length !== 2) th
 const projection = links
   ? '{ seed, round, conversationIds: [...new Set(world.conversations)], submissionIds: [...new Set(world.submissions)], transcripts: actual.transcripts, requests: actual.requests }'
   : '{ seed, round, entryIds: [...new Set(world.entries)], conversations: actual.conversations, entries: actual.entries, tasks: actual.tasks, submissions: actual.submissions }';
-const copy = 'import { appendFileSync } from "node:fs";\n' + (records || links
-  ? source.replace(snapshot, `await (async () => {
-      const actual = (await snapshot(reference, world, seqs)) as Record<string, unknown>;
-      appendFileSync(process.env.TRACE_OUT!, JSON.stringify(${projection}) + "\\n");
-      return actual;
-    })()`)
+const recordSnapshot = (points, roundNumber) => `await (async () => {
+  const actual = (await snapshot(reference, world, ${points})) as Record<string, unknown>;
+  appendFileSync(process.env.TRACE_OUT!, JSON.stringify(${documents
+    ? `{ seed, round: ${roundNumber}, points: ${points}, conversationIds: world.conversations, taskIds: world.tasks, addresses: world.documents.map(d => d.record), documents: actual.documents, scopes: actual.scopes, foundAddresses: actual.addresses }`
+    : projection}) + "\\n");
+  return actual;
+})()`;
+const finalSnapshot = 'await snapshot(reference, world, world.seqs)';
+if (source.split(finalSnapshot).length !== 2) throw Error('unexpected final source snapshot');
+const copy = 'import { appendFileSync } from "node:fs";\n' + (documents
+  ? source.replace(snapshot, recordSnapshot('seqs', 'round')).replace(finalSnapshot, recordSnapshot('world.seqs', '120'))
+  : records || links
+  ? source.replace(snapshot, recordSnapshot('seqs', 'round'))
   : source.replace(anchor, `${anchor}
     if (${all ? "true" : "seed === 6 && round < 3"}) appendFileSync(process.env.TRACE_OUT!, JSON.stringify({ seed, round, batches, expected }) + "\\n");`));
 const fixture = resolve(output);
@@ -44,7 +52,7 @@ try {
       cwd: pkg, env: { ...process.env, TRACE_OUT: scratch }, stdio: 'inherit',
     });
     const result = readFileSync(scratch, 'utf8');
-    if (run.status !== 0 || result.trimEnd().split('\n').length !== (all ? 720 : 3)) throw Error('recording failed');
+    if (run.status !== 0 || result.trimEnd().split('\n').length !== (documents ? 726 : all ? 720 : 3)) throw Error('recording failed');
     writeFileSync(fixture, all ? gzipSync(result, { level: 9 }) : result);
   } finally {
     rmSync(scratch);
