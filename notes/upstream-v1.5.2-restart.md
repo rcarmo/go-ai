@@ -201,3 +201,9 @@ The initial compiled test failed all five unrelated-read cases (1.233s). Removin
 ## Retry classification for a gateway stream interruption
 
 `packages/ai/test/retry.test.ts:100` maps to the public assistant-error classifier. It now retries the gateway phrase `cut short after the reply had begun`. The translated case failed before the change; a separate control caught broadening the phrase to `cut short`, and another preserves quota-error precedence. The full unchanged source file passed all 39 cases. Focused Go retry regressions passed twice; vet, Staticcheck, logging and diff checks passed.
+
+## Connection error causes
+
+The four new `packages/ai/test/error-body.test.ts` cases map to `WithCauseDetail`, the public normalizer/formatter, and a real OpenAI Completions request to a closed loopback listener. The Go tests compare exact text, including the socket code and address, and confirm that the native socket cause remains available through `errors.Is`. HTTP status or body suppresses cause enrichment. The bounded walk stops at five causes and does not repeat an already printed code.
+
+The compiled red showed both missing nested causes and the native Go `net/http` dial message in place of the pinned OpenAI diagnostic (0.062s). Fault controls detected a shallower walk and enrichment of HTTP errors. All 21 unchanged source cases passed; selected Go regressions passed twice, along with vet, Staticcheck, logging and diff checks. Native formatting of other OpenAI socket failures and other provider adapters was not asserted by this packet.

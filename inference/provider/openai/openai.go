@@ -177,7 +177,7 @@ func streamOpenAI(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 				send(&goai.ErrorEvent{Reason: goai.StopReasonAborted, Err: ctx.Err()})
 			} else {
 				goai.GetLogger().Warn("network error", "provider", model.Provider, "model", model.ID, "error", err)
-				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
+				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: openAIConnectionError(err)})
 			}
 			return
 		}

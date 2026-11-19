@@ -33,6 +33,13 @@ func (e *ProviderRequestError) Error() string {
 	return fmt.Sprintf("provider error: %d", e.Status)
 }
 
+func (e *ProviderRequestError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Cause
+}
+
 type ProviderRetryOptions struct {
 	MaxRetries      int
 	MaxRetryDelay   time.Duration

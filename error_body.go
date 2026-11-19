@@ -3,9 +3,11 @@ package goai
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"reflect"
+	"strconv"
 	"strings"
 
 	"github.com/rcarmo/go-ai/internal/errortext"
@@ -38,12 +40,61 @@ func NormalizeProviderError(err any) NormalizedProviderError {
 		body, hasBody := normalizeProviderErrorBody(pe.ProviderErrorBody())
 		message := pe.Error()
 		carries := !hasBody || strings.Contains(message, body)
+		if !hasStatus && !hasBody {
+			message = WithCauseDetail(pe)
+		}
 		return NormalizedProviderError{Status: status, HasStatus: hasStatus, Body: body, HasBody: hasBody, Message: message, MessageCarriesBody: carries}
 	}
 	if e, ok := err.(error); ok {
-		return NormalizedProviderError{Message: e.Error(), MessageCarriesBody: true}
+		return NormalizedProviderError{Message: WithCauseDetail(e), MessageCarriesBody: true}
 	}
 	return NormalizedProviderError{Message: SafeJSONStringify(err)}
+}
+
+// WithCauseDetail appends the deepest of up to five single-error causes, with
+// its code when available. Already visible detail is not repeated.
+func WithCauseDetail(err error) string {
+	if err == nil {
+		return ""
+	}
+	message := err.Error()
+	var deepest error
+	for depth := 0; depth < 5; depth++ {
+		cause := errors.Unwrap(err)
+		if cause == nil {
+			break
+		}
+		deepest, err = cause, cause
+	}
+	if deepest == nil {
+		return message
+	}
+	detail := deepest.Error()
+	if detail == "" {
+		detail = "Error"
+	}
+	detail = strings.TrimSpace(detail)
+	var code string
+	switch coded := deepest.(type) {
+	case interface{ ErrorCode() string }:
+		code = coded.ErrorCode()
+	case interface{ ErrorCode() int }:
+		code = strconv.Itoa(coded.ErrorCode())
+	}
+	if code != "" && !strings.Contains(detail, code) {
+		if detail == "" {
+			detail = code
+		} else {
+			detail += " (" + code + ")"
+		}
+	}
+	if detail == "" || strings.Contains(message, detail) {
+		return message
+	}
+	if message == "" {
+		return detail
+	}
+	return message + ": " + detail
 }
 
 func normalizeProviderErrorBody(body any, ok bool) (string, bool) {
