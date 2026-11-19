@@ -36,6 +36,32 @@ func (r *ReadLine) check() error {
 	}
 	return r.tx.ctx.Err()
 }
+
+// Entry reads a stored entry by ID, optionally scoped to a conversation.
+func (r *ReadLine) Entry(ids ...ID) (StoredEntry, bool, error) {
+	if err := r.check(); err != nil {
+		return StoredEntry{}, false, err
+	}
+	if len(ids) != 1 && len(ids) != 2 {
+		return StoredEntry{}, false, storageRequest("Storage.entry() requires an entry ID")
+	}
+	if err := checkReadIDs(ids...); err != nil {
+		return StoredEntry{}, false, err
+	}
+	keys := []string{entryKey(ids[len(ids)-1])}
+	if len(ids) == 2 {
+		keys = []string{conversationKey(ids[0]), keys[0]}
+	}
+	if err := r.tx.enterKeys(keys...); err != nil {
+		return StoredEntry{}, false, err
+	}
+	defer r.tx.leave()
+	if s := r.tx.session; s.delegatedStorage || !s.hasNativeReadImage() {
+		return s.guardedStorage().Entry(r.tx.ctx, ids...)
+	}
+	return lookupStoredEntry(r.tx.state, r.tx.limits, ids)
+}
+
 func (r *ReadLine) ScanEntries(q EntryQuery, limit int, cursor Cursor) (Page[Entry], error) {
 	if err := r.check(); err != nil {
 		return Page[Entry]{}, err

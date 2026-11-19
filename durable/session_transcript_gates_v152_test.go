@@ -40,6 +40,13 @@ func (s *transcriptGateStorage) FindLatestHeadMarker(ctx context.Context, conver
 	return s.Storage.FindLatestHeadMarker(ctx, conversation, at)
 }
 
+func (s *transcriptGateStorage) Entry(ctx context.Context, ids ...ID) (StoredEntry, bool, error) {
+	if gate, ok := ctx.(*documentGateContext); ok {
+		ctx = gate.Context
+	}
+	return s.Storage.Entry(ctx, ids...)
+}
+
 type transcriptRead func(*Session, context.Context, ID, func(ID, error) error) error
 
 func transcriptReads() map[string]transcriptRead {
@@ -200,5 +207,112 @@ func TestSourceV152TranscriptReadGates(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// session-group-commit.test.ts:310: the line reads an entry whose creating
+// commit the caller has not awaited. The scoped variant is a supplemental
+// probe of keys.ts: it waits for creation of the fork, not of the entry.
+func TestSourceV152LineEntryAfterUnawaitedCommit(t *testing.T) {
+	t.Run("exact-entry", func(t *testing.T) { testLineEntryAfterUnawaitedCommit(t, false) })
+	t.Run("inherited-entry", func(t *testing.T) { testLineEntryAfterUnawaitedCommit(t, true) })
+}
+
+func testLineEntryAfterUnawaitedCommit(t *testing.T, fork bool) {
+	t.Helper()
+	store, err := openSQLiteTestDirectory(t.TempDir(), SQLiteOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { store.Close(bg) })
+	seedRootConversation(t, store)
+	storage := &transcriptGateStorage{Storage: store, entered: make(chan struct{}), release: make(chan struct{})}
+	s, err := OpenSession(storage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { s.Close(bg) })
+	appendNote := func(tx *Tx) (Entry, error) { return tx.AppendEntry(1, JSON{"kind": "note"}) }
+	var inherited ID
+	if fork {
+		v, err := s.Commit(bg, func(tx *Tx) (any, error) { return appendNote(tx) })
+		if err != nil {
+			t.Fatal(err)
+		}
+		inherited = v.(Entry).ID
+	}
+	release := func() {
+		select {
+		case <-storage.release:
+		default:
+			close(storage.release)
+		}
+	}
+	defer release()
+	storage.hold.Store(true)
+	ctx, cancel := context.WithTimeout(bg, 3*time.Second)
+	defer cancel()
+	leaked := make(chan ID, 1)
+	first := make(chan error, 1)
+	go func() {
+		_, err := s.Commit(ctx, func(tx *Tx) (any, error) {
+			if fork {
+				child, err := tx.ForkConversation(1, inherited, JSON{"ownership": JSON{"kind": "ownerless"}})
+				leaked <- child.ID
+				return nil, err
+			}
+			e, err := appendNote(tx)
+			leaked <- e.ID
+			return nil, err
+		})
+		first <- err
+	}()
+	select {
+	case <-storage.entered:
+	case err := <-first:
+		t.Fatalf("write ended before it reached Storage: %v", err)
+	case <-ctx.Done():
+		t.Fatal("write did not reach Storage")
+	}
+	id := <-leaked
+	ids := []ID{id}
+	entry := id
+	if fork {
+		ids = []ID{id, inherited}
+		entry = inherited
+	}
+	gate := &documentGateContext{Context: ctx, queued: make(chan struct{})}
+	observed := make(chan StoredEntry, 1)
+	done := make(chan error, 1)
+	go func() {
+		done <- s.ReadOnLine(gate, func(line *ReadLine) error {
+			stored, found, err := line.Entry(ids...)
+			observed <- stored
+			if err != nil {
+				return err
+			}
+			if !found {
+				return fmt.Errorf("entry %d not found", entry)
+			}
+			return nil
+		})
+	}()
+	select {
+	case <-gate.queued:
+	case got := <-observed:
+		t.Fatalf("line read ran before publication: %+v", got)
+	case <-ctx.Done():
+		t.Fatal("line read did not reach its entry gate")
+	}
+	release()
+	if err := settleWithinGate(t, done, 3); err != nil {
+		t.Fatal(err)
+	}
+	if err := settleWithinGate(t, first, 3); err != nil {
+		t.Fatal(err)
+	}
+	got := <-observed
+	if got.Entry.ID != entry || got.Entry.Kind != "note" || got.Entry.Conversation != 1 || got.CommitSeq != 2 {
+		t.Fatalf("line entry = %+v, want root note %d at sequence 2", got, entry)
 	}
 }
