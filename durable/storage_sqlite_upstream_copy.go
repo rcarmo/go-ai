@@ -6,6 +6,16 @@ import (
 	"fmt"
 )
 
+type sqliteCopyRejected struct {
+	target ID
+	cause  error
+}
+
+func (e *sqliteCopyRejected) Error() string {
+	return "Document copy " + idText(e.target) + " was rejected"
+}
+func (e *sqliteCopyRejected) Unwrap() error { return e.cause }
+
 // Copy sources read the actual transaction, including prior batches flushed
 // by the same commit. Verify the already staged image before publishing it.
 func (s *SQLiteStorage) checkUpstreamCopySources(base Snapshot, writes []Write) error {
@@ -13,12 +23,12 @@ func (s *SQLiteStorage) checkUpstreamCopySources(base Snapshot, writes []Write) 
 		if w.Op != "copy-document" {
 			continue
 		}
-		if w.Source == nil {
+		if w.Source == nil || w.Document == nil {
 			return ErrCorrupt
 		}
 		got, found, err := s.readUpstreamCopySource(*w.Source)
 		if err != nil {
-			return err
+			return &sqliteCopyRejected{target: w.Document.ID, cause: err}
 		}
 		want, exists, err := materializeDocument(base, w.Source.ID, w.Source.At, s.limits)
 		if err != nil {

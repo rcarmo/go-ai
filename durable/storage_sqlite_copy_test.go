@@ -54,8 +54,11 @@ func TestSourceV152SQLiteCopyReadRollsBackFlushedPrefix(t *testing.T) {
 	var receipts []publicSQLiteReceipt
 	receive := func(i int, seq uint64) { receipts = append(receipts, publicSQLiteReceipt{i, seq}) }
 	r, err = s.Commit(bg, batches, receive)
-	if err != fault.err || !fault.sawPrefix || r.Refused != nil || r.Stored != 0 || len(receipts) != 0 {
-		t.Fatalf("copy fault=%v, saw flushed prefix=%v, result=%+v, receipts=%v", err, fault.sawPrefix, r, receipts)
+	if want := "Document copy " + idText(target) + " was rejected"; err == nil || err.Error() != want || errors.Unwrap(err) != fault.err {
+		t.Fatalf("copy fault=%v, want %q wrapping the exact query error", err, want)
+	}
+	if !fault.sawPrefix || r.Refused != nil || r.Stored != 0 || len(receipts) != 0 {
+		t.Fatalf("saw flushed prefix=%v, result=%+v, receipts=%v", fault.sawPrefix, r, receipts)
 	}
 	s.db = raw
 	if _, ok, err := s.Entry(bg, entry); err != nil || ok {
