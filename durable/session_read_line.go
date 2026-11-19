@@ -2,13 +2,13 @@ package durable
 
 import "context"
 
-// ReadLine is a callback-scoped read capability over one committed Session
-// image. Returned records are detached; escaped or overlapping calls reject.
-// It exposes no storage mutation or allocator capability.
+// ReadLine is a callback-scoped read capability over committed Session state.
+// Each read waits for earlier publications that affect it. Returned records
+// are detached; escaped or overlapping calls reject.
 type ReadLine struct{ tx *Tx }
 
-// ReadOnLine waits for earlier Session publications before invoking read. The
-// callback must not reenter the Session or block awaiting a Session operation.
+// ReadOnLine runs read on the Session line. The callback must not reenter the
+// Session or block awaiting a Session operation.
 func (s *Session) ReadOnLine(ctx context.Context, read func(*ReadLine) error) (err error) {
 	if read == nil {
 		return reject("nil line read callback")
@@ -21,15 +21,11 @@ func (s *Session) ReadOnLine(ctx context.Context, read func(*ReadLine) error) (e
 		s.leave()
 		err = s.deliveredError(outcome, err)
 	}()
-	// Upstream pairs `readOnLine` with `touch`.
-	if err := s.touchAll(ctx); err != nil {
-		return err
-	}
 	state, err := s.taskSnapshot(ctx)
 	if err != nil {
 		return err
 	}
-	tx := &Tx{ctx: ctx, state: state, limits: s.limits, session: s}
+	tx := &Tx{ctx: ctx, state: state, limits: s.limits, session: s, keyedReads: s.hasNativeReadImage()}
 	defer tx.seal()
 	return read(&ReadLine{tx: tx})
 }
@@ -51,7 +47,7 @@ func (r *ReadLine) FindLatestHeadMarker(conversation, at ID) (Entry, bool, error
 		return Entry{}, false, err
 	}
 	if storage := r.tx.delegatedHistoryStorage(); storage != nil {
-		if err := r.tx.enterTableRead("findLatestHeadMarker", ALL_KEYS); err != nil {
+		if err := r.tx.enterTableRead("findLatestHeadMarker", conversationKey(conversation), appendKey(conversation)); err != nil {
 			return Entry{}, false, err
 		}
 		defer r.tx.leave()
@@ -71,7 +67,7 @@ func (t *Tx) delegatedHistoryStorage() *sessionStorage {
 
 // LatestEntryID reads the newest committed visible entry, including fork history.
 func (t *Tx) LatestEntryID(conversation ID) (ID, bool, error) {
-	if err := t.enterTableRead("latestEntryId", ALL_KEYS); err != nil {
+	if err := t.enterTableRead("latestEntryId", conversationKey(conversation), appendKey(conversation)); err != nil {
 		return 0, false, err
 	}
 	defer t.leave()
@@ -90,7 +86,7 @@ func (t *Tx) LatestHeadMarker(conversation ID) (Entry, bool, error) {
 }
 
 func (t *Tx) latestHeadMarkerAt(conversation, at ID) (Entry, bool, error) {
-	if err := t.enterTableRead("latestHeadMarker", ALL_KEYS); err != nil {
+	if err := t.enterTableRead("latestHeadMarker", conversationKey(conversation), appendKey(conversation)); err != nil {
 		return Entry{}, false, err
 	}
 	defer t.leave()

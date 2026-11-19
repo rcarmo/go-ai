@@ -265,7 +265,7 @@ func (t *Tx) ScanConversations(q ConversationQuery, limit int, cursor Cursor) (P
 	return scanConversations(t.state, q, limit, cursor, t.limits)
 }
 func (t *Tx) ScanEntries(q EntryQuery, limit int, cursor Cursor) (Page[Entry], error) {
-	if e := t.enterTableRead("scanEntries", ALL_KEYS); e != nil {
+	if e := t.enterTableRead("scanEntries", conversationKey(q.Conversation), appendKey(q.Conversation)); e != nil {
 		return Page[Entry]{}, e
 	}
 	defer t.leave()
