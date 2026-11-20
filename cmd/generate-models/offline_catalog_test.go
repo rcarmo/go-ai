@@ -11,7 +11,16 @@ import (
 // The released manifest must reach per-provider integrity checks without being
 // mistaken for an unsupported catalogue. Every provider in this copy is wrong.
 func TestSourceV152OfflineCatalogueChecksReleasedManifest(t *testing.T) {
-	data, err := os.ReadFile("testdata/catalog-v1.5.2-manifest.json")
+	testReleasedManifest(t, "v1.5.2", "2026-11-10T12:05:37.628Z", "2026-11-10T12:05:37.629Z")
+}
+
+func TestSourceV160OfflineCatalogueChecksReleasedManifest(t *testing.T) {
+	testReleasedManifest(t, "v1.6.0", "2026-11-20T10:48:49.496Z", "2026-11-20T10:48:49.497Z")
+}
+
+func testReleasedManifest(t *testing.T, version, generatedAt, altered string) {
+	t.Helper()
+	data, err := os.ReadFile("testdata/catalog-" + version + "-manifest.json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,11 +42,11 @@ func TestSourceV152OfflineCatalogueChecksReleasedManifest(t *testing.T) {
 	if _, err := readOfflineCatalog(dir); err == nil || err.Error() != "provider hash mismatch: amazon-bedrock.json" {
 		t.Fatal(err)
 	}
-	mutated := []byte(strings.Replace(string(data), "2026-11-10T12:05:37.628Z", "2026-11-10T12:05:37.629Z", 1))
+	mutated := []byte(strings.Replace(string(data), generatedAt, altered, 1))
 	if err := os.WriteFile(filepath.Join(dir, ".manifest.json"), mutated, 0600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := readOfflineCatalog(dir); err == nil || err.Error() != "invalid v1.5.2 catalog manifest digest" {
+	if _, err := readOfflineCatalog(dir); err == nil || err.Error() != "invalid "+version+" catalog manifest digest" {
 		t.Fatal(err)
 	}
 }

@@ -14,14 +14,14 @@ func TestRegisterBuiltinModels(t *testing.T) {
 	// Check we have the current official upstream release catalog scope.
 	providers := goai.ListProviders()
 	if len(providers) != 42 {
-		t.Fatalf("expected exactly 41 providers from pi-ai v1.5.0, got %d", len(providers))
+		t.Fatalf("expected exactly 42 providers from pi-ai v1.6.0, got %d", len(providers))
 	}
 	total := 0
 	for _, provider := range providers {
 		total += len(goai.ListModels(provider))
 	}
-	if total != 1643 {
-		t.Fatalf("expected exactly 1643 generated models from pi-ai v1.5.2, got %d", total)
+	if total != 1698 {
+		t.Fatalf("expected exactly 1698 generated models from pi-ai v1.6.0, got %d", total)
 	}
 
 	// Check representative provider registries without depending on rotating
@@ -66,9 +66,9 @@ func TestGeneratedModelMetadataParity(t *testing.T) {
 	if opencodeGo == nil || opencodeGo.CompletionsCompat == nil || opencodeGo.CompletionsCompat.ThinkingFormat != "deepseek" {
 		t.Fatalf("expected OpenCode Go DeepSeek Flash thinking format parity, got %#v", opencodeGo)
 	}
-	glm52 := goai.GetModel(goai.ProviderOpenCodeGo, "glm-5.2")
-	if glm52 == nil || glm52.ContextWindow != 1000000 || glm52.MaxTokens != 131072 {
-		t.Fatalf("expected OpenCode Go GLM-5.2 v0.79.7 metadata, got %#v", glm52)
+	glm53 := goai.GetModel(goai.ProviderOpenCodeGo, "glm-5.3")
+	if glm53 == nil || glm53.ContextWindow != 1000000 || glm53.MaxTokens != 131072 {
+		t.Fatalf("expected OpenCode Go GLM-5.3 v1.6.0 metadata, got %#v", glm53)
 	}
 	geminiImage := goai.GetModel(goai.ProviderOpenRouter, "google/gemini-3-pro-image")
 	if geminiImage == nil || geminiImage.Cost.CacheWrite != 0.375 || geminiImage.MaxTokens != 32768 {
@@ -79,17 +79,17 @@ func TestGeneratedModelMetadataParity(t *testing.T) {
 		t.Fatalf("expected OpenRouter Fusion v0.79.8 metadata, got %#v", fusion)
 	}
 	mistralLatest := goai.GetModel(goai.ProviderMistral, "mistral-large-latest")
-	if mistralLatest == nil || mistralLatest.Cost.CacheRead != 0.05 {
+	if mistralLatest == nil || mistralLatest.Cost.CacheRead != 0.07 {
 		t.Fatalf("expected Mistral cache-read pricing metadata, got %#v", mistralLatest)
 	}
 
 	kimi := goai.GetModel(goai.ProviderOpenRouter, "moonshotai/kimi-k2.7-code")
-	if kimi == nil || kimi.Cost.Input != 0.6 || kimi.Cost.Output != 3.5 || kimi.Cost.CacheRead != 0.15 || kimi.ContextWindow != 262144 || kimi.MaxTokens != 235929 || kimi.InputLimits == nil || kimi.InputLimits.Images == nil || kimi.InputLimits.Images.Resize == nil || kimi.InputLimits.Images.Resize.MaxBytes != 4718592 {
-		t.Fatalf("expected OpenRouter Kimi K2.7 Code v1.5.0 metadata and image limits, got %#v", kimi)
+	if kimi == nil || kimi.Cost.Input != 0.6 || kimi.Cost.Output != 3 || kimi.Cost.CacheRead != 0.12 || kimi.ContextWindow != 262144 || kimi.MaxTokens != 235929 || kimi.InputLimits == nil || kimi.InputLimits.Images == nil || kimi.InputLimits.Images.Resize == nil || kimi.InputLimits.Images.Resize.MaxBytes != 4718592 {
+		t.Fatalf("expected OpenRouter Kimi K2.7 Code v1.6.0 metadata and image limits, got %#v", kimi)
 	}
 	openRouterGLM52 := goai.GetModel(goai.ProviderOpenRouter, "z-ai/glm-5.2")
-	if openRouterGLM52 == nil || openRouterGLM52.Cost.Input != 0.006 || openRouterGLM52.Cost.Output != 6.8 || openRouterGLM52.Cost.CacheRead != 0.005 || openRouterGLM52.ContextWindow != 1048576 || openRouterGLM52.MaxTokens != 943718 {
-		t.Fatalf("expected OpenRouter GLM-5.2 v1.5.0 metadata, got %#v", openRouterGLM52)
+	if openRouterGLM52 == nil || openRouterGLM52.Cost.Input != 0.62 || openRouterGLM52.Cost.Output != 2.42 || openRouterGLM52.Cost.CacheRead != 0.14 || openRouterGLM52.ContextWindow != 1048576 || openRouterGLM52.MaxTokens != 943718 {
+		t.Fatalf("expected OpenRouter GLM-5.2 v1.6.0 metadata, got %#v", openRouterGLM52)
 	}
 
 	for _, tc := range []struct {
@@ -117,23 +117,18 @@ func TestGeneratedModelMetadataParity(t *testing.T) {
 	if vercelInkling.Api != goai.ApiAnthropicMessages || vercelInkling.ContextWindow != 256000 || vercelInkling.MaxTokens != 256000 || vercelInkling.BaseURL == "" {
 		t.Fatalf("expected Vercel Inkling v0.80.9 metadata, got %#v", vercelInkling)
 	}
-	// Exact v1.5.0 catalogue: only the paid Vercel Laguna entry remains.
+	// The published v1.6.0 maps have no Laguna variants at these providers.
 	for _, tc := range []struct {
 		provider goai.Provider
 		id       string
-		retained bool
 	}{
-		{goai.ProviderOpenRouter, "poolside/laguna-s-2.1", false},
-		{goai.ProviderOpenRouter, "poolside/laguna-s-2.1:free", false},
-		{goai.ProviderVercelAIGateway, "poolside/laguna-s-2.1", true},
-		{goai.ProviderVercelAIGateway, "poolside/laguna-s-2.1-free", false},
+		{goai.ProviderOpenRouter, "poolside/laguna-s-2.1"},
+		{goai.ProviderOpenRouter, "poolside/laguna-s-2.1:free"},
+		{goai.ProviderVercelAIGateway, "poolside/laguna-s-2.1"},
+		{goai.ProviderVercelAIGateway, "poolside/laguna-s-2.1-free"},
 	} {
-		model := goai.GetModel(tc.provider, tc.id)
-		if (model != nil) != tc.retained {
-			t.Fatalf("v1.5.0 catalogue membership %s/%s retained=%v got=%#v", tc.provider, tc.id, tc.retained, model)
-		}
-		if tc.retained && (model.ContextWindow != 1000000 || model.MaxTokens != 131072) {
-			t.Fatalf("Vercel Laguna v1.5.0 metadata: %#v", model)
+		if model := goai.GetModel(tc.provider, tc.id); model != nil {
+			t.Fatalf("unexpected v1.6.0 catalogue record %s/%s: %#v", tc.provider, tc.id, model)
 		}
 	}
 

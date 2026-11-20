@@ -929,6 +929,10 @@ func readOfflineCatalog(dir string) (map[string]map[string]modelEntry, error) {
 		if len(manifest.Files) != 43 || fmt.Sprintf("%x", sha256.Sum256(data)) != "71375843feaa116c7d928e74e0500a22cc267e12bfb6869efb92dfd39acf7fee" {
 			return nil, fmt.Errorf("invalid v1.5.2 catalog manifest digest")
 		}
+	case "cf81c98674754d33b055b4849f575837848dbaf14f64709a3443a445b4a98a62": // v1.6.0
+		if len(manifest.Files) != 43 || fmt.Sprintf("%x", sha256.Sum256(data)) != "cc46553f3f008788e667600a873d3d83a4df8fe46c67b06c65b16fd828450e8b" {
+			return nil, fmt.Errorf("invalid v1.6.0 catalog manifest digest")
+		}
 	default:
 		return nil, fmt.Errorf("unsupported catalog structure hash %q", manifest.StructureHash)
 	}
