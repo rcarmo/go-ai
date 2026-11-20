@@ -612,51 +612,44 @@ func TestMainSessionSQLiteConfirmedRollbackLatches(t *testing.T) {
 
 	appendNote := func(body string) error {
 		_, err := s.Commit(ctx, func(tx *Tx) (any, error) {
-			id, err := tx.mintID()
-			if err != nil {
-				return nil, err
-			}
-			return nil, tx.appendEntryRecord(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{"body": body}})
+			return tx.AppendEntry(1, JSON{"kind": "note", "data": body})
 		})
 		return err
 	}
 	if err := appendNote("p04-sqlite-kept"); err != nil {
 		t.Fatalf("earlier commit: %v", err)
 	}
-	advances := make(chan sessionPublication, 1)
+	advances := make(chan CommitPublication, 1)
 	endings := make(chan WatchEnd, 1)
-	if _, err := s.observeStoredCommits(sessionCommitObserver{
-		advance: func(_ context.Context, value sessionPublication) error {
+	if _, err := s.ObserveCommits(CommitObserver{
+		Advance: func(_ context.Context, value CommitPublication) error {
 			advances <- value
 			return nil
 		},
-		end: func(value WatchEnd) error {
+		End: func(value WatchEnd) error {
 			endings <- value
 			return nil
 		},
 	}); err != nil {
 		t.Fatal(err)
 	}
-	// Use SQLite's actual frame table and statement-abort semantics; the
-	// transaction rollback is performed by appendSeries, not by this test.
-	if err := store.exec(`CREATE TRIGGER p04_refuse BEFORE INSERT ON frames
-		WHEN NEW.kind=2 AND instr(CAST(NEW.payload AS TEXT), 'p04-sqlite-refused') > 0
+	// Abort a real insert into the original-layout entries table, leaving
+	// transaction rollback to the production SQLite write path.
+	if err := store.exec(`CREATE TRIGGER p04_refuse BEFORE INSERT ON entries
+		WHEN json_extract(NEW.record, '$.data') = 'p04-sqlite-refused'
 		BEGIN SELECT RAISE(ABORT, 'p04 injected SQLite failure'); END`); err != nil {
 		t.Fatal(err)
 	}
 	err = appendNote("p04-sqlite-refused")
 	var failed *SessionFailed
-	var rejected *StorageRejected
-	if !errors.As(err, &rejected) || err != rejected || !errors.As(s.failure(), &failed) || failed.Cause != rejected || errors.Is(err, ErrPoisoned) {
+	if err == nil || err.Error() != "constraint failed: p04 injected SQLite failure (1811)" || errors.As(err, &failed) || errors.Is(err, ErrPoisoned) {
 		t.Fatalf("confirmed rollback classification: %T %v", err, err)
 	}
-	if rejected.Reason != "SQLite frame rejected" {
-		t.Fatalf("confirmed rollback reason: %q", rejected.Reason)
-	}
-	if _, err := s.Snapshot(ctx); !errors.Is(err, rejected) || !errors.As(err, &failed) {
+	rejected := err
+	if _, err := s.Snapshot(ctx); !errors.As(err, &failed) || failed.Cause != rejected {
 		t.Fatalf("later read must retain the first rejection: %v", err)
 	}
-	if err := appendNote("p04-sqlite-later"); !errors.Is(err, rejected) || !errors.As(err, &failed) {
+	if err := appendNote("p04-sqlite-later"); !errors.As(err, &failed) || failed.Cause != rejected {
 		t.Fatalf("later write must retain the first rejection: %v", err)
 	}
 	end, err := s.Closed(ctx)
@@ -680,13 +673,13 @@ func TestMainSessionSQLiteConfirmedRollbackLatches(t *testing.T) {
 	_ = s.Close(ctx)
 	reopened := reopenStoreAfterHarnessClose(t, store)
 	defer reopened.Close(context.Background())
-	snapshot, err := testStorageProjection(reopened).Snapshot(ctx)
+	page, err := reopened.ScanEntries(ctx, EntryQuery{Conversation: 1}, 10, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	var kept, refused, later int
-	for _, entry := range snapshot.Entries {
-		switch legacyEntryValue(entry)["body"] {
+	for _, entry := range page.Items {
+		switch entry.Data {
 		case "p04-sqlite-kept":
 			kept++
 		case "p04-sqlite-refused":
@@ -695,7 +688,7 @@ func TestMainSessionSQLiteConfirmedRollbackLatches(t *testing.T) {
 			later++
 		}
 	}
-	if kept != 1 || refused != 0 || later != 0 {
+	if kept != 1 || refused != 0 || later != 0 || len(page.Items) != 1 || page.Next != nil {
 		t.Fatalf("reopened entries: kept=%d refused=%d later=%d", kept, refused, later)
 	}
 }
