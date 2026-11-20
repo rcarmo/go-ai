@@ -148,3 +148,29 @@ func TestV152RetryGatewayStreamCutShortControls(t *testing.T) {
 		}
 	}
 }
+
+// v1.6.0 packages/ai/test/retry.test.ts: #12124, #12128 and #12064.
+func TestSourceV160RetryConnectionFailures(t *testing.T) {
+	for _, tc := range []struct {
+		text string
+		want bool
+	}{
+		{"Codex error: Responses websocket connection limit reached (60 minutes). Create a new websocket connection to continue.", true},
+		{"Codex error: websocket_connection_limit_reached", true},
+		{"connection limit reached", false},
+		{"read ECONNRESET", true},
+		{"connect ETIMEDOUT 140.82.113.3:443", true},
+		{"write EPIPE", true},
+		{"connect ECONNREFUSED 127.0.0.1:443", true},
+		{"ECONNABORTED", true},
+		{"Connection reset by peer", true},
+		{"Invalid value EXECONNRESET", false},
+		{"Unknown field ETIMEDOUTX", false},
+		{"Invalid key ERR_EPIPE_ID", false},
+		{`{"type":"error","error":{"type":"api_error","message":"Connection closed."}}`, true},
+	} {
+		if got := goai.IsRetryableAssistantError(retryMessage(tc.text)); got != tc.want {
+			t.Errorf("retry(%q) = %v, want %v", tc.text, got, tc.want)
+		}
+	}
+}
