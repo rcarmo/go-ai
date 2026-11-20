@@ -49,3 +49,9 @@ With only the new input field in place, the compiled test timed out waiting for 
 The regeneration gate uses the verified v1.6.0 `pi-ai` archive. Its schema-v6 manifest covers 43 provider files and has SHA-256 `cc46553f3f008788e667600a873d3d83a4df8fe46c67b06c65b16fd828450e8b`. Before the port, the generator rejected the release's structure hash. It now accepts the exact manifest and verifies every provider hash and the record structure. Historical manifest checks remain callable.
 
 The three generated files match fresh generation byte for byte. The public registry comparator matches all 1,698 chat, 74 image and 81 classifier records, not just their IDs. Sample expectations changed only where the published records changed, including Mistral cache pricing, GLM and Kimi metadata, and absent Laguna records. The manifest/provider integrity tests and metadata-corruption self-test passed, as did focused Go tests and 74 unchanged upstream cases in `models-runtime`, `models-entry` and `model-data-validation`. Vet, Staticcheck, logging and diff checks passed.
+
+### Signal definitions
+
+`harness-signals.test.ts:84` maps to `TestSourceV160DefineSignal`. Signal definitions now reject empty or slashed names, zero versions, and non-JSON value types at schema-bearing nodes, including draft-7 dependencies. Annotations are not walked as schemas. A token rejects an empty key and returns the exact signal/key pair for a nonempty key. The constructor's schema is detached from the caller's input.
+
+A compile-ready empty implementation failed the name, version, schema and key assertions. Removing traversal of `dependencies` again failed the nested `bigint` case. The selected unchanged original, focused Go tests, vet, Staticcheck, logging and diff checks passed. This covers construction only; delivery, schema checking of incoming values, waits, expiration and migration are separate assertions.
