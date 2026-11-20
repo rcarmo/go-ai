@@ -2,6 +2,7 @@
 
 Compact index. Read a linked note only when it is relevant to the current task.
 
+- [Upstream v1.6.0 target](../docs/upstream-v1.6.0/README.md) — verified tag, package assets, review inventory and focused consolidation receipts.
 - [Revised alignment findings and fresh plan](../docs/upstream-v1.5.0/alignment-roadmap.md) — all gap groups, current red baseline, corrected diagnoses, priorities and acceptance criteria.
 
 - [Upstream conformance completion report](upstream-conformance-report.md) — latest verified
