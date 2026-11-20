@@ -1,5 +1,7 @@
 package durable
 
+import "slices"
+
 // Source inbox.ts boundary selection. It reads the committed head before the
 // first table write and operates on canonical Inbox items, never placeholder tasks.
 type canonicalBoundary struct {
@@ -132,27 +134,40 @@ func (b *canonicalBoundary) apply(tx *Tx, final bool, now int64) (users []ID, fi
 	return
 }
 func canonicalWithdrawInputs(tx *Tx, conversation ID, reason string) error {
+	_, err := withdrawInboxInputs(tx, conversation, reason, nil, false)
+	return err
+}
+
+func withdrawInboxInputs(tx *Tx, conversation ID, reason string, eligible map[ID]bool, one bool) (bool, error) {
 	doc, err := builtin(tx, conversation, "pi.inbox")
 	if err != nil {
-		return err
+		return false, err
 	}
 	value, err := doc.Get()
 	if err != nil {
-		return err
+		return false, err
 	}
 	items, _ := value["items"].([]any)
-	keep := []any{}
-	for _, raw := range items {
+	keep := make([]any, 0, len(items))
+	changed := false
+	for i := len(items) - 1; i >= 0; i-- {
+		raw := items[i]
 		item := generationObject(raw)
-		if item["mode"] == "write" {
-			keep = append(keep, item)
+		id := submissionEntryID(item["id"])
+		if item["mode"] == "write" || (eligible != nil && !eligible[id]) || (reason == "aborted" && item["onAbort"] == "keep") || (one && changed) {
+			keep = append(keep, raw)
 			continue
 		}
-		if err := tx.SettleSubmission(submissionEntryID(item["id"]), SubmissionSettlement{Status: "unanswered", Reason: reason}); err != nil {
-			return err
+		if err := tx.SettleSubmission(id, SubmissionSettlement{Status: "unanswered", Reason: reason}); err != nil {
+			return false, err
 		}
+		changed = true
 	}
-	return doc.Set(JSON{"items": keep})
+	if !changed {
+		return false, nil
+	}
+	slices.Reverse(keep)
+	return true, doc.Set(JSON{"items": keep})
 }
 func canonicalEndRun(tx *Tx, live JSON, task ID, answer ID, reason string, detail *string, overridden ...SubmissionSettlement) error {
 	run := generationObject(live["run"])

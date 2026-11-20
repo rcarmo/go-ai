@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -307,4 +308,118 @@ func TestCanonicalInboxInputIsPlacementAuthority(t *testing.T) {
 	if err != nil || entry.Kind != "app.canonical" || !entry.HasData || entry.Data != nil || !reflect.DeepEqual(dropinJSON(t, model), dropinJSON(t, []byte(`[{"role":"user","content":[],"timestamp":42}]`))) {
 		t.Fatal("private checkpoint replaced Inbox authority", entry, string(model), err)
 	}
+}
+
+// v1.6.0 harness-input-entries.test.ts:258: the conversation abort leaves
+// kept follow-ups queued, but explicit submission abort still withdraws them.
+func TestSourceV160SubmissionOnAbortKeep(t *testing.T) {
+	store, err := newTestSQLite(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(bg, 15*time.Second)
+	defer cancel()
+	firstStarted, fourthStarted, fourthRelease := make(chan struct{}), make(chan struct{}), make(chan struct{})
+	requests := make(chan goai.Message, 8)
+	var calls atomic.Int32
+	ref, options := setupFakeAPI(t, func(run context.Context, _ *goai.Model, input *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
+		ch := make(chan goai.Event, 1)
+		switch calls.Add(1) {
+		case 1:
+			close(firstStarted)
+			go func() { <-run.Done(); close(ch) }()
+		case 4:
+			close(fourthStarted)
+			go func() {
+				defer close(ch)
+				select {
+				case <-fourthRelease:
+					ch <- terminal("fourth")
+				case <-run.Done():
+				}
+			}()
+		default:
+			if n := len(input.Messages); n != 0 {
+				requests <- input.Messages[n-1]
+			}
+			ch <- terminal("done")
+			close(ch)
+		}
+		return ch
+	})
+	h := openHarness(t, store, options)
+	c := root(t, h, ref)
+	submit := func(draft Input) *SubmissionHandle {
+		t.Helper()
+		s, err := c.Submit(ctx, draft)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return s
+	}
+	await := func(signal <-chan struct{}) {
+		t.Helper()
+		select {
+		case <-signal:
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+	}
+	check := func(s *SubmissionHandle, status, reason string) {
+		t.Helper()
+		settled, err := s.Wait(ctx)
+		if err != nil || settled.Record.Status != status || settled.Record.Reason != reason {
+			t.Fatalf("submission %d = %+v, %v; want %s/%s", s.ID(), settled.Record, err, status, reason)
+		}
+	}
+	input := submit(Input{Type: "input", Content: "a"})
+	await(firstStarted)
+	withdrawn := submit(Input{Type: "input", Content: "w"})
+	data := JSON{"author": "ann", "text": "k"}
+	kept := submit(Input{Type: "input", Content: "k", Entry: &Entry{Kind: "chat.mention", Data: data, HasData: true}, WhenBusy: "followUp", OnAbort: "keep"})
+	if err := c.Abort(ctx); err != nil {
+		t.Fatal(err)
+	}
+	check(withdrawn, "unanswered", "aborted")
+	check(input, "unanswered", "aborted")
+	state, err := h.Snapshot(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inbox := mainContinueBoundaryDocument(t, state, c.ID(), "pi.inbox")
+	want := []any{map[string]any{"id": json.Number(idText(kept.ID())), "mode": "followUp", "content": "k", "entry": map[string]any{"kind": "chat.mention", "data": map[string]any(data)}, "onAbort": "keep"}}
+	if !reflect.DeepEqual(inbox["items"], want) {
+		t.Fatalf("inbox = %#v, want %#v", inbox["items"], want)
+	}
+	if record, err := kept.Status(ctx); err != nil || record.Status != "queued" {
+		t.Fatalf("kept status = %+v, %v", record, err)
+	}
+	if live := mainContinueBoundaryDocument(t, state, c.ID(), "pi.live"); live["run"] != nil {
+		t.Fatalf("kept input started a run: %#v", live)
+	}
+	next := submit(Input{Type: "input", Content: "n"})
+	check(kept, "done", "")
+	check(next, "done", "")
+	for _, wantText := range []string{"k", "n"} {
+		select {
+		case got := <-requests:
+			var text string
+			if len(got.Content) == 1 && got.Content[0].Type == "text" {
+				text = got.Content[0].Text
+			}
+			if got.Role != goai.RoleUser || text != wantText {
+				t.Fatalf("request ends with %+v, want user:%s", got, wantText)
+			}
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+	}
+	running := submit(Input{Type: "input", Content: "b"})
+	await(fourthStarted)
+	explicit := submit(Input{Type: "input", Content: "e", OnAbort: "keep"})
+	if result, err := explicit.Abort(ctx); result != "aborted" || err != nil {
+		t.Fatalf("explicit abort = %q, %v", result, err)
+	}
+	close(fourthRelease)
+	check(running, "done", "")
 }

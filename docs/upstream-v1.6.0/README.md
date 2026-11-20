@@ -37,3 +37,9 @@ The original v1.6.0 files ran unchanged: AI `error-body.test.ts` and `retry.test
 ### Connection retry classification
 
 The 13 new cases in `packages/ai/test/retry.test.ts` map to `TestSourceV160RetryConnectionFailures` in the consolidated retry suite. The public classifier now recognizes both Codex WebSocket lifetime-limit encodings, standalone socket codes, native peer-reset wording, and a gateway's `Connection closed.` error. Generic connection limits and socket codes embedded in identifiers are not retried. Nine positive cases failed before the implementation. Dropping underscore from the boundary caused the exact `ERR_EPIPE_ID` negative case to fail. The 52 unchanged source cases, focused Go regressions, vet, Staticcheck, logging and diff checks passed. This verifies classification, not WebSocket reconnection or session-resource handling.
+
+### Retaining queued input on conversation abort
+
+`harness-input-entries.test.ts:258` maps to `TestSourceV160SubmissionOnAbortKeep`. The native test uses the real Harness on SQLite with channel-controlled provider requests. It checks both aborted settlements, the exact retained inbox item and its entry metadata, queued status without a live run, later placement in provider order, and explicit withdrawal of a kept input.
+
+With only the new input field in place, the compiled test timed out waiting for the ordinary queued input: the old abort path required a placeholder generation task, which canonical inbox-only follow-ups do not have. The current path settles eligible inbox-only inputs and removes them in the same transaction. It leaves queued writes and `onAbort: "keep"` items alone. Removing the keep check emptied the inbox and failed exact equality. All 12 unchanged source cases passed, plus focused Go regressions twice (7.999s), vet, Staticcheck, logging and diff checks. Cascade-specific retained-input assertions are still open.

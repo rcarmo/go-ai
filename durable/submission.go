@@ -27,6 +27,8 @@ type Input struct {
 	WhenBusy string
 	// WhenIdle may be "reject" for input that must not start a new run.
 	WhenIdle string
+	// OnAbort may be "keep" to retain this input while it is queued.
+	OnAbort string
 }
 
 // ConversationBusy identifies the conversation that rejected busy admission.
@@ -414,6 +416,9 @@ func (c *ConversationHandle) admitSubmission(ctx context.Context, tx *Tx, input 
 				mode = "steer"
 			}
 			item = JSON{"id": record.ID, "mode": mode, "content": content}
+			if input.OnAbort == "keep" {
+				item["onAbort"] = "keep"
+			}
 			if input.Entry != nil {
 				metadata := JSON{"kind": input.Entry.Kind}
 				if input.Entry.HasData {

@@ -1498,6 +1498,7 @@ func (h *Harness) withdrawScopedInputs(tx *Tx, conversation ID, cross bool, canc
 }
 func (h *Harness) withdrawScopedInputBatch(tx *Tx, conversation ID, cross bool, cancelledOwners map[ID]bool, one bool) error {
 	affected := map[ID]bool{}
+	inboxOnly := map[ID]map[ID]bool{}
 	state := tx.state
 	var stateErr error
 	if len(tx.writes) > 0 {
@@ -1521,7 +1522,7 @@ func (h *Harness) withdrawScopedInputBatch(tx *Tx, conversation ID, cross bool, 
 		if !selected || submissionEntryID(sub.Value["placedEntry"]) != 0 {
 			continue
 		}
-		queued := false
+		queued, hasQueuedTask := false, false
 		for _, taskID := range ids(tx.state.Tasks) {
 			task := tx.state.Tasks[taskID]
 			if task.Kind != "pi.generation" {
@@ -1532,7 +1533,7 @@ func (h *Harness) withdrawScopedInputBatch(tx *Tx, conversation ID, cross bool, 
 				continue
 			}
 			if cp.Submission == sub.ID && cp.Phase == "queued" && cp.InputEntry == 0 {
-				queued = true
+				queued, hasQueuedTask = true, true
 				if len(h.scheduler.ownedLive(state, task.ID)) > 0 {
 					// Keep the run/submission live while real descendants join;
 					// scheduler abort dispatch later performs terminal cleanup.
@@ -1567,6 +1568,12 @@ func (h *Harness) withdrawScopedInputBatch(tx *Tx, conversation ID, cross bool, 
 			}
 		}
 		if !queued {
+			if !hasQueuedTask {
+				if inboxOnly[sub.Conversation] == nil {
+					inboxOnly[sub.Conversation] = map[ID]bool{}
+				}
+				inboxOnly[sub.Conversation][sub.ID] = true
+			}
 			continue
 		}
 		sub.Status = "aborted"
@@ -1616,6 +1623,22 @@ func (h *Harness) withdrawScopedInputBatch(tx *Tx, conversation ID, cross bool, 
 		// Withdrawal is a final boundary too: queued passive writes survive
 		// cancellation and are placed after the removed inputs.
 		if err := h.placeQueuedWrites(tx, id); err != nil {
+			return err
+		}
+	}
+	if len(inboxOnly) == 0 || (one && len(tx.writes) > 0) {
+		return nil
+	}
+	// Canonical follow-ups are queued in the inbox, without a generation
+	// task of their own until placement. Settle and remove them atomically.
+	for _, id := range ids(state.Documents) {
+		doc := state.Documents[id]
+		eligible := inboxOnly[doc.Owner]
+		if doc.Retired || doc.Scope != "conversation" || doc.Kind != "pi.inbox" || doc.Key != "" || len(eligible) == 0 {
+			continue
+		}
+		changed, err := withdrawInboxInputs(tx, doc.Owner, "aborted", eligible, one)
+		if err != nil || (one && changed) {
 			return err
 		}
 	}
