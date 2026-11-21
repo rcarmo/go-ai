@@ -341,11 +341,18 @@ func TestSourceV160SignalReadAfterWrite(t *testing.T) {
 	}
 }
 
-func signalAskDefinition(t *testing.T, answer *SignalToken, until *int64, parked chan<- error) *TaskDefinition {
+func signalAskDefinition(t *testing.T, answer *SignalToken, until *int64, parked chan<- error, names ...string) *TaskDefinition {
 	t.Helper()
-	key, err := answer.Key("a")
-	if err != nil {
-		t.Fatal(err)
+	if len(names) == 0 {
+		names = []string{"a"}
+	}
+	keys := make([]SignalKey, len(names))
+	for i, name := range names {
+		key, err := answer.Key(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		keys[i] = key
 	}
 	def, err := DefineTask(TaskDefinitionOptions{Kind: "test.ask", Version: 1,
 		Initial: func(any) (JSON, error) { return JSON{"phase": "ask"}, nil },
@@ -357,7 +364,7 @@ func signalAskDefinition(t *testing.T, answer *SignalToken, until *int64, parked
 		Phases: map[string]TaskPhase{
 			"ask": func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
 				err := r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) {
-					return &TaskState{Status: "sleeping", Checkpoint: JSON{"phase": "answered"}, Until: until, Signals: []SignalKey{key}}, nil
+					return &TaskState{Status: "sleeping", Checkpoint: JSON{"phase": "answered"}, Until: until, Signals: keys}, nil
 				})
 				if parked != nil {
 					parked <- err
@@ -365,11 +372,15 @@ func signalAskDefinition(t *testing.T, answer *SignalToken, until *int64, parked
 				return err
 			},
 			"answered": func(ctx context.Context, task TaskRecord, r *TaskRuntime) error {
-				state, err := r.ReadSignal(ctx, answer, "a")
-				if err != nil {
-					return err
+				states := make([]*SignalState, 0, len(names))
+				for _, name := range names {
+					state, err := r.ReadSignal(ctx, answer, name)
+					if err != nil {
+						return err
+					}
+					states = append(states, state)
 				}
-				raw, err := json.Marshal(JSON{"wake": task.State.Wake, "states": []*SignalState{state}})
+				raw, err := json.Marshal(JSON{"wake": task.State.Wake, "states": states})
 				if err != nil {
 					return err
 				}
@@ -1156,6 +1167,133 @@ func TestSourceV160SubmissionNotifications(t *testing.T) {
 				t.Fatalf("waiter outcome = %+v, %v", got.State.Outcome, err)
 			}
 			storage.requireNotified(t, waiter, expected)
+		})
+	}
+}
+
+func TestSourceV160ParallelSignalsComposeDeliveriesInOrder(t *testing.T) {
+	ctx, cancel := context.WithTimeout(bg, 6*time.Second)
+	defer cancel()
+	store, err := newTestSQLite(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	answer := testSignalAnswer(t)
+	def := signalAskDefinition(t, answer, nil, nil, "a", "b")
+	h := taskTestHarness(t, store, def)
+	v, err := h.Commit(ctx, func(tx *Tx) (any, error) {
+		return tx.CreateTask(def, JSON{"keys": []any{"a", "b"}}, TaskOptions{Conversation: 1, Ownership: TaskOwnership{Kind: "conversation"}})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := v.(ID)
+	v, err = h.Commit(ctx, func(tx *Tx) (any, error) {
+		return tx.Signals(SignalDelivery{id, answer, "a", JSON{"text": "first"}}, SignalDelivery{id, answer, "a", JSON{"text": "second"}}, SignalDelivery{id, answer, "b", JSON{"text": "bee"}})
+	})
+	if err != nil || !reflect.DeepEqual(v, []SignalResult{SignalDelivered, SignalDuplicate, SignalDelivered}) {
+		t.Fatalf("deliveries = %v, %v", v, err)
+	}
+	got, err := h.WaitForTask(ctx, id)
+	want := taskDone(map[string]any{"wake": map[string]any{"reason": "signal", "signal": "test.answer", "key": "a"}, "states": []any{map[string]any{"value": map[string]any{"text": "first"}}, map[string]any{"value": map[string]any{"text": "bee"}}}}).Outcome
+	if err != nil || !reflect.DeepEqual(got.State.Outcome, want) {
+		actual, _ := json.Marshal(got.State.Outcome)
+		expected, _ := json.Marshal(want)
+		t.Fatalf("outcome = %s, %v; want %s", actual, err, expected)
+	}
+}
+
+func TestSourceV160SignalReadingVersionsAndMigration(t *testing.T) {
+	for _, name := range []string{"newer", "older-no-migration", "migrated", "invalid-migration"} {
+		t.Run(name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(bg, 6*time.Second)
+			defer cancel()
+			store, err := newTestSQLite(t)
+			if err != nil {
+				t.Fatal(err)
+			}
+			define := func(version uint64, kind string, migrate func(any, uint64) (any, error)) *SignalToken {
+				t.Helper()
+				token, err := DefineSignal(SignalDefinition{Name: "test.versioned", Version: version, Schema: JSON{"type": "object", "properties": JSON{"n": JSON{"type": kind}}, "required": []any{"n"}}, Migrate: migrate})
+				if err != nil {
+					t.Fatal(err)
+				}
+				return token
+			}
+			var deliver, read *SignalToken
+			var payload any
+			wantError := ""
+			switch name {
+			case "newer":
+				deliver, read, payload = define(2, "integer", nil), define(1, "integer", nil), JSON{"n": 2}
+				wantError = "Signal test.versioned value has version 2, newer than 1"
+			case "older-no-migration":
+				deliver, read, payload = define(1, "integer", nil), define(2, "integer", nil), JSON{"n": 1}
+				wantError = "Signal test.versioned has no migration from version 1"
+			default:
+				deliver, payload = define(1, "string", nil), JSON{"n": "42"}
+				read = define(2, "integer", func(value any, version uint64) (any, error) {
+					if version != 1 || !reflect.DeepEqual(value, map[string]any{"n": "42"}) {
+						return nil, fmt.Errorf("migration saw %v, %v", value, version)
+					}
+					if name == "invalid-migration" {
+						return value, nil
+					}
+					return JSON{"n": 42}, nil
+				})
+				if name == "invalid-migration" {
+					wantError = "Signal test.versioned migration from version 1 returned an invalid value"
+				}
+			}
+			proceed := make(chan struct{})
+			results := make(chan struct {
+				State *SignalState
+				Err   error
+			}, 1)
+			def := taskDefinition(t, "test.read-versions", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case <-proceed:
+				}
+				state, err := r.ReadSignal(ctx, read, "k")
+				results <- struct {
+					State *SignalState
+					Err   error
+				}{state, err}
+				return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone(nil), nil })
+			})
+			h := taskTestHarness(t, store, def)
+			defer releaseTaskGate(proceed)
+			v, err := h.Commit(ctx, func(tx *Tx) (any, error) {
+				return tx.CreateTask(def, nil, TaskOptions{Conversation: 1, Ownership: TaskOwnership{Kind: "conversation"}})
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			id := v.(ID)
+			if got, err := h.Signal(ctx, id, deliver, "k", payload); got != SignalDelivered || err != nil {
+				t.Fatalf("deliver = %q, %v", got, err)
+			}
+			releaseTaskGate(proceed)
+			if _, err := h.WaitForTask(ctx, id); err != nil {
+				t.Fatal(err)
+			}
+			select {
+			case got := <-results:
+				if wantError != "" {
+					if got.Err == nil || got.Err.Error() != wantError || got.State != nil {
+						t.Fatalf("read = %+v; want %q", got, wantError)
+					}
+				} else {
+					raw, err := json.Marshal(got.State)
+					if got.Err != nil || err != nil || string(raw) != `{"value":{"n":42}}` {
+						t.Fatalf("read = %s, %v, %v", raw, got.Err, err)
+					}
+				}
+			case <-ctx.Done():
+				t.Fatal(ctx.Err())
+			}
 		})
 	}
 }

@@ -65,6 +65,66 @@ func (t *Tx) Signal(id ID, token *SignalToken, key string, value any) (SignalRes
 	return result, nil
 }
 
+// SignalDelivery describes one delivery in a batch started before table writes.
+type SignalDelivery struct {
+	TaskID ID
+	Token  *SignalToken
+	Key    string
+	Value  any
+}
+
+// Signals admits several deliveries together. It is the synchronous form of
+// starting the source transaction's signal reads together: later deliveries
+// see candidates staged by earlier ones. Sequential Signal calls still use
+// the ordinary read-after-write guard.
+func (t *Tx) Signals(deliveries ...SignalDelivery) ([]SignalResult, error) {
+	if len(deliveries) > t.limits.MaxMembers {
+		return nil, reject("signal delivery count limit")
+	}
+	keys := make([]string, 0, len(deliveries))
+	seen := make(map[ID]bool, len(deliveries))
+	for _, request := range deliveries {
+		if !seen[request.TaskID] {
+			seen[request.TaskID] = true
+			keys = append(keys, taskKey(request.TaskID))
+		}
+	}
+	if err := t.enterTableRead("signal", keys...); err != nil {
+		return nil, err
+	}
+	defer t.leave()
+	results := make([]SignalResult, 0, len(deliveries))
+	for _, request := range deliveries {
+		task, found := t.state.Tasks[request.TaskID]
+		if !found {
+			results = append(results, SignalNotFound)
+			continue
+		}
+		if candidate, exists := t.taskCandidates[request.TaskID]; exists {
+			var err error
+			task, err = nativeTask(candidate, t.limits)
+			if err != nil {
+				return nil, err
+			}
+		}
+		result, replacement, err := t.deliverSignal(task, request.Token, request.Key, request.Value)
+		if err != nil {
+			return nil, err
+		}
+		if replacement != nil {
+			candidate, err := CanonicalTask(*replacement, t.limits)
+			if err != nil {
+				return nil, err
+			}
+			if err := t.stageCanonicalTask(candidate); err != nil {
+				return nil, err
+			}
+		}
+		results = append(results, result)
+	}
+	return results, nil
+}
+
 func (t *Tx) deliverSignal(task Task, token *SignalToken, key string, value any) (SignalResult, *Task, error) {
 	if terminalStatus(task.Status) || taskHasDecidedOutcome(task) || taskAborted(task) {
 		return SignalClosed, nil, nil
