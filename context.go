@@ -435,6 +435,13 @@ func schemaList(raw interface{}) ([]map[string]interface{}, bool) {
 	return out, len(out) > 0
 }
 
+// CheckJSONSchemaValue checks a decoded JSON value without normalizing or
+// coercing it. The schema and value use ordinary decoded JSON containers.
+func CheckJSONSchemaValue(schema map[string]any, value any) bool {
+	validator := newToolSchemaValidator(schema)
+	return validator.schemaAcceptsValue(value, schema) && validator.patternFailure == nil
+}
+
 // Membership checks never coerce: union branch selection must not count a
 // numeric string as an integer or an absent required property as a match.
 func (v *toolSchemaValidator) schemaAcceptsValue(value interface{}, schema map[string]interface{}) bool {

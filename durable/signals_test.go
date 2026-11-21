@@ -1,6 +1,13 @@
 package durable
 
-import "testing"
+import (
+	"context"
+	"encoding/json"
+	"math"
+	"reflect"
+	"testing"
+	"time"
+)
 
 // Official v1.6.0 harness-signals.test.ts:84, defineSignal.
 func TestSourceV160DefineSignal(t *testing.T) {
@@ -35,4 +42,81 @@ func TestSourceV160DefineSignal(t *testing.T) {
 	if key, err := answer.Key("k"); err != nil || key != (SignalKey{Signal: "test.answer", Key: "k"}) {
 		t.Fatalf("signal key = %+v, %v", key, err)
 	}
+}
+
+// Supplemental delivery probe for the data-only part of
+// harness-signals.test.ts:102. A held runtime phase supplies a stable live task;
+// signal-triggered wake is checked separately when signal waits are enabled.
+func TestV160SignalDeliveryStoresOnlyTheWinningJSONValue(t *testing.T) {
+	store, err := newTestSQLite(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(bg, 5*time.Second)
+	defer cancel()
+	entered, finish := make(chan struct{}), make(chan struct{})
+	def := taskDefinition(t, "test.signal.delivery", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+		close(entered)
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-finish:
+		}
+		return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) {
+			return &TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "completed", Result: &TaskValue{Present: true}}}, nil
+		})
+	})
+	h := taskTestHarness(t, store, def)
+	cleanupTaskGates(t, finish)
+	v, err := h.Commit(ctx, func(tx *Tx) (any, error) {
+		return tx.CreateTask(def, nil, TaskOptions{Conversation: 1, Ownership: TaskOwnership{Kind: "conversation"}})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := v.(ID)
+	if err := h.Resume(ctx); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	case <-entered:
+	}
+	definition := func(name string) *SignalToken {
+		t.Helper()
+		token, err := DefineSignal(SignalDefinition{Name: name, Version: 1, Schema: JSON{
+			"type": "object", "properties": JSON{"text": JSON{"type": "string"}}, "required": []any{"text"},
+		}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return token
+	}
+	answer := definition("test.answer")
+	open := definition("test.open")
+	deliver := func(task ID, token *SignalToken, key string, value any, want string) {
+		t.Helper()
+		got, err := h.Signal(ctx, task, token, key, value)
+		if string(got) != want || err != nil {
+			t.Fatalf("signal(%d, %s/%s, %v) = %q, %v; want %q", task, token.Name(), key, value, got, err, want)
+		}
+	}
+	deliver(999999, answer, "a", JSON{"text": "x"}, "not_found")
+	deliver(id, answer, "a", JSON{"text": 1}, "invalid")
+	deliver(id, open, "a", JSON{"text": "x", "n": math.NaN()}, "invalid")
+	payload := JSON{"text": "yes"}
+	deliver(id, answer, "a", payload, "delivered")
+	payload["text"] = "changed"
+	deliver(id, answer, "a", JSON{"text": "again"}, "duplicate")
+	record, found, err := h.Task(ctx, id)
+	if want := map[string]*TaskValue{"pi.signal.test.answer/a": {Present: true, Value: map[string]any{"version": json.Number("1"), "value": map[string]any{"text": "yes"}}}}; err != nil || !found || !reflect.DeepEqual(record.Memos, want) {
+		t.Fatalf("stored memos = %#v, want %#v; found=%v, err=%v", record.Memos, want, found, err)
+	}
+	releaseTaskGate(finish)
+	terminal, err := h.WaitForTask(ctx, id)
+	if err != nil || terminal.State.Outcome == nil || terminal.State.Outcome.Status != "completed" {
+		t.Fatalf("task ended with %+v, %v", terminal, err)
+	}
+	deliver(id, answer, "b", JSON{"text": "late"}, "closed")
 }

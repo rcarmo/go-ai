@@ -27,11 +27,9 @@ type SignalToken struct{ definition SignalDefinition }
 // DefineSignal defines a versioned value that can be delivered to a task.
 func DefineSignal(def SignalDefinition) (*SignalToken, error) {
 	if def.Name == "" || strings.Contains(def.Name, "/") {
-		//lint:ignore ST1005 exact upstream diagnostic
 		return nil, fmt.Errorf("Signal name %q must be non-empty, without \"/\"", def.Name)
 	}
 	if def.Version == 0 {
-		//lint:ignore ST1005 exact upstream diagnostic
 		return nil, fmt.Errorf("Signal %s version must be a positive integer", def.Name)
 	}
 	schema, err := copyObject(def.Schema, DefaultLimits())
@@ -39,7 +37,6 @@ func DefineSignal(def SignalDefinition) (*SignalToken, error) {
 		return nil, err
 	}
 	if invalid := signalNonJSONType(map[string]any(schema)); invalid != "" {
-		//lint:ignore ST1005 exact upstream diagnostic
 		return nil, fmt.Errorf("Signal %s schema admits non-JSON values (%s)", def.Name, invalid)
 	}
 	def.Schema = schema
@@ -58,7 +55,6 @@ func (token *SignalToken) Key(key string) (SignalKey, error) {
 		return SignalKey{}, reject("invalid signal token")
 	}
 	if key == "" {
-		//lint:ignore ST1005 exact upstream diagnostic
 		return SignalKey{}, fmt.Errorf("Signal %s key must be non-empty", token.Name())
 	}
 	return SignalKey{Signal: token.Name(), Key: key}, nil
