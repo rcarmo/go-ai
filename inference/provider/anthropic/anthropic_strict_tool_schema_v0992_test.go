@@ -2,6 +2,7 @@ package anthropic
 
 import (
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -43,8 +44,8 @@ func TestAnthropicStrictToolSchemaSendsFullNormalizedSchema(t *testing.T) {
 		t.Fatalf("legacy strict=%#v, want omitted", legacyTool["strict"])
 	}
 	legacySchema := legacyTool["input_schema"].(map[string]any)
-	if _, ok := legacySchema["additionalProperties"]; ok {
-		t.Fatalf("legacy schema should omit full strict-only metadata: %#v", legacySchema)
+	if additional, ok := legacySchema["additionalProperties"]; !ok || additional != false || len(legacySchema) != 4 {
+		t.Fatalf("legacy schema should preserve the closed-object policy: %#v", legacySchema)
 	}
 	if _, ok := legacySchema["title"]; ok {
 		t.Fatalf("legacy schema should omit title: %#v", legacySchema)
@@ -100,5 +101,28 @@ func TestAnthropicStrictToolSchemaKeepsEagerInputStreamingIndependent(t *testing
 	}
 	if tool["eager_input_streaming"] != true {
 		t.Fatalf("eager_input_streaming=%#v, want true", tool["eager_input_streaming"])
+	}
+}
+
+// Source: anthropic-strict-tool-schema.test.ts, non-strict references, plus
+// schema-valued additional properties to guard against bool-only projection.
+func TestSourceV160AnthropicLegacySchemaReferencesAndAdditionalProperties(t *testing.T) {
+	for _, defs := range []string{"$defs", "definitions"} {
+		t.Run(defs, func(t *testing.T) {
+			parameters := `{"type":"object","properties":{"settings":{"$ref":"#/` + defs + `/Settings"}},"required":["settings"],"` + defs + `":{"Settings":{"type":"object","properties":{"verbose":{"type":"boolean"}}}}}`
+			first := captureFirstStrictTool(t, strictLookupTool(parameters, ""))
+			var want map[string]any
+			if err := json.Unmarshal([]byte(parameters), &want); err != nil {
+				t.Fatal(err)
+			}
+			if first["strict"] != nil || !reflect.DeepEqual(first["input_schema"], want) {
+				t.Fatalf("legacy tool=%v, expected %v", first, want)
+			}
+		})
+	}
+	first := captureFirstStrictTool(t, strictLookupTool(`{"type":"object","additionalProperties":{"type":"string"},"title":"omitted"}`, ""))
+	want := map[string]any{"type": "object", "properties": map[string]any{}, "required": []any{}, "additionalProperties": map[string]any{"type": "string"}}
+	if first["strict"] != nil || !reflect.DeepEqual(first["input_schema"], want) {
+		t.Fatalf("legacy tool=%v, expected %v", first, want)
 	}
 }

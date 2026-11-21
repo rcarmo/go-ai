@@ -139,3 +139,9 @@ The unchanged OpenAI Completions and Mistral tool-schema files passed 52 cases a
 Responses and Codex share a terminal parser for `input_transformations`. It stores one diagnostic for reasoning removals other than normal turn boundaries, preserves unknown reasons and ignores malformed reports. It also records removals on incomplete responses without changing the stop reason. A diagnostic without an error omits the error field on the wire.
 
 All five unchanged `openai-responses-input-transformations.test.ts` cases passed. The native loopback cases check both adapters, exact details, timestamp presence, absence of an error field and malformed-input tolerance. Four positive cases failed on `fd153d4`. Removing the turn-boundary filter added the unwanted entries in both the mixed and boundary-only cases. Focused Go tests passed twice, as did vet and Staticcheck.
+
+### Anthropic non-strict schemas and published cache policy
+
+Anthropic's non-strict tool envelope retains `$defs`, `definitions` and `additionalProperties`, while still dropping unrelated root metadata. This preserves property references and whether a tool accepts extra arguments. The exact shape test failed on `43e8f1c`; dropping `definitions` and `additionalProperties` again reproduced both failures. The three unchanged strict-tool-schema originals passed, as did the focused Go batch twice, vet and Staticcheck.
+
+The nine selected `cache-retention.test.ts` catalog cases passed without credentials. The native catalog check also found no inferred warming policy on those models, including GPT-6.2 Astra and Sol. No production cache change was needed for these cases; the unselected live cases are not accepted by this receipt.
