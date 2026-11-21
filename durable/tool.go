@@ -516,6 +516,8 @@ func checkSchema(s JSON, v any, depth int) error {
 // ToolResult application updates and usage are adopted with the tool outcome.
 // Commit callbacks do not escape invocation scope. Error text is a fixed code.
 type ToolResult struct {
+	// Park suspends execution instead of producing a terminal result.
+	Park                *ToolPark
 	StructuredOutput    any
 	HasStructuredOutput bool // distinguishes explicit JSON null from absence
 	Content             string
@@ -573,6 +575,9 @@ type toolCheckpoint struct {
 // ToolAPI publishes only bounded committed prefixes while the invocation lives.
 // Output is fenced after return/abort; application mutation belongs to Commit.
 type ToolAPI struct {
+	// Wake and Checkpoint are supplied when executing a previously parked call.
+	Wake                *WakeReason
+	Checkpoint          any
 	canonicalInput      canonicalToolInput
 	nested              bool
 	mu                  sync.Mutex

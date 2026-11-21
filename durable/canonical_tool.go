@@ -10,15 +10,14 @@ import (
 	"unicode/utf8"
 )
 
-// ToolTask is the source pi.tool v3 token. Its durable state contains only the
-// call/execute union; transient host selection and progress are not checkpoints.
+// ToolTask is the source pi.tool v4 token for call, execute and parked states.
 var canonicalToolOnce sync.Once
 var canonicalToolDefinition *TaskDefinition
 
 func ToolTask() *TaskDefinition {
 	canonicalToolOnce.Do(func() {
 		var err error
-		canonicalToolDefinition, err = DefineTask(TaskDefinitionOptions{Kind: "pi.tool", Version: 3, Initial: func(any) (JSON, error) { return JSON{"phase": "call"}, nil }, Migrate: func(input, checkpoint any, version uint64) (any, JSON, error) {
+		canonicalToolDefinition, err = DefineTask(TaskDefinitionOptions{Kind: "pi.tool", Version: 4, Initial: func(any) (JSON, error) { return JSON{"phase": "call"}, nil }, Migrate: func(input, checkpoint any, version uint64) (any, JSON, error) {
 			if version == 1 {
 				out := JSON{"kind": "model"}
 				for key, value := range generationObject(input) {
@@ -27,7 +26,7 @@ func ToolTask() *TaskDefinition {
 				input = out
 			}
 			return input, taskCheckpointMap(checkpoint), nil
-		}, Phases: map[string]TaskPhase{"call": canonicalToolCallPhase, "execute": canonicalToolExecutePhase}, Abort: canonicalToolAbort})
+		}, Phases: map[string]TaskPhase{"call": canonicalToolCallPhase, "execute": canonicalToolExecutePhase, "parked": canonicalToolParkedPhase}, Abort: canonicalToolAbort})
 		if err != nil {
 			panic(err)
 		}
@@ -235,7 +234,7 @@ func canonicalToolCallPhase(ctx context.Context, task TaskRecord, r *TaskRuntime
 	}); err != nil {
 		return err
 	}
-	return runCanonicalTool(ctx, r, input, call, agent, reg, args)
+	return runCanonicalTool(ctx, r, input, call, agent, reg, args, toolResume{})
 }
 
 func canonicalToolExecutePhase(ctx context.Context, task TaskRecord, r *TaskRuntime) error {
@@ -268,7 +267,7 @@ func canonicalToolExecutePhase(ctx context.Context, task TaskRecord, r *TaskRunt
 		}); err != nil {
 			return err
 		}
-		return runCanonicalTool(ctx, r, input, call, agent, reg, args)
+		return runCanonicalTool(ctx, r, input, call, agent, reg, args, resumedToolFromCheckpoint(cp))
 	}
 	message := fmt.Sprintf("Tool %s was interrupted and may have partially run", call.Name)
 	result, err := canonicalToolFromSlot(ctx, r, "interrupted", message)
@@ -384,8 +383,17 @@ func canonicalToolFromSlot(ctx context.Context, r *TaskRuntime, code, message st
 	return result, err
 }
 
-func runCanonicalTool(ctx context.Context, r *TaskRuntime, input canonicalToolInput, call goai.ToolCall, agent agentState, reg registeredTool, args any) (finalErr error) {
-	api := &ToolAPI{h: r.harness, task: Task{ID: r.taskID, Conversation: r.conversation}, checkpoint: toolCheckpoint{Offer: reg.offer, CallID: call.ID}, active: true, ctx: ctx, runtime: r, canonicalInput: input}
+func runCanonicalTool(ctx context.Context, r *TaskRuntime, input canonicalToolInput, call goai.ToolCall, agent agentState, reg registeredTool, args any, resumed toolResume) (finalErr error) {
+	api := &ToolAPI{Wake: resumed.wake, Checkpoint: resumed.checkpoint, h: r.harness, task: Task{ID: r.taskID, Conversation: r.conversation}, checkpoint: toolCheckpoint{Offer: reg.offer, CallID: call.ID}, active: true, ctx: ctx, runtime: r, canonicalInput: input}
+	if resumed.wake != nil {
+		if err := r.harness.session.readTasks(ctx, func(state Snapshot) error {
+			var err error
+			api.checkpoint, err = toolPresentation(state, state.Tasks[r.taskID], api.checkpoint, r.harness.session.limits)
+			return err
+		}); err != nil {
+			return err
+		}
+	}
 	interval := int64(100)
 	if p := r.harness.resolvedSettings(RequestSettings{}).Progress; p.OutputIntervalMs != nil {
 		interval = *p.OutputIntervalMs
@@ -426,6 +434,30 @@ func runCanonicalTool(ctx context.Context, r *TaskRuntime, input canonicalToolIn
 	// cancelled. Only a normal late return proceeds through finalResult hooks.
 	if executionFailed && ctx.Err() != nil {
 		return ctx.Err()
+	}
+	if err == nil && result.Park != nil {
+		var parkErr error
+		if result.Content != "" || result.Blocks != nil || result.HasStructuredOutput || result.StructuredOutput != nil || result.Details != nil || result.HasDetails || result.DetailsValue != nil || result.Diagnostics != nil || result.IsError || result.Control != nil || result.Usage != nil || result.Commit != nil {
+			parkErr = reject("tool park cannot include a result")
+		} else {
+			checkpointArgs := args
+			if call.HasStreamingArguments() {
+				checkpointArgs = sourceToolArguments{args}
+			}
+			parkErr = canonicalParkTool(ctx, r, api, reg, checkpointArgs, result.Park)
+		}
+		if parkErr == nil {
+			return nil
+		} else if ctx.Err() != nil {
+			return ctx.Err()
+		} else {
+			message := fmt.Sprintf("Tool %s returned an invalid park: %v", call.Name, parkErr)
+			result, hookErr := canonicalToolHooks(ctx, r, agent, call, canonicalToolError("invalid_park", message))
+			if hookErr != nil {
+				return hookErr
+			}
+			return settleCanonicalTool(ctx, r, input, call, reg, result, "failed", fmt.Sprintf("Tool %s returned an invalid park", call.Name), nil)
+		}
 	}
 	api.mu.Lock()
 	if result.Content == "" && result.Blocks == nil {
@@ -584,7 +616,12 @@ func settleCanonicalTool(ctx context.Context, r *TaskRuntime, input canonicalToo
 			}
 		}
 	}
-	return r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
+	return r.Commit(ctx, func(tx *Tx, current TaskRecord) (*TaskState, error) {
+		now := r.harness.session.now()
+		if current.StartedAt != nil {
+			elapsed := now - *current.StartedAt
+			duration = &elapsed
+		}
 		if owned.Commit != nil {
 			if err := callToolOutcome(owned.Commit, tx); err != nil {
 				return nil, err
@@ -637,7 +674,7 @@ func settleCanonicalTool(ctx context.Context, r *TaskRuntime, input canonicalToo
 			}
 			settled = JSON{"kind": "nested"}
 		} else {
-			receipt := MessageReceipt{ImageChunks: owned.imageChunks, Role: goai.RoleToolResult, ToolCallID: call.ID, ToolName: call.Name, Content: content, IsError: owned.IsError, Diagnostics: owned.Diagnostics, Timestamp: r.harness.session.now(), DurationMs: duration, Details: owned.Details, DetailsValue: owned.DetailsValue, HasDetails: owned.HasDetails, Usage: owned.Usage}
+			receipt := MessageReceipt{ImageChunks: owned.imageChunks, Role: goai.RoleToolResult, ToolCallID: call.ID, ToolName: call.Name, Content: content, IsError: owned.IsError, Diagnostics: owned.Diagnostics, Timestamp: now, DurationMs: duration, Details: owned.Details, DetailsValue: owned.DetailsValue, HasDetails: owned.HasDetails, Usage: owned.Usage}
 			for _, diagnostic := range owned.Diagnostics {
 				if diagnostic.argumentError {
 					receipt.ErrorCode = "invalid_arguments"

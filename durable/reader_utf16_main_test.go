@@ -210,7 +210,7 @@ func TestReaderUTF16MainCommittedEventsAndSnapshot(t *testing.T) {
 				requireToolUTF16(t, taskCheckpointMap(taskCheckpointMap(roundtrip.State.Checkpoint)["arguments"])[key], 0xd800)
 				// Only transform an actual production record for negative parser
 				// checks; no fabricated checkpoint can drive this fixture.
-				for _, change := range [][2]string{{`"kind":"pi.tool"`, `"kind":"app.other"`}, {`"version":3`, `"version":4`}, {`"phase":"execute"`, `"phase":"call"`}, {`"arguments":`, `"other":`}} {
+				for _, change := range [][2]string{{`"kind":"pi.tool"`, `"kind":"app.other"`}, {`"version":4`, `"version":5`}, {`"phase":"execute"`, `"phase":"call"`}, {`"arguments":`, `"other":`}} {
 					if bytes.Count(wire, []byte(change[0])) != 1 {
 						t.Fatal("mutation target", change[0])
 					}

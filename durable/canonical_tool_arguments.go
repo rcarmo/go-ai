@@ -10,7 +10,7 @@ import (
 	"github.com/rcarmo/go-ai/internal/jsonparse"
 )
 
-// A Tool3 execute checkpoint is a source tool-argument domain, not arbitrary
+// A Tool3/Tool4 execute or parked checkpoint is a source tool-argument domain, not arbitrary
 // checkpoint JSON. Qualify it through the surrounding typed task record.
 func canonicalToolArgumentsRaw(raw []byte, base int, typ reflect.Type) (rangeRawField, bool, error) {
 	if typ != reflect.TypeFor[Task]() && typ != reflect.TypeFor[TaskRecord]() {
@@ -53,7 +53,7 @@ func canonicalToolArgumentsRaw(raw []byte, base int, typ reflect.Type) (rangeRaw
 		version, state = field(fields, "version"), field(fields, "state")
 	}
 	var revision uint64
-	if json.Unmarshal(version.raw, &revision) != nil || revision != 3 {
+	if json.Unmarshal(version.raw, &revision) != nil || (revision != 3 && revision != 4) {
 		return rangeRawField{}, false, nil
 	}
 	fields, err = rangeObject(state.raw, state.start)
@@ -67,7 +67,7 @@ func canonicalToolArgumentsRaw(raw []byte, base int, typ reflect.Type) (rangeRaw
 	}
 	phase := field(fields, "phase")
 	var at string
-	if json.Unmarshal(phase.raw, &at) != nil || at != "execute" {
+	if json.Unmarshal(phase.raw, &at) != nil || (at != "execute" && !(revision == 4 && at == "parked")) {
 		return rangeRawField{}, false, nil
 	}
 	arguments := field(fields, "arguments")

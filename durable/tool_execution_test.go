@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	goai "github.com/rcarmo/go-ai"
+	"reflect"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -377,7 +379,7 @@ func TestToolRoundReadsLiveHostModeAndKeepsRoundDecision(t *testing.T) {
 					}
 					tools++
 					record, found, err := h.Task(bg, id)
-					if err != nil || !found || record.Kind != "pi.tool" || record.Version != 3 || record.Owner == 0 {
+					if err != nil || !found || record.Kind != "pi.tool" || record.Version != 4 || record.Owner == 0 {
 						t.Fatal("canonical tool ownership", record, err)
 					}
 				}
@@ -390,6 +392,271 @@ func TestToolRoundReadsLiveHostModeAndKeepsRoundDecision(t *testing.T) {
 					t.Fatal("round completion", result.Record, requests.Load(), prepared.Load())
 				}
 			})
+		})
+	}
+}
+
+// Capture the actual accepted task write rather than polling for a parked task.
+type toolParkTestStorage struct {
+	Storage
+	parked chan ID
+}
+
+func (s *toolParkTestStorage) Commit(ctx context.Context, batches [][]StorageWrite, receive func(int, uint64)) (CommitResult, error) {
+	return s.Storage.Commit(ctx, batches, func(index int, seq uint64) {
+		for _, write := range batches[index] {
+			if record, ok := recordValue[TaskRecord](write.Value); write.Type == "task" && ok && record.Kind == "pi.tool" && record.State.Status == "sleeping" {
+				s.parked <- record.ID
+			}
+		}
+		if receive != nil {
+			receive(index, seq)
+		}
+	})
+}
+
+func TestSourceV160CanonicalToolSignalPark(t *testing.T) {
+	t.Run("live", func(t *testing.T) { testV160CanonicalToolSignalPark(t, false) })
+	t.Run("reopened", func(t *testing.T) { testV160CanonicalToolSignalPark(t, true) })
+}
+
+func testV160CanonicalToolSignalPark(t *testing.T, reopen bool) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(bg, 8*time.Second)
+	defer cancel()
+	native, err := newTestSQLite(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	storage := &toolParkTestStorage{Storage: native, parked: make(chan ID, 4)}
+	done, err := DefineSignal(SignalDefinition{Name: "test.done", Version: 1, Schema: JSON{"type": "string"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	key, err := done.Key("done")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var calls atomic.Int32
+	seen := make(chan JSON, 2)
+	ref, options := setupFakeAPI(t, func(_ context.Context, _ *goai.Model, conversation *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
+		ch := make(chan goai.Event, 1)
+		if calls.Add(1) == 1 {
+			ch <- toolAnswer("ci", "ci", JSON{})
+		} else {
+			for _, message := range conversation.Messages {
+				if message.Role == goai.RoleToolResult && message.ToolCallID == "ci" {
+					var text string
+					for _, block := range message.Content {
+						text += block.Text
+					}
+					if message.IsError || !strings.Contains(text, "passed") || !strings.Contains(text, "run 1") || strings.Contains(text, "old progress") {
+						t.Errorf("resumed tool result = %+v / %q", message, text)
+					}
+				}
+			}
+			ch <- terminal("done")
+		}
+		close(ch)
+		return ch
+	})
+	wakeEvents := make(chan Wake, 32)
+	options.OnWake = func(w Wake) { wakeEvents <- w }
+	options.Registry = NewRegistry()
+	if err := options.Registry.Register(ToolRegistration{Definition: goai.Tool{Name: "ci", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "test.ci", Version: 1,
+		Execute: func(ctx context.Context, _ any, api *ToolAPI) (ToolResult, error) {
+			seen <- JSON{"wake": api.Wake, "checkpoint": api.Checkpoint}
+			if api.Wake == nil {
+				if err := api.Output("old progress"); err != nil {
+					return ToolResult{}, err
+				}
+				if err := api.Details(JSON{"build": 1}); err != nil {
+					return ToolResult{}, err
+				}
+				if err := api.Diagnostic(ToolDiagnostic{Severity: "info", Message: "run 1"}); err != nil {
+					return ToolResult{}, err
+				}
+				return ToolResult{Park: &ToolPark{Sleep: &ToolSleep{Signals: []SignalKey{key}, Checkpoint: JSON{"build": 1}}}}, nil
+			}
+			state, err := api.ReadSignal(ctx, done, "done")
+			if err != nil || state == nil {
+				return ToolResult{}, fmt.Errorf("signal state = %v: %v", state, err)
+			}
+			return ToolResult{Content: fmt.Sprint(state.Value)}, nil
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	h := openHarness(t, storage, options)
+	conversation := root(t, h, ref)
+	sub, err := conversation.Submit(ctx, Input{Type: "input", Content: "go"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var id ID
+	select {
+	case id = <-storage.parked:
+	case <-ctx.Done():
+		t.Fatal("tool did not park", ctx.Err())
+	}
+	record, found, err := h.Task(ctx, id)
+	if err != nil || !found || record.Version != 4 || record.State.Status != "sleeping" || record.State.Until != nil || !reflect.DeepEqual(record.State.Signals, []SignalKey{key}) || !equalJSONValue(record.State.Checkpoint, JSON{"phase": "parked", "arguments": JSON{}, "replay": "unsafe", "checkpoint": JSON{"build": 1}}) {
+		t.Fatalf("parked task = %+v, %v", record, err)
+	}
+	state, err := h.Snapshot(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	live := mainContinueBoundaryDocument(t, state, conversation.ID(), "pi.live")
+	slot := canonicalToolSlot(live, id)
+	if slot["status"] != "sleeping" || !equalJSONValue(slot["details"], JSON{"build": 1}) || slot["output"] != nil || len(slot["diagnostics"].([]any)) != 1 {
+		t.Fatalf("parked slot = %v", slot)
+	}
+	awaitWake140(t, wakeEvents, false, nil)
+	if reopen {
+		submissionID := sub.ID()
+		if err := h.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+		reopened := &toolParkTestStorage{Storage: reopenStoreAfterHarnessClose(t, native), parked: make(chan ID, 4)}
+		wakeEvents = make(chan Wake, 32)
+		options.OnWake = func(w Wake) { wakeEvents <- w }
+		h = openHarness(t, reopened, options)
+		if wake, err := h.Wake(ctx); err != nil || wake != (Wake{}) || len(seen) != 1 {
+			t.Fatalf("reopened park = %+v, %v; runs=%d", wake, err, len(seen))
+		}
+		sub, err = h.Submission(ctx, submissionID)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if result, err := h.Signal(ctx, id, done, "done", "passed"); err != nil || result != SignalDelivered {
+		t.Fatalf("signal = %q, %v", result, err)
+	}
+	if result, err := sub.Wait(ctx); err != nil || result.Record.Status != "done" {
+		t.Fatalf("submission = %+v, %v", result.Record, err)
+	}
+	if len(seen) != 2 {
+		t.Fatalf("tool invocations = %d; want two", len(seen))
+	}
+	first, second := <-seen, <-seen
+	if first["wake"] != (*WakeReason)(nil) || first["checkpoint"] != nil || !reflect.DeepEqual(second["wake"], &WakeReason{Reason: "signal", Signal: "test.done", Key: "done"}) || !equalJSONValue(second["checkpoint"], JSON{"build": 1}) || calls.Load() != 2 {
+		t.Fatalf("calls = %v, %v; provider calls=%d", first, second, calls.Load())
+	}
+}
+
+func TestSourceV160CanonicalToolTimedAndInvalidParks(t *testing.T) {
+	for _, mode := range []string{"time", "mixed", "result", "empty", "unowned", "reused"} {
+		t.Run(mode, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(bg, 8*time.Second)
+			defer cancel()
+			native, err := newTestSQLite(t)
+			if err != nil {
+				t.Fatal(err)
+			}
+			storage := &toolParkTestStorage{Storage: native, parked: make(chan ID, 4)}
+			key, err := testSignalAnswer(t).Key("a")
+			if err != nil {
+				t.Fatal(err)
+			}
+			var clock atomic.Int64
+			clock.Store(1000)
+			var providerCalls atomic.Int32
+			observed := make(chan goai.Message, 2)
+			ref, options := setupFakeAPI(t, func(_ context.Context, _ *goai.Model, conversation *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
+				ch := make(chan goai.Event, 1)
+				if providerCalls.Add(1) == 1 {
+					ch <- toolAnswer("call", mode, JSON{})
+				} else {
+					for _, msg := range conversation.Messages {
+						if msg.Role == goai.RoleToolResult && msg.ToolCallID == "call" {
+							observed <- msg
+						}
+					}
+					ch <- terminal("done")
+				}
+				close(ch)
+				return ch
+			})
+			wakeEvents := make(chan Wake, 32)
+			options.Now, options.OnWake, options.Registry = clock.Load, func(w Wake) { wakeEvents <- w }, NewRegistry()
+			wakes := make(chan *WakeReason, 3)
+			err = options.Registry.Register(ToolRegistration{Definition: goai.Tool{Name: mode, Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "park." + mode, Version: 1,
+				Execute: func(_ context.Context, _ any, api *ToolAPI) (ToolResult, error) {
+					wakes <- api.Wake
+					until := int64(1500)
+					switch mode {
+					case "time":
+						if api.Wake != nil {
+							return ToolResult{Blocks: []goai.ContentBlock{}}, nil
+						}
+						return ToolResult{Park: &ToolPark{Sleep: &ToolSleep{Until: &until}}}, nil
+					case "mixed":
+						return ToolResult{Park: &ToolPark{Sleep: &ToolSleep{Until: &until}, Wait: &ToolWait{On: []ID{}, Policy: "any"}}}, nil
+					case "result":
+						return ToolResult{Park: &ToolPark{Sleep: &ToolSleep{Until: &until}}, Blocks: []goai.ContentBlock{}}, nil
+					case "empty":
+						return ToolResult{Park: &ToolPark{Sleep: &ToolSleep{}}}, nil
+					case "unowned":
+						return ToolResult{Park: &ToolPark{Wait: &ToolWait{On: []ID{1}, Policy: "any"}}}, nil
+					default:
+						return ToolResult{Park: &ToolPark{Sleep: &ToolSleep{Signals: []SignalKey{key}}}}, nil
+					}
+				},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			h := openHarness(t, storage, options)
+			c := root(t, h, ref)
+			sub, err := c.Submit(ctx, Input{Type: "input", Content: "go"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if mode == "time" || mode == "reused" {
+				var id ID
+				select {
+				case id = <-storage.parked:
+				case <-ctx.Done():
+					t.Fatal("tool did not park", ctx.Err())
+				}
+				if mode == "time" {
+					until := int64(1500)
+					awaitWake140(t, wakeEvents, false, &until)
+					clock.Store(1500)
+					if err := h.Resume(ctx); err != nil {
+						t.Fatal(err)
+					}
+				} else {
+					if got, err := h.Signal(ctx, id, testSignalAnswer(t), "a", JSON{"text": "x"}); err != nil || got != SignalDelivered {
+						t.Fatalf("signal = %v, %v", got, err)
+					}
+				}
+			}
+			if result, err := sub.Wait(ctx); err != nil || result.Record.Status != "done" {
+				t.Fatalf("submission = %+v, %v", result.Record, err)
+			}
+			select {
+			case msg := <-observed:
+				if mode == "time" {
+					if msg.IsError || msg.DurationMs == nil || *msg.DurationMs != 500 {
+						t.Fatalf("timed result = %+v", msg)
+					}
+					if first, second := <-wakes, <-wakes; first != nil || !reflect.DeepEqual(second, &WakeReason{Reason: "time"}) {
+						t.Fatalf("timed wakes = %+v, %+v", first, second)
+					}
+				} else {
+					var text string
+					for _, block := range msg.Content {
+						text += block.Text
+					}
+					if !msg.IsError || !strings.Contains(text, "Tool "+mode+" returned an invalid park") {
+						t.Fatalf("invalid result = %+v / %s", msg, text)
+					}
+				}
+			case <-ctx.Done():
+				t.Fatal("missing tool result", ctx.Err())
+			}
 		})
 	}
 }

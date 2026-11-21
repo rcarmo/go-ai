@@ -113,8 +113,8 @@ func TestMainBuiltinCanonicalPublicationsV150(t *testing.T) {
 	if work == nil {
 		t.Error("missing model-tool publication")
 	} else {
-		if got := immutableViewMember(t, work, "version").Number().String(); got != "3" {
-			t.Errorf("tool version=%s, want source3", got)
+		if got := immutableViewMember(t, work, "version").Number().String(); got != "4" {
+			t.Errorf("tool version=%s, want source4", got)
 		}
 		if request != nil {
 			expected := JSON{"kind": "model", "assistant": immutableViewMember(t, request, "id").Number(), "callId": "c1"}
@@ -271,7 +271,7 @@ func TestBuiltinTaskPublicProgressionMatchesSourceV150(t *testing.T) {
 			done := func(entry uint64) string {
 				return fmt.Sprintf(`{"input":{},"state":{"outcome":{"result":{"entryId":%d},"status":"completed"},"status":"terminal"},"version":2}`, entry)
 			}
-			round := func(status string, ids []uint64, pending []string, on []uint64) string {
+			round := func(status string, ids []uint64, pending []string, on, ended []uint64) string {
 				idsJSON, _ := json.Marshal(ids)
 				pendingJSON, _ := json.Marshal(pending)
 				state := fmt.Sprintf(`"checkpoint":{"assistant":%d,"pending":%s,"phase":"tools","tools":%s}`, assistant, pendingJSON, idsJSON)
@@ -280,13 +280,17 @@ func TestBuiltinTaskPublicProgressionMatchesSourceV150(t *testing.T) {
 					state += fmt.Sprintf(`,"on":%s,"policy":"allSettled"`, onJSON)
 				}
 				state += fmt.Sprintf(`,"status":%q`, status)
+				if ended != nil {
+					encoded, _ := json.Marshal(ended)
+					state += fmt.Sprintf(`,"wake":{"ended":%s,"reason":"tasks"}`, encoded)
+				}
 				return `{"input":{},"state":{` + state + `},"version":2}`
 			}
 			var first []string
 			if scenario.execution == "parallel" {
-				first = []string{prepare("pending"), prepare("running"), request(system), round("waiting", tools, []string{}, tools), round("running", tools, []string{}, nil), done(assistant)}
+				first = []string{prepare("pending"), prepare("running"), request(system), round("waiting", tools, []string{}, tools, nil), round("running", tools, []string{}, nil, tools), done(assistant)}
 			} else {
-				first = []string{prepare("pending"), prepare("running"), request(system), round("waiting", tools[:1], []string{"c2"}, tools[:1]), round("running", tools[:1], []string{"c2"}, nil), round("waiting", tools, []string{}, tools[1:]), round("running", tools, []string{}, nil), done(assistant)}
+				first = []string{prepare("pending"), prepare("running"), request(system), round("waiting", tools[:1], []string{"c2"}, tools[:1], nil), round("running", tools[:1], []string{"c2"}, nil, tools[:1]), round("waiting", tools, []string{}, tools[1:], nil), round("running", tools, []string{}, nil, tools[1:]), done(assistant)}
 			}
 			want := map[uint64][]string{generations[0]: first, generations[1]: {prepare("pending"), prepare("running"), request(results[1]), done(final)}}
 			for i, id := range tools {
@@ -296,10 +300,10 @@ func TestBuiltinTaskPublicProgressionMatchesSourceV150(t *testing.T) {
 				}
 				input := fmt.Sprintf(`{"assistant":%d,"callId":"c%d","kind":"model"}`, assistant, i+1)
 				want[id] = []string{
-					`{"input":` + input + `,"state":{"checkpoint":{"phase":"call"},"status":"pending"},"version":3}`,
-					`{"input":` + input + `,"state":{"checkpoint":{"phase":"call"},"status":"running"},"version":3}`,
-					`{"input":` + input + `,"state":{"checkpoint":{"arguments":{},"phase":"execute","replay":"unsafe"},"status":"running"},"version":3}`,
-					fmt.Sprintf(`{"input":%s,"state":{"outcome":{"result":{"entryId":%d,"kind":"model"},"status":"completed"},"status":"terminal"},"version":3}`, input, results[resultIndex]),
+					`{"input":` + input + `,"state":{"checkpoint":{"phase":"call"},"status":"pending"},"version":4}`,
+					`{"input":` + input + `,"state":{"checkpoint":{"phase":"call"},"status":"running"},"version":4}`,
+					`{"input":` + input + `,"state":{"checkpoint":{"arguments":{},"phase":"execute","replay":"unsafe"},"status":"running"},"version":4}`,
+					fmt.Sprintf(`{"input":%s,"state":{"outcome":{"result":{"entryId":%d,"kind":"model"},"status":"completed"},"status":"terminal"},"version":4}`, input, results[resultIndex]),
 				}
 			}
 			for id, expected := range want {
@@ -359,7 +363,7 @@ func TestSourceCanonicalBuiltinDefinitionsAndMigrations(t *testing.T) {
 			version, phase := uint64(2), "prepare"
 			want := JSON{"phase": phase, "attempt": 1}
 			if kind == "pi.tool" {
-				version, phase = 3, "call"
+				version, phase = 4, "call"
 				want = JSON{"phase": phase}
 			}
 			if definition.Version() != version {
@@ -491,7 +495,7 @@ func TestSourceCanonicalToolModelExecutionAndMigration(t *testing.T) {
 				t.Fatal(err)
 			}
 			record := waitPublicTask(t, h, id)
-			if record.Version != 3 || calls.Load() != 1 || record.State.Outcome == nil || record.State.Outcome.Status != "completed" || record.State.Outcome.Result == nil {
+			if record.Version != 4 || calls.Load() != 1 || record.State.Outcome == nil || record.State.Outcome.Status != "completed" || record.State.Outcome.Result == nil {
 				t.Fatal(record, calls.Load())
 			}
 			result := generationObject(record.State.Outcome.Result.Value)
@@ -759,7 +763,7 @@ func TestSourceCanonicalToolNestedUsesSameDefinition(t *testing.T) {
 		t.Fatal(children)
 	}
 	child := children[0]
-	if child.Kind != "pi.tool" || child.Version != 3 || generationObject(child.Input.Value)["kind"] != "nested" || !equalJSONValue(child.State.Outcome.Result.Value, JSON{"kind": "nested"}) {
+	if child.Kind != "pi.tool" || child.Version != 4 || generationObject(child.Input.Value)["kind"] != "nested" || !equalJSONValue(child.State.Outcome.Result.Value, JSON{"kind": "nested"}) {
 		wire, _ := child.MarshalJSON()
 		t.Fatal(string(wire))
 	}
@@ -828,7 +832,7 @@ func TestSourceCanonicalToolNestedUnavailableSettles(t *testing.T) {
 		t.Fatal(children)
 	}
 	child := children[0]
-	if child.Kind != "pi.tool" || child.Version != 3 || generationObject(child.Input.Value)["kind"] != "nested" || !equalJSONValue(child.State.Outcome.Result.Value, JSON{"kind": "nested"}) {
+	if child.Kind != "pi.tool" || child.Version != 4 || generationObject(child.Input.Value)["kind"] != "nested" || !equalJSONValue(child.State.Outcome.Result.Value, JSON{"kind": "nested"}) {
 		wire, _ := child.MarshalJSON()
 		t.Fatal(string(wire))
 	}

@@ -86,8 +86,19 @@ func publicTaskStateJSON(state TaskState) (map[string]any, error) {
 	switch state.Status {
 	case "pending", "running":
 		out["checkpoint"] = state.Checkpoint
-		if state.Wake != nil {
-			out["wake"] = state.Wake
+		if wake := state.Wake; wake != nil {
+			value := JSON{"reason": wake.Reason}
+			switch wake.Reason {
+			case "signal":
+				value["signal"], value["key"] = wake.Signal, wake.Key
+			case "tasks":
+				ended := wake.Ended
+				if ended == nil {
+					ended = []ID{}
+				}
+				value["ended"] = ended
+			}
+			out["wake"] = value
 		}
 	case "waiting":
 		out["checkpoint"] = state.Checkpoint
@@ -103,7 +114,11 @@ func publicTaskStateJSON(state TaskState) (map[string]any, error) {
 			out["until"] = *state.Until
 		}
 		if state.Signals != nil {
-			out["signals"] = state.Signals
+			keys := make([]any, 0, len(state.Signals))
+			for _, key := range state.Signals {
+				keys = append(keys, JSON{"signal": key.Signal, "key": key.Key})
+			}
+			out["signals"] = keys
 		}
 	case "completing", "terminal":
 		if state.Outcome == nil {
