@@ -31,6 +31,13 @@ func (t *Tx) setTask(value TaskRecord) error {
 		if candidate.EndedAt != nil {
 			value.EndedAt = candidate.EndedAt
 		}
+		if candidate.Memos != nil && value.State.Status != "terminal" && value.State.Status != "completing" {
+			// Preserve memos written earlier in this transaction (for example,
+			// a task's signal to itself before returning its next state).
+			memos := maps.Clone(candidate.Memos)
+			maps.Copy(memos, value.Memos)
+			value.Memos = memos
+		}
 	}
 	if value.State.Status == "running" && value.StartedAt == nil {
 		stamp := t.session.now()

@@ -3,6 +3,7 @@ package durable
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"math"
 	"reflect"
 	"testing"
@@ -119,4 +120,67 @@ func TestV160SignalDeliveryStoresOnlyTheWinningJSONValue(t *testing.T) {
 		t.Fatalf("task ended with %+v, %v", terminal, err)
 	}
 	deliver(id, answer, "b", JSON{"text": "late"}, "closed")
+}
+
+// Supplemental half of the v1.6.0 self-signal case: the task's own sleeping
+// transition must not overwrite the memo staged in the same commit.
+func TestV160SignalComposesWithOwnTaskState(t *testing.T) {
+	store, err := newTestSQLite(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(bg, 5*time.Second)
+	defer cancel()
+	answer, err := DefineSignal(SignalDefinition{Name: "test.answer", Version: 1, Schema: JSON{"type": "object", "properties": JSON{"text": JSON{"type": "string"}}, "required": []any{"text"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	finished := make(chan error, 1)
+	def := taskDefinition(t, "test.self", func(run context.Context, _ TaskRecord, r *TaskRuntime) error {
+		until, err := r.Now()
+		if err != nil {
+			finished <- err
+			return err
+		}
+		until += 60_000
+		err = r.Commit(run, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
+			result, err := tx.Signal(r.TaskID(), answer, "self", JSON{"text": "me"})
+			if err != nil {
+				return nil, err
+			}
+			if result != SignalDelivered {
+				return nil, fmt.Errorf("signal result = %q", result)
+			}
+			return &TaskState{Status: "sleeping", Checkpoint: JSON{"phase": "work"}, Until: &until}, nil
+		})
+		finished <- err
+		return err
+	})
+	h := taskTestHarness(t, store, def)
+	value, err := h.Commit(ctx, func(tx *Tx) (any, error) {
+		return tx.CreateTask(def, nil, TaskOptions{Conversation: 1, Ownership: TaskOwnership{Kind: "conversation"}})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := h.Resume(ctx); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-finished:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	id := value.(ID)
+	record, found, err := h.Task(ctx, id)
+	if err != nil || !found || record.State.Status != "sleeping" {
+		t.Fatalf("task after own transition: %+v, %v, %v", record, found, err)
+	}
+	want := map[string]*TaskValue{"pi.signal.test.answer/self": {Present: true, Value: map[string]any{"version": json.Number("1"), "value": map[string]any{"text": "me"}}}}
+	if !reflect.DeepEqual(record.Memos, want) {
+		t.Fatalf("sleeping task memos = %#v, want %#v", record.Memos, want)
+	}
 }
