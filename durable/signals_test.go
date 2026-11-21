@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -568,5 +569,114 @@ func TestSourceV160SignalWakeSurvivesSameCheckpointAndReopen(t *testing.T) {
 	expectSeen(nil)
 	if len(seen) != 0 {
 		t.Fatalf("unexpected extra wake observations: %d", len(seen))
+	}
+}
+
+// Official v1.6.0 harness-signals.test.ts:525: parent waits for any child,
+// then aborts the remaining child and returns precisely the ended IDs.
+func TestSourceV160WaitAnyResumesWithEndedTasks(t *testing.T) {
+	ctx, cancel := context.WithTimeout(bg, 6*time.Second)
+	defer cancel()
+	store, err := newTestSQLite(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	answer := testSignalAnswer(t)
+	childParked := make(chan error, 2)
+	child := signalAskDefinition(t, answer, nil, childParked)
+	parentParked := make(chan error, 1)
+	parent, err := DefineTask(TaskDefinitionOptions{Kind: "test.any", Version: 1,
+		Initial: func(any) (JSON, error) { return JSON{"phase": "spawn"}, nil },
+		Abort: func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+			return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) {
+				return &TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "aborted", Reason: "test"}}, nil
+			})
+		},
+		Phases: map[string]TaskPhase{
+			"spawn": func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+				err := r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
+					options := TaskOptions{Ownership: TaskOwnership{Kind: "task", Task: r.TaskID()}}
+					on := make([]ID, 2)
+					for i := range on {
+						id, err := tx.CreateTask(child, JSON{"keys": []any{"a"}}, options)
+						if err != nil {
+							return nil, err
+						}
+						on[i] = id
+					}
+					return &TaskState{Status: "waiting", Checkpoint: JSON{"phase": "joined", "on": on}, On: on, Policy: "any"}, nil
+				})
+				parentParked <- err
+				return err
+			},
+			"joined": func(ctx context.Context, task TaskRecord, r *TaskRuntime) error {
+				members, _ := taskCheckpointMap(task.State.Checkpoint)["on"].([]any)
+				if len(members) != 2 {
+					return fmt.Errorf("joined checkpoint members = %v", members)
+				}
+				for _, id := range members {
+					if err := r.AbortOwned(ctx, submissionEntryID(id)); err != nil {
+						return err
+					}
+				}
+				raw, err := json.Marshal(task.State.Wake)
+				if err != nil {
+					return err
+				}
+				var value any
+				decoder := json.NewDecoder(strings.NewReader(string(raw)))
+				decoder.UseNumber()
+				if err := decoder.Decode(&value); err != nil {
+					return err
+				}
+				return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone(value), nil })
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := taskTestHarness(t, store, child, parent)
+	value, err := h.Commit(ctx, func(tx *Tx) (any, error) {
+		return tx.CreateTask(parent, nil, TaskOptions{Conversation: 1, Ownership: TaskOwnership{Kind: "conversation"}})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := value.(ID)
+	if err = h.Resume(ctx); err != nil {
+		t.Fatal(err)
+	}
+	await := func(c <-chan error) {
+		t.Helper()
+		select {
+		case err := <-c:
+			if err != nil {
+				t.Fatal(err)
+			}
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+	}
+	await(parentParked)
+	await(childParked)
+	await(childParked)
+	task, found, err := h.Task(ctx, id)
+	if err != nil || !found || task.State.Status != "waiting" || len(task.State.On) != 2 {
+		t.Fatalf("parent did not wait: %+v, %v", task.State, err)
+	}
+	first, second := task.State.On[0], task.State.On[1]
+	if got, err := h.Signal(ctx, second, answer, "a", JSON{"text": "done"}); got != SignalDelivered || err != nil {
+		t.Fatalf("child signal = %v, %v", got, err)
+	}
+	finished, err := h.WaitForTask(ctx, id)
+	want := taskDone(map[string]any{"reason": "tasks", "ended": []any{json.Number(idText(second))}}).Outcome
+	if err != nil || !reflect.DeepEqual(finished.State.Outcome, want) {
+		got, _ := json.Marshal(finished.State.Outcome)
+		expected, _ := json.Marshal(want)
+		t.Fatalf("parent outcome = %s, %v; want %s", got, err, expected)
+	}
+	if child, found, err := h.Task(ctx, first); err != nil || !found || child.State.Outcome == nil || child.State.Outcome.Status != "aborted" {
+		t.Fatalf("first child outcome = %+v, %v", child.State.Outcome, err)
 	}
 }

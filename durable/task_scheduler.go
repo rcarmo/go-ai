@@ -194,10 +194,22 @@ func (s *taskScheduler) runnable(state Snapshot, task Task) bool {
 		return false
 	}
 	if task.Execution != nil && task.Execution.Native != nil && task.Execution.Native.State.Status == "waiting" {
-		for _, id := range task.Execution.Native.State.On {
-			if t, ok := state.Tasks[id]; !ok || !terminalStatus(t.Status) {
+		wait := task.Execution.Native.State
+		waitAny := wait.Policy == "any"
+		ended := false
+		for _, id := range wait.On {
+			member, found := state.Tasks[id]
+			terminal := found && terminalStatus(member.Status)
+			if waitAny && terminal {
+				ended = true
+				break
+			}
+			if !waitAny && !terminal {
 				return false
 			}
+		}
+		if waitAny && !ended {
+			return false
 		}
 	}
 	if privateBuiltinTask(task, "pi.generation") {
@@ -504,8 +516,19 @@ func (s *taskScheduler) reservePass(requireEnabled bool) ([]*TaskRuntime, error)
 			task = owned
 			if task.Execution != nil && task.Execution.Native != nil {
 				native := task.Execution.Native
-				if task.Status == "sleeping" && !taskAborted(task) {
-					reserveNativeSleepWake(native, s.h.session.now())
+				if !taskAborted(task) {
+					switch task.Status {
+					case "sleeping":
+						reserveNativeSleepWake(native, s.h.session.now())
+					case "waiting":
+						ended := make([]ID, 0, len(native.State.On))
+						for _, id := range native.State.On {
+							if member, found := tx.state.Tasks[id]; found && terminalStatus(member.Status) {
+								ended = append(ended, id)
+							}
+						}
+						native.State.Wake = &WakeReason{Reason: "tasks", Ended: ended}
+					}
 				}
 				native.State.Status = "running"
 				native.State.On = nil

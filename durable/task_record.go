@@ -257,7 +257,7 @@ func validateTaskState(state TaskState) error {
 			return reject("live task state union")
 		}
 		if state.Status == "waiting" {
-			if state.Policy != "allSettled" && state.Policy != "failFast" {
+			if state.Policy != "allSettled" && state.Policy != "failFast" && state.Policy != "any" {
 				return reject("task waiting policy")
 			}
 			for _, id := range state.On {
