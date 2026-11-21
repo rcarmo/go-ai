@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	goai "github.com/rcarmo/go-ai"
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func wrapRegistration(name string) ToolRegistration {
@@ -307,5 +309,148 @@ func TestSourceToolNamesAreStringsAcrossRegistrationWrappingAndNestedCalls(t *te
 	record := waitPublicTask(t, h, createPublicTask(t, h, definition, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}}))
 	if record.State.Outcome.Status != "completed" || effects.Load() != int64(len(names)) {
 		t.Error("source name execution/replay changed", record.State.Outcome, effects.Load())
+	}
+}
+
+// Source: harness-tool-parks.test.ts, wrappers. ToolPark pointers represent
+// object identity; the shared case uses the very same pointer in two calls.
+func TestSourceV160ToolWrapperParks(t *testing.T) {
+	for _, mode := range []string{"pass", "own", "shared", "stale"} {
+		t.Run(mode, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(bg, 8*time.Second)
+			defer cancel()
+			native, err := newTestSQLite(t)
+			if err != nil {
+				t.Fatal(err)
+			}
+			storage := &toolParkTestStorage{Storage: native, parked: make(chan ID, 4)}
+			token := testSignalAnswer(t)
+			key, err := token.Key("done")
+			if err != nil {
+				t.Fatal(err)
+			}
+			shared := &ToolPark{Sleep: &ToolSleep{Signals: []SignalKey{key}}}
+			var kept *ToolPark // one call only in stale mode
+			var requests, runs atomic.Int32
+			ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
+				ch := make(chan goai.Event, 1)
+				if requests.Add(1) == 1 {
+					answer := toolAnswer("a", "ci", JSON{})
+					if mode == "shared" {
+						answer.Message.Content = append(answer.Message.Content, toolAnswer("b", "ci", JSON{}).Message.Content[0])
+					}
+					ch <- answer
+				} else {
+					ch <- terminal("done")
+				}
+				close(ch)
+				return ch
+			})
+			options.Registry = NewRegistry()
+			if err := options.Registry.Register(ToolRegistration{Definition: goai.Tool{Name: "ci", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "test.wrap.park", Version: 1,
+				Execute: func(ctx context.Context, _ any, api *ToolAPI) (ToolResult, error) {
+					runs.Add(1)
+					signal, err := api.ReadSignal(ctx, token, "done")
+					if err != nil {
+						return ToolResult{}, err
+					}
+					if signal == nil {
+						return ToolResult{Park: shared}, nil
+					}
+					return ToolResult{Content: "ok"}, nil
+				},
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if err := options.Registry.Install(&Extension{Name: "decorator", Wraps: []ExtensionWrap{{Tool: "ci", WrapTool: func(inner ToolRegistration) (ToolRegistration, error) {
+				execute := inner.Execute
+				inner.Execute = func(ctx context.Context, args any, api *ToolAPI) (ToolResult, error) {
+					if mode == "stale" && kept != nil {
+						return ToolResult{Park: kept}, nil
+					}
+					result, err := execute(ctx, args, api)
+					if result.Park != nil {
+						if mode == "own" {
+							copied := *result.Park
+							result.Park = &copied
+						}
+						if mode == "stale" {
+							kept = result.Park
+						}
+					}
+					return result, err
+				}
+				return inner, nil
+			}}}}); err != nil {
+				t.Fatal(err)
+			}
+			h := openHarness(t, storage, options)
+			c := root(t, h, ref)
+			sub, err := c.Submit(ctx, Input{Type: "input", Content: "go"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var parked []ID
+			if mode != "own" {
+				count := 1
+				if mode == "shared" {
+					count = 2
+				}
+				for range count {
+					select {
+					case id := <-storage.parked:
+						parked = append(parked, id)
+					case <-ctx.Done():
+						t.Fatal("missing park", ctx.Err())
+					}
+				}
+				for _, id := range parked {
+					if got, err := h.Signal(ctx, id, token, "done", JSON{"text": "wrapped"}); err != nil || got != SignalDelivered {
+						t.Fatalf("signal = %q, %v", got, err)
+					}
+				}
+			}
+			// For the forged branch, a park is itself a failure, not a timeout.
+			settled := make(chan error, 1)
+			go func() {
+				value, err := sub.Wait(ctx)
+				if err == nil && value.Record.Status != "done" {
+					err = fmt.Errorf("submission = %s", value.Record.Status)
+				}
+				settled <- err
+			}()
+		settling:
+			for {
+				select {
+				case id := <-storage.parked:
+					// Signal delivery can update the memo while the task is still sleeping.
+					if mode == "own" {
+						t.Fatalf("wrapper's forged park was saved: %d", id)
+					}
+				case err := <-settled:
+					if err != nil {
+						t.Fatal(err)
+					}
+					break settling
+				case <-ctx.Done():
+					t.Fatal(ctx.Err())
+				}
+			}
+			result := v160ToolResult(t, ctx, c, "a")
+			if mode == "own" || mode == "stale" {
+				if !result.IsError || !strings.Contains(v160ToolResultText(result), "a wrapper returned a park its base did not return") {
+					t.Fatalf("invalid wrapper park result = %q", v160ToolResultText(result))
+				}
+				return
+			}
+			if result.IsError || v160ToolResultText(result) != "ok" || runs.Load() != int32(len(parked)*2) {
+				t.Fatalf("result = %q; runs=%d", v160ToolResultText(result), runs.Load())
+			}
+			if mode == "shared" {
+				if other := v160ToolResult(t, ctx, c, "b"); other.IsError || v160ToolResultText(other) != "ok" {
+					t.Fatalf("second result = %+v", other)
+				}
+			}
+		})
 	}
 }

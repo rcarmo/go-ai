@@ -1,6 +1,7 @@
 package durable
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	goai "github.com/rcarmo/go-ai"
@@ -30,13 +31,22 @@ func applyToolWrap(wrap ExtensionWrap, tool registeredTool, limits Limits) (next
 	if err != nil {
 		return next, err
 	}
-	reg := ToolRegistration{StructuredOutputSchema: outputSchema, Deferred: tool.offer.Deferred, Definition: goai.Tool{Name: tool.offer.Name, Description: tool.offer.Description, Parameters: parameters}, Implementation: tool.offer.Implementation, Version: tool.offer.Version, ReplaySafe: tool.offer.ReplaySafe, ExecutionMode: tool.offer.ExecutionMode, PrepareArguments: tool.prepare, Validator: tool.validator, Execute: tool.execute}
+	reg := ToolRegistration{StructuredOutputSchema: outputSchema, Deferred: tool.offer.Deferred, Definition: goai.Tool{Name: tool.offer.Name, Description: tool.offer.Description, Parameters: parameters}, Implementation: tool.offer.Implementation, Version: tool.offer.Version, ReplaySafe: tool.offer.ReplaySafe, ExecutionMode: tool.offer.ExecutionMode, PrepareArguments: tool.prepare, Validator: tool.validator, Execute: tool.execute, Cancel: tool.cancel}
 	if tool.offer.Callers != nil {
 		reg.Callers = append([]string{}, (*tool.offer.Callers)...)
 	}
 	if tool.offer.OutputLimits != nil {
 		output := *tool.offer.OutputLimits
 		reg.OutputLimits = &output
+	}
+	if !tool.composite {
+		reg.Execute = func(ctx context.Context, args any, api *ToolAPI) (ToolResult, error) {
+			result, err := tool.execute(ctx, args, api)
+			if err == nil && api != nil && result.Park != nil {
+				api.recordBasePark(result.Park)
+			}
+			return result, err
+		}
 	}
 	reg, err = wrap.WrapTool(reg)
 	if err != nil {
@@ -49,7 +59,9 @@ func applyToolWrap(wrap ExtensionWrap, tool registeredTool, limits Limits) (next
 	if err = trial.Register(reg); err != nil {
 		return next, err
 	}
-	return trial.tools[wrap.Tool], nil
+	next = trial.tools[wrap.Tool]
+	next.composite = true
+	return next, nil
 }
 
 func applySectionWrap(wrap ExtensionWrap, section PromptSection) (next PromptSection, err error) {

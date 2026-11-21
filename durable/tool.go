@@ -66,6 +66,7 @@ type toolOffer struct {
 	OutputLimits           *ToolOutputLimits             `json:"outputLimits,omitempty"`
 }
 type registeredTool struct {
+	composite bool
 	extension string // process-local installer, never an intent field
 	paidModel bool
 	offer     toolOffer
@@ -582,6 +583,7 @@ type ToolAPI struct {
 	Wake                *WakeReason
 	Checkpoint          any
 	cancelling          bool
+	baseParks           map[*ToolPark]struct{}
 	canonicalInput      canonicalToolInput
 	nested              bool
 	mu                  sync.Mutex

@@ -456,6 +456,8 @@ func runCanonicalTool(ctx context.Context, r *TaskRuntime, input canonicalToolIn
 		var parkErr error
 		if result.Content != "" || result.Blocks != nil || result.HasStructuredOutput || result.StructuredOutput != nil || result.Details != nil || result.HasDetails || result.DetailsValue != nil || result.Diagnostics != nil || result.IsError || result.Control != nil || result.Usage != nil || result.Commit != nil {
 			parkErr = reject("tool park cannot include a result")
+		} else if reg.composite && !api.hasBasePark(result.Park) {
+			parkErr = fmt.Errorf("a wrapper returned a park its base did not return")
 		} else {
 			checkpointArgs := args
 			if call.HasStreamingArguments() {

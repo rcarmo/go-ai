@@ -97,3 +97,9 @@ Five unchanged `harness-tool-parks.test.ts` cancel cases passed. The correspondi
 A safe replay keeps the details and diagnostics from a woken attempt but clears output. A non-replayable woken attempt calls `Cancel` with the saved checkpoint before settling as interrupted. Tool removal after a park retains the slot details and diagnostics in the unavailable result.
 
 The three unchanged `harness-tool-parks.test.ts` waking cases passed. The native safe and unsafe cases kill the writer process after observing the woken invocation and its committed progress, then reopen SQLite. Both failed before the change; the removed-tool case already passed. The focused Go batch passed twice (11.971s), including the historical safe and unsafe progress cases. Suppressing the recovery cancel produced the expected missing-callback failure. Vet, Staticcheck and diff checks passed. The tests do not map wrapper authority or nested wait behaviour.
+
+### Tool wrapper park authority
+
+A composite tool may return only a park its base returned to the same invocation. The check uses pointer identity, not JSON equality. Separate invocations can use the same park object, but a wrapper cannot copy it or reuse it without calling the base again. Wrapper composition also carries the base cancellation callback.
+
+The three unchanged wrapper cases passed. The native translation splits the first into pass-through and forged branches. On `8d4cd84` the forged branch saved a park and the stale branch reached the consumed-key check instead of rejecting the wrapper. The focused Go batch passed twice (14.404s), as did vet and Staticcheck. Inverting the authority check saved the forged park and refused the genuine one.

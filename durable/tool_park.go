@@ -230,3 +230,21 @@ func clearCanonicalToolOutput(slot JSON) {
 	delete(slot, "droppedBytes")
 	delete(slot, "droppedLines")
 }
+
+func (a *ToolAPI) recordBasePark(park *ToolPark) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.active {
+		if a.baseParks == nil {
+			a.baseParks = make(map[*ToolPark]struct{})
+		}
+		a.baseParks[park] = struct{}{}
+	}
+}
+
+func (a *ToolAPI) hasBasePark(park *ToolPark) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	_, found := a.baseParks[park]
+	return found
+}
