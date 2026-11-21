@@ -270,7 +270,7 @@ type DiagnosticError struct {
 type AssistantMessageDiagnostic struct {
 	Type      string          `json:"type"`
 	Timestamp int64           `json:"timestamp"`
-	Error     DiagnosticError `json:"error"`
+	Error     DiagnosticError `json:"error,omitzero"`
 	Details   map[string]any  `json:"details,omitempty"`
 }
 

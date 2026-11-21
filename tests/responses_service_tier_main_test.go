@@ -12,6 +12,7 @@ import (
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -161,5 +162,94 @@ func TestResponsesServiceTierAccountingWireMain(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+// Source: openai-responses-input-transformations.test.ts. All reports go
+// through the registered providers, not a synthetic diagnostic emitter.
+func TestSourceV160ResponsesInputTransformations(t *testing.T) {
+	removal := func(id, reason string) map[string]any {
+		return map[string]any{"type": "reasoning", "id": id, "action": "removed", "reason": reason}
+	}
+	prefix := removal("rs_edited", "prefix_mismatch")
+	boundary := removal("rs_old_turn", "turn_boundary")
+	organization := removal("rs_org", "organization_mismatch")
+	future := removal("rs_future", "future_reason")
+	cases := []struct {
+		name, status, kind string
+		report             any
+		want               []any
+		reason             goai.StopReason
+	}{
+		{"completed", "completed", "response.completed", []any{prefix, boundary, organization}, []any{prefix, organization}, goai.StopReasonStop},
+		{"incomplete", "incomplete", "response.incomplete", []any{prefix}, []any{prefix}, goai.StopReasonLength},
+		{"future", "completed", "response.completed", []any{future}, []any{future}, goai.StopReasonStop},
+		{"codex", "completed", "response.done", []any{prefix}, []any{prefix}, goai.StopReasonStop},
+	}
+	for i, report := range []any{nil, nil, []any{}, []any{boundary, boundary}, map[string]any{"malformed": true}, []any{nil, "rs_text", map[string]any{"type": "message", "id": "msg_1", "action": "removed", "reason": "prefix_mismatch"}}, []any{map[string]any{"type": "reasoning", "id": "rs_changed", "action": "changed", "reason": "prefix_mismatch"}}} {
+		cases = append(cases, struct {
+			name, status, kind string
+			report             any
+			want               []any
+			reason             goai.StopReason
+		}{fmt.Sprintf("ignored-%d", i), "completed", "response.completed", report, nil, goai.StopReasonStop})
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			response := map[string]any{"id": "r", "status": tc.status}
+			if tc.name != "ignored-0" {
+				response["input_transformations"] = tc.report
+			}
+			if tc.status == "incomplete" {
+				response["incomplete_details"] = map[string]any{"reason": "max_output_tokens"}
+			}
+			frame, err := json.Marshal(map[string]any{"type": tc.kind, "response": response})
+			if err != nil {
+				t.Fatal(err)
+			}
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "text/event-stream")
+				fmt.Fprintf(w, "data: %s\n\n", frame)
+			}))
+			defer server.Close()
+			api, provider, token := goai.ApiOpenAIResponses, goai.ProviderOpenAI, "test"
+			if tc.name == "codex" {
+				api, provider = goai.ApiOpenAICodexResponses, "openai-codex"
+				token = "x." + base64.RawURLEncoding.EncodeToString([]byte(`{"https://api.openai.com/auth":{"chatgpt_account_id":"acct"}}`)) + ".x"
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			model := &goai.Model{ID: "gpt-6.2", Api: api, Provider: provider, BaseURL: server.URL}
+			var done *goai.DoneEvent
+			for event := range goai.Stream(ctx, model, &goai.Context{Messages: []goai.Message{goai.UserMessage("go")}}, &goai.StreamOptions{APIKey: token, Transport: goai.TransportSSE}) {
+				switch e := event.(type) {
+				case *goai.DoneEvent:
+					done = e
+				case *goai.ErrorEvent:
+					t.Errorf("stream: %v", e.Err)
+				}
+			}
+			if done == nil || done.Reason != tc.reason {
+				t.Fatalf("terminal = %+v, want %q", done, tc.reason)
+			}
+			diagnostics := done.Message.Diagnostics
+			if tc.want == nil {
+				if len(diagnostics) != 0 {
+					t.Fatalf("unexpected diagnostics: %+v", diagnostics)
+				}
+				return
+			}
+			if len(diagnostics) != 1 || diagnostics[0].Type != "openai_input_transformations" || diagnostics[0].Timestamp <= 0 || !reflect.DeepEqual(diagnostics[0].Error, goai.DiagnosticError{}) || !reflect.DeepEqual(diagnostics[0].Details, map[string]any{"transformations": tc.want}) {
+				t.Fatalf("diagnostics = %+v, want %v", diagnostics, tc.want)
+			}
+			wire, err := json.Marshal(diagnostics[0])
+			if err != nil {
+				t.Fatal(err)
+			}
+			var record map[string]json.RawMessage
+			if err := json.Unmarshal(wire, &record); err != nil || len(record) != 3 || record["error"] != nil {
+				t.Fatalf("diagnostic wire = %s, %v", wire, err)
+			}
+		})
 	}
 }

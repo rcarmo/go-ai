@@ -43,7 +43,11 @@ func ExtractDiagnosticError(err error) DiagnosticError {
 
 // CreateAssistantMessageDiagnostic creates a timestamped assistant diagnostic.
 func CreateAssistantMessageDiagnostic(kind string, err error, details map[string]any) AssistantMessageDiagnostic {
-	return AssistantMessageDiagnostic{Type: kind, Timestamp: time.Now().UnixMilli(), Error: ExtractDiagnosticError(err), Details: details}
+	diagnostic := AssistantMessageDiagnostic{Type: kind, Timestamp: time.Now().UnixMilli(), Details: details}
+	if err != nil {
+		diagnostic.Error = ExtractDiagnosticError(err)
+	}
+	return diagnostic
 }
 
 // AppendAssistantMessageDiagnostic appends a diagnostic to an assistant message.

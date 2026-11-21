@@ -15,8 +15,9 @@ func finalizeCodexResponse(raw []byte, partial *goai.Message, model *goai.Model,
 		Incomplete  *struct {
 			Reason string `json:"reason"`
 		} `json:"incomplete_details"`
-		Output []json.RawMessage `json:"output"`
-		Usage  *struct {
+		InputTransformations json.RawMessage   `json:"input_transformations"`
+		Output               []json.RawMessage `json:"output"`
+		Usage                *struct {
 			Input        int `json:"input_tokens"`
 			Output       int `json:"output_tokens"`
 			Total        int `json:"total_tokens"`
@@ -32,6 +33,7 @@ func finalizeCodexResponse(raw []byte, partial *goai.Message, model *goai.Model,
 	if err := json.Unmarshal(raw, &response); err != nil {
 		return err
 	}
+	responsestream.AppendInputTransformations(partial, response.InputTransformations)
 	if response.ID != "" {
 		partial.ResponseID = response.ID
 	}

@@ -1318,13 +1318,14 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 		case "response.completed", "response.incomplete":
 			terminalResponseSeen = true
 			var resp struct {
-				ID                string                   `json:"id"`
-				Status            string                   `json:"status"`
-				EndTurn           *bool                    `json:"end_turn"`
-				ServiceTier       *string                  `json:"service_tier"`
-				IncompleteDetails *struct{ Reason string } `json:"incomplete_details"`
-				Output            []json.RawMessage        `json:"output"`
-				Usage             *struct {
+				ID                   string                   `json:"id"`
+				Status               string                   `json:"status"`
+				EndTurn              *bool                    `json:"end_turn"`
+				ServiceTier          *string                  `json:"service_tier"`
+				IncompleteDetails    *struct{ Reason string } `json:"incomplete_details"`
+				InputTransformations json.RawMessage          `json:"input_transformations"`
+				Output               []json.RawMessage        `json:"output"`
+				Usage                *struct {
 					InputTokens  int `json:"input_tokens"`
 					OutputTokens int `json:"output_tokens"`
 					TotalTokens  int `json:"total_tokens"`
@@ -1338,6 +1339,7 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 				} `json:"usage"`
 			}
 			json.Unmarshal(raw.Response, &resp)
+			responsestream.AppendInputTransformations(partial, resp.InputTransformations)
 
 			if resp.ID != "" {
 				partial.ResponseID = resp.ID

@@ -76,3 +76,29 @@ func (r ReasoningIndex) Backfill(blocks []goai.ContentBlock, output []json.RawMe
 		}
 	}
 }
+
+// AppendInputTransformations keeps explicit reasoning removals. Turn-boundary
+// removals are ordinary replay behaviour, not diagnostics for the transcript.
+func AppendInputTransformations(message *goai.Message, wire json.RawMessage) {
+	var items []json.RawMessage
+	if json.Unmarshal(wire, &items) != nil {
+		return
+	}
+	var removals []any
+	for _, wire := range items {
+		var item map[string]any
+		if json.Unmarshal(wire, &item) != nil || item["type"] != "reasoning" || item["action"] != "removed" || item["reason"] == "turn_boundary" {
+			continue
+		}
+		detail := map[string]any{"type": "reasoning", "action": "removed"}
+		for _, key := range []string{"id", "reason"} {
+			if value, present := item[key]; present {
+				detail[key] = value
+			}
+		}
+		removals = append(removals, detail)
+	}
+	if len(removals) != 0 {
+		goai.AppendAssistantMessageDiagnostic(message, goai.CreateAssistantMessageDiagnostic("openai_input_transformations", nil, map[string]any{"transformations": removals}))
+	}
+}
