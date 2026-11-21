@@ -59,6 +59,10 @@ func (r *TaskRuntime) AbortOwned(ctx context.Context, id ID) error {
 			return reject("legacy task has no abort adapter")
 		}
 		task = markTask(task)
+		if settled, err := r.harness.scheduler.orphanBlockedAbort(tx, task); settled || err != nil {
+			terminal = settled
+			return err
+		}
 		return tx.stage(Write{Op: "put-task", Task: &task})
 	})
 	if err != nil || terminal {

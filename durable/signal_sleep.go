@@ -1,6 +1,9 @@
 package durable
 
-import "maps"
+import (
+	"fmt"
+	"maps"
+)
 
 func signalMemoName(signal, key string) string { return "pi.signal." + signal + "/" + key }
 
@@ -15,6 +18,24 @@ func readySignal(state TaskState, memos map[string]*TaskValue) (SignalKey, bool)
 		}
 	}
 	return SignalKey{}, false
+}
+
+func checkSignalSleep(id ID, state TaskState, memos map[string]*TaskValue) error {
+	if state.Until == nil && len(state.Signals) == 0 {
+		return fmt.Errorf("Task %d cannot sleep without until or signals", id)
+	}
+	for _, key := range state.Signals {
+		if memo := memos[signalMemoName(key.Signal, key.Key)]; memo != nil {
+			stored := generationObject(memo.Value)
+			if _, expired := stored["expired"]; expired {
+				return fmt.Errorf("Task %d cannot sleep on signal %s key %s: it expired", id, key.Signal, key.Key)
+			}
+			if stored["consumed"] == true {
+				return fmt.Errorf("Task %d cannot sleep on signal %s key %s: it already woke a wait", id, key.Signal, key.Key)
+			}
+		}
+	}
+	return nil
 }
 
 func nativeSleepDue(native *NativeTaskExecution, now int64) bool {

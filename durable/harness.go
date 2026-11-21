@@ -934,9 +934,20 @@ func (h *Harness) waitTask(ctx context.Context, id ID, binding *TaskRuntime) (Ta
 	}
 }
 func (h *Harness) AbortTask(ctx context.Context, id ID) (string, error) {
-	if err := h.Resume(ctx); err != nil {
+	if ctx == nil {
+		return "", reject("nil context")
+	}
+	if err := ctx.Err(); err != nil {
 		return "", err
 	}
+	if h.closing.Load() {
+		return "", h.closedError()
+	}
+	if h.session.readOnly {
+		return "", &ReadOnlySession{Operation: "running tasks"}
+	}
+	// Marking or orphaning a task is a storage operation, not a request to
+	// start executing other tasks. Leave paused scheduling to Resume.
 	result := "marked"
 	var join <-chan struct{}
 	var cancel context.CancelFunc
@@ -963,18 +974,8 @@ func (h *Harness) AbortTask(ctx context.Context, id ID) (string, error) {
 			cancel = r.cancel
 		}
 		task = markTask(task)
-		// Direct blocked native abort settles in THIS marking admission when
-		// neither the task nor its ordinary owned work retains an actual host.
-		// Foreign wait On is superseded by the mark and is not owned drain work.
-		// Decided Holds and unevaluated migrations remain scheduler work.
-		if task.Execution != nil && task.Execution.Native != nil && !taskHasDecidedOutcome(task) && h.scheduler.invocations[id] == nil && len(h.scheduler.ownedLive(tx.state, id)) == 0 {
-			snapshot, err := h.options.Registry.taskSnapshot(tx.limits)
-			if err != nil {
-				return nil, err
-			}
-			if reason := h.scheduler.nativeBlockedReason(task, snapshot); reason != "" {
-				return nil, h.scheduler.orphan(tx, task, reason)
-			}
+		if settled, err := h.scheduler.orphanBlockedAbort(tx, task); settled || err != nil {
+			return nil, err
 		}
 		return nil, tx.stage(Write{Op: "put-task", Task: &task})
 	})

@@ -118,7 +118,12 @@ func (h *Harness) readWake(ctx context.Context) (wakeDetails, error) {
 				continue
 			}
 			until, sleeping := taskSleepDeadline(task)
-			if sleeping && !taskAborted(task) {
+			signalReady := false
+			if task.Status == "sleeping" && task.Execution != nil && task.Execution.Native != nil {
+				native := task.Execution.Native
+				_, signalReady = readySignal(native.State, native.Memos)
+			}
+			if sleeping && !signalReady && !taskAborted(task) {
 				if !clockRead {
 					now = h.session.now()
 					clockRead = true
@@ -148,7 +153,7 @@ func (h *Harness) readWake(ctx context.Context) (wakeDetails, error) {
 				details.wake.Active = true
 				// A clock can cross the deadline between reserve and this read. Request
 				// another pass without advancing any retry barrier or fabricating a write.
-				if sleeping && !taskAborted(task) && len(s.invocations) < s.capacity() {
+				if sleeping && !signalReady && !taskAborted(task) && len(s.invocations) < s.capacity() {
 					earlier(&details.alarmAt, until)
 				}
 			}

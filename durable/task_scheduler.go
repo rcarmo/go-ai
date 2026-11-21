@@ -952,6 +952,22 @@ func (s *taskScheduler) definitionBlockedReason(id ID, kind string, version uint
 	return ""
 }
 
+// A marked native task without a usable definition can settle at admission
+// if it has no invocation or live owned work to drain.
+func (s *taskScheduler) orphanBlockedAbort(tx *Tx, task Task) (bool, error) {
+	if task.Execution == nil || task.Execution.Native == nil || taskHasDecidedOutcome(task) || s.invocations[task.ID] != nil || len(s.ownedLive(tx.state, task.ID)) != 0 {
+		return false, nil
+	}
+	snapshot, err := s.h.options.Registry.taskSnapshot(tx.limits)
+	if err != nil {
+		return false, err
+	}
+	if reason := s.nativeBlockedReason(task, snapshot); reason != "" {
+		return true, s.orphan(tx, task, reason)
+	}
+	return false, nil
+}
+
 func (s *taskScheduler) orphan(tx *Tx, task Task, reason string) error {
 	owned, err := copyTask(task, tx.limits)
 	if err != nil {

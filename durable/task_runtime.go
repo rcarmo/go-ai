@@ -125,6 +125,17 @@ func (r *TaskRuntime) commit(ctx context.Context, change func(*Tx, TaskRecord) (
 		if task.Execution == nil || task.Execution.Native == nil {
 			return reject("builtin runtime cannot replace its execution state")
 		}
+		if next.Status == "sleeping" && !r.abortMode {
+			memos := task.Execution.Native.Memos
+			if candidate, found, err := tx.stagedCanonicalTask(task.ID); err != nil {
+				return err
+			} else if found {
+				memos = candidate.Memos
+			}
+			if err := checkSignalSleep(task.ID, *next, memos); err != nil {
+				return err
+			}
+		}
 		state, err := copyTaskState(*next, tx.limits)
 		if err != nil {
 			return err
