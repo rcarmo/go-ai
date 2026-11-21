@@ -169,3 +169,9 @@ All 49 unchanged cases in `codemode-describe.test.ts` and `codemode.test.ts` pas
 Codemode keeps full image bytes available to model-facing tool hooks. It still journals script images in bounded chunks for replay. The tool settlement then chunks the final output if it still exceeds the transcript's inline limit.
 
 A supplemental QuickJS/SQLite test emits a PNG above that limit and checks the resized image and exact diagnostic in both the provider request and the public transcript. Restoring early transcript chunking made the submission unanswered. Focused fitting and Codemode image-chunk tests passed twice, along with vet and Staticcheck. Five broader native Codemode groups remain red with and without this change: generated-image replay notice, large-image snapshot reopen, paid-image uncertain settlement, scoped image global reuse, and failed-image output reopen. No new source-original count is claimed.
+
+### Nested tool phase configuration
+
+Nested tool admission and execution now resolve the captured `AgentChange` through the normal agent conversion instead of decoding it as a stored `agentState`. The strict storage decoder correctly rejected the change-only `CompactionSet` field. This fix leaves the persisted format and the strict decoder unchanged.
+
+Six selected unchanged Codemode and harness-tool originals passed. Three existing native nested groups (environment, restart policy, and active parent attribution) and four Codemode image/settlement groups passed twice after the fix. Reintroducing the invalid decode only in the child executor kept both environment and tool execution at zero. The large-image public snapshot reopen assertion remains red and is separate from agent decoding.

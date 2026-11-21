@@ -175,12 +175,8 @@ func (r *TaskRuntime) startToolScoped(ctx context.Context, key, name string, arg
 	}
 	// Agent selection is phase-local. Select the same captured revision when
 	// choosing executable registration; do not consult a later live registry.
-	var state agentState
-	value, err := dtoObject(agent.Configuration, l)
+	state, err := r.harness.agent(agent.Configuration)
 	if err != nil {
-		return nil, err
-	}
-	if err = fromObject(value, &state, l); err != nil {
 		return nil, err
 	}
 	_, pins, _, _, err := r.phaseSelection().selectedTools(r.harness.selectionAgent(state), l, false, r.reportError)
@@ -337,15 +333,11 @@ func runNestedTool(ctx context.Context, record TaskRecord, r *TaskRuntime) error
 	if err != nil {
 		return err
 	}
-	var agentState agentState
-	value, err := dtoObject(agent.Configuration, l)
+	state, err := r.harness.agent(agent.Configuration)
 	if err != nil {
 		return err
 	}
-	if err = fromObject(value, &agentState, l); err != nil {
-		return err
-	}
-	_, pins, _, _, err := r.phaseSelection().selectedTools(r.harness.selectionAgent(agentState), l, false, r.reportError)
+	_, pins, _, _, err := r.phaseSelection().selectedTools(r.harness.selectionAgent(state), l, false, r.reportError)
 	if err != nil {
 		return err
 	}
@@ -375,7 +367,7 @@ func runNestedTool(ctx context.Context, record TaskRecord, r *TaskRuntime) error
 		if err != nil {
 			return settleNestedTool(ctx, record, r, ToolResult{Content: "Invalid tool arguments", IsError: true}, "invalid_arguments", 0)
 		}
-		for _, hooks := range r.phaseSelection().selectedToolHooks(r.harness.selectionAgent(agentState)) {
+		for _, hooks := range r.phaseSelection().selectedToolHooks(r.harness.selectionAgent(state)) {
 			if hooks.BeforeTool == nil {
 				continue
 			}
@@ -464,13 +456,13 @@ func runNestedTool(ctx context.Context, record TaskRecord, r *TaskRuntime) error
 			result.Content = fmt.Sprintf("Tool %s threw", input.Name)
 		}
 		result.Diagnostics = append(result.Diagnostics, ToolDiagnostic{Severity: "error", Code: "tool_error", Message: fmt.Sprintf("Tool %s threw", input.Name)})
-		result, hookErr := runNestedAfterHooks(ctx, r, agentState, input, args, result)
+		result, hookErr := runNestedAfterHooks(ctx, r, state, input, args, result)
 		if hookErr != nil {
 			return hookErr
 		}
 		return settleNestedTool(ctx, record, r, result, "tool_error", duration)
 	}
-	result, err = runNestedAfterHooks(ctx, r, agentState, input, args, result)
+	result, err = runNestedAfterHooks(ctx, r, state, input, args, result)
 	if err != nil {
 		return err
 	}
