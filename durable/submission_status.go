@@ -6,9 +6,16 @@ import (
 	goai "github.com/rcarmo/go-ai"
 )
 
+// SubmissionNotify names a task and key to receive the settled record.
+type SubmissionNotify struct {
+	TaskID ID     `json:"taskId"`
+	Key    string `json:"key"`
+}
+
 // SubmissionRecord exposes the reference lifecycle while Snapshot retains
 // native storage envelopes. Public fields follow the pinned record union.
 type SubmissionRecord struct {
+	Notify       *SubmissionNotify
 	ID           ID
 	Conversation ID
 	RequestID    string
@@ -243,7 +250,7 @@ func submissionEntryID(value any) ID {
 	return ID(n.Num().Uint64())
 }
 func publicSubmission(sub Submission) SubmissionRecord {
-	record := SubmissionRecord{ID: sub.ID, Conversation: sub.Conversation, RequestID: sub.RequestID, RequestIDPresent: sub.hasRequestID(), Type: sub.Type, Trace: copyTelemetryCarrier(sub.Trace), Entry: submissionEntryID(sub.Value["placedEntry"]), Answer: submissionEntryID(sub.Value["answerEntry"])}
+	record := SubmissionRecord{ID: sub.ID, Conversation: sub.Conversation, RequestID: sub.RequestID, RequestIDPresent: sub.hasRequestID(), Type: sub.Type, Trace: copyTelemetryCarrier(sub.Trace), Notify: submissionNotification(sub.Value["notify"]), Entry: submissionEntryID(sub.Value["placedEntry"]), Answer: submissionEntryID(sub.Value["answerEntry"])}
 	if sub.Type != "write" && sub.Type != "continue" {
 		record.Type = "input"
 	}

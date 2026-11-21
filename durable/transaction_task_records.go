@@ -13,6 +13,10 @@ func (t *Tx) setTask(value TaskRecord) error {
 		return err
 	}
 	defer t.leave()
+	return t.stageCanonicalTask(value)
+}
+
+func (t *Tx) stageCanonicalTask(value TaskRecord) error {
 	t.hasTableWrite = true
 	candidate, found, err := t.stagedCanonicalTask(value.ID)
 	if err != nil {

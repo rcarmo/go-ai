@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	goai "github.com/rcarmo/go-ai"
 	"math"
 	"reflect"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -883,5 +885,277 @@ func TestV160WakePrefersSignalToFutureDeadline(t *testing.T) {
 		got, _ := json.Marshal(record.State.Outcome)
 		expected, _ := json.Marshal(want)
 		t.Fatalf("result = %s, %v; want %s", got, err, expected)
+	}
+}
+
+type signalCommitRecorder struct {
+	Storage
+	mu      sync.Mutex
+	batches [][]StorageWrite
+}
+
+func (s *signalCommitRecorder) Commit(ctx context.Context, batches [][]StorageWrite, receive func(int, uint64)) (CommitResult, error) {
+	return s.Storage.Commit(ctx, batches, func(i int, seq uint64) {
+		s.mu.Lock()
+		s.batches = append(s.batches, append([]StorageWrite(nil), batches[i]...))
+		s.mu.Unlock()
+		if receive != nil {
+			receive(i, seq)
+		}
+	})
+}
+
+func (s *signalCommitRecorder) requireNotified(t *testing.T, waiter ID, expected map[ID]string) {
+	t.Helper()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, batch := range s.batches {
+		settled := map[ID]SubmissionRecord{}
+		var taskWrites []TaskRecord
+		for _, write := range batch {
+			switch write.Type {
+			case "submission":
+				if record, ok := recordValue[SubmissionRecord](write.Value); ok && expected[record.ID] != "" && record.Status == "done" {
+					settled[record.ID] = record
+				}
+			case "task":
+				if task, ok := recordValue[TaskRecord](write.Value); ok && task.ID == waiter {
+					taskWrites = append(taskWrites, task)
+				}
+			}
+		}
+		if len(settled) == 0 {
+			continue
+		}
+		if len(settled) != len(expected) || len(taskWrites) != 1 {
+			t.Fatalf("settling batch: %d submissions, %d waiter writes", len(settled), len(taskWrites))
+		}
+		for id, key := range expected {
+			memo := taskWrites[0].Memos[signalMemoName(SubmissionSettled.Name(), key)]
+			if memo == nil || !memo.Present {
+				t.Fatalf("batch did not write key %s", key)
+			}
+			stored := generationObject(memo.Value)
+			got, err := json.Marshal(stored["value"])
+			if err != nil {
+				t.Fatal(err)
+			}
+			want, err := json.Marshal(settled[id])
+			if err != nil {
+				t.Fatal(err)
+			}
+			var actualValue, expectedValue any
+			if decodePublicJSON(got, &actualValue) != nil || decodePublicJSON(want, &expectedValue) != nil || !reflect.DeepEqual(actualValue, expectedValue) {
+				t.Fatalf("key %s: payload %s, want exact settled record %s", key, got, want)
+			}
+		}
+		return
+	}
+	t.Fatal("no batch stored the settled submissions")
+}
+
+// v1.6.0 harness-park-children.test.ts, submissions that notify a task.
+// The recorder witnesses settlement and notification in the same batch.
+func TestSourceV160SubmissionNotifications(t *testing.T) {
+	for _, name := range []string{"input-settlement", "created-settled", "paired-queued-writes", "invalid-payload", "missing-target"} {
+		t.Run(name, func(t *testing.T) {
+			queued := name == "paired-queued-writes"
+			blocked := name == "created-settled"
+			ctx, cancel := context.WithTimeout(bg, 8*time.Second)
+			defer cancel()
+			native, err := newTestSQLite(t)
+			if err != nil {
+				t.Fatal(err)
+			}
+			storage := &signalCommitRecorder{Storage: native}
+			entered, release, parked := make(chan struct{}), make(chan struct{}), make(chan error, 1)
+			keys := []string{"settled"}
+			if queued {
+				keys = []string{"one", "two"}
+			}
+			signals := make([]SignalKey, 0, len(keys))
+			for _, key := range keys {
+				sk, err := SubmissionSettled.Key(key)
+				if err != nil {
+					t.Fatal(err)
+				}
+				signals = append(signals, sk)
+			}
+			ref, options := setupFakeAPI(t, func(ctx context.Context, _ *goai.Model, _ *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
+				ch := make(chan goai.Event, 1)
+				close(entered)
+				go func() {
+					defer close(ch)
+					select {
+					case <-release:
+						ch <- terminal("answer")
+					case <-ctx.Done():
+					}
+				}()
+				return ch
+			})
+			waiterDef, err := DefineTask(TaskDefinitionOptions{Kind: "test.notify.waiter", Version: 1,
+				Initial: func(any) (JSON, error) { return JSON{"phase": "sleep"}, nil },
+				Abort: func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+					return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) {
+						return &TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "aborted", Reason: "test"}}, nil
+					})
+				},
+				Phases: map[string]TaskPhase{
+					"sleep": func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+						err := r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) {
+							return &TaskState{Status: "sleeping", Checkpoint: JSON{"phase": "woke"}, Signals: signals}, nil
+						})
+						parked <- err
+						return err
+					},
+					"woke": func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+						var value any
+						if !queued {
+							state, err := r.ReadSignal(ctx, SubmissionSettled, "settled")
+							if err != nil {
+								return err
+							}
+							if state != nil {
+								value = generationObject(state.Value)["status"]
+							}
+						}
+						return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone(value), nil })
+					},
+				},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			options.Registry = NewRegistry()
+			if !blocked {
+				if _, err := options.Registry.RegisterTask(waiterDef); err != nil {
+					t.Fatal(err)
+				}
+			}
+			h := openHarness(t, storage, options)
+			defer releaseTaskGate(release)
+			c := root(t, h, ref)
+			if name == "missing-target" {
+				sub, err := c.Submit(ctx, Input{Type: "input", Content: "go", Notify: &SubmissionNotify{TaskID: 999999, Key: "settled"}})
+				if err != nil {
+					t.Fatal(err)
+				}
+				releaseTaskGate(release)
+				if settled, err := sub.Wait(ctx); err != nil || settled.Record.Status != "done" {
+					t.Fatalf("settled without target = %+v, %v", settled.Record, err)
+				}
+				return
+			}
+			value, err := c.Commit(ctx, func(tx *Tx) (any, error) {
+				return tx.CreateTask(waiterDef, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			waiter := value.(ID)
+			if name == "invalid-payload" {
+				for _, value := range []any{
+					17,
+					JSON{"id": 2, "conversationId": 1, "type": "input", "status": "done"},
+					JSON{"id": 2, "conversationId": 1, "type": "input", "status": "unanswered", "reason": "x", "entry": "e1"},
+				} {
+					if result, err := h.Signal(ctx, waiter, SubmissionSettled, "settled", value); err != nil || result != SignalInvalid {
+						t.Fatalf("invalid payload %v = %q, %v", value, result, err)
+					}
+				}
+				if _, err := h.AbortTask(ctx, waiter); err != nil {
+					t.Fatal(err)
+				}
+				return
+			}
+			var run *SubmissionHandle
+			if !blocked {
+				if err := h.Resume(ctx); err != nil {
+					t.Fatal(err)
+				}
+				select {
+				case err := <-parked:
+					if err != nil {
+						t.Fatal(err)
+					}
+				case <-ctx.Done():
+					t.Fatal(ctx.Err())
+				}
+			}
+			if queued {
+				run, err = c.Submit(ctx, Input{Type: "input", Content: "go"})
+				if err != nil {
+					t.Fatal(err)
+				}
+				select {
+				case <-entered:
+				case <-ctx.Done():
+					t.Fatal(ctx.Err())
+				}
+			}
+			expected := map[ID]string{}
+			var submissions []*SubmissionHandle
+			for _, key := range keys {
+				entry := &Entry{Kind: "test.note", Data: "hi", HasData: true}
+				if queued {
+					entry.Model = []MessageReceipt{userReceipt(key)}
+				}
+				notify := &SubmissionNotify{TaskID: waiter, Key: key}
+				draft := Input{Type: "write", Entry: entry, Notify: notify}
+				if name == "input-settlement" {
+					draft = Input{Type: "input", Content: "go", Notify: notify}
+				}
+				sub, err := c.Submit(ctx, draft)
+				if err != nil {
+					t.Fatal(err)
+				}
+				status, err := sub.Status(ctx)
+				want := "done"
+				if queued {
+					want = "queued"
+				} else if !blocked {
+					want = "placed"
+				}
+				if err != nil || status.Status != want {
+					t.Fatalf("submission status = %s, %v; want %s", status.Status, err, want)
+				}
+				expected[sub.ID()] = key
+				submissions = append(submissions, sub)
+			}
+			var result any = "done"
+			if !blocked {
+				if !queued {
+					select {
+					case <-entered:
+					case <-ctx.Done():
+						t.Fatal(ctx.Err())
+					}
+				}
+				releaseTaskGate(release)
+				if run != nil {
+					if _, err := run.Wait(ctx); err != nil {
+						t.Fatal(err)
+					}
+					result = nil
+				}
+			} else {
+				if task, found, err := h.Task(ctx, waiter); err != nil || !found || task.StartedAt != nil {
+					t.Fatalf("waiter started before notification: %+v, %v", task, err)
+				}
+				if _, err := options.Registry.RegisterTask(waiterDef); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for _, sub := range submissions {
+				if settled, err := sub.Wait(ctx); err != nil || settled.Record.Status != "done" {
+					t.Fatalf("settled = %+v, %v", settled.Record, err)
+				}
+			}
+			if got, err := h.WaitForTask(ctx, waiter); err != nil || !reflect.DeepEqual(got.State.Outcome, taskDone(result).Outcome) {
+				t.Fatalf("waiter outcome = %+v, %v", got.State.Outcome, err)
+			}
+			storage.requireNotified(t, waiter, expected)
+		})
 	}
 }

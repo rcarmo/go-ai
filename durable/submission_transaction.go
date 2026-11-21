@@ -28,7 +28,7 @@ func (t *Tx) CreateSubmission(create SubmissionCreate) (SubmissionRecord, error)
 	if err != nil {
 		return SubmissionRecord{}, err
 	}
-	record := SubmissionRecord{ID: id, Conversation: create.Conversation, RequestID: create.RequestID, RequestIDPresent: create.RequestIDPresent, Type: create.Type, Status: create.Status, Entry: create.Entry, Answer: create.Answer, Reason: create.Reason, Detail: create.Detail, Trace: create.Trace}
+	record := SubmissionRecord{ID: id, Conversation: create.Conversation, RequestID: create.RequestID, RequestIDPresent: create.RequestIDPresent, Type: create.Type, Status: create.Status, Entry: create.Entry, Answer: create.Answer, Reason: create.Reason, Detail: create.Detail, Trace: create.Trace, Notify: create.Notify}
 	native, err := nativeSubmission(record, t.limits)
 	if err != nil {
 		return SubmissionRecord{}, err
@@ -45,6 +45,9 @@ func nativeSubmission(record SubmissionRecord, l Limits) (Submission, error) {
 		return Submission{}, err
 	}
 	value := JSON{}
+	if record.Notify != nil {
+		value["notify"] = JSON{"taskId": record.Notify.TaskID, "key": record.Notify.Key}
+	}
 	sub := Submission{ID: record.ID, Conversation: record.Conversation, RequestID: record.RequestID, RequestIDPresent: record.RequestIDPresent, Value: value, Trace: copyTelemetryCarrier(record.Trace)}
 	switch record.Type {
 	case "input":
@@ -113,6 +116,7 @@ func nativeSubmission(record SubmissionRecord, l Limits) (Submission, error) {
 // SubmissionCreate omits the identity assigned by the Session, as the pinned
 // SubmissionCreate union does. It carries no native input/compatibility payload.
 type SubmissionCreate struct {
+	Notify           *SubmissionNotify
 	Conversation     ID
 	RequestID        string
 	RequestIDPresent bool
@@ -215,7 +219,14 @@ func applySubmissionChange(current SubmissionRecord, change transactionSubmissio
 	current.Detail = change.settlement.Detail
 	return current, true, nil
 }
-func (t *Tx) finalizeSubmissionWrites() error {
+func (t *Tx) resolveSubmissionChanges() error {
+	var settling []SubmissionRecord
+	for _, id := range t.submissionOrder {
+		record := t.submissions[id]
+		if record.Notify != nil && (record.Status == "done" || record.Status == "unanswered") {
+			settling = append(settling, record)
+		}
+	}
 	for _, change := range t.submissionChanges {
 		current, found := t.submissions[change.id]
 		if !found {
@@ -237,8 +248,20 @@ func (t *Tx) finalizeSubmissionWrites() error {
 		}
 		if changed {
 			t.setSubmission(next)
+			if next.Notify != nil && (next.Status == "done" || next.Status == "unanswered") {
+				settling = append(settling, next)
+			}
 		}
 	}
+	for _, record := range settling {
+		if err := t.notifySubmission(record); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (t *Tx) finalizeSubmissionWrites() error {
 	for _, id := range t.submissionOrder {
 		native, err := nativeSubmission(t.submissions[id], t.limits)
 		if err != nil {
@@ -251,7 +274,7 @@ func (t *Tx) finalizeSubmissionWrites() error {
 			if err != nil {
 				return err
 			}
-			for _, key := range []string{"placedEntry", "answerEntry", "errorCode", "detail"} {
+			for _, key := range []string{"placedEntry", "answerEntry", "errorCode", "detail", "notify"} {
 				delete(value, key)
 			}
 			for key, item := range native.Value {

@@ -19,6 +19,9 @@ func (r SubmissionRecord) MarshalJSON() ([]byte, error) {
 	if r.RequestID != "" || r.RequestIDPresent {
 		out.field("requestId", r.RequestID)
 	}
+	if r.Notify != nil {
+		out.field("notify", r.Notify)
+	}
 	if r.Entry != 0 {
 		out.field("entry", r.Entry)
 	}
@@ -82,11 +85,12 @@ func (r *SubmissionRecord) UnmarshalJSON(data []byte) error {
 		Reason       *string                `json:"reason"`
 		Detail       json.RawMessage        `json:"detail"`
 		Trace        *goai.TelemetryCarrier `json:"trace"`
+		Notify       *SubmissionNotify      `json:"notify"`
 	}
 	if err := decodePublicJSON(data, &wire); err != nil {
 		return err
 	}
-	result := SubmissionRecord{ID: wire.ID, Conversation: wire.Conversation, Type: wire.Type, Status: wire.Status, Entry: wire.Entry, Answer: wire.Answer, Trace: wire.Trace}
+	result := SubmissionRecord{ID: wire.ID, Conversation: wire.Conversation, Type: wire.Type, Status: wire.Status, Entry: wire.Entry, Answer: wire.Answer, Trace: wire.Trace, Notify: wire.Notify}
 	if (wire.Status == "unanswered") != (wire.Reason != nil) {
 		return reject("submission reason presence")
 	}

@@ -55,21 +55,32 @@ func (t *Tx) Signal(id ID, token *SignalToken, key string, value any) (SignalRes
 	if !found {
 		return SignalNotFound, nil
 	}
+	result, replacement, err := t.deliverSignal(task, token, key, value)
+	if err != nil || replacement == nil {
+		return result, err
+	}
+	if err := t.stage(Write{Op: "put-task", Task: replacement}); err != nil {
+		return "", err
+	}
+	return result, nil
+}
+
+func (t *Tx) deliverSignal(task Task, token *SignalToken, key string, value any) (SignalResult, *Task, error) {
 	if terminalStatus(task.Status) || taskHasDecidedOutcome(task) || taskAborted(task) {
-		return SignalClosed, nil
+		return SignalClosed, nil, nil
 	}
 	if key == "" {
-		return SignalInvalid, nil
+		return SignalInvalid, nil, nil
 	}
 	owned, err := ownJSONValue(value, t.limits)
 	if err != nil {
-		return SignalInvalid, nil
+		return SignalInvalid, nil, nil
 	}
 	if token == nil || token.definition.Schema == nil {
-		return "", reject("invalid signal token")
+		return "", nil, reject("invalid signal token")
 	}
 	if !goai.CheckJSONSchemaValue(map[string]any(token.definition.Schema), owned) {
-		return SignalInvalid, nil
+		return SignalInvalid, nil, nil
 	}
 	name := signalMemoName(token.Name(), key)
 	var memos map[string]*TaskValue
@@ -82,9 +93,9 @@ func (t *Tx) Signal(id ID, token *SignalToken, key string, value any) (SignalRes
 	}
 	if memo := memos[name]; memo != nil {
 		if generationObject(memo.Value)["expired"] == true {
-			return SignalClosed, nil
+			return SignalClosed, nil, nil
 		}
-		return SignalDuplicate, nil
+		return SignalDuplicate, nil, nil
 	}
 	memos = maps.Clone(memos)
 	if memos == nil {
@@ -112,8 +123,5 @@ func (t *Tx) Signal(id ID, token *SignalToken, key string, value any) (SignalRes
 		builtin.Memos = memos
 		task.Execution = &TaskExecution{Tag: builtinTaskTag, Builtin: &builtin}
 	}
-	if err := t.stage(Write{Op: "put-task", Task: &task}); err != nil {
-		return "", err
-	}
-	return result, nil
+	return result, &task, nil
 }

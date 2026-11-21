@@ -511,6 +511,9 @@ func (s *Session) commitJob(ctx context.Context, callback func(*Tx) error, exter
 	if err = tx.prevalidateForkSourceWrites(); err != nil {
 		return 0, err
 	}
+	if err = tx.resolveSubmissionChanges(); err != nil {
+		return 0, err
+	}
 	// Internal canonical replacements resolve committed reads only now, after
 	// callback settlement. Public Tx exposes no raw task replacement operation.
 	if err = tx.finalizeCanonicalTasks(); err != nil {

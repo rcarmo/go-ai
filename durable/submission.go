@@ -29,6 +29,8 @@ type Input struct {
 	WhenIdle string
 	// OnAbort may be "keep" to retain this input while it is queued.
 	OnAbort string
+	// Notify receives the terminal record in the settling commit.
+	Notify *SubmissionNotify
 }
 
 // ConversationBusy identifies the conversation that rejected busy admission.
@@ -217,6 +219,10 @@ func (c *ConversationHandle) submitOnLine(ctx context.Context, input Input, bind
 }
 func (c *ConversationHandle) prepareSubmissionInput(input Input) (Input, error) {
 	h := c.h
+	if input.Notify != nil {
+		notify := *input.Notify
+		input.Notify = &notify
+	}
 	if input.WhenBusy != "" && input.WhenBusy != "reject" && input.WhenBusy != "steer" && input.WhenBusy != "follow-up" && input.WhenBusy != "followUp" {
 		return input, reject("invalid busy mode")
 	}
@@ -294,7 +300,7 @@ func (c *ConversationHandle) admitSubmission(ctx context.Context, tx *Tx, input 
 	}
 	carrier := submissionTelemetryCarrier(submitTraceFromContext(ctx))
 	create := func(status string, entry ID, reason string) (SubmissionRecord, error) {
-		return tx.CreateSubmission(SubmissionCreate{Conversation: c.id, Type: kind, Status: status, Entry: entry, Reason: reason, RequestID: input.RequestID, RequestIDPresent: input.RequestIDPresent, Trace: carrier})
+		return tx.CreateSubmission(SubmissionCreate{Conversation: c.id, Type: kind, Status: status, Entry: entry, Reason: reason, RequestID: input.RequestID, RequestIDPresent: input.RequestIDPresent, Trace: carrier, Notify: input.Notify})
 	}
 	now := h.session.now()
 	settings := h.resolvedSettings(RequestSettings{})
