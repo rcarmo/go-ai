@@ -164,6 +164,11 @@ type OpenAIResponsesCompat struct {
 	SupportsMaxOutputTokens *bool `json:"supportsMaxOutputTokens,omitempty"`
 }
 
+// MistralConversationsCompat controls optional Mistral request features.
+type MistralConversationsCompat struct {
+	SupportsStrictMode bool `json:"supportsStrictMode"`
+}
+
 // BedrockCompat holds compatibility overrides for Bedrock Converse models.
 type BedrockCompat struct {
 	// Whether the provider supports strict JSON-schema function tools.
@@ -353,7 +358,7 @@ func detectCompat(provider Provider, modelID string, baseURL string) OpenAICompl
 		isCloudflareWorkersAI || isCloudflareAIGW || isAntLing || isBaseten || isOllama
 	useMaxTokens := contains(baseURLLower, "chutes.ai") || isDeepSeek || isMoonshot || isCloudflareAIGW || isTogether || isNvidia || isAntLing || isBaseten || isOllama
 
-	isOpenRouterDevRole := isOpenRouter && (strings.HasPrefix(modelID, "anthropic/") || strings.HasPrefix(modelID, "openai/"))
+	isOpenAI := provider == ProviderOpenAI || contains(baseURLLower, "api.openai.com")
 
 	t := true
 	f := false
@@ -366,7 +371,7 @@ func detectCompat(provider Provider, modelID string, baseURL string) OpenAICompl
 	}
 
 	// supportsDeveloperRole
-	if isOpenRouterDevRole || (!isNonStandard && !isOpenRouter) {
+	if isOpenAI {
 		c.SupportsDeveloperRole = &t
 	} else {
 		c.SupportsDeveloperRole = &f

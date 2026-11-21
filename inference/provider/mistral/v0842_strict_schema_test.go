@@ -8,7 +8,7 @@ import (
 )
 
 func TestV0842MistralStrictSchemaUsesConvertedParameters(t *testing.T) {
-	model := &goai.Model{ID: "mistral-large-latest", Provider: goai.ProviderMistral, Api: goai.ApiMistralConversations}
+	model := &goai.Model{ID: "mistral-large-latest", Provider: goai.ProviderMistral, Api: goai.ApiMistralConversations, MistralCompat: &goai.MistralConversationsCompat{SupportsStrictMode: true}}
 	ctx := &goai.Context{Tools: []goai.Tool{{
 		Name:                "lookup",
 		Description:         "Lookup",

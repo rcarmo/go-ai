@@ -3,6 +3,7 @@ package openai
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -291,3 +292,66 @@ func TestProcessSSEStreamAttachesPendingEncryptedReasoningDetails(t *testing.T) 
 }
 
 func stringsReader(s string) io.Reader { return strings.NewReader(s) }
+
+// Source: openai-completions-tool-choice.test.ts. Capture the payload before
+// I/O so registered host identities stay intact without a network request.
+func TestSourceV160OpenAICompletionsInstructionRolesAndEffort(t *testing.T) {
+	ctx := context.Background()
+	abort := errors.New("captured request")
+	body := func(t *testing.T, model *goai.Model, level goai.ThinkingLevel) chatRequest {
+		t.Helper()
+		var captured chatRequest
+		var reason error
+		for event := range streamOpenAISimple(ctx, model, &goai.Context{SystemPrompt: "instruction", Messages: []goai.Message{goai.UserMessage("hello")}}, &goai.StreamOptions{APIKey: "key", Reasoning: &level, OnPayload: func(value any, _ *goai.Model) (any, error) {
+			wire, err := json.Marshal(value)
+			if err != nil {
+				return nil, err
+			}
+			if err := json.Unmarshal(wire, &captured); err != nil {
+				return nil, err
+			}
+			return nil, abort
+		}}) {
+			if failure, ok := event.(*goai.ErrorEvent); ok {
+				reason = failure.Err
+			}
+		}
+		if !errors.Is(reason, abort) {
+			t.Fatalf("payload was not captured: %v", reason)
+		}
+		return captured
+	}
+	for _, test := range []struct {
+		provider      goai.Provider
+		id, url, want string
+	}{
+		{"openai", "gpt-5.5", "https://api.openai.com/v1", "developer"},
+		{"custom", "gpt-5.5", "https://api.openai.com/v1", "developer"},
+		{"groq", "qwen/qwen3.8-27b", "https://api.groq.com/openai/v1", "system"},
+		{"custom", "qwen3.8-27b", "https://api.example.test/v1", "system"},
+		{"openrouter", "deepseek/deepseek-v4-pro", "https://openrouter.ai/api/v1", "system"},
+		{"openrouter", "openai/gpt-5.2-codex", "https://openrouter.ai/api/v1", "system"},
+		{"openrouter", "anthropic/claude-fable-5.1:batch", "https://openrouter.ai/api/v1", "system"},
+		{"azure", "deepseek-v4-pro", "https://my-resource.openai.azure.com/openai/v1", "system"},
+		{"my-azure", "gpt-5.5", "https://my-resource.openai.azure.com/openai/v1", "system"},
+	} {
+		t.Run(string(test.provider)+"/"+test.id, func(t *testing.T) {
+			model := &goai.Model{Api: goai.ApiOpenAICompletions, Provider: test.provider, ID: test.id, BaseURL: test.url, Reasoning: true}
+			result := body(t, model, "")
+			if len(result.Messages) < 1 || result.Messages[0].Role != test.want {
+				t.Errorf("instruction role: %#v, want %s", result.Messages, test.want)
+			}
+		})
+	}
+	goai.RegisterBuiltinModels()
+	for _, effort := range []goai.ThinkingLevel{goai.ThinkingLow, goai.ThinkingHigh} {
+		model := goai.GetModel("github-copilot", "gemini-4-argon")
+		if model == nil || model.Api != goai.ApiOpenAICompletions {
+			t.Fatalf("Copilot model = %#v", model)
+		}
+		result := body(t, model, effort)
+		if result.ReasoningEffort != string(effort) {
+			t.Errorf("reasoning_effort = %q; want %q", result.ReasoningEffort, effort)
+		}
+	}
+}

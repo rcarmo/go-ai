@@ -1,7 +1,11 @@
 package openai
 
 import (
+	"context"
+	"fmt"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -76,4 +80,45 @@ func runOpenAICompletionsResponseModelChunks(t *testing.T, chunks []string) *goa
 	}
 	t.Fatal("expected DoneEvent")
 	return nil
+}
+
+// Source: openai-completions-tool-choice.test.ts, Copilot's top-level usage.
+func TestSourceV160OpenAIReasoningUsageFallback(t *testing.T) {
+	goai.RegisterBuiltinModels()
+	registered := goai.GetModel("github-copilot", "gemini-4-argon")
+	if registered == nil {
+		t.Fatal("missing Copilot model")
+	}
+	for _, tc := range []struct {
+		details   string
+		reasoning int
+	}{{"", 30}, {`,"completion_tokens_details":{"reasoning_tokens":0}`, 30}, {`,"completion_tokens_details":{"reasoning_tokens":7}`, 7}} {
+		chunks := []string{
+			`data: {"id":"chatcmpl-copilot-reasoning","choices":[{"index":0,"delta":{"content":"OK"}}]}`,
+			`data: {"id":"chatcmpl-copilot-reasoning","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":40,"prompt_tokens_details":{"cached_tokens":0},"reasoning_tokens":30` + tc.details + `}}`,
+			`data: [DONE]`,
+		}
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "text/event-stream")
+			fmt.Fprint(w, strings.Join(chunks, "\n\n")+"\n\n")
+		}))
+		model := *registered
+		model.BaseURL = server.URL
+		var message *goai.Message
+		for event := range streamOpenAISimple(context.Background(), &model, &goai.Context{Messages: []goai.Message{goai.UserMessage("Reply with exactly OK")}}, &goai.StreamOptions{APIKey: "test"}) {
+			if done, ok := event.(*goai.DoneEvent); ok {
+				message = done.Message
+			}
+			if failed, ok := event.(*goai.ErrorEvent); ok {
+				t.Errorf("Copilot stream failed: %v", failed.Err)
+			}
+		}
+		server.Close()
+		if message == nil {
+			t.Fatal("Copilot stream had no result")
+		}
+		if message.Usage == nil || !message.Usage.ReasoningSet || message.Usage.Reasoning != tc.reasoning || message.Usage.Output != 40 {
+			t.Errorf("details=%q, usage=%+v; want reasoning=%d, output=40", tc.details, message.Usage, tc.reasoning)
+		}
+	}
 }

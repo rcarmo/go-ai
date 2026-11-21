@@ -1124,6 +1124,7 @@ type sseUsage struct {
 	openroutercost.Accounting
 	PromptTokens            int  `json:"prompt_tokens"`
 	CompletionTokens        int  `json:"completion_tokens"`
+	ReasoningTokens         int  `json:"reasoning_tokens"`
 	TotalTokens             int  `json:"total_tokens"`
 	PromptCacheHitTokens    *int `json:"prompt_cache_hit_tokens"`
 	CachedTokens            *int `json:"cached_tokens"`
@@ -1481,6 +1482,9 @@ func applyUsage(usage *goai.Usage, raw *sseUsage, model *goai.Model) {
 	usage.ReasoningSet = true // pinned upstream always reports this property
 	if raw.CompletionTokensDetails != nil {
 		usage.Reasoning = raw.CompletionTokensDetails.ReasoningTokens
+	}
+	if usage.Reasoning == 0 {
+		usage.Reasoning = raw.ReasoningTokens
 	}
 	computeCosts(usage, model)
 	if openroutercost.IsModel(model) {

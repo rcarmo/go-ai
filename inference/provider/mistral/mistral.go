@@ -300,11 +300,12 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 		}
 	}
 
-	// Tools
+	// Strict tools are opt-in on Mistral models.
+	supportsStrict := model.MistralCompat != nil && model.MistralCompat.SupportsStrictMode
 	for _, t := range convCtx.Tools {
 		parameters := t.Parameters
 		strictTool := false
-		if strict, err := goai.ResolveJSONSchemaStrictSampling(t, true); err == nil && strict != nil {
+		if strict, err := goai.ResolveJSONSchemaStrictSampling(t, supportsStrict); err == nil && strict != nil {
 			strictTool = *strict
 			if *strict {
 				if strictParameters, err := goai.JSONSchemaToolParameters(t, true); err == nil {

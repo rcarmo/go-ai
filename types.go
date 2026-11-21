@@ -483,12 +483,13 @@ type Model struct {
 	SamplingParamsByThinkingLevel map[ModelThinkingLevel]map[string]any `json:"samplingParamsByThinkingLevel,omitempty"`
 
 	// Optional overrides
-	Headers           map[string]string        `json:"headers,omitempty"`
-	APIKey            string                   `json:"-"` // never serialized
-	CompletionsCompat *OpenAICompletionsCompat `json:"completionsCompat,omitempty"`
-	ResponsesCompat   *OpenAIResponsesCompat   `json:"responsesCompat,omitempty"`
-	AnthropicCompat   *AnthropicMessagesCompat `json:"anthropicCompat,omitempty"`
-	BedrockCompat     *BedrockCompat           `json:"bedrockCompat,omitempty"`
+	Headers           map[string]string           `json:"headers,omitempty"`
+	APIKey            string                      `json:"-"` // never serialized
+	CompletionsCompat *OpenAICompletionsCompat    `json:"completionsCompat,omitempty"`
+	ResponsesCompat   *OpenAIResponsesCompat      `json:"responsesCompat,omitempty"`
+	AnthropicCompat   *AnthropicMessagesCompat    `json:"anthropicCompat,omitempty"`
+	MistralCompat     *MistralConversationsCompat `json:"mistralCompat,omitempty"`
+	BedrockCompat     *BedrockCompat              `json:"bedrockCompat,omitempty"`
 }
 
 type ImageApi string

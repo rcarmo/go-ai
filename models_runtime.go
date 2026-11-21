@@ -378,6 +378,10 @@ func cloneModel(model *Model) *Model {
 		}
 		copy.InputLimits = &limits
 	}
+	if model.MistralCompat != nil {
+		compat := *model.MistralCompat
+		copy.MistralCompat = &compat
+	}
 	if model.PromptCache != nil {
 		promptCache := *model.PromptCache
 		copy.PromptCache = &promptCache

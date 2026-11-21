@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -164,6 +165,7 @@ func TestUpstreamMainMistralToolSchema(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusForbidden) }))
 	defer server.Close()
 	model := upstreamMistralModel("devstral-medium-latest")
+	model.MistralCompat = &goai.MistralConversationsCompat{SupportsStrictMode: true}
 	model.BaseURL = server.URL
 	var captured map[string]any
 	response := upstreamMistralResult(t, context.Background(), model, transcript, &goai.StreamOptions{APIKey: "fake-key", OnPayload: func(value any, _ *goai.Model) (any, error) {
@@ -190,5 +192,30 @@ func TestUpstreamMainMistralToolSchema(t *testing.T) {
 	}
 	if response.StopReason != goai.StopReasonError || strings.Contains(response.ErrorMessage, "Input validation failed") {
 		t.Fatalf("response %#v", response)
+	}
+}
+
+// Source: mistral-tool-schema.test.ts, Large 4 defaults to non-strict schemas.
+func TestSourceV160MistralStrictModeIsOptIn(t *testing.T) {
+	parameters := json.RawMessage(`{"type":"object","properties":{"path":{"type":"string"},"limit":{"type":"number"}},"required":["path"]}`)
+	transcript := &goai.Context{Messages: []goai.Message{goai.UserMessage("Hi")}, Tools: []goai.Tool{{Name: "read", Parameters: parameters, ConstrainedSampling: &goai.ToolConstrainedSampling{Type: "json_schema", Strict: "prefer"}}}}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusForbidden) }))
+	defer server.Close()
+	model := upstreamMistralModel("mistral-large-4")
+	model.BaseURL = server.URL
+	var captured map[string]any
+	_ = upstreamMistralResult(t, context.Background(), model, transcript, &goai.StreamOptions{APIKey: "fake-key", OnPayload: func(value any, _ *goai.Model) (any, error) {
+		var err error
+		captured, err = upstreamMistralPayload(value)
+		return value, err
+	}})
+	tools, ok := captured["tools"].([]any)
+	if !ok || len(tools) != 1 {
+		t.Fatalf("payload tools = %v", captured["tools"])
+	}
+	function := tools[0].(map[string]any)["function"].(map[string]any)
+	schema := function["parameters"].(map[string]any)
+	if function["strict"] != false || !reflect.DeepEqual(schema["required"], []any{"path"}) {
+		t.Fatalf("default tool = %v", function)
 	}
 }

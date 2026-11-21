@@ -97,8 +97,8 @@ func TestDetectCompatProviders(t *testing.T) {
 	}{
 		{"https://api.openai.com/v1", true, true},
 		{"http://localhost:11434/v1", false, false},   // Ollama
-		{"https://api.groq.com/v1", true, true},       // Groq follows upstream's standard-compatible payload shape
-		{"https://openrouter.ai/api/v1", false, true}, // OpenRouter generic (developer role only for anthropic/openai prefixed models)
+		{"https://api.groq.com/v1", false, true},      // Non-OpenAI hosts default to system instructions
+		{"https://openrouter.ai/api/v1", false, true}, // OpenRouter defaults to system instructions
 	}
 	for _, tt := range tests {
 		c := goai.DetectCompat(tt.url)
