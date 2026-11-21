@@ -93,9 +93,7 @@ func canonicalParkTool(ctx context.Context, r *TaskRuntime, api *ToolAPI, reg re
 		if err := canonicalToolSlotUpdate(tx, r.taskID, r.conversation, func(slot JSON) {
 			setToolPresentation(slot, progress, api.checkpoint.HasDetails)
 			slot["status"] = next.Status
-			for _, key := range []string{"output", "droppedBytes", "droppedLines"} {
-				delete(slot, key)
-			}
+			clearCanonicalToolOutput(slot)
 		}); err != nil {
 			return nil, err
 		}
@@ -149,7 +147,10 @@ func canonicalToolParkedPhase(ctx context.Context, task TaskRecord, r *TaskRunti
 		intent["wake"] = value
 	}
 	if err := r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
-		if err := canonicalToolSlotUpdate(tx, r.taskID, r.conversation, func(slot JSON) { slot["status"] = "running"; delete(slot, "output") }); err != nil {
+		if err := canonicalToolSlotUpdate(tx, r.taskID, r.conversation, func(slot JSON) {
+			slot["status"] = "running"
+			clearCanonicalToolOutput(slot)
+		}); err != nil {
 			return nil, err
 		}
 		return &TaskState{Status: "running", Checkpoint: intent}, nil
@@ -222,4 +223,10 @@ func cleanupRefusedToolPark(r *TaskRuntime, input canonicalToolInput, call goai.
 	}
 	_ = canonicalCancelPark(ctx, r, input, call, reg, args, checkpoint)
 	return true
+}
+
+func clearCanonicalToolOutput(slot JSON) {
+	delete(slot, "output")
+	delete(slot, "droppedBytes")
+	delete(slot, "droppedLines")
 }

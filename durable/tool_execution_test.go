@@ -808,33 +808,9 @@ func TestSourceV160CanonicalToolCancel(t *testing.T) {
 				t.Fatalf("task = %+v, %v", record, err)
 			}
 			if mode == "parked" {
-				page, err := c.Entries(ctx, EntryQuery{}, 100, nil)
-				if err != nil {
-					t.Fatal(err)
-				}
-				var count int
-				for _, entry := range page.Items {
-					if len(entry.Model) == 0 && entry.Kind != legacyMessageKind {
-						continue
-					}
-					result, err := entryMessage(entry, DefaultLimits())
-					if err != nil {
-						t.Fatal(err)
-					}
-					if result.Role != goai.RoleToolResult || result.ToolCallID != "c1" {
-						continue
-					}
-					count++
-					var text strings.Builder
-					for _, block := range result.Content {
-						text.WriteString(block.Text)
-					}
-					if !result.IsError || !strings.Contains(text.String(), "Tool ci was aborted") {
-						t.Fatalf("tool result = %+v", result)
-					}
-				}
-				if count != 1 {
-					t.Fatalf("tool results for c1 = %d; want one", count)
+				result := v160ToolResult(t, ctx, c, "c1")
+				if !result.IsError || !strings.Contains(v160ToolResultText(result), "Tool ci was aborted") {
+					t.Fatalf("tool result = %+v", result)
 				}
 			}
 			if mode == "removed" {

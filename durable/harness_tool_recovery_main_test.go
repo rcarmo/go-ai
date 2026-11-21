@@ -4,10 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"sync/atomic"
+	"syscall"
 	"testing"
+	"time"
 
 	goai "github.com/rcarmo/go-ai"
 )
@@ -284,4 +289,248 @@ func TestMainSafeToolReplayClearsOutputThroughSecondCrash(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+}
+
+// Source: harness-tool-parks.test.ts, waking. The crash cases kill a separate
+// process after its woken execute intent and progress have durable receipts.
+func TestSourceV160CanonicalToolParkRecovery(t *testing.T) {
+	for _, mode := range []string{"removed", "unsafe", "safe"} {
+		t.Run(mode, func(t *testing.T) { testV160ToolParkRecovery(t, mode) })
+	}
+}
+
+func testV160ToolParkRecovery(t *testing.T, mode string) {
+	t.Helper()
+	const crashDir = "GOAI_TEST_TOOL_PARK_CRASH"
+	const report = "Tool ci is not available: its parked call c1 cannot run again"
+	childDir := os.Getenv(crashDir)
+	starting := childDir != "" || mode == "removed"
+	ctx, cancel := context.WithTimeout(bg, 15*time.Second)
+	defer cancel()
+	dir := childDir
+	if dir == "" {
+		dir = t.TempDir()
+	}
+	type addresses struct{ Conversation, Submission, Tool ID }
+	var ids addresses
+	if !starting {
+		cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestSourceV160CanonicalToolParkRecovery$/^"+mode+"$")
+		cmd.Env = append(os.Environ(), crashDir+"="+dir)
+		output, err := cmd.CombinedOutput()
+		exit, ok := err.(*exec.ExitError)
+		if !ok || !exit.ProcessState.Sys().(syscall.WaitStatus).Signaled() || exit.ProcessState.Sys().(syscall.WaitStatus).Signal() != syscall.SIGKILL {
+			t.Fatalf("tool process did not reach its crash boundary: %v\n%s", err, output)
+		}
+		data, err := os.ReadFile(filepath.Join(dir, "addresses.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(data, &ids); err != nil {
+			t.Fatal(err)
+		}
+	}
+	native, err := openSQLiteTestDirectory(filepath.Join(dir, "db"), SQLiteOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	storage := &toolParkTestStorage{Storage: native, parked: make(chan ID, 2)}
+	token := testSignalAnswer(t)
+	key, err := token.Key("done")
+	if err != nil {
+		t.Fatal(err)
+	}
+	type attempt struct {
+		Wake       *WakeReason
+		Checkpoint any
+	}
+	seen, cleaned := make(chan attempt, 4), make(chan attempt, 4)
+	crashReady := make(chan struct{}, 1)
+	reports := make(chan error, 32)
+	var calls atomic.Int32
+	ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
+		ch := make(chan goai.Event, 1)
+		if calls.Add(1) == 1 && starting {
+			ch <- toolAnswer("c1", "ci", JSON{})
+		} else {
+			ch <- terminal("done")
+		}
+		close(ch)
+		return ch
+	})
+	options.Registry = NewRegistry()
+	options.OnReport = func(err error) { reports <- err }
+	if err := options.Registry.Register(ToolRegistration{
+		Definition: goai.Tool{Name: "ci", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "test.park.recovery", Version: 1, ReplaySafe: mode == "safe",
+		Execute: func(run context.Context, _ any, api *ToolAPI) (ToolResult, error) {
+			seen <- attempt{api.Wake, api.Checkpoint}
+			if api.Wake == nil && starting {
+				if mode != "unsafe" {
+					if err := api.Diagnostic(ToolDiagnostic{Severity: "info", Message: "parked"}); err != nil {
+						return ToolResult{}, err
+					}
+					if err := api.Details(JSON{"build": 1}); err != nil {
+						return ToolResult{}, err
+					}
+				}
+				return ToolResult{Park: &ToolPark{Sleep: &ToolSleep{Signals: []SignalKey{key}, Checkpoint: "first"}}}, nil
+			}
+			if childDir != "" {
+				text, details := "cut off\n", JSON{"build": 1}
+				if mode == "unsafe" {
+					text, details = "rerun\n", JSON{"woken": true}
+				}
+				if err := api.Output(text); err != nil {
+					return ToolResult{}, err
+				}
+				if err := api.Details(details); err != nil {
+					return ToolResult{}, err
+				}
+				crashReady <- struct{}{}
+				<-run.Done()
+				return ToolResult{}, run.Err()
+			}
+			return ToolResult{}, nil
+		},
+		Cancel: func(_ context.Context, _ any, api *ToolAPI) error {
+			cleaned <- attempt{api.Wake, api.Checkpoint}
+			return nil
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	h := openHarness(t, storage, options)
+	var c *ConversationHandle
+	var sub *SubmissionHandle
+	if starting {
+		c = root(t, h, ref)
+		sub, err = c.Submit(ctx, Input{Type: "input", Content: "go"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids.Conversation, ids.Submission = c.ID(), sub.ID()
+		select {
+		case ids.Tool = <-storage.parked:
+		case <-ctx.Done():
+			t.Fatal("tool did not park", ctx.Err())
+		}
+		if mode == "removed" {
+			options.Registry.Remove("ci")
+		}
+		if got, err := h.Signal(ctx, ids.Tool, token, "done", JSON{"text": "x"}); err != nil || got != SignalDelivered {
+			t.Fatalf("signal = %s, %v", got, err)
+		}
+		if childDir != "" {
+			select {
+			case <-crashReady:
+			case <-ctx.Done():
+				t.Fatal("woken run did not commit progress", ctx.Err())
+			}
+			wake := &WakeReason{Reason: "signal", Signal: key.Signal, Key: "done"}
+			if len(seen) != 2 || !reflect.DeepEqual(<-seen, attempt{}) || !reflect.DeepEqual(<-seen, attempt{wake, "first"}) {
+				t.Fatal("wrong pre-crash invocations")
+			}
+			state, err := h.Snapshot(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			slot := canonicalToolSlot(mainContinueBoundaryDocument(t, state, ids.Conversation, "pi.live"), ids.Tool)
+			wantOutput := "cut off\n"
+			if mode == "unsafe" {
+				wantOutput = "rerun\n"
+			}
+			if slot["status"] != "running" || slot["output"] != wantOutput {
+				t.Fatalf("pre-crash slot = %v", slot)
+			}
+			data, err := json.Marshal(ids)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(dir, "addresses.json"), data, 0600); err != nil {
+				t.Fatal(err)
+			}
+			if err := syscall.Kill(os.Getpid(), syscall.SIGKILL); err != nil {
+				t.Fatal(err)
+			}
+			return
+		}
+	} else {
+		c, err = h.Conversation(ctx, ids.Conversation)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sub, err = h.Submission(ctx, ids.Submission)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if settled, err := sub.Wait(ctx); err != nil || settled.Record.Status != "done" {
+		t.Fatalf("submission = %+v, %v", settled.Record, err)
+	}
+	record, err := h.WaitForTask(ctx, ids.Tool)
+	if err != nil || record.State.Outcome == nil {
+		t.Fatalf("task = %+v, %v", record, err)
+	}
+	if mode == "safe" && record.State.Outcome.Status != "completed" {
+		t.Fatalf("safe tool outcome = %+v; error=%+v", record.State.Outcome, record.State.Outcome.Error)
+	}
+	result := v160ToolResult(t, ctx, c, "c1")
+	text := v160ToolResultText(result)
+	switch mode {
+	case "removed":
+		if len(seen) != 1 || len(cleaned) != 0 || record.State.Outcome.Status != "failed" || !result.IsError || !equalJSONValue(result.DetailsValue, JSON{"build": 1}) || !strings.Contains(text, "[info] parked") || !strings.Contains(text, "Tool ci is not available") {
+			t.Fatalf("removed tool: runs=%d, cancels=%d, task=%+v, result=%+v", len(seen), len(cleaned), record.State.Outcome, result)
+		}
+		for {
+			select {
+			case err := <-reports:
+				if err.Error() == report {
+					return
+				}
+			case <-ctx.Done():
+				t.Fatal("missing report:", report)
+			}
+		}
+	case "unsafe":
+		if len(seen) != 0 || len(cleaned) != 1 || !reflect.DeepEqual(<-cleaned, attempt{nil, "first"}) || record.State.Outcome.Status != "failed" || !result.IsError || !strings.Contains(text, "Tool ci was interrupted and may have partially run") {
+			t.Fatalf("unsafe tool: runs=%d, cancels=%d, task=%+v, result=%+v", len(seen), len(cleaned), record.State.Outcome, result)
+		}
+	case "safe":
+		want := attempt{&WakeReason{Reason: "signal", Signal: key.Signal, Key: "done"}, "first"}
+		if len(seen) != 1 || !reflect.DeepEqual(<-seen, want) || len(cleaned) != 0 || record.State.Outcome.Status != "completed" || result.IsError || !equalJSONValue(result.DetailsValue, JSON{"build": 1}) || text != "<harness>\n[info] parked\n</harness>" {
+			t.Fatalf("safe tool: runs=%d, cancels=%d, task=%+v, result=%+v, text=%q", len(seen), len(cleaned), record.State.Outcome, result, text)
+		}
+	}
+}
+
+func v160ToolResult(t *testing.T, ctx context.Context, c *ConversationHandle, callID string) MessageReceipt {
+	t.Helper()
+	page, err := c.Entries(ctx, EntryQuery{}, 100, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var results []MessageReceipt
+	for _, entry := range page.Items {
+		if len(entry.Model) == 0 && entry.Kind != legacyMessageKind {
+			continue
+		}
+		result, err := entryMessage(entry, DefaultLimits())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result.Role == goai.RoleToolResult && result.ToolCallID == callID {
+			results = append(results, result)
+		}
+	}
+	if len(results) != 1 {
+		t.Fatalf("tool results for %s = %d; want one; entries=%+v", callID, len(results), page.Items)
+	}
+	return results[0]
+}
+
+func v160ToolResultText(result MessageReceipt) string {
+	var text strings.Builder
+	for _, block := range result.Content {
+		text.WriteString(block.Text)
+	}
+	return text.String()
 }

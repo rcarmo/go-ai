@@ -256,8 +256,10 @@ func canonicalToolExecutePhase(ctx context.Context, task TaskRecord, r *TaskRunt
 		// source Runtime.commit is immediate, not a progress publication.
 		if err := r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
 			return nil, canonicalToolSlotUpdate(tx, r.taskID, r.conversation, func(slot JSON) {
-				for _, key := range []string{"output", "details", "diagnostics", "droppedBytes", "droppedLines"} {
-					delete(slot, key)
+				clearCanonicalToolOutput(slot)
+				if cp["wake"] == nil {
+					delete(slot, "details")
+					delete(slot, "diagnostics")
 				}
 				slot["status"] = "running"
 				if input.Kind == "nested" {
@@ -268,6 +270,11 @@ func canonicalToolExecutePhase(ctx context.Context, task TaskRecord, r *TaskRunt
 			return err
 		}
 		return runCanonicalTool(ctx, r, input, call, agent, reg, args, resumedToolFromCheckpoint(cp))
+	}
+	if found && cp["wake"] != nil {
+		if err := canonicalCancelPark(ctx, r, input, call, reg, cp["arguments"], cp["checkpoint"]); err != nil {
+			return err
+		}
 	}
 	message := fmt.Sprintf("Tool %s was interrupted and may have partially run", call.Name)
 	result, err := canonicalToolFromSlot(ctx, r, "interrupted", message)
