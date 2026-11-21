@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -178,6 +179,63 @@ func TestUpstreamMainGoogleUserAgent(t *testing.T) {
 			})
 			if headers.Get("User-Agent") != want {
 				t.Fatalf("User-Agent %q want %q", headers.Get("User-Agent"), want)
+			}
+		})
+	}
+}
+
+// Source: google-stop-reason-continuation.test.ts and the Google cases in
+// fetch-option.test.ts. RoundTripper is the native custom fetch seam.
+func TestSourceV160GoogleContinuationAndHTTPTransport(t *testing.T) {
+	if got := mapFinishReason("CONTINUATION"); got != goai.StopReasonLength {
+		t.Errorf("CONTINUATION = %s, want length", got)
+	}
+	for _, mode := range []string{"custom", "ambient"} {
+		t.Run(mode, func(t *testing.T) {
+			var fallback atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				fallback.Add(1)
+				http.Error(w, "custom transport was bypassed", http.StatusBadRequest)
+			}))
+			defer server.Close()
+			var requests atomic.Int32
+			wire := vertexTokenWireFunc(func(req *http.Request) (*http.Response, error) {
+				requests.Add(1)
+				if !strings.HasPrefix(req.URL.String(), server.URL+"/v1/") {
+					t.Errorf("transport URL = %s", req.URL)
+				}
+				return &http.Response{Request: req, StatusCode: 200, Header: http.Header{"Content-Type": []string{"text/event-stream"}}, Body: io.NopCloser(strings.NewReader("data: {\"candidates\":[{\"content\":{\"role\":\"model\",\"parts\":[{\"text\":\"partial\"}]},\"finishReason\":\"CONTINUATION\",\"continuationToken\":\"token-1\"}]}\n\n"))}, nil
+			})
+			if mode == "ambient" {
+				old := http.DefaultTransport
+				http.DefaultTransport = wire
+				t.Cleanup(func() { http.DefaultTransport = old })
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			for _, api := range []goai.Api{goai.ApiGoogleGenerativeAI, goai.ApiGoogleVertex} {
+				model := upstreamGoogleThinkingModel(api, "gemini-test", nil)
+				model.BaseURL = server.URL + "/v1"
+				opts := &goai.StreamOptions{APIKey: "test-key"}
+				if mode == "custom" {
+					opts.HTTPTransport = wire
+				}
+				var done *goai.DoneEvent
+				var errors []string
+				for event := range goai.GetApiProvider(api).Stream(ctx, model, &goai.Context{Messages: []goai.Message{goai.UserMessage("hello")}}, opts) {
+					switch e := event.(type) {
+					case *goai.DoneEvent:
+						done = e
+					case *goai.ErrorEvent:
+						errors = append(errors, fmt.Sprint(e.Err))
+					}
+				}
+				if done == nil || done.Reason != goai.StopReasonLength || done.Message.RawStopReason != "CONTINUATION" || len(done.Message.Content) != 1 || done.Message.Content[0].Text != "partial" || len(errors) != 0 {
+					t.Errorf("%s: terminal=%+v, errors=%v", api, done, errors)
+				}
+			}
+			if requests.Load() != 2 || fallback.Load() != 0 {
+				t.Errorf("transport requests=%d, bypasses=%d; want 2 and 0", requests.Load(), fallback.Load())
 			}
 		})
 	}

@@ -5,7 +5,10 @@
 // docs/upstream-v1.5.0/README.md for the current evidence and gaps.
 package goai
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"net/http"
+)
 
 // --- Enums / string types ---
 
@@ -559,8 +562,10 @@ type TelemetryMetrics struct {
 }
 
 type StreamOptions struct {
-	Identity    *ClientIdentity `json:"identity,omitempty"`
-	Temperature *float64        `json:"temperature,omitempty"`
+	// HTTPTransport supplies a per-request HTTP transport for the Google adapters.
+	HTTPTransport http.RoundTripper `json:"-"`
+	Identity      *ClientIdentity   `json:"identity,omitempty"`
+	Temperature   *float64          `json:"temperature,omitempty"`
 	// SamplingParams is an OpenAI-compatible escape hatch for advanced sampling
 	// controls (for example top_p, top_k, min_p, repetition_penalty). Providers
 	// that do not support arbitrary request-body parameters ignore it.

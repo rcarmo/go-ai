@@ -128,6 +128,13 @@ func streamGoogle(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 
 		retryCfg := googleRetryConfig(opts)
 		client := retryCfg.NewHTTPClient()
+		if opts != nil && opts.HTTPTransport != nil {
+			client.Transport = opts.HTTPTransport
+		} else if _, standard := http.DefaultTransport.(*http.Transport); !standard && http.DefaultTransport != nil {
+			// The normal transport clone keeps configured timeouts. An ambient
+			// custom transport owns its own dialing and header policy.
+			client.Transport = http.DefaultTransport
+		}
 		goai.GetLogger().Debug("HTTP request", "url", req.URL.String(), "provider", model.Provider, "model", model.ID, "retries", retryCfg.MaxRetries)
 		resp, err := doGoogleRequest(ctx, client, req, retryCfg, opts)
 		if err != nil {
@@ -964,7 +971,8 @@ func mapFinishReason(reason string) goai.StopReason {
 	switch reason {
 	case "STOP":
 		return goai.StopReasonStop
-	case "MAX_TOKENS":
+	case "MAX_TOKENS", "CONTINUATION":
+		// Do not follow the provider's continuation token with another request.
 		return goai.StopReasonLength
 	default:
 		return goai.StopReasonError
