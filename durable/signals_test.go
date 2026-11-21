@@ -3,6 +3,7 @@ package durable
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"reflect"
@@ -333,5 +334,41 @@ func TestSourceV160SignalDeliveredBeforeSleep(t *testing.T) {
 		got, _ := json.Marshal(task.State.Outcome)
 		expected, _ := json.Marshal(want)
 		t.Fatalf("early signal outcome = %s, want %s", got, expected)
+	}
+}
+
+// Official v1.6.0 harness-signals.test.ts:145. Two sequential deliveries
+// are a read-after-write, so the entire callback must be discarded.
+func TestSourceV160SignalReadAfterWrite(t *testing.T) {
+	store, err := newTestSQLite(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(bg, 5*time.Second)
+	defer cancel()
+	definition := taskDefinition(t, "test.signal.order", func(context.Context, TaskRecord, *TaskRuntime) error {
+		return errors.New("paused task was invoked")
+	})
+	h := taskTestHarness(t, store, definition)
+	value, err := h.Commit(ctx, func(tx *Tx) (any, error) {
+		return tx.CreateTask(definition, nil, TaskOptions{Conversation: 1, Ownership: TaskOwnership{Kind: "conversation"}})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := value.(ID)
+	answer := testSignalAnswer(t)
+	_, err = h.Commit(ctx, func(tx *Tx) (any, error) {
+		if got, err := tx.Signal(id, answer, "a", JSON{"text": "one"}); got != SignalDelivered || err != nil {
+			return nil, fmt.Errorf("first signal = %q, %v", got, err)
+		}
+		return tx.Signal(id, answer, "b", JSON{"text": "two"})
+	})
+	var afterWrite *ReadAfterWrite
+	if !errors.As(err, &afterWrite) || afterWrite.Method != "signal" {
+		t.Fatalf("sequential signal = %v; want ReadAfterWrite for signal", err)
+	}
+	if task, found, err := h.Task(ctx, id); err != nil || !found || task.Memos != nil {
+		t.Fatalf("rejected signal commit stored memos: %#v (%v, %v)", task.Memos, found, err)
 	}
 }

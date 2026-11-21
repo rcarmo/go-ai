@@ -38,7 +38,7 @@ func (h *Harness) Signal(ctx context.Context, id ID, token *SignalToken, key str
 // Signal delivers to the task as this transaction currently sees it. Only a
 // successful delivery writes a memo; duplicate deliveries retain the winner.
 func (t *Tx) Signal(id ID, token *SignalToken, key string, value any) (SignalResult, error) {
-	if err := t.enterKeys(taskKey(id)); err != nil {
+	if err := t.enterTableRead("signal", taskKey(id)); err != nil {
 		return "", err
 	}
 	defer t.leave()
