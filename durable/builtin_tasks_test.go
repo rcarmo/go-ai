@@ -263,13 +263,13 @@ func TestBuiltinTaskPublicProgressionMatchesSourceV150(t *testing.T) {
 			results := entries["pi.tool-result"]
 			model := fmt.Sprintf(`{"modelId":%q,"provider":%q}`, ref.ID, ref.Provider)
 			prepare := func(status string) string {
-				return fmt.Sprintf(`{"input":{},"state":{"checkpoint":{"attempt":1,"phase":"prepare"},"status":%q},"version":2}`, status)
+				return fmt.Sprintf(`{"input":{},"state":{"checkpoint":{"attempt":1,"phase":"prepare"},"status":%q},"version":3}`, status)
 			}
 			request := func(cutoff uint64) string {
-				return fmt.Sprintf(`{"input":{},"state":{"checkpoint":{"attempt":1,"cutoff":%d,"model":%s,"phase":"request","streamOptions":{},"thinkingLevel":"off"},"status":"running"},"version":2}`, cutoff, model)
+				return fmt.Sprintf(`{"input":{},"state":{"checkpoint":{"attempt":1,"cutoff":%d,"model":%s,"phase":"request","streamOptions":{},"thinkingLevel":"off"},"status":"running"},"version":3}`, cutoff, model)
 			}
 			done := func(entry uint64) string {
-				return fmt.Sprintf(`{"input":{},"state":{"outcome":{"result":{"entryId":%d},"status":"completed"},"status":"terminal"},"version":2}`, entry)
+				return fmt.Sprintf(`{"input":{},"state":{"outcome":{"result":{"entryId":%d},"status":"completed"},"status":"terminal"},"version":3}`, entry)
 			}
 			round := func(status string, ids []uint64, pending []string, on, ended []uint64) string {
 				idsJSON, _ := json.Marshal(ids)
@@ -284,7 +284,7 @@ func TestBuiltinTaskPublicProgressionMatchesSourceV150(t *testing.T) {
 					encoded, _ := json.Marshal(ended)
 					state += fmt.Sprintf(`,"wake":{"ended":%s,"reason":"tasks"}`, encoded)
 				}
-				return `{"input":{},"state":{` + state + `},"version":2}`
+				return `{"input":{},"state":{` + state + `},"version":3}`
 			}
 			var first []string
 			if scenario.execution == "parallel" {
@@ -360,7 +360,7 @@ func TestSourceCanonicalBuiltinDefinitionsAndMigrations(t *testing.T) {
 			if definition == nil {
 				t.Fatal("source executable builtin definition missing", kind)
 			}
-			version, phase := uint64(2), "prepare"
+			version, phase := uint64(3), "prepare"
 			want := JSON{"phase": phase, "attempt": 1}
 			if kind == "pi.tool" {
 				version, phase = 4, "call"
@@ -403,7 +403,7 @@ func TestSourceCanonicalBuiltinDefinitionsAndMigrations(t *testing.T) {
 
 // Source-derived imported-record execution: no private input/checkpoint is
 // available to reinterpret. Generation v1 migrates unchanged, then prepare
-// executes failNoModel through the actual generic runtime and persists v2.
+// executes failNoModel through the generic runtime and persists v3.
 func TestSourceCanonicalBuiltinImportedGenerationNoModel(t *testing.T) {
 	for _, version := range []uint64{1, 2} {
 		t.Run(fmt.Sprint(version), func(t *testing.T) {
@@ -427,7 +427,7 @@ func TestSourceCanonicalBuiltinImportedGenerationNoModel(t *testing.T) {
 				t.Fatal("canonical imported generation did not finish", err)
 			}
 			task, found, err := h.Task(bg, 2)
-			if err != nil || !found || task.Version != 2 || task.Input == nil || !equalJSONValue(task.Input.Value, JSON{}) {
+			if err != nil || !found || task.Version != 3 || task.Input == nil || !equalJSONValue(task.Input.Value, JSON{}) {
 				t.Fatal(task, found, err)
 			}
 			wire, err := task.State.MarshalJSON()

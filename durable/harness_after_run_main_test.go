@@ -489,7 +489,7 @@ func TestMainAfterRunRejectedRequestsKeepValidSibling(t *testing.T) {
 		for _, e := range aggregate.Unwrap() {
 			messages = append(messages, e.Error())
 		}
-		want := []string{"Task test.unknown is not installed", "An afterRun hook cannot start the built-in task pi.generation", "durable: rejected: unsupported JSON value", "initial failed", "Task test.bad-start starts at the unknown phase nowhere"}
+		want := []string{"Task test.unknown is not installed", "A hook cannot start the built-in task pi.generation", "durable: rejected: unsupported JSON value", "initial failed", "Task test.bad-start starts at the unknown phase nowhere"}
 		if !reflect.DeepEqual(messages, want) {
 			t.Error("ordered request diagnostics", messages, want)
 		}
@@ -961,5 +961,249 @@ func TestMainAfterRunBuiltinNames(t *testing.T) {
 		if afterRunBuiltinKind(name) {
 			t.Error("application namespace rejected", name)
 		}
+	}
+}
+
+// Source: harness-hook-tasks.test.ts, afterTools tasks / onYield tasks.
+func TestSourceV160GenerationHookDecisionTasks(t *testing.T) {
+	for _, mode := range []string{"terminate", "steer", "invalid-after-tools", "continue", "invalid-yield", "stand", "queued", "after-run", "abort-yield"} {
+		t.Run(mode, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(bg, 8*time.Second)
+			defer cancel()
+			afterTools := mode == "terminate" || mode == "steer" || mode == "invalid-after-tools"
+			var calls, asked atomic.Int32
+			var answer ID
+			requests := make(chan []string, 4)
+			ref, options := setupFakeAPI(t, func(_ context.Context, _ *goai.Model, c *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
+				var users []string
+				for _, message := range c.Messages {
+					if message.Role == goai.RoleUser {
+						for _, b := range message.Content {
+							if b.Type == "text" {
+								users = append(users, b.Text)
+							}
+						}
+					}
+				}
+				requests <- users
+				ch := make(chan goai.Event, 1)
+				if calls.Add(1) == 1 {
+					if afterTools {
+						ch <- toolAnswer("c1", "noop", JSON{})
+					} else {
+						ch <- terminal("first")
+					}
+				} else {
+					ch <- terminal("second")
+				}
+				close(ch)
+				return ch
+			})
+			entered := make(chan TaskRecord, 1)
+			release := make(chan struct{})
+			child, err := DefineTask(TaskDefinitionOptions{Kind: "test.decider", Version: 1, Initial: func(any) (JSON, error) { return JSON{"phase": "decide"}, nil },
+				Phases: map[string]TaskPhase{"decide": func(run context.Context, task TaskRecord, r *TaskRuntime) error {
+					entered <- task
+					select {
+					case <-release:
+					case <-run.Done():
+						return run.Err()
+					}
+					var result any
+					switch mode {
+					case "terminate":
+						result = JSON{"terminate": true}
+					case "continue", "queued":
+						result = JSON{"continue": "review: add a test"}
+					case "invalid-after-tools":
+						result = JSON{"continue": "x"}
+					case "invalid-yield":
+						result = JSON{"continue": []any{JSON{"type": "text"}}}
+					}
+					conversation, err := r.Conversation(run, r.ConversationID())
+					if err != nil {
+						return err
+					}
+					return r.Commit(run, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
+						if mode == "steer" {
+							if _, err := conversation.SubmitIn(tx, Input{Type: "input", Content: "also check the tests", WhenBusy: "steer"}); err != nil {
+								return nil, err
+							}
+						}
+						return &TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "completed", Result: &TaskValue{Present: true, Value: result}}}, nil
+					})
+				}}, Abort: func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+					return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) {
+						return &TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "aborted"}}, nil
+					})
+				},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			taskRequest := func() *HookTasksResult {
+				if asked.Add(1) != 1 {
+					return nil
+				}
+				return &HookTasksResult{Tasks: []RunEndTask{{Task: child}}}
+			}
+			hooks := GenerationHooks{}
+			if afterTools {
+				hooks.AfterToolsTasks = func(_ context.Context, assistant ID, results []ID, _ *HookAPI) (*HookTasksResult, error) {
+					if assistant == 0 || len(results) != 1 || results[0] <= assistant {
+						t.Errorf("afterTools entries: %d %v", assistant, results)
+					}
+					answer = assistant
+					return taskRequest(), nil
+				}
+			} else {
+				hooks.OnYieldTasks = func(context.Context, MessageReceipt, *HookAPI) (*HookTasksResult, error) { return taskRequest(), nil }
+			}
+			afterRun := make(chan any, 1)
+			if mode == "after-run" {
+				hooks.AfterRun = func(ctx context.Context, _ RunSummary, api *HookAPI) (*AfterRunResult, error) {
+					value, _, err := api.SnapshotDefinition(ctx, mountedDocumentDefinitions[1], api.ConversationID(), nil)
+					if err != nil {
+						return nil, err
+					}
+					marker := generationObject(generationObject(value.Copy())["run"])["yield"]
+					afterRun <- marker
+					return nil, nil
+				}
+			}
+			options.Registry = NewRegistry()
+			if err := options.Registry.Install(&Extension{Name: "deciders", Tools: []ToolRegistration{wrapRegistration("noop")}, Tasks: []*TaskDefinition{child}, Hooks: hooks}); err != nil {
+				t.Fatal(err)
+			}
+			infos := make(chan ReportInfo, 16)
+			options.OnReportWithInfo = func(_ context.Context, _ error, info ReportInfo) { infos <- info }
+			native, err := newTestSQLite(t)
+			if err != nil {
+				t.Fatal(err)
+			}
+			h := openHarness(t, native, options)
+			c := root(t, h, ref)
+			sub, err := c.Submit(ctx, Input{Type: "input", Content: "go"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			type result struct {
+				settlement Settlement
+				err        error
+			}
+			settled := make(chan result, 1)
+			go func() { s, err := sub.Wait(ctx); settled <- result{s, err} }()
+			var task TaskRecord
+			select {
+			case task = <-entered:
+			case got := <-settled:
+				t.Fatalf("run settled before starting the hook task: %+v, %v", got.settlement.Record, got.err)
+			case <-ctx.Done():
+				t.Fatal(ctx.Err())
+			}
+			parent, found, err := h.Task(ctx, task.Owner)
+			phase := "yield"
+			if afterTools {
+				phase = "afterTools"
+			}
+			if err != nil || !found || parent.Version != 3 || parent.Kind != "pi.generation" || parent.State.Status != "waiting" || parent.State.Policy != "allSettled" || !reflect.DeepEqual(parent.State.On, []ID{task.ID}) || taskCheckpointMap(parent.State.Checkpoint)["phase"] != phase {
+				t.Fatalf("generation wait = %+v; child = %+v; %v", parent, task, err)
+			}
+			if !afterTools {
+				answer = submissionEntryID(taskCheckpointMap(parent.State.Checkpoint)["answer"])
+				state, err := h.Snapshot(ctx)
+				if err != nil {
+					t.Fatal(err)
+				}
+				live := mainContinueBoundaryDocument(t, state, c.ID(), "pi.live")
+				marker := generationObject(generationObject(live["run"])["yield"])
+				if answer == 0 || len(marker) != 2 || submissionEntryID(marker["answer"]) != answer || !reflect.DeepEqual(generationTaskIDs(marker["tasks"]), []ID{task.ID}) {
+					t.Fatalf("yield marker = %v, answer=%d", marker, answer)
+				}
+				if pending, err := sub.Status(ctx); err != nil || pending.Status == "done" || pending.Answer != 0 {
+					t.Fatalf("yield settled its input early: %+v, %v", pending, err)
+				}
+			}
+			var queued *SubmissionHandle
+			if mode == "queued" {
+				queued, err = c.Submit(ctx, Input{Type: "input", Content: "a question", WhenBusy: "followUp"})
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			if mode == "abort-yield" {
+				if err := c.Abort(ctx); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				close(release)
+			}
+			got := <-settled
+			if got.err != nil || got.settlement.Record.Status != "done" {
+				t.Fatalf("submission: %+v, %v", got.settlement.Record, got.err)
+			}
+			switch mode {
+			case "terminate", "invalid-yield", "abort-yield", "stand", "after-run":
+				if calls.Load() != 1 || got.settlement.Record.Answer != answer {
+					t.Fatalf("expected first answer %d, got %+v after %d requests", answer, got.settlement.Record, calls.Load())
+				}
+			case "queued":
+				later, err := queued.Wait(ctx)
+				if err != nil || later.Record.Status != "done" || got.settlement.Record.Answer != answer || later.Record.Answer <= answer || calls.Load() != 2 {
+					t.Fatalf("queued boundary: first=%+v, next=%+v requests=%d err=%v", got.settlement.Record, later.Record, calls.Load(), err)
+				}
+				<-requests
+				if users := <-requests; !reflect.DeepEqual(users, []string{"go", "a question"}) {
+					t.Fatalf("queued request users = %#v", users)
+				}
+			case "continue", "steer":
+				if calls.Load() != 2 || got.settlement.Record.Answer <= answer {
+					t.Fatalf("expected second answer, got %+v after %d requests", got.settlement.Record, calls.Load())
+				}
+				want := "review: add a test"
+				if mode == "steer" {
+					want = "also check the tests"
+				}
+				<-requests
+				if users := <-requests; !reflect.DeepEqual(users, []string{"go", want}) {
+					t.Fatalf("second request users = %#v", users)
+				}
+			case "invalid-after-tools":
+				if calls.Load() != 2 {
+					t.Fatalf("provider requests = %d", calls.Load())
+				}
+				for {
+					select {
+					case info := <-infos:
+						if info.Type == "extension_error" && info.Extension == "deciders" {
+							return
+						}
+					case <-ctx.Done():
+						t.Fatal("no deciders report")
+					}
+				}
+			}
+			if mode == "after-run" || mode == "abort-yield" {
+				if err := c.WaitForIdle(ctx); err != nil {
+					t.Fatal(err)
+				}
+				state, err := h.Snapshot(ctx)
+				if err != nil {
+					t.Fatal(err)
+				}
+				live := mainContinueBoundaryDocument(t, state, c.ID(), "pi.live")
+				if live["run"] != nil || live["runFailure"] != nil {
+					t.Fatalf("answered live state = %v", live)
+				}
+				if mode == "after-run" {
+					if len(afterRun) != 1 {
+						t.Fatal("afterRun hook was not called once")
+					}
+					if marker := <-afterRun; marker != nil {
+						t.Fatalf("afterRun still sees yield = %v", marker)
+					}
+				}
+			}
+		})
 	}
 }

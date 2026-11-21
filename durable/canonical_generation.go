@@ -10,14 +10,13 @@ import (
 var canonicalGenerationOnce sync.Once
 var canonicalGenerationDefinition *TaskDefinition
 
-// GenerationTask is the source pi.generation v2 token. Its checkpoint is the
-// public prepare/request/retry/poll/tools/finish/drain union.
+// GenerationTask is the source pi.generation v3 token, including hook-owned waits.
 func GenerationTask() *TaskDefinition {
 	canonicalGenerationOnce.Do(func() {
 		var err error
-		canonicalGenerationDefinition, err = DefineTask(TaskDefinitionOptions{Kind: "pi.generation", Version: 2, Initial: func(any) (JSON, error) { return JSON{"phase": "prepare", "attempt": 1}, nil }, Migrate: func(input, checkpoint any, _ uint64) (any, JSON, error) {
+		canonicalGenerationDefinition, err = DefineTask(TaskDefinitionOptions{Kind: "pi.generation", Version: 3, Initial: func(any) (JSON, error) { return JSON{"phase": "prepare", "attempt": 1}, nil }, Migrate: func(input, checkpoint any, _ uint64) (any, JSON, error) {
 			return input, taskCheckpointMap(checkpoint), nil
-		}, Phases: map[string]TaskPhase{"prepare": canonicalGenerationPrepare, "request": canonicalGenerationRequest, "retry": canonicalGenerationRetry, "poll": canonicalGenerationPoll, "tools": canonicalGenerationTools, "finish": canonicalGenerationFinish, "drain": canonicalGenerationDrain}, Abort: canonicalGenerationAbort})
+		}, Phases: map[string]TaskPhase{"prepare": canonicalGenerationPrepare, "request": canonicalGenerationRequest, "retry": canonicalGenerationRetry, "poll": canonicalGenerationPoll, "tools": canonicalGenerationTools, "finish": canonicalGenerationFinish, "drain": canonicalGenerationDrain, "afterTools": canonicalGenerationAfterTools, "yield": canonicalGenerationYield}, Abort: canonicalGenerationAbort})
 		if err != nil {
 			panic(err)
 		}
@@ -134,7 +133,7 @@ func canonicalGenerationNoModel(ctx context.Context, r *TaskRuntime, ref ModelRe
 func canonicalGenerationCutOff(ctx context.Context, task TaskRecord, r *TaskRuntime) error {
 	cp := taskCheckpointMap(task.State.Checkpoint)
 	phase, _ := cp["phase"].(string)
-	if phase == "finish" || phase == "drain" {
+	if phase == "finish" || phase == "drain" || phase == "yield" {
 		answer := submissionEntryID(cp["answer"])
 		if phase == "finish" {
 			answer = submissionEntryID(generationObject(cp["run"])["answer"])
@@ -891,10 +890,11 @@ func canonicalGenerationTools(ctx context.Context, task TaskRecord, r *TaskRunti
 func canonicalGenerationAnswer(ctx context.Context, r *TaskRuntime, message MessageReceipt, agent agentState) error {
 	hooks := r.phaseSelection().selectedHooks(r.harness.selectionAgent(agent))
 	var continuation *Input
-	after := false
+	var prepared []preparedRunEndTask
+	after, decided := false, false
 	for _, hook := range hooks {
 		after = after || hook.AfterRun != nil
-		if continuation == nil && hook.OnYield != nil {
+		if !decided && hook.OnYield != nil {
 			value, err := callOnYield(ctx, hook.OnYield, message, r)
 			if err != nil {
 				if ctx.Err() != nil {
@@ -903,8 +903,29 @@ func canonicalGenerationAnswer(ctx context.Context, r *TaskRuntime, message Mess
 				r.reportExtensionError(err, hook.extension)
 			} else {
 				continuation = value
+				decided = value != nil
 			}
 		}
+		if !decided && hook.OnYieldTasks != nil {
+			asked, err := invokeDecisionHook(func() (*HookTasksResult, error) {
+				copy, err := copyMessages([]MessageReceipt{message}, r.harness.session.limits)
+				if err != nil {
+					return nil, err
+				}
+				return hook.OnYieldTasks(ctx, copy[0], &HookAPI{r})
+			})
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			if err == nil && asked != nil {
+				decided = true
+				err = prepareRunEndTasks(r, asked.Tasks, &prepared)
+			}
+			r.reportExtensionError(err, hook.extension)
+		}
+	}
+	if len(prepared) != 0 {
+		return canonicalGenerationParkYield(ctx, r, message, prepared)
 	}
 	return r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
 		boundary, err := prepareCanonicalBoundary(tx, r.conversation, r.harness.resolvedSettings(RequestSettings{}))
@@ -919,70 +940,81 @@ func canonicalGenerationAnswer(ctx context.Context, r *TaskRuntime, message Mess
 		if err != nil {
 			return nil, err
 		}
-		outcome := &TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "completed", Result: &TaskValue{Present: true, Value: JSON{"entryId": answer}}}}
-		takes := continuation != nil && !boundary.hasUsersOrReset()
-		run := generationObject(live["run"])
-		if !takes && after && submissionEntryID(run["taskId"]) == r.taskID {
-			inputs, _ := run["inputs"].([]any)
-			for _, id := range inputs {
-				if err := tx.SettleSubmission(submissionEntryID(id), SubmissionSettlement{Status: "done", Answer: answer}); err != nil {
-					return nil, err
-				}
-			}
-			run["inputs"] = []any{}
-			run["afterRun"] = JSON{}
-			for _, key := range []string{"generation", "tools", "nestedTools"} {
-				delete(live, key)
-			}
-			first := submissionEntryID(run["first"])
-			if first == 0 {
-				first = answer
-			}
-			if err := doc.Set(live); err != nil {
+		return concludeCanonicalAnswer(tx, r, doc, live, boundary, answer, continuation, after)
+	})
+}
+
+func concludeCanonicalAnswer(tx *Tx, r *TaskRuntime, doc *DocumentHandle, live JSON, boundary *canonicalBoundary, answer ID, continuation *Input, after bool) (*TaskState, error) {
+	outcome := &TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "completed", Result: &TaskValue{Present: true, Value: JSON{"entryId": answer}}}}
+	takes := continuation != nil && !boundary.hasUsersOrReset()
+	run := generationObject(live["run"])
+	if submissionEntryID(run["taskId"]) == r.taskID {
+		delete(run, "yield")
+	}
+	if !takes && after && submissionEntryID(run["taskId"]) == r.taskID {
+		inputs, _ := run["inputs"].([]any)
+		for _, id := range inputs {
+			if err := tx.SettleSubmission(submissionEntryID(id), SubmissionSettlement{Status: "done", Answer: answer}); err != nil {
 				return nil, err
 			}
-			return &TaskState{Status: "running", Checkpoint: JSON{"phase": "finish", "run": JSON{"reason": "answer", "first": first, "answer": answer, "last": answer}}}, nil
 		}
-		users, first, _, err := boundary.apply(tx, true, r.harness.session.now())
+		run["inputs"] = []any{}
+		run["afterRun"] = JSON{}
+		for _, key := range []string{"generation", "tools", "nestedTools"} {
+			delete(live, key)
+		}
+		first := submissionEntryID(run["first"])
+		if first == 0 {
+			first = answer
+		}
+		if err := doc.Set(live); err != nil {
+			return nil, err
+		}
+		return &TaskState{Status: "running", Checkpoint: JSON{"phase": "finish", "run": JSON{"reason": "answer", "first": first, "answer": answer, "last": answer}}}, nil
+	}
+	users, first, _, err := boundary.apply(tx, true, r.harness.session.now())
+	if err != nil {
+		return nil, err
+	}
+	if takes {
+		receipt, err := inputReceipt(continuation.Content, continuation.Blocks, tx.limits)
 		if err != nil {
 			return nil, err
 		}
-		if takes {
-			receipt, err := inputReceipt(continuation.Content, continuation.Blocks, tx.limits)
-			if err != nil {
+		wire, err := dtoObject(receipt, tx.limits)
+		if err != nil {
+			return nil, err
+		}
+		wire["timestamp"] = r.harness.session.now()
+		if _, err := tx.AppendEntry(r.conversation, JSON{"kind": userEntryKind, "model": []any{wire}}); err != nil {
+			return nil, err
+		}
+		id, err := tx.CreateTask(GenerationTask(), JSON{}, TaskOptions{Conversation: r.conversation, Ownership: TaskOwnership{Kind: "conversation"}})
+		if err != nil {
+			return nil, err
+		}
+		if submissionEntryID(run["taskId"]) == r.taskID {
+			run["taskId"] = id
+			run["turns"] = 0
+		}
+		delete(live, "generation")
+	} else {
+		if err := canonicalEndRun(tx, live, r.taskID, answer, "", nil); err != nil {
+			return nil, err
+		}
+		if len(users) > 0 {
+			if _, err := canonicalStartRun(tx, r.conversation, live, users, first, false); err != nil {
 				return nil, err
-			}
-			wire, err := dtoObject(receipt, tx.limits)
-			if err != nil {
-				return nil, err
-			}
-			wire["timestamp"] = r.harness.session.now()
-			if _, err := tx.AppendEntry(r.conversation, JSON{"kind": userEntryKind, "model": []any{wire}}); err != nil {
-				return nil, err
-			}
-			id, err := tx.CreateTask(GenerationTask(), JSON{}, TaskOptions{Conversation: r.conversation, Ownership: TaskOwnership{Kind: "conversation"}})
-			if err != nil {
-				return nil, err
-			}
-			if submissionEntryID(run["taskId"]) == r.taskID {
-				run["taskId"] = id
-				run["turns"] = 0
-			}
-			delete(live, "generation")
-		} else {
-			if err := canonicalEndRun(tx, live, r.taskID, answer, "", nil); err != nil {
-				return nil, err
-			}
-			if len(users) > 0 {
-				if _, err := canonicalStartRun(tx, r.conversation, live, users, first, false); err != nil {
-					return nil, err
-				}
 			}
 		}
-		return outcome, doc.Set(live)
-	})
+	}
+	return outcome, doc.Set(live)
 }
 func canonicalGenerationFinishTools(ctx context.Context, r *TaskRuntime, cp JSON) error {
+	return canonicalGenerationToolRound(ctx, r, cp, true, false)
+}
+
+func canonicalGenerationToolRound(ctx context.Context, r *TaskRuntime, cp JSON, runHooks, taskTerminates bool) error {
 	_, agent, err := canonicalGenerationAgent(ctx, r)
 	if err != nil {
 		return err
@@ -1045,16 +1077,41 @@ func canonicalGenerationFinishTools(ctx context.Context, r *TaskRuntime, cp JSON
 			}
 		}
 	}
-	for _, hook := range r.phaseSelection().selectedHooks(r.harness.selectionAgent(agent)) {
-		if hook.AfterTools != nil {
-			if err := callAfterTools(ctx, hook.AfterTools, receipts, r); err != nil {
+	terminate = terminate || taskTerminates
+	if runHooks {
+		var prepared []preparedRunEndTask
+		for _, hook := range r.phaseSelection().selectedHooks(r.harness.selectionAgent(agent)) {
+			if hook.AfterTools != nil {
+				if err := callAfterTools(ctx, hook.AfterTools, receipts, r); err != nil {
+					r.reportExtensionError(err, hook.extension)
+				}
+			}
+			if hook.AfterToolEntries != nil {
+				if err := callAfterToolEntries(ctx, hook.AfterToolEntries, submissionEntryID(cp["assistant"]), results, r); err != nil {
+					r.reportExtensionError(err, hook.extension)
+				}
+			}
+			if hook.AfterToolsTasks != nil {
+				asked, err := invokeDecisionHook(func() (*HookTasksResult, error) {
+					return hook.AfterToolsTasks(ctx, submissionEntryID(cp["assistant"]), append([]ID(nil), results...), &HookAPI{r})
+				})
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
+				if err == nil && asked != nil {
+					err = prepareRunEndTasks(r, asked.Tasks, &prepared)
+				}
 				r.reportExtensionError(err, hook.extension)
 			}
 		}
-		if hook.AfterToolEntries != nil {
-			if err := callAfterToolEntries(ctx, hook.AfterToolEntries, submissionEntryID(cp["assistant"]), results, r); err != nil {
-				r.reportExtensionError(err, hook.extension)
-			}
+		if len(prepared) != 0 {
+			return r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
+				tasks, values, err := createGenerationHookTasks(tx, r, prepared)
+				if err != nil {
+					return nil, err
+				}
+				return &TaskState{Status: "waiting", Checkpoint: JSON{"phase": "afterTools", "assistant": cp["assistant"], "tools": cp["tools"], "tasks": values}, On: tasks, Policy: "allSettled"}, nil
+			})
 		}
 	}
 	return r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
@@ -1265,15 +1322,9 @@ func canonicalGenerationFinish(ctx context.Context, task TaskRecord, r *TaskRunt
 		return canonicalGenerationEndAnswered(ctx, r, summary.Answer, false)
 	}
 	return r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
-		ids := []ID{}
-		values := []any{}
-		for _, prepared := range prepared {
-			id, err := tx.createTask(prepared.definition, prepared.execution.Input.Value, TaskOptions{Ownership: TaskOwnership{Kind: "task", Task: r.taskID}}, prepared.execution)
-			if err != nil {
-				return nil, err
-			}
-			ids = append(ids, id)
-			values = append(values, id)
+		ids, values, err := createGenerationHookTasks(tx, r, prepared)
+		if err != nil {
+			return nil, err
 		}
 		doc, live, err := canonicalGenerationLive(tx, r)
 		if err != nil {
@@ -1414,7 +1465,14 @@ func canonicalGenerationAbort(ctx context.Context, task TaskRecord, r *TaskRunti
 				return nil, err
 			}
 		}
-		if err := canonicalEndRun(tx, live, r.taskID, 0, "aborted", nil); err != nil {
+		answer, reason := ID(0), "aborted"
+		switch cp["phase"] {
+		case "yield", "drain":
+			answer, reason = submissionEntryID(cp["answer"]), ""
+		case "finish":
+			answer, reason = submissionEntryID(generationObject(cp["run"])["answer"]), ""
+		}
+		if err := canonicalEndRun(tx, live, r.taskID, answer, reason, nil); err != nil {
 			return nil, err
 		}
 		if err := doc.Set(live); err != nil {

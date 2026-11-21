@@ -46,7 +46,11 @@ type GenerationHooks struct {
 	// AfterToolEntries exposes the pinned committed assistant/result identities
 	// for hooks that need entry attribution or historical reads.
 	AfterToolEntries func(context.Context, ID, []ID, *HookAPI) error
-	OnYield          func(context.Context, MessageReceipt, *HookAPI) (*Input, error)
+	// AfterToolsTasks receives committed entry identities and can request decision tasks.
+	AfterToolsTasks func(context.Context, ID, []ID, *HookAPI) (*HookTasksResult, error)
+	// OnYieldTasks can defer acceptance of the answer until decision tasks complete.
+	OnYieldTasks func(context.Context, MessageReceipt, *HookAPI) (*HookTasksResult, error)
+	OnYield      func(context.Context, MessageReceipt, *HookAPI) (*Input, error)
 }
 type ToolHooks struct {
 	BeforeTool func(context.Context, goai.ToolCall, *HookAPI) (*BeforeToolResult, error)

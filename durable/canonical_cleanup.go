@@ -76,6 +76,12 @@ func canonicalSchedulerOutcome(tx *Tx, task Task, outcome TaskOutcome) error {
 		if submissionEntryID(generationObject(live["run"])["taskId"]) != task.ID {
 			return nil
 		}
+		if answer := submissionEntryID(generationObject(generationObject(live["run"])["yield"])["answer"]); answer != 0 {
+			if err := canonicalEndRun(tx, live, task.ID, answer, "", nil); err != nil {
+				return err
+			}
+			return doc.Set(live)
+		}
 		if !cutOff {
 			if err := canonicalConvertPartial(tx, task.Conversation, live); err != nil {
 				return err

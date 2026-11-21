@@ -21,7 +21,10 @@ type RunEndTask struct {
 	Task  *TaskDefinition
 	Input any
 }
-type AfterRunResult struct{ Tasks []RunEndTask }
+
+// HookTasksResult asks the generation to create and wait for owned tasks.
+type HookTasksResult struct{ Tasks []RunEndTask }
+type AfterRunResult = HookTasksResult
 
 type preparedRunEndTask struct {
 	definition *TaskDefinition
@@ -36,7 +39,7 @@ func (e runEndRequestError) Error() string { return string(e) }
 type runEndRequestErrors struct{ rejected []error }
 
 func (e *runEndRequestErrors) Error() string {
-	return fmt.Sprintf("%d afterRun task requests were rejected", len(e.rejected))
+	return fmt.Sprintf("%d hook task requests were rejected", len(e.rejected))
 }
 func (e *runEndRequestErrors) Unwrap() []error { return append([]error(nil), e.rejected...) }
 
@@ -65,7 +68,7 @@ func afterRunBuiltinKind(name string) bool {
 func prepareRunEndTask(r *TaskRuntime, request RunEndTask) (preparedRunEndTask, error) {
 	name := request.Task.Kind()
 	if afterRunBuiltinKind(name) {
-		return preparedRunEndTask{}, runEndRequestError(fmt.Sprintf("An afterRun hook cannot start the built-in task %s", name))
+		return preparedRunEndTask{}, runEndRequestError(fmt.Sprintf("A hook cannot start the built-in task %s", name))
 	}
 	definition := r.registry.Task(name)
 	if definition == nil {
