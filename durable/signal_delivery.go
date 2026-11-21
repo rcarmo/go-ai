@@ -3,6 +3,7 @@ package durable
 import (
 	"context"
 	"maps"
+	"slices"
 
 	goai "github.com/rcarmo/go-ai"
 )
@@ -70,7 +71,7 @@ func (t *Tx) Signal(id ID, token *SignalToken, key string, value any) (SignalRes
 	if !goai.CheckJSONSchemaValue(map[string]any(token.definition.Schema), owned) {
 		return SignalInvalid, nil
 	}
-	name := "pi.signal." + token.Name() + "/" + key
+	name := signalMemoName(token.Name(), key)
 	var memos map[string]*TaskValue
 	if task.Execution != nil {
 		if task.Execution.Native != nil {
@@ -89,7 +90,16 @@ func (t *Tx) Signal(id ID, token *SignalToken, key string, value any) (SignalRes
 	if memos == nil {
 		memos = make(map[string]*TaskValue, 1)
 	}
-	memos[name] = &TaskValue{Present: true, Value: JSON{"version": token.Version(), "value": owned}}
+	result := SignalDelivered
+	memo := JSON{"version": token.Version(), "value": owned}
+	if task.Execution != nil && task.Execution.Native != nil {
+		state := task.Execution.Native.State
+		if state.Status == "sleeping" && state.Until != nil && slices.Contains(state.Signals, SignalKey{Signal: token.Name(), Key: key}) && *state.Until <= t.session.now() {
+			memo = JSON{"expired": true}
+			result = SignalClosed
+		}
+	}
+	memos[name] = &TaskValue{Present: true, Value: memo}
 	if task.Execution != nil && task.Execution.Native != nil {
 		native := *task.Execution.Native
 		native.Memos = memos
@@ -105,5 +115,5 @@ func (t *Tx) Signal(id ID, token *SignalToken, key string, value any) (SignalRes
 	if err := t.stage(Write{Op: "put-task", Task: &task}); err != nil {
 		return "", err
 	}
-	return SignalDelivered, nil
+	return result, nil
 }

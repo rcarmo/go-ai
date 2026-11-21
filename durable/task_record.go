@@ -240,8 +240,8 @@ func validateTaskState(state TaskState) error {
 	if state.Status != "sleeping" && (state.Until != nil || state.Signals != nil) {
 		return reject("nonsleeping task has sleep conditions")
 	}
-	if state.Wake != nil && state.Status != "running" {
-		return reject("nonrunning task has wake reason")
+	if state.Wake != nil && state.Status != "running" && state.Status != "pending" {
+		return reject("parked or ended task has wake reason")
 	}
 	switch state.Status {
 	case "pending", "running", "waiting", "sleeping":

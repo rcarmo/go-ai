@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -274,43 +275,7 @@ func TestSourceV160SignalDeliveredBeforeSleep(t *testing.T) {
 		t.Fatal(err)
 	}
 	answer := testSignalAnswer(t)
-	key, err := answer.Key("a")
-	if err != nil {
-		t.Fatal(err)
-	}
-	def, err := DefineTask(TaskDefinitionOptions{Kind: "test.ask", Version: 1,
-		Initial: func(any) (JSON, error) { return JSON{"phase": "ask"}, nil },
-		Abort: func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
-			return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) {
-				return &TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "aborted", Reason: "test"}}, nil
-			})
-		},
-		Phases: map[string]TaskPhase{
-			"ask": func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
-				return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) {
-					return &TaskState{Status: "sleeping", Checkpoint: JSON{"phase": "answered"}, Signals: []SignalKey{key}}, nil
-				})
-			},
-			"answered": func(ctx context.Context, task TaskRecord, r *TaskRuntime) error {
-				state, err := r.ReadSignal(ctx, answer, "a")
-				if err != nil {
-					return err
-				}
-				raw, err := json.Marshal(JSON{"wake": task.State.Wake, "states": []*SignalState{state}})
-				if err != nil {
-					return err
-				}
-				var result any
-				if err = json.Unmarshal(raw, &result); err != nil {
-					return err
-				}
-				return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone(result), nil })
-			},
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	def := signalAskDefinition(t, answer, nil, nil)
 	h := taskTestHarness(t, store, def)
 	value, err := h.Commit(ctx, func(tx *Tx) (any, error) {
 		return tx.CreateTask(def, JSON{"keys": []any{"a"}}, TaskOptions{Conversation: 1, Ownership: TaskOwnership{Kind: "conversation"}})
@@ -370,5 +335,107 @@ func TestSourceV160SignalReadAfterWrite(t *testing.T) {
 	}
 	if task, found, err := h.Task(ctx, id); err != nil || !found || task.Memos != nil {
 		t.Fatalf("rejected signal commit stored memos: %#v (%v, %v)", task.Memos, found, err)
+	}
+}
+
+func signalAskDefinition(t *testing.T, answer *SignalToken, until *int64, parked chan<- error) *TaskDefinition {
+	t.Helper()
+	key, err := answer.Key("a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	def, err := DefineTask(TaskDefinitionOptions{Kind: "test.ask", Version: 1,
+		Initial: func(any) (JSON, error) { return JSON{"phase": "ask"}, nil },
+		Abort: func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+			return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) {
+				return &TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "aborted", Reason: "test"}}, nil
+			})
+		},
+		Phases: map[string]TaskPhase{
+			"ask": func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+				err := r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) {
+					return &TaskState{Status: "sleeping", Checkpoint: JSON{"phase": "answered"}, Until: until, Signals: []SignalKey{key}}, nil
+				})
+				if parked != nil {
+					parked <- err
+				}
+				return err
+			},
+			"answered": func(ctx context.Context, task TaskRecord, r *TaskRuntime) error {
+				state, err := r.ReadSignal(ctx, answer, "a")
+				if err != nil {
+					return err
+				}
+				raw, err := json.Marshal(JSON{"wake": task.State.Wake, "states": []*SignalState{state}})
+				if err != nil {
+					return err
+				}
+				var result any
+				if err = json.Unmarshal(raw, &result); err != nil {
+					return err
+				}
+				return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone(result), nil })
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return def
+}
+
+// v1.6.0 harness-signals.test.ts:225. Advance the injected clock inside the
+// delivery's public commit so reservation cannot run between the clock change
+// and the delivery. No timer or wall-clock delay establishes this order.
+func TestSourceV160LateSignalExpiresBeforeReservation(t *testing.T) {
+	ctx, cancel := context.WithTimeout(bg, 5*time.Second)
+	defer cancel()
+	store, err := newTestSQLite(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var clock atomic.Int64
+	clock.Store(1000)
+	until := int64(2000)
+	parked := make(chan error, 1)
+	answer := testSignalAnswer(t)
+	def := signalAskDefinition(t, answer, &until, parked)
+	h := taskTestHarnessOptions(t, store, Options{Now: clock.Load, OnWake: func(Wake) {}}, def)
+	value, err := h.Commit(ctx, func(tx *Tx) (any, error) {
+		return tx.CreateTask(def, JSON{"keys": []any{"a"}, "until": until}, TaskOptions{Conversation: 1, Ownership: TaskOwnership{Kind: "conversation"}})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := value.(ID)
+	if err := h.Resume(ctx); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-parked:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	result, err := h.Commit(ctx, func(tx *Tx) (any, error) {
+		clock.Store(2500)
+		return tx.Signal(id, answer, "a", JSON{"text": "late"})
+	})
+	if err != nil || result != SignalClosed {
+		t.Fatalf("late signal = %v, %v; want closed", result, err)
+	}
+	record, err := h.WaitForTask(ctx, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := &TaskOutcome{Status: "completed", Result: &TaskValue{Present: true, Value: map[string]any{
+		"wake": map[string]any{"reason": "expired"}, "states": []any{map[string]any{"expired": true}},
+	}}}
+	if !reflect.DeepEqual(record.State.Outcome, want) {
+		got, _ := json.Marshal(record.State.Outcome)
+		expected, _ := json.Marshal(want)
+		t.Fatalf("late signal outcome = %s, want %s", got, expected)
 	}
 }
