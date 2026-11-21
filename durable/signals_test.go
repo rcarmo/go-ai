@@ -439,3 +439,134 @@ func TestSourceV160LateSignalExpiresBeforeReservation(t *testing.T) {
 		t.Fatalf("late signal outcome = %s, want %s", got, expected)
 	}
 }
+
+// v1.6.0 harness-signals.test.ts:627: a same-checkpoint commit preserves
+// the wake in running and pending SQLite records until checkpoint progress.
+func TestSourceV160SignalWakeSurvivesSameCheckpointAndReopen(t *testing.T) {
+	ctx, cancel := context.WithTimeout(bg, 8*time.Second)
+	defer cancel()
+	store, err := newTestSQLite(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	answer := testSignalAnswer(t)
+	key, err := answer.Key("k")
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := make(chan *WakeReason, 5)
+	var runs atomic.Int32
+	def, err := DefineTask(TaskDefinitionOptions{Kind: "test.keep", Version: 1,
+		Initial: func(any) (JSON, error) { return JSON{"phase": "sleep"}, nil },
+		Abort: func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+			return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) {
+				return &TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "aborted", Reason: "test"}}, nil
+			})
+		},
+		Phases: map[string]TaskPhase{
+			"sleep": func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+				return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) {
+					return &TaskState{Status: "sleeping", Checkpoint: JSON{"phase": "woke"}, Signals: []SignalKey{key}}, nil
+				})
+			},
+			"woke": func(ctx context.Context, task TaskRecord, r *TaskRuntime) error {
+				seen <- task.State.Wake
+				if err := r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) {
+					return &TaskState{Status: "running", Checkpoint: JSON{"phase": "woke"}}, nil
+				}); err != nil {
+					return err
+				}
+				after, found, err := r.Task(ctx, r.TaskID())
+				if err != nil {
+					return err
+				}
+				if !found {
+					return errors.New("own live task missing")
+				}
+				seen <- after.State.Wake
+				if runs.Add(1) == 1 {
+					<-ctx.Done()
+				}
+				return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) {
+					return &TaskState{Status: "running", Checkpoint: JSON{"phase": "after"}}, nil
+				})
+			},
+			"after": func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+				after, found, err := r.Task(ctx, r.TaskID())
+				if err != nil {
+					return err
+				}
+				if !found {
+					return errors.New("own live task missing")
+				}
+				seen <- after.State.Wake
+				return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone(nil), nil })
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := taskTestHarness(t, store, def)
+	v, err := h.Commit(ctx, func(tx *Tx) (any, error) {
+		return tx.CreateTask(def, nil, TaskOptions{Conversation: 1, Ownership: TaskOwnership{Kind: "conversation"}})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := v.(ID)
+	if result, err := h.Signal(ctx, id, answer, "k", JSON{"text": "go"}); result != SignalDelivered || err != nil {
+		t.Fatalf("signal = %v, %v", result, err)
+	}
+	wake := &WakeReason{Reason: "signal", Signal: "test.answer", Key: "k"}
+	expectSeen := func(want *WakeReason) {
+		t.Helper()
+		select {
+		case got := <-seen:
+			if !reflect.DeepEqual(got, want) {
+				t.Fatalf("phase saw wake %+v, want %+v", got, want)
+			}
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+	}
+	expectState := func(h *Harness, status string) {
+		t.Helper()
+		task, found, err := h.Task(ctx, id)
+		if err != nil || !found {
+			t.Fatalf("task state unavailable: %v, %v", found, err)
+		}
+		raw, err := json.Marshal(task.State)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got map[string]any
+		if err := json.Unmarshal(raw, &got); err != nil {
+			t.Fatal(err)
+		}
+		want := map[string]any{"status": status, "checkpoint": map[string]any{"phase": "woke"}, "wake": map[string]any{"reason": "signal", "signal": "test.answer", "key": "k"}}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("task state = %s; want %+v", raw, want)
+		}
+	}
+	expectSeen(wake)
+	expectSeen(wake)
+	expectState(h, "running")
+	if err = h.Close(ctx); err != nil {
+		t.Fatal(err)
+	}
+	reopened := taskTestHarness(t, reopenStoreAfterHarnessClose(t, store), def)
+	expectState(reopened, "pending")
+	if err = reopened.Resume(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if task, err := reopened.WaitForTask(ctx, id); err != nil || !reflect.DeepEqual(task.State.Outcome, taskDone(nil).Outcome) {
+		t.Fatalf("resumed outcome = %+v, %v", task.State.Outcome, err)
+	}
+	expectSeen(wake)
+	expectSeen(wake)
+	expectSeen(nil)
+	if len(seen) != 0 {
+		t.Fatalf("unexpected extra wake observations: %d", len(seen))
+	}
+}

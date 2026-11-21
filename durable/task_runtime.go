@@ -147,6 +147,10 @@ func (r *TaskRuntime) commit(ctx context.Context, change func(*Tx, TaskRecord) (
 			return reject("scheduler-only outcome")
 		}
 		native := *task.Execution.Native
+		state.Wake = nil
+		if state.Status == "running" && equalJSONValue(native.State.Checkpoint, state.Checkpoint) {
+			state.Wake = native.State.Wake
+		}
 		native.State = state
 		if state.Status == "terminal" {
 			native.Memos = nil
