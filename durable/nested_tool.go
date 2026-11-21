@@ -251,6 +251,9 @@ func (r *TaskRuntime) CallTool(ctx context.Context, key, name string, args JSON)
 	return handle.Wait(ctx)
 }
 func (a *ToolAPI) StartToolAuto(ctx context.Context, name string, args JSON) (*NestedToolHandle, error) {
+	if err := a.checkParkCancellationStarts(); err != nil {
+		return nil, err
+	}
 	a.mu.Lock()
 	active := a.active
 	a.mu.Unlock()
@@ -267,6 +270,9 @@ func (a *ToolAPI) CallToolAuto(ctx context.Context, name string, args JSON) (Too
 	return handle.Wait(ctx)
 }
 func (a *ToolAPI) StartTool(ctx context.Context, key, name string, args JSON) (*NestedToolHandle, error) {
+	if err := a.checkParkCancellationStarts(); err != nil {
+		return nil, err
+	}
 	a.mu.Lock()
 	active := a.active
 	a.mu.Unlock()

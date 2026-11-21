@@ -52,13 +52,18 @@ func (r *TaskRuntime) Environment(ctx context.Context) (ExecutionEnvironment, er
 }
 
 func resolveInvocationEnvironment(ctx context.Context, h *Harness, runtime *TaskRuntime, conversation ID, rejectAborted bool) (ExecutionEnvironment, error) {
+	return resolveEnvironment(ctx, runtime.context, h, runtime, conversation, rejectAborted)
+}
+
+// Cleanup uses the Harness lifetime in place of the cancelled run lifetime.
+func resolveEnvironment(ctx, invocation context.Context, h *Harness, runtime *TaskRuntime, conversation ID, rejectAborted bool) (ExecutionEnvironment, error) {
 	if ctx == nil {
 		return nil, reject("nil context")
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if err := runtime.context.Err(); err != nil {
+	if err := invocation.Err(); err != nil {
 		return nil, err
 	}
 	var cwd string
@@ -109,7 +114,7 @@ func resolveInvocationEnvironment(ctx context.Context, h *Harness, runtime *Task
 	if h.closing.Load() {
 		return nil, ErrClosed
 	}
-	if err := runtime.context.Err(); err != nil {
+	if err := invocation.Err(); err != nil {
 		return nil, err
 	}
 	return env, nil

@@ -46,6 +46,8 @@ type ToolRegistration struct {
 	// PrepareArguments; removal of this extra native API remains open.
 	Validator func(context.Context, any) (any, error)
 	Execute   func(context.Context, any, *ToolAPI) (ToolResult, error)
+	// Cancel cleans up external work after a park. It does not produce a result.
+	Cancel func(context.Context, any, *ToolAPI) error
 }
 type toolOffer struct {
 	ConstrainedSampling    *goai.ToolConstrainedSampling `json:"constrainedSampling,omitempty"`
@@ -68,6 +70,7 @@ type registeredTool struct {
 	paidModel bool
 	offer     toolOffer
 	execute   func(context.Context, any, *ToolAPI) (ToolResult, error)
+	cancel    func(context.Context, any, *ToolAPI) error
 	validator func(context.Context, any) (any, error)
 	prepare   func(context.Context, any) (any, error)
 }
@@ -160,7 +163,7 @@ func (r *Registry) Register(reg ToolRegistration) error {
 	if _, exists := r.tools[offer.Name]; !exists {
 		r.toolOrder = append(r.toolOrder, offer.Name)
 	}
-	r.tools[offer.Name] = registeredTool{paidModel: reg.paidModel, offer: offer, execute: reg.Execute, validator: reg.Validator, prepare: reg.PrepareArguments}
+	r.tools[offer.Name] = registeredTool{paidModel: reg.paidModel, offer: offer, execute: reg.Execute, cancel: reg.Cancel, validator: reg.Validator, prepare: reg.PrepareArguments}
 	wake := r.taskListenersLocked()
 	r.mu.Unlock()
 	for _, notify := range wake {
@@ -578,6 +581,7 @@ type ToolAPI struct {
 	// Wake and Checkpoint are supplied when executing a previously parked call.
 	Wake                *WakeReason
 	Checkpoint          any
+	cancelling          bool
 	canonicalInput      canonicalToolInput
 	nested              bool
 	mu                  sync.Mutex
@@ -861,6 +865,9 @@ func (a *ToolAPI) Commit(ctx context.Context, callback func(*Tx) (any, error), o
 	return value, nil
 }
 func (a *ToolAPI) CreateTask(ctx context.Context, def *TaskDefinition, input any, options TaskOptions) (ID, error) {
+	if err := a.checkParkCancellationStarts(); err != nil {
+		return 0, err
+	}
 	var id ID
 	_, err := a.Commit(ctx, func(tx *Tx) (any, error) {
 		var err error

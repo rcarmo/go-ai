@@ -286,28 +286,38 @@ func canonicalToolAbort(ctx context.Context, task TaskRecord, r *TaskRuntime) er
 	if err != nil {
 		return err
 	}
+	cp := taskCheckpointMap(task.State.Checkpoint)
 	code, message := "aborted", fmt.Sprintf("Tool %s was aborted", call.Name)
 	if input.Unoffered {
 		code, message = "tool_unavailable", fmt.Sprintf("Tool %s is not available", call.Name)
 	} else if task.AbortReason == "restart" {
 		code, message = "abandoned", fmt.Sprintf("Tool %s was not started: its caller ended with a restart", call.Name)
-		if taskCheckpointMap(task.State.Checkpoint)["phase"] == "execute" {
+		switch cp["phase"] {
+		case "execute":
 			code, message = "interrupted", fmt.Sprintf("Tool %s was interrupted by a restart and may have partially run", call.Name)
+		case "parked":
+			code, message = "abandoned", fmt.Sprintf("Tool %s was parked: its caller ended with a restart", call.Name)
+		}
+	}
+	agent, reg, found, selectErr := canonicalToolSelection(ctx, r, input, call)
+	if selectErr == nil && (cp["phase"] == "parked" || cp["phase"] == "execute" && cp["wake"] != nil) {
+		if found {
+			if err := canonicalCancelPark(ctx, r, input, call, reg, cp["arguments"], cp["checkpoint"]); err != nil {
+				return err
+			}
+		} else {
+			//lint:ignore ST1005 Exact pinned tool cancellation report.
+			r.reportError(fmt.Errorf("Tool %s is not available: its parked call %s was not cancelled", call.Name, call.ID))
 		}
 	}
 	result, err := canonicalToolFromSlot(ctx, r, code, message)
 	if err != nil {
 		return err
 	}
-	var reg registeredTool
-	if task.Restarts+1 < r.harness.RestartLimit() {
-		agent, selected, _, selectErr := canonicalToolSelection(ctx, r, input, call)
-		if selectErr == nil {
-			reg = selected
-			result, err = canonicalToolHooks(ctx, r, agent, call, result)
-			if err != nil {
-				return err
-			}
+	if selectErr == nil && task.Restarts+1 < r.harness.RestartLimit() {
+		result, err = canonicalToolHooks(ctx, r, agent, call, result)
+		if err != nil {
+			return err
 		}
 	}
 	return settleCanonicalTool(ctx, r, input, call, reg, result, "aborted", "", nil)
@@ -445,11 +455,14 @@ func runCanonicalTool(ctx context.Context, r *TaskRuntime, input canonicalToolIn
 				checkpointArgs = sourceToolArguments{args}
 			}
 			parkErr = canonicalParkTool(ctx, r, api, reg, checkpointArgs, result.Park)
+			if parkErr != nil && cleanupRefusedToolPark(r, input, call, reg, args, result.Park) {
+				return parkErr
+			}
 		}
 		if parkErr == nil {
 			return nil
 		} else if ctx.Err() != nil {
-			return ctx.Err()
+			return parkErr
 		} else {
 			message := fmt.Sprintf("Tool %s returned an invalid park: %v", call.Name, parkErr)
 			result, hookErr := canonicalToolHooks(ctx, r, agent, call, canonicalToolError("invalid_park", message))

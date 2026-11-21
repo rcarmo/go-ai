@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	goai "github.com/rcarmo/go-ai"
 )
 
 // ToolPark suspends the current call on a sleep or a wait. Exactly one must be present.
@@ -156,4 +157,69 @@ func canonicalToolParkedPhase(ctx context.Context, task TaskRecord, r *TaskRunti
 		return err
 	}
 	return runCanonicalTool(ctx, r, input, call, agent, reg, unwrapToolArgumentValue(parked["arguments"]), toolResume{wake: task.State.Wake, checkpoint: parked["checkpoint"]})
+}
+
+func (a *ToolAPI) checkParkCancellationStarts() error {
+	if a.cancelling {
+		//lint:ignore ST1005 Exact pinned cancel API error.
+		return fmt.Errorf("Tool %s cannot start nested calls or tasks in cancel", a.checkpoint.Offer.Name)
+	}
+	return nil
+}
+
+func canonicalCancelPark(ctx context.Context, r *TaskRuntime, input canonicalToolInput, call goai.ToolCall, reg registeredTool, arguments, checkpoint any) error {
+	if reg.cancel == nil {
+		return nil
+	}
+	api := &ToolAPI{Checkpoint: checkpoint, cancelling: true, h: r.harness,
+		task: Task{ID: r.taskID, Conversation: r.conversation}, checkpoint: toolCheckpoint{Offer: reg.offer, CallID: call.ID},
+		active: true, ctx: ctx, runtime: r, canonicalInput: input}
+	api.environment, api.environmentErr = resolveEnvironment(ctx, r.harness.life, r.harness, r, r.conversation, false)
+	api.environmentResolved = true
+	err := api.environmentErr
+	if err == nil {
+		args, copyErr := copyScopedToolValue(unwrapToolArgumentValue(arguments), call.HasStreamingArguments(), r.harness.session.limits)
+		err = copyErr
+		if err == nil {
+			func() {
+				defer func() {
+					if panicValue := recover(); panicValue != nil {
+						err = fmt.Errorf("%v", panicValue)
+					}
+				}()
+				err = reg.cancel(ctx, args, api)
+			}()
+		}
+	}
+	if sealErr := api.seal(); err == nil {
+		err = sealErr
+	}
+	if err != nil {
+		if ctx.Err() != nil {
+			return err
+		}
+		r.reportExtensionError(err, reg.extension)
+	}
+	return nil
+}
+
+// An abort can land before the run saves its park. The abort handler will see
+// the old checkpoint, so this attempt cleans up using the refused park's value.
+func cleanupRefusedToolPark(r *TaskRuntime, input canonicalToolInput, call goai.ToolCall, reg registeredTool, args any, park *ToolPark) bool {
+	ctx := r.harness.life
+	task, found, err := r.Task(ctx, r.taskID)
+	if err != nil || !found || !task.AbortRequested {
+		return false
+	}
+	var checkpoint any
+	switch {
+	case park.Sleep != nil && park.Wait == nil:
+		checkpoint = park.Sleep.Checkpoint
+	case park.Wait != nil && park.Sleep == nil:
+		checkpoint = park.Wait.Checkpoint
+	default:
+		return true
+	}
+	_ = canonicalCancelPark(ctx, r, input, call, reg, args, checkpoint)
+	return true
 }

@@ -660,3 +660,209 @@ func TestSourceV160CanonicalToolTimedAndInvalidParks(t *testing.T) {
 		})
 	}
 }
+
+// Source: harness-tool-parks.test.ts, cancel. Registry.Remove is the native
+// disposal seam. A public durable park receipt or Execute entry gates abort.
+func TestSourceV160CanonicalToolCancel(t *testing.T) {
+	for _, mode := range []string{"parked", "throws-at-limit", "woken", "removed", "racing-park"} {
+		t.Run(mode, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(bg, 8*time.Second)
+			defer cancel()
+			native, err := newTestSQLite(t)
+			if err != nil {
+				t.Fatal(err)
+			}
+			storage := &toolParkTestStorage{Storage: native, parked: make(chan ID, 4)}
+			token := testSignalAnswer(t)
+			key, err := token.Key("done")
+			if err != nil {
+				t.Fatal(err)
+			}
+			var providerCalls atomic.Int32
+			ref, options := setupFakeAPI(t, func(_ context.Context, _ *goai.Model, _ *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
+				ch := make(chan goai.Event, 1)
+				if providerCalls.Add(1) == 1 {
+					ch <- toolAnswer("c1", "ci", JSON{"job": "build"})
+				} else {
+					ch <- terminal("done")
+				}
+				close(ch)
+				return ch
+			})
+			options.Registry = NewRegistry()
+			options.Env = func(context.Context, EnvTarget) (ExecutionEnvironment, error) {
+				return testEnvironment{cwd: "/work"}, nil
+			}
+			if mode == "throws-at-limit" {
+				limit := uint64(1)
+				options.Settings = &HarnessSettings{RestartLimit: &limit}
+			}
+			reports := make(chan error, 32)
+			options.OnReport = func(err error) { reports <- err }
+			type cancellation struct {
+				wake             *WakeReason
+				checkpoint, args any
+				cwd              string
+				err              error
+			}
+			cleanups := make(chan cancellation, 4)
+			entered := make(chan ID, 4)
+			cutOff := make(chan struct{}, 1)
+			err = options.Registry.Register(ToolRegistration{
+				Definition:     goai.Tool{Name: "ci", Parameters: json.RawMessage(`{"type":"object","properties":{"job":{"type":"string"}},"required":["job"]}`)},
+				Implementation: "test.cancel", Version: 1,
+				Execute: func(run context.Context, _ any, api *ToolAPI) (ToolResult, error) {
+					if api.Wake != nil || mode == "racing-park" {
+						entered <- api.TaskID()
+						select {
+						case <-run.Done():
+						case <-ctx.Done():
+							return ToolResult{}, ctx.Err()
+						}
+						cutOff <- struct{}{}
+						if mode != "racing-park" {
+							return ToolResult{}, run.Err()
+						}
+					}
+					return ToolResult{Park: &ToolPark{Sleep: &ToolSleep{Signals: []SignalKey{key}, Checkpoint: JSON{"build": 1}}}}, nil
+				},
+				Cancel: func(cleanup context.Context, args any, api *ToolAPI) error {
+					if mode == "throws-at-limit" {
+						cleanups <- cancellation{}
+						return fmt.Errorf("cancel failed")
+					}
+					if mode == "woken" || mode == "racing-park" {
+						select {
+						case <-cutOff:
+						default:
+							t.Error("cancel ran before the cut-off execute returned")
+						}
+					}
+					env, err := api.Environment(cleanup)
+					var cwd string
+					if err == nil && env != nil {
+						cwd = env.Cwd()
+					}
+					cleanups <- cancellation{api.Wake, api.Checkpoint, args, cwd, err}
+					message := "Tool ci cannot start nested calls or tasks in cancel"
+					if _, err := api.StartToolAuto(cleanup, "ci", JSON{}); err == nil || err.Error() != message {
+						t.Errorf("cancel nested start = %v", err)
+					}
+					if _, err := api.CreateTask(cleanup, ToolTask(), JSON{}, TaskOptions{}); err == nil || err.Error() != message {
+						t.Errorf("cancel task start = %v", err)
+					}
+					return nil
+				},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			h := openHarness(t, storage, options)
+			c := root(t, h, ref)
+			sub, err := c.Submit(ctx, Input{Type: "input", Content: "go"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			ready := storage.parked
+			if mode == "racing-park" {
+				ready = entered
+			}
+			var id ID
+			select {
+			case id = <-ready:
+			case <-ctx.Done():
+				t.Fatal("tool not ready", ctx.Err())
+			}
+			switch mode {
+			case "woken":
+				if result, err := h.Signal(ctx, id, token, "done", JSON{"text": "passed"}); err != nil || result != SignalDelivered {
+					t.Fatalf("signal = %q, %v", result, err)
+				}
+				select {
+				case woke := <-entered:
+					if woke != id {
+						t.Fatalf("woke task %d, want %d", woke, id)
+					}
+				case <-ctx.Done():
+					t.Fatal("tool did not wake", ctx.Err())
+				}
+			case "removed":
+				options.Registry.Remove("ci")
+			case "racing-park":
+				if _, err := h.AbortTask(ctx, id); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := h.WaitForTask(ctx, id); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := c.Abort(ctx); err != nil {
+				t.Fatal(err)
+			}
+			settled, err := sub.Wait(ctx)
+			if err != nil || (mode != "racing-park" && settled.Record.Status != "unanswered") {
+				t.Fatalf("submission = %+v, %v", settled.Record, err)
+			}
+			record, err := h.WaitForTask(ctx, id)
+			if err != nil || record.State.Outcome == nil || record.State.Outcome.Status != "aborted" {
+				t.Fatalf("task = %+v, %v", record, err)
+			}
+			if mode == "parked" {
+				page, err := c.Entries(ctx, EntryQuery{}, 100, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var count int
+				for _, entry := range page.Items {
+					if len(entry.Model) == 0 && entry.Kind != legacyMessageKind {
+						continue
+					}
+					result, err := entryMessage(entry, DefaultLimits())
+					if err != nil {
+						t.Fatal(err)
+					}
+					if result.Role != goai.RoleToolResult || result.ToolCallID != "c1" {
+						continue
+					}
+					count++
+					var text strings.Builder
+					for _, block := range result.Content {
+						text.WriteString(block.Text)
+					}
+					if !result.IsError || !strings.Contains(text.String(), "Tool ci was aborted") {
+						t.Fatalf("tool result = %+v", result)
+					}
+				}
+				if count != 1 {
+					t.Fatalf("tool results for c1 = %d; want one", count)
+				}
+			}
+			if mode == "removed" {
+				if len(cleanups) != 0 {
+					t.Fatal("removed tool ran cancel")
+				}
+			} else {
+				if len(cleanups) != 1 {
+					t.Fatalf("cancel calls = %d; want one", len(cleanups))
+				}
+				got := <-cleanups
+				if mode != "throws-at-limit" && (got.wake != nil || !equalJSONValue(got.checkpoint, JSON{"build": 1}) || !equalJSONValue(got.args, JSON{"job": "build"}) || got.err != nil || got.cwd != "/work") {
+					t.Fatalf("cancel = %+v", got)
+				}
+			}
+			wantReport := map[string]string{"removed": "Tool ci is not available: its parked call c1 was not cancelled", "throws-at-limit": "cancel failed"}[mode]
+			if wantReport != "" {
+				for {
+					select {
+					case got := <-reports:
+						if got.Error() == wantReport {
+							return
+						}
+					case <-ctx.Done():
+						t.Fatalf("no report %q", wantReport)
+					}
+				}
+			}
+		})
+	}
+}
