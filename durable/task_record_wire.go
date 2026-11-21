@@ -86,6 +86,9 @@ func publicTaskStateJSON(state TaskState) (map[string]any, error) {
 	switch state.Status {
 	case "pending", "running":
 		out["checkpoint"] = state.Checkpoint
+		if state.Wake != nil {
+			out["wake"] = state.Wake
+		}
 	case "waiting":
 		out["checkpoint"] = state.Checkpoint
 		on := state.On
@@ -96,10 +99,12 @@ func publicTaskStateJSON(state TaskState) (map[string]any, error) {
 		out["policy"] = state.Policy
 	case "sleeping":
 		out["checkpoint"] = state.Checkpoint
-		if state.Until == nil {
-			return nil, reject("sleeping task deadline absent")
+		if state.Until != nil {
+			out["until"] = *state.Until
 		}
-		out["until"] = *state.Until
+		if state.Signals != nil {
+			out["signals"] = state.Signals
+		}
 	case "completing", "terminal":
 		if state.Outcome == nil {
 			return nil, reject("task outcome absent")
@@ -257,12 +262,14 @@ func parsePublicTaskState(data []byte) (TaskState, error) {
 		On         []ID            `json:"on"`
 		Policy     string          `json:"policy"`
 		Until      *int64          `json:"until"`
+		Signals    []SignalKey     `json:"signals"`
+		Wake       *WakeReason     `json:"wake"`
 		Outcome    json.RawMessage `json:"outcome"`
 	}
 	if err := decodePublicJSON(data, &wire); err != nil {
 		return TaskState{}, err
 	}
-	result := TaskState{Status: wire.Status, On: wire.On, Policy: wire.Policy, Until: wire.Until}
+	result := TaskState{Status: wire.Status, On: wire.On, Policy: wire.Policy, Until: wire.Until, Signals: wire.Signals, Wake: wire.Wake}
 	if wire.Checkpoint != nil {
 		if err := decodePublicJSON(wire.Checkpoint, &result.Checkpoint); err != nil {
 			return TaskState{}, err

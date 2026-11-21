@@ -211,13 +211,23 @@ type TaskOutcome struct {
 
 // TaskState is a strict union. Live states own an object checkpoint. Outcomes
 // have no checkpoint/memos; waiting additionally owns On and Policy.
+// WakeReason records why a suspended task resumed.
+type WakeReason struct {
+	Reason string `json:"reason"`
+	Signal string `json:"signal,omitempty"`
+	Key    string `json:"key,omitempty"`
+	Ended  []ID   `json:"ended,omitempty"`
+}
+
 type TaskState struct {
 	// OpaqueTerminal holds an uninterpreted terminal payload from the storage
 	// record. It is not a valid outcome for a task phase to return.
 	OpaqueTerminal JSON `json:"opaqueTerminal,omitempty"`
 	// Source endedByCrashes marks the returned state, never its stored copy.
 	endedByCrashes string
-	Until          *int64       `json:"until,omitempty"` // required only for sleeping; epoch milliseconds
+	Until          *int64       `json:"until,omitempty"` // optional epoch-millisecond sleep deadline
+	Signals        []SignalKey  `json:"signals,omitempty"`
+	Wake           *WakeReason  `json:"wake,omitempty"`
 	Status         string       `json:"status"`
 	Checkpoint     any          `json:"checkpoint,omitempty"`
 	On             []ID         `json:"on,omitempty"`

@@ -184,3 +184,70 @@ func TestV160SignalComposesWithOwnTaskState(t *testing.T) {
 		t.Fatalf("sleeping task memos = %#v, want %#v", record.Memos, want)
 	}
 }
+
+// Official v1.6.0 harness-signals.test.ts:463. The same commit delivers a
+// signal to its own task and parks it without a deadline. The reserved phase
+// receives the exact persisted wake reason.
+func TestSourceV160SelfSignalWakesWithExactReason(t *testing.T) {
+	store, err := newTestSQLite(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(bg, 5*time.Second)
+	defer cancel()
+	answer, err := DefineSignal(SignalDefinition{Name: "test.answer", Version: 1, Schema: JSON{"type": "object", "properties": JSON{"text": JSON{"type": "string"}}, "required": []any{"text"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	key, err := answer.Key("self")
+	if err != nil {
+		t.Fatal(err)
+	}
+	def, err := DefineTask(TaskDefinitionOptions{Kind: "test.self.wake", Version: 1, Initial: func(any) (JSON, error) { return JSON{"phase": "start"}, nil }, Abort: func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+		return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) {
+			return &TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "aborted"}}, nil
+		})
+	}, Phases: map[string]TaskPhase{
+		"start": func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+			return r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
+				got, err := tx.Signal(r.TaskID(), answer, "self", JSON{"text": "me"})
+				if err != nil {
+					return nil, err
+				}
+				if got != SignalDelivered {
+					return nil, fmt.Errorf("self signal = %q", got)
+				}
+				return &TaskState{Status: "sleeping", Checkpoint: JSON{"phase": "woke"}, Signals: []SignalKey{key}}, nil
+			})
+		},
+		"woke": func(ctx context.Context, task TaskRecord, r *TaskRuntime) error {
+			raw, err := json.Marshal(task.State.Wake)
+			if err != nil {
+				return err
+			}
+			var wake any
+			if err = json.Unmarshal(raw, &wake); err != nil {
+				return err
+			}
+			return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone(wake), nil })
+		},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := taskTestHarness(t, store, def)
+	v, err := h.Commit(ctx, func(tx *Tx) (any, error) {
+		return tx.CreateTask(def, nil, TaskOptions{Conversation: 1, Ownership: TaskOwnership{Kind: "conversation"}})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	task, err := h.WaitForTask(ctx, v.(ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := &TaskOutcome{Status: "completed", Result: &TaskValue{Present: true, Value: map[string]any{"reason": "signal", "signal": "test.answer", "key": "self"}}}
+	if !reflect.DeepEqual(task.State.Outcome, want) {
+		t.Fatalf("self signal outcome = %+v, want %+v", task.State.Outcome, want)
+	}
+}

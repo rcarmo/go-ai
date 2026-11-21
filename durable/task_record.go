@@ -1,6 +1,9 @@
 package durable
 
-import "strings"
+import (
+	"slices"
+	"strings"
+)
 
 const (
 	nativeTaskTag  = "native-task-v1"
@@ -129,6 +132,15 @@ func copyTaskState(state TaskState, l Limits) (TaskState, error) {
 		until := *state.Until
 		state.Until = &until
 	}
+	if len(state.Signals) > l.MaxMembers {
+		return TaskState{}, reject("task signal count limit")
+	}
+	state.Signals = slices.Clone(state.Signals)
+	if state.Wake != nil {
+		wake := *state.Wake
+		wake.Ended = slices.Clone(wake.Ended)
+		state.Wake = &wake
+	}
 	if state.Checkpoint != nil {
 		checkpoint, err := copyTaskCheckpointValue(state.Checkpoint, l)
 		if err != nil {
@@ -218,20 +230,26 @@ func validateTaskOutcome(outcome *TaskOutcome) error {
 
 func validStorageTerminal(state TaskState) bool {
 	_, typed := state.OpaqueTerminal["status"]
-	return state.OpaqueTerminal != nil && !typed && state.Status == "terminal" && state.Checkpoint == nil && state.On == nil && state.Policy == "" && state.Until == nil && state.Outcome == nil
+	return state.OpaqueTerminal != nil && !typed && state.Status == "terminal" && state.Checkpoint == nil && state.On == nil && state.Policy == "" && state.Until == nil && state.Signals == nil && state.Wake == nil && state.Outcome == nil
 }
 
 func validateTaskState(state TaskState) error {
 	if state.OpaqueTerminal != nil {
 		return reject("opaque terminal storage record is not a runtime outcome")
 	}
-	if state.Status != "sleeping" && state.Until != nil {
-		return reject("nonsleeping task has deadline")
+	if state.Status != "sleeping" && (state.Until != nil || state.Signals != nil) {
+		return reject("nonsleeping task has sleep conditions")
+	}
+	if state.Wake != nil && state.Status != "running" {
+		return reject("nonrunning task has wake reason")
 	}
 	switch state.Status {
 	case "pending", "running", "waiting", "sleeping":
-		if state.Status == "sleeping" && (state.Until == nil || *state.Until < 0 || uint64(*state.Until) > MaxID) {
+		if state.Until != nil && (*state.Until < 0 || uint64(*state.Until) > MaxID) {
 			return reject("invalid task sleep deadline")
+		}
+		if state.Status == "sleeping" && state.Until == nil && len(state.Signals) == 0 {
+			return reject("task sleep has no deadline or signals")
 		}
 		// Stored checkpoints are opaque JSON until their definition migrates or
 		// executes them. Required phase shape belongs to current-definition admission.

@@ -186,7 +186,11 @@ func (s *taskScheduler) runnable(state Snapshot, task Task) bool {
 	if taskAborted(task) && !privateBuiltinTask(task, "pi.tool") {
 		return len(s.ownedLive(state, task.ID)) == 0
 	}
-	if until, sleeping := taskSleepDeadline(task); sleeping && until > s.h.session.now() {
+	if task.Status == "sleeping" && task.Execution != nil && task.Execution.Native != nil {
+		if !nativeSleepDue(task.Execution.Native, s.h.session.now()) {
+			return false
+		}
+	} else if until, sleeping := taskSleepDeadline(task); sleeping && until > s.h.session.now() {
 		return false
 	}
 	if task.Execution != nil && task.Execution.Native != nil && task.Execution.Native.State.Status == "waiting" {
@@ -498,13 +502,18 @@ func (s *taskScheduler) reservePass(requireEnabled bool) ([]*TaskRuntime, error)
 				return false, err
 			}
 			task = owned
-			task.Status = "running"
 			if task.Execution != nil && task.Execution.Native != nil {
-				task.Execution.Native.State.Status = "running"
-				task.Execution.Native.State.On = nil
-				task.Execution.Native.State.Policy = ""
-				task.Execution.Native.State.Until = nil
+				native := task.Execution.Native
+				if task.Status == "sleeping" && !taskAborted(task) {
+					reserveNativeSleepWake(native, s.h.session.now())
+				}
+				native.State.Status = "running"
+				native.State.On = nil
+				native.State.Policy = ""
+				native.State.Until = nil
+				native.State.Signals = nil
 			}
+			task.Status = "running"
 			if err := tx.stage(Write{Op: "put-task", Task: &task}); err != nil {
 				return false, err
 			}
