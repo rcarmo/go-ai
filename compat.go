@@ -126,6 +126,7 @@ type OpenAICompletionsCompat struct {
 
 // OpenAIResponsesCompat holds compatibility overrides for OpenAI Responses APIs.
 type OpenAIResponsesCompat struct {
+	SupportsDeveloperRole *bool `json:"supportsDeveloperRole,omitempty"`
 	// PromptCacheKeyMode is "auto" (default), "enabled", or "disabled". It
 	// controls the request-body key independently of session-affinity headers.
 	PromptCacheKeyMode string `json:"promptCacheKeyMode,omitempty"`

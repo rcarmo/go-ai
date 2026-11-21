@@ -24,10 +24,7 @@ func (s *codexAdditionalToolState) systemItems(model *goai.Model, message goai.M
 	}
 	s.state.Mode = mode
 	s.state.Folded = folded
-	role := "system"
-	if model.Reasoning {
-		role = "developer"
-	}
+	role := codexInstructionRole(model)
 	return s.state.SystemItems(message, role, fmt.Sprintf("system:%d", index), codexSystemText(message, true), func(defs []goai.Tool, deferLoading bool) any {
 		tools := buildCodexToolDeclarations(model, defs)
 		if deferLoading {

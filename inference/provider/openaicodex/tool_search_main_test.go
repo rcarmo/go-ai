@@ -170,7 +170,7 @@ func TestCodexToolSearchWireMain(t *testing.T) {
 							t.Fatal("request tool marked as search result", tools)
 						}
 						wire, _ := json.Marshal(input)
-						budget := &goai.Context{SystemPrompt: "You are a helpful assistant.", Messages: []goai.Message{goai.UserMessage(string(wire))}, Tools: []goai.Tool{a}}
+						budget := &goai.Context{Messages: []goai.Message{goai.UserMessage(string(wire))}, Tools: []goai.Tool{a}}
 						expected := goai.ClampStreamMaxTokensPtr(model, budget, &goai.StreamOptions{MaxTokens: &maximum})
 						if expected == nil || body["max_output_tokens"] != float64(*expected) {
 							t.Fatal("search/prefix budget mismatch", body["max_output_tokens"], expected)

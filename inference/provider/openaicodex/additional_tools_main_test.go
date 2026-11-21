@@ -163,15 +163,15 @@ func TestCodexAdditionalToolsWireMain(t *testing.T) {
 					remove := func(name string) string {
 						return "The following tools are no longer available. Do not call them:\n- " + name
 					}
-					want := []string{"tools:[a b]", "user", remove("b"), base + "\nStill unavailable: b.", "tools:[c]", "c notes", remove("a"), base + "\nStill unavailable: b, a.", "tools:[c]", base + "\nStill unavailable: b.", "tools:[a]", remove("c"), "user"}
+					want := []string{"initial", "tools:[a b]", "user", remove("b"), base + "\nStill unavailable: b.", "tools:[c]", "c notes", remove("a"), base + "\nStill unavailable: b, a.", "tools:[c]", base + "\nStill unavailable: b.", "tools:[a]", remove("c"), "user"}
 					if !reflect.DeepEqual(events, want) {
 						t.Fatal("anchored notices/order differ", events, want)
 					}
-					if body["instructions"] != "initial" {
+					if body["instructions"] != nil {
 						t.Fatal("initial text duplicated/lost", body)
 					}
 					wire, _ := json.Marshal(input)
-					budget := &goai.Context{SystemPrompt: "initial", Messages: []goai.Message{goai.UserMessage(string(wire))}}
+					budget := &goai.Context{Messages: []goai.Message{goai.UserMessage(string(wire))}}
 					expected := goai.ClampStreamMaxTokensPtr(model, budget, &goai.StreamOptions{MaxTokens: &maximum})
 					if expected == nil || body["max_output_tokens"] != float64(*expected) {
 						t.Fatal("anchored declarations/notices escaped context guard", body["max_output_tokens"], expected)

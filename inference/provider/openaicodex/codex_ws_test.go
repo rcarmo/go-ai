@@ -3,9 +3,11 @@ package openaicodex
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -15,11 +17,25 @@ import (
 )
 
 func TestStreamViaWebSocketAutoUsesCachedDeltaAndDebugStats(t *testing.T) {
+	testCodexWebSocketCachedEffort(t, false)
+}
+
+// Source: openai-codex-stream.test.ts, cached deltas across thinking levels.
+func TestSourceV160CodexWebSocketCachedEffort(t *testing.T) {
+	testCodexWebSocketCachedEffort(t, true)
+}
+
+func testCodexWebSocketCachedEffort(t *testing.T, midEffort bool) {
+	t.Helper()
 	CloseOpenAICodexWebSocketSessions("")
 	ResetOpenAICodexWebSocketDebugStats("")
 	defer CloseOpenAICodexWebSocketSessions("")
 
-	received := make(chan map[string]interface{}, 2)
+	replies := []string{"resp_1", "resp_2"}
+	if midEffort {
+		replies = append(replies, "resp_3")
+	}
+	received := make(chan map[string]interface{}, len(replies))
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, err := websocket.Accept(w, r, nil)
 		if err != nil {
@@ -43,7 +59,7 @@ func TestStreamViaWebSocketAutoUsesCachedDeltaAndDebugStats(t *testing.T) {
 			write(map[string]interface{}{"type": "response.completed", "response": map[string]interface{}{"id": id, "status": "completed", "usage": map[string]interface{}{"input_tokens": 1, "output_tokens": 1, "total_tokens": 2}}})
 		}
 
-		for i, id := range []string{"resp_1", "resp_2"} {
+		for i, id := range replies {
 			_, msg, err := conn.Read(ctx)
 			if err != nil {
 				t.Fatalf("read payload %d: %v", i+1, err)
@@ -53,7 +69,7 @@ func TestStreamViaWebSocketAutoUsesCachedDeltaAndDebugStats(t *testing.T) {
 				t.Fatalf("decode payload %d: %v", i+1, err)
 			}
 			received <- payload
-			writeResponse(id, map[int]string{0: "ok", 1: "next-ok"}[i])
+			writeResponse(id, fmt.Sprintf("reply %d", i+1))
 		}
 	}))
 	defer server.Close()
@@ -62,44 +78,60 @@ func TestStreamViaWebSocketAutoUsesCachedDeltaAndDebugStats(t *testing.T) {
 	jwt := "eyJhbGciOiJub25lIn0.eyJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9hY2NvdW50X2lkIjoiYWNjdF8xMjMifX0."
 	opts := &goai.StreamOptions{Transport: goai.TransportAuto, SessionID: "sess-1"}
 
-	ch1 := make(chan goai.Event, 32)
-	ctx1 := &goai.Context{Messages: []goai.Message{goai.UserMessage("hello")}}
-	if err := streamViaWebSocket(context.Background(), model, ctx1, opts, jwt, goai.NewAssistantEventSender(ch1)); err != nil {
-		t.Fatalf("first streamViaWebSocket: %v", err)
+	if midEffort {
+		model.Reasoning = true
+		yes := true
+		model.ResponsesCompat = &goai.OpenAIResponsesCompat{SupportsMidConvoEffort: &yes}
+		opts.Transport = goai.TransportWebSocketCached
 	}
-	close(ch1)
-	var msg1 *goai.Message
-	for ev := range ch1 {
-		if d, ok := ev.(*goai.DoneEvent); ok {
-			msg1 = d.Message
+	opts.APIKey = jwt
+	levels := []goai.ThinkingLevel{goai.ThinkingLow, goai.ThinkingHigh, goai.ThinkingLevel(goai.ThinkingOff)}
+	var messages []goai.Message
+	for i, replyID := range replies {
+		messages = append(messages, goai.UserMessage(fmt.Sprintf("turn %d", i+1)))
+		if midEffort {
+			opts.Reasoning = &levels[i]
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		var done *goai.Message
+		for ev := range streamCodexSimple(ctx, model, &goai.Context{Messages: messages}, opts) {
+			switch e := ev.(type) {
+			case *goai.DoneEvent:
+				done = e.Message
+			case *goai.ErrorEvent:
+				t.Error(e.Err)
+			}
+		}
+		cancel()
+		if done == nil || done.ResponseID != replyID {
+			t.Fatalf("response = %+v; want %s", done, replyID)
+		}
+		messages = append(messages, *done)
+		body := <-received
+		var previous any
+		if i > 0 {
+			previous = replies[i-1]
+		}
+		if body["previous_response_id"] != previous {
+			t.Fatalf("previous_response_id=%v; want %v", body["previous_response_id"], previous)
+		}
+		input := body["input"].([]any)
+		if midEffort {
+			marker := string(levels[i])
+			if marker == "off" {
+				marker = "none"
+			}
+			want := []any{map[string]any{"role": "user", "content": []any{map[string]any{"type": "input_text", "text": fmt.Sprintf("turn %d", i+1)}}}, map[string]any{"type": "configuration_update", "reasoning": map[string]any{"effort": marker}}}
+			if !reflect.DeepEqual(input, want) || !reflect.DeepEqual(body["reasoning"], map[string]any{"effort": "medium", "summary": "auto"}) || done.ProviderThinkingLevel != marker {
+				t.Fatalf("cached request = %v; thinking level=%q, want %q", body, done.ProviderThinkingLevel, marker)
+			}
+		} else if len(input) != 1 {
+			t.Fatalf("expected delta input with one item, got %#v", input)
 		}
 	}
-	if msg1 == nil || msg1.ResponseID != "resp_1" {
-		t.Fatalf("first response = %#v", msg1)
-	}
-
-	ch2 := make(chan goai.Event, 32)
-	ctx2 := &goai.Context{Messages: []goai.Message{goai.UserMessage("hello"), *msg1, goai.UserMessage("next")}}
-	if err := streamViaWebSocket(context.Background(), model, ctx2, opts, jwt, goai.NewAssistantEventSender(ch2)); err != nil {
-		t.Fatalf("second streamViaWebSocket: %v", err)
-	}
-	close(ch2)
-
-	first := <-received
-	second := <-received
-	if _, ok := first["previous_response_id"]; ok {
-		t.Fatalf("first request unexpectedly had previous_response_id: %#v", first)
-	}
-	if second["previous_response_id"] != "resp_1" {
-		t.Fatalf("second previous_response_id = %#v payload=%#v", second["previous_response_id"], second)
-	}
-	input, _ := second["input"].([]interface{})
-	if len(input) != 1 {
-		t.Fatalf("expected delta input with one item, got %#v", second["input"])
-	}
 	stats := GetOpenAICodexWebSocketDebugStats("sess-1")
-	if stats == nil || stats.Requests != 2 || stats.ConnectionsCreated != 1 || stats.ConnectionsReused != 1 || stats.DeltaRequests != 1 || stats.FullContextRequests != 1 {
-		t.Fatalf("unexpected stats: %#v", stats)
+	if stats == nil || stats.Requests != len(replies) || stats.ConnectionsCreated != 1 || stats.ConnectionsReused != len(replies)-1 || stats.DeltaRequests != len(replies)-1 || stats.FullContextRequests != 1 {
+		t.Fatalf("unexpected stats: %+v", stats)
 	}
 }
 

@@ -38,7 +38,7 @@ func TestCodexCachedWebSocketSessionExpiresBeforeBackendAgeLimit(t *testing.T) {
 	if !codexWebSocketSessionExpired(entry, entry.createdAt.Add(codexWebSocketSessionMaxAge)) {
 		t.Fatal("session should expire at max age")
 	}
-	if codexWebSocketSessionMaxAge != 55*time.Minute {
-		t.Fatalf("max age=%v, want 55m", codexWebSocketSessionMaxAge)
+	if codexWebSocketSessionMaxAge != 45*time.Minute {
+		t.Fatalf("max age=%v, want 45m", codexWebSocketSessionMaxAge)
 	}
 }

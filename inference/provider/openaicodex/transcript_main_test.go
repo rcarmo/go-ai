@@ -35,11 +35,11 @@ func TestCodexTranscriptInstructionsWireMain(t *testing.T) {
 			input          []any
 			tools          []string
 		}{
-			{name: "empty", context: &goai.Context{}, instructions: "You are a helpful assistant.", input: []any{}},
+			{name: "empty", context: &goai.Context{}, instructions: "", input: []any{}},
 			{name: "legacy", context: &goai.Context{SystemPrompt: "legacy", Messages: []goai.Message{goai.UserMessage("hello")}}, instructions: "legacy", input: []any{user("hello")}},
 			{name: "folded", context: &goai.Context{SystemPrompt: "legacy", Messages: []goai.Message{system("initial"), goai.UserMessage("hello"), system("later"), goai.UserMessage("again")}}, instructions: "legacy\n\ninitial\n\nlater", input: []any{user("hello"), user("again")}},
 			{name: "mid_developer", context: &goai.Context{Messages: []goai.Message{system("initial"), goai.UserMessage("hello"), system("later"), goai.UserMessage("again")}}, mid: true, reasoning: true, instructions: "initial", input: []any{user("hello"), update("developer", "later"), user("again")}},
-			{name: "mid_system_no_leading", context: &goai.Context{Messages: []goai.Message{goai.UserMessage("hello"), system("later")}}, mid: true, instructions: "You are a helpful assistant.", input: []any{user("hello"), update("system", "later")}},
+			{name: "mid_system_no_leading", context: &goai.Context{Messages: []goai.Message{goai.UserMessage("hello"), system("later")}}, mid: true, instructions: "", input: []any{user("hello"), update("system", "later")}},
 			{name: "sections_folded", context: &goai.Context{Messages: []goai.Message{{Role: goai.RoleSystem, Content: text("initial"), Sections: map[string]*string{"a": ptr("old")}}, goai.UserMessage("hello"), {Role: goai.RoleSystem, Content: text("later"), Sections: map[string]*string{"a": ptr("new"), "b": ptr("two")}}, {Role: goai.RoleSystem, Sections: map[string]*string{"b": nil}}}}, instructions: "initial\n\nlater\n\nnew", input: []any{user("hello")}},
 			{name: "sections_mid", context: &goai.Context{Messages: []goai.Message{{Role: goai.RoleSystem, Content: text("initial"), Sections: map[string]*string{"a": ptr("old")}}, goai.UserMessage("hello"), {Role: goai.RoleSystem, Content: text("later"), Sections: map[string]*string{"a": ptr("new")}}, {Role: goai.RoleSystem, Sections: map[string]*string{"a": nil}}}}, mid: true, instructions: "initial\n\nold", input: []any{user("hello"), update("system", "later\n\nUpdated system prompt section \"a\":\n\nnew"), update("system", "Removed system prompt section \"a\".")}},
 			{name: "sections_property_order", context: &goai.Context{Messages: []goai.Message{{Role: goai.RoleSystem, Content: text("initial"), Sections: map[string]*string{"b": ptr("B"), "a": ptr("A")}, SectionOrder: []string{"b", "a"}}}}, instructions: "initial\n\nB\n\nA", input: []any{}},
@@ -48,7 +48,7 @@ func TestCodexTranscriptInstructionsWireMain(t *testing.T) {
 			{name: "whitespace", context: &goai.Context{SystemPrompt: " \n"}, instructions: " \n", input: []any{}},
 			{name: "whitespace_tools", context: &goai.Context{SystemPrompt: " \n", Tools: []goai.Tool{plain}}, instructions: " \n", input: []any{}, tools: []string{"keep"}},
 			{name: "content_empty_blocks", context: &goai.Context{Messages: []goai.Message{{Role: goai.RoleSystem, Content: []goai.ContentBlock{{Type: "text", Text: ""}, {Type: "text", Text: "initial"}, {Type: "text", Text: ""}}}}}, instructions: "\ninitial\n", input: []any{}},
-			{name: "tool_snapshot", context: &goai.Context{Tools: []goai.Tool{old}, Messages: []goai.Message{goai.UserMessage("hello"), {Role: goai.RoleSystem, ToolsRemoved: []goai.ToolReference{{Name: "old"}}, ToolsAdded: []goai.Tool{plain}}}}, instructions: "You are a helpful assistant.", input: []any{user("hello")}, tools: []string{"keep"}},
+			{name: "tool_snapshot", context: &goai.Context{Tools: []goai.Tool{old}, Messages: []goai.Message{goai.UserMessage("hello"), {Role: goai.RoleSystem, ToolsRemoved: []goai.ToolReference{{Name: "old"}}, ToolsAdded: []goai.Tool{plain}}}}, instructions: "", input: []any{user("hello")}, tools: []string{"keep"}},
 		} {
 			t.Run(fmt.Sprintf("%s/%s", transport, tc.name), func(t *testing.T) {
 				captured := make(chan map[string]any, 1)
@@ -123,8 +123,16 @@ func TestCodexTranscriptInstructionsWireMain(t *testing.T) {
 				case <-ctx.Done():
 					t.Fatal("missing request")
 				}
-				if body["instructions"] != tc.instructions || !reflect.DeepEqual(body["input"], tc.input) {
-					t.Fatal("transcript projection differs", body["instructions"], body["input"], tc.instructions, tc.input)
+				expected := tc.input
+				if tc.instructions != "" {
+					role := "system"
+					if tc.reasoning {
+						role = "developer"
+					}
+					expected = append([]any{update(role, tc.instructions)}, tc.input...)
+				}
+				if body["instructions"] != nil || !reflect.DeepEqual(body["input"], expected) {
+					t.Fatal("transcript projection differs", body["instructions"], body["input"], expected)
 				}
 				var names []string
 				if tools, ok := body["tools"].([]any); ok {

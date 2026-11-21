@@ -307,7 +307,7 @@ type codexWebSocketContinuation struct {
 
 const (
 	codexWebSocketSessionCacheTTL    = 5 * time.Minute
-	codexWebSocketSessionMaxAge      = 55 * time.Minute
+	codexWebSocketSessionMaxAge      = 45 * time.Minute
 	codexRequestCompressionZstdLevel = 3
 )
 
@@ -854,6 +854,7 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 	}
 	output := request.output
 	partial := output.partial
+	partial.ProviderThinkingLevel = codexConfigurationUpdateEffort(model, opts)
 	originalSend := send
 	send = func(event goai.Event) {
 		if _, ok := event.(*goai.StartEvent); ok {
@@ -1369,6 +1370,7 @@ func processCodexSSEWithOptions(ctx context.Context, body io.Reader, model *goai
 	terminalResponseSeen := false
 	partial := &goai.Message{
 		Role: goai.RoleAssistant, Api: model.Api, Provider: model.Provider, Model: model.ID, Usage: &goai.Usage{}, Diagnostics: diagnostics, StopReason: goai.StopReasonPending,
+		ProviderThinkingLevel: codexConfigurationUpdateEffort(model, opts),
 	}
 	send(&goai.StartEvent{Partial: partial})
 
@@ -1700,7 +1702,6 @@ type codexRequest struct {
 	Model              string          `json:"model"`
 	Store              bool            `json:"store"`
 	Stream             bool            `json:"stream"`
-	Instructions       string          `json:"instructions,omitempty"`
 	Input              json.RawMessage `json:"input"`
 	Tools              []codexTool     `json:"tools,omitempty"`
 	MaxOutputTokens    *int            `json:"max_output_tokens,omitempty"`
@@ -1733,7 +1734,6 @@ func buildCodexRequest(model *goai.Model, convCtx *goai.Context, opts *goai.Stre
 		Model:             model.ID,
 		Store:             false,
 		Stream:            true,
-		Instructions:      convCtx.SystemPrompt,
 		Text:              map[string]interface{}{"verbosity": "low"},
 		Include:           []string{"reasoning.encrypted_content"},
 		ToolChoice:        "auto",
@@ -1742,25 +1742,14 @@ func buildCodexRequest(model *goai.Model, convCtx *goai.Context, opts *goai.Stre
 
 	if opts != nil {
 		req.Temperature = opts.Temperature
-		req.MaxOutputTokens = goai.ClampStreamMaxTokensPtr(model, convCtx, opts)
+		req.MaxOutputTokens = codexMaxOutputTokens(model, convCtx, opts)
 		if opts.TextVerbosity != "" {
 			req.Text = map[string]interface{}{"verbosity": opts.TextVerbosity}
 		}
 		if opts.SessionID != "" {
 			req.PromptCacheKey = codexCacheSessionID(opts)
 		}
-		if opts.Reasoning != nil {
-			if effort, ok := goai.MapThinkingLevel(model, goai.ModelThinkingLevel(*opts.Reasoning)); ok {
-				summary := opts.ReasoningSummary
-				if summary == "" {
-					summary = "auto"
-				}
-				req.Reasoning = map[string]interface{}{
-					"effort":  effort,
-					"summary": summary,
-				}
-			}
-		}
+
 	}
 	if opts != nil && opts.ServiceTier != "" {
 		req.ServiceTier = opts.ServiceTier
@@ -1769,14 +1758,25 @@ func buildCodexRequest(model *goai.Model, convCtx *goai.Context, opts *goai.Stre
 		req.ToolChoice = string(opts.ToolChoice)
 	}
 
-	// Build input in Responses-compatible format, but with system prompt carried in top-level instructions.
+	configuration := codexConfigurationUpdateEffort(model, opts)
+	if effort, ok := codexEffort(model, opts); ok {
+		summary := "auto"
+		if opts != nil && opts.ReasoningSummary != "" {
+			summary = opts.ReasoningSummary
+		}
+		if configuration != "" {
+			effort = "medium"
+		}
+		req.Reasoning = map[string]any{"effort": effort, "summary": summary}
+	}
+	// Leading instructions belong to the stable input prefix, not a top-level field.
 	view := codexToolView{}
 	if len(views) > 0 {
 		view = views[0]
 	} else {
 		view, _ = newCodexToolView(model, original)
 	}
-	input := buildCodexInputWithToolView(model, convCtx, view)
+	input := buildCodexInputWithToolView(model, convCtx, view, configuration)
 	inputJSON, _ := json.Marshal(input)
 	req.Input = inputJSON
 
@@ -1786,11 +1786,11 @@ func buildCodexRequest(model *goai.Model, convCtx *goai.Context, opts *goai.Stre
 	if codexAnchorsTools(model) || codexUsesToolSearch(model) {
 		// Include anchored definitions, replacements and notices in the native
 		// context guard, not just the final tool snapshot. Wire JSON is conservative.
-		budget := &goai.Context{SystemPrompt: req.Instructions, Messages: []goai.Message{goai.UserMessage(string(inputJSON))}}
+		budget := &goai.Context{Messages: []goai.Message{goai.UserMessage(string(inputJSON))}}
 		if codexUsesToolSearch(model) {
 			budget.Tools = convCtx.Tools
 		}
-		req.MaxOutputTokens = goai.ClampStreamMaxTokensPtr(model, budget, opts)
+		req.MaxOutputTokens = codexMaxOutputTokens(model, budget, opts)
 	}
 
 	return req
@@ -1808,8 +1808,18 @@ func buildCodexToolDeclarations(model *goai.Model, tools []goai.Tool) []codexToo
 	return result
 }
 
-func buildCodexInputWithToolView(model *goai.Model, convCtx *goai.Context, view codexToolView) []interface{} {
+func buildCodexInputWithToolView(model *goai.Model, convCtx *goai.Context, view codexToolView, current ...string) []interface{} {
 	input := make([]interface{}, 0)
+	if convCtx.SystemPrompt != "" {
+		input = append(input, map[string]any{"role": codexInstructionRole(model), "content": goai.SanitizeSurrogates(convCtx.SystemPrompt)})
+	}
+	configuration := ""
+	if len(current) > 0 {
+		configuration = current[0]
+	}
+	pushConfiguration := func(effort string) {
+		input = append(input, map[string]any{"type": "configuration_update", "reasoning": map[string]any{"effort": effort}})
+	}
 	var toolState codexAdditionalToolState
 	folded := 0
 	if codexUsesToolSearch(model) {
@@ -1834,7 +1844,11 @@ func buildCodexInputWithToolView(model *goai.Model, convCtx *goai.Context, view 
 				input = append(input, map[string]interface{}{"role": "user", "content": content})
 			}
 		case goai.RoleAssistant:
-			input = append(input, buildCodexAssistantItemsWithToolView(msg, model, view)...)
+			items := buildCodexAssistantItemsWithToolView(msg, model, view)
+			if len(items) > 0 && configuration != "" && msg.Provider == model.Provider && msg.Api == model.Api && msg.Model == model.ID && msg.ProviderThinkingLevel != "" {
+				pushConfiguration(msg.ProviderThinkingLevel)
+			}
+			input = append(input, items...)
 		case goai.RoleToolResult:
 			callID := msg.ToolCallID
 			if idx := strings.Index(callID, "|"); idx >= 0 {
@@ -1851,6 +1865,9 @@ func buildCodexInputWithToolView(model *goai.Model, convCtx *goai.Context, view 
 		if !(sourceIndex == 0 && msg.Role == goai.RoleSystem) {
 			messageIndex++
 		}
+	}
+	if configuration != "" {
+		pushConfiguration(configuration)
 	}
 	return input
 }

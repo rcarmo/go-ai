@@ -2,10 +2,18 @@ package openaicodex
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/klauspost/compress/zstd"
 	goai "github.com/rcarmo/go-ai"
 )
 
@@ -33,8 +41,9 @@ func TestBuildCodexRequestMatchesPiaiShape(t *testing.T) {
 	if req.Store {
 		t.Fatalf("expected store to be false")
 	}
-	if req.Instructions != conv.SystemPrompt {
-		t.Fatalf("expected instructions %q, got %q", conv.SystemPrompt, req.Instructions)
+	var input []map[string]any
+	if err := json.Unmarshal(req.Input, &input); err != nil || len(input) < 1 || !reflect.DeepEqual(input[0], map[string]any{"role": "developer", "content": conv.SystemPrompt}) {
+		t.Fatalf("expected leading instructions %q, got %s, %v", conv.SystemPrompt, req.Input, err)
 	}
 	if req.PromptCacheKey != sess {
 		t.Fatalf("expected prompt cache key %q, got %q", sess, req.PromptCacheKey)
@@ -66,12 +75,8 @@ func TestBuildCodexRequestMatchesPiaiShape(t *testing.T) {
 	if !ok || text["verbosity"] != "medium" {
 		t.Fatalf("expected text verbosity override, got %#v", req.Text)
 	}
-	var input []map[string]any
-	if err := json.Unmarshal(req.Input, &input); err != nil {
-		t.Fatalf("unmarshal input: %v", err)
-	}
-	if len(input) == 0 || input[0]["role"] != "user" {
-		t.Fatalf("expected first input item to be user message, got %#v", input)
+	if len(input) < 2 || input[1]["role"] != "user" {
+		t.Fatalf("expected user message after instructions, got %#v", input)
 	}
 }
 
@@ -115,5 +120,114 @@ func TestBuildCodexHeadersAddsAccountAndExperimentalHeaders(t *testing.T) {
 	wh := buildCodexWebSocketHeaders(nil, nil, nil, accountID, token, "req-1")
 	if wh.Get("OpenAI-Beta") != "responses_websockets=2026-02-06" || wh.Get("x-client-request-id") != "req-1" || wh.Get("session-id") != "req-1" || wh.Get("session_id") != "" {
 		t.Fatalf("unexpected WS headers: %#v", wh)
+	}
+}
+
+// Source: openai-codex-stream.test.ts, request projection. Capture the SSE
+// request and inspect the returned assistant's provider effort marker.
+func TestSourceV160CodexRequestProjection(t *testing.T) {
+	for _, tc := range []struct {
+		name, system, level       string
+		previous                  bool
+		cap, wantCap              int
+		supportEffort, capAllowed bool
+		wantEffort, wantMarker    string
+	}{
+		{"first", "Be terse.", "low", false, 5000, 5000, true, true, "medium", "low"},
+		{"later", "Be terse.", "high", true, 5000, 5000, true, true, "medium", "high"},
+		{"off", "", "", false, 2, 16, true, true, "medium", "none"},
+		{"plain", "", "high", false, 2, 0, false, false, "high", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			captured := make(chan map[string]any, 1)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				var reader io.Reader = r.Body
+				if encoding := r.Header.Get("Content-Encoding"); encoding == "zstd" {
+					decoder, err := zstd.NewReader(reader)
+					if err != nil {
+						t.Error(err)
+						return
+					}
+					defer decoder.Close()
+					reader = decoder
+				}
+				var body map[string]any
+				if err := json.NewDecoder(reader).Decode(&body); err != nil {
+					t.Error(err)
+					return
+				}
+				captured <- body
+				w.Header().Set("Content-Type", "text/event-stream")
+				fmt.Fprint(w, "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\",\"status\":\"completed\"}}\n\n")
+			}))
+			defer server.Close()
+			model := &goai.Model{ID: "gpt-6.2", Provider: goai.ProviderOpenAICodex, Api: goai.ApiOpenAICodexResponses, Reasoning: true, BaseURL: server.URL, ContextWindow: 100000, MaxTokens: 10000,
+				ResponsesCompat: &goai.OpenAIResponsesCompat{SupportsMidConvoEffort: &tc.supportEffort, SupportsMaxOutputTokens: &tc.capAllowed},
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			normal := &goai.Context{SystemPrompt: tc.system, Messages: []goai.Message{goai.UserMessage("first")}}
+			if tc.previous {
+				normal.Messages = append(normal.Messages, goai.Message{Role: goai.RoleAssistant, Api: model.Api, Provider: model.Provider, Model: model.ID, ProviderThinkingLevel: "low", Content: []goai.ContentBlock{{Type: "text", Text: "answer"}}}, goai.UserMessage("second"))
+			}
+			token := "x." + base64.RawURLEncoding.EncodeToString([]byte(`{"https://api.openai.com/auth":{"chatgpt_account_id":"acct"}}`)) + ".x"
+			opts := &goai.StreamOptions{APIKey: token, Transport: goai.TransportSSE, MaxTokens: &tc.cap}
+			if tc.level != "" {
+				level := goai.ThinkingLevel(tc.level)
+				opts.Reasoning = &level
+			}
+			var done *goai.Message
+			for ev := range streamCodexSimple(ctx, model, normal, opts) {
+				switch e := ev.(type) {
+				case *goai.DoneEvent:
+					done = e.Message
+				case *goai.ErrorEvent:
+					t.Errorf("stream error: %v", e.Err)
+				}
+			}
+			if done == nil {
+				t.Fatal("missing result")
+			}
+			if done.ProviderThinkingLevel != tc.wantMarker {
+				t.Errorf("providerThinkingLevel = %q, want %q", done.ProviderThinkingLevel, tc.wantMarker)
+			}
+			var body map[string]any
+			select {
+			case body = <-captured:
+			case <-ctx.Done():
+				t.Fatal("missing request")
+			}
+			var wantCap any
+			if tc.wantCap != 0 {
+				wantCap = float64(tc.wantCap)
+			}
+			if body["instructions"] != nil || body["max_output_tokens"] != wantCap || !reflect.DeepEqual(body["reasoning"], map[string]any{"effort": tc.wantEffort, "summary": "auto"}) {
+				t.Errorf("request controls = %v, want no instructions, cap %v and effort %s", body, wantCap, tc.wantEffort)
+			}
+			var order []string
+			for _, raw := range body["input"].([]any) {
+				item := raw.(map[string]any)
+				switch item["type"] {
+				case "configuration_update":
+					order = append(order, "configuration_update:"+item["reasoning"].(map[string]any)["effort"].(string))
+				default:
+					order = append(order, fmt.Sprint(item["role"]))
+				}
+			}
+			var want []string
+			if tc.system != "" {
+				want = append(want, "developer")
+			}
+			want = append(want, "user")
+			if tc.previous {
+				want = append(want, "configuration_update:low", "assistant", "user")
+			}
+			if tc.wantMarker != "" {
+				want = append(want, "configuration_update:"+tc.wantMarker)
+			}
+			if !reflect.DeepEqual(order, want) {
+				t.Errorf("input order=%v, want %v", order, want)
+			}
+		})
 	}
 }

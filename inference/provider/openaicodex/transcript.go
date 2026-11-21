@@ -33,9 +33,6 @@ func codexTranscriptContext(model *goai.Model, input *goai.Context) *goai.Contex
 	if codexUsesToolSearch(model) {
 		result.Tools, _ = codexToolSearchPlan(normalized.Messages)
 	}
-	if result.SystemPrompt == "" {
-		result.SystemPrompt = "You are a helpful assistant."
-	}
 	return result
 }
 
@@ -48,4 +45,48 @@ func codexUsesToolSearch(model *goai.Model) bool {
 
 func codexToolSearchPlan(messages []goai.Message) ([]goai.Tool, int) {
 	return responsestream.ToolSearchPlan(messages)
+}
+
+func codexInstructionRole(model *goai.Model) string {
+	if model.Reasoning && (model.ResponsesCompat == nil || model.ResponsesCompat.SupportsDeveloperRole == nil || *model.ResponsesCompat.SupportsDeveloperRole) {
+		return "developer"
+	}
+	return "system"
+}
+
+func codexEffort(model *goai.Model, opts *goai.StreamOptions) (string, bool) {
+	if opts != nil && opts.Reasoning != nil && *opts.Reasoning != "" {
+		return goai.MapThinkingLevel(model, goai.ModelThinkingLevel(*opts.Reasoning))
+	}
+	if !model.Reasoning {
+		return "", false
+	}
+	if off, exists := model.ThinkingLevelMap[goai.ThinkingOff]; exists {
+		if off == nil {
+			return "", false
+		}
+		return *off, true
+	}
+	return "none", true
+}
+
+func codexConfigurationUpdateEffort(model *goai.Model, opts *goai.StreamOptions) string {
+	if model.ResponsesCompat != nil && model.ResponsesCompat.SupportsMidConvoEffort != nil && *model.ResponsesCompat.SupportsMidConvoEffort {
+		if effort, ok := codexEffort(model, opts); ok {
+			return effort
+		}
+	}
+	return ""
+}
+
+func codexMaxOutputTokens(model *goai.Model, ctx *goai.Context, opts *goai.StreamOptions) *int {
+	if opts == nil || model.ResponsesCompat != nil && model.ResponsesCompat.SupportsMaxOutputTokens != nil && !*model.ResponsesCompat.SupportsMaxOutputTokens {
+		return nil
+	}
+	output := goai.ClampStreamMaxTokens(model, ctx, opts)
+	if output <= 0 {
+		return nil
+	}
+	output = max(output, 16)
+	return &output
 }
