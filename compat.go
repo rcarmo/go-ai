@@ -177,6 +177,8 @@ type BedrockCompat struct {
 
 // AnthropicMessagesCompat holds compatibility overrides for Anthropic-compatible APIs.
 type AnthropicMessagesCompat struct {
+	// SupportsMessageThreads overrides endpoint-based message thread support.
+	SupportsMessageThreads *bool `json:"supportsMessageThreads,omitempty"`
 	// Whether the provider supports deferred tool definitions via tool_reference blocks.
 	// Deprecated upstream in v0.87.0; retained for older local callers/tests.
 	SupportsToolReferences *bool `json:"supportsToolReferences,omitempty"`

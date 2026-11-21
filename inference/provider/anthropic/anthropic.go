@@ -384,6 +384,7 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 		// Beta features
 		var betas []string
 		compat := getAnthropicCompat(model)
+		threadSession := anthropicThreadSession(model, opts)
 		if !hasAnthropicBetaHeader(model.Headers, optHeaders) {
 			if !compat.forceAdaptiveThinking {
 				betas = append(betas, interleavedThinkingBeta)
@@ -401,6 +402,9 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 			if nativeToolChanges {
 				betas = append(betas, inlineToolsBeta)
 			}
+			if threadSession != "" {
+				betas = append(betas, messageThreadsBeta)
+			}
 			if len(betas) > 0 {
 				req.Header.Set("Anthropic-Beta", joinBetas(betas))
 			}
@@ -415,15 +419,52 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 
 		retryCfg := goai.RetryConfigFromOptions(opts)
 		client := retryCfg.NewHTTPClient()
+		if opts != nil && opts.HTTPTransport != nil {
+			client.Transport = opts.HTTPTransport
+		}
 		goai.GetLogger().Debug("HTTP request", "url", req.URL.String(), "provider", model.Provider, "model", model.ID, "retries", retryCfg.MaxRetries)
-		resp, err := goai.DoProviderRequestWithRetry(ctx, client, req, retryCfg)
+		var thread *anthropicThreadRequest
+		var threadDiagnostics []goai.AssistantMessageDiagnostic
+		sendPayload := func(payload []byte) (*http.Response, error) {
+			attempt := req.Clone(ctx)
+			attempt.Body = io.NopCloser(bytes.NewReader(payload))
+			attempt.ContentLength = int64(len(payload))
+			attempt.GetBody = func() (io.ReadCloser, error) { return io.NopCloser(bytes.NewReader(payload)), nil }
+			return goai.DoProviderRequestWithRetry(ctx, client, attempt, retryCfg)
+		}
+		sendRequest := func(full []byte) (*http.Response, error) {
+			thread = nil
+			if threadSession == "" || opts.DisableContinuation {
+				return sendPayload(full)
+			}
+			var attempt []byte
+			thread, attempt = prepareAnthropicThread(model, threadSession, req.Header.Get("Anthropic-Beta"), full)
+			response, err := sendPayload(attempt)
+			if err != nil || thread == nil {
+				return response, err
+			}
+			var diagnostic *goai.AssistantMessageDiagnostic
+			response, thread, diagnostic, err = retryRejectedAnthropicThread(ctx, response, thread, full, sendPayload)
+			if diagnostic != nil {
+				threadDiagnostics = append(threadDiagnostics, *diagnostic)
+			}
+			return response, err
+		}
+		failureMessage := func(reason goai.StopReason, err error) *goai.Message {
+			if len(threadDiagnostics) == 0 {
+				return nil
+			}
+			return &goai.Message{Role: goai.RoleAssistant, Api: model.Api, Provider: model.Provider, Model: model.ID,
+				Timestamp: time.Now().UnixMilli(), StopReason: reason, ErrorMessage: err.Error(), Diagnostics: threadDiagnostics}
+		}
+		resp, err := sendRequest(bodyJSON)
 		if err != nil {
 			if ctx.Err() != nil {
 				goai.GetLogger().Debug("request aborted", "provider", model.Provider, "model", model.ID)
-				send(&goai.ErrorEvent{Reason: goai.StopReasonAborted, Err: ctx.Err()})
+				send(&goai.ErrorEvent{Reason: goai.StopReasonAborted, Error: failureMessage(goai.StopReasonAborted, ctx.Err()), Err: ctx.Err()})
 			} else {
 				goai.GetLogger().Warn("network error", "provider", model.Provider, "model", model.ID, "error", err)
-				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
+				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: failureMessage(goai.StopReasonError, err), Err: err})
 			}
 			return
 		}
@@ -440,21 +481,17 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 						bodyJSON, err = json.Marshal(payload)
 					}
 					if err != nil {
-						send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
+						send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: failureMessage(goai.StopReasonError, err), Err: err})
 						return
 					}
-					retryReq := req.Clone(ctx)
-					retryReq.Body = io.NopCloser(bytes.NewReader(bodyJSON))
-					retryReq.ContentLength = int64(len(bodyJSON))
-					retryReq.GetBody = func() (io.ReadCloser, error) { return io.NopCloser(bytes.NewReader(bodyJSON)), nil }
-					resp, err = goai.DoProviderRequestWithRetry(ctx, client, retryReq, retryCfg)
+					resp, err = sendRequest(bodyJSON)
 					if err != nil {
 						reason := goai.StopReasonError
 						if ctx.Err() != nil {
 							reason = goai.StopReasonAborted
 							err = ctx.Err()
 						}
-						send(&goai.ErrorEvent{Reason: reason, Err: err})
+						send(&goai.ErrorEvent{Reason: reason, Error: failureMessage(reason, err), Err: err})
 						return
 					}
 					fallbackDiagnostic = &goai.AssistantMessageDiagnostic{Type: "anthropic_strict_tools_fallback", Timestamp: time.Now().UnixMilli(), Error: goai.DiagnosticError{Message: string(original)}, Details: map[string]any{"reason": "strict_tool_limits_exceeded"}}
@@ -470,10 +507,8 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 		if resp.StatusCode != 200 {
 			goai.GetLogger().Warn("HTTP error response", "status", resp.StatusCode, "provider", model.Provider, "model", model.ID)
 			bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-			send(&goai.ErrorEvent{
-				Reason: goai.StopReasonError,
-				Err:    fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(bodyBytes)),
-			})
+			err := fmt.Errorf("HTTP %d: %s", resp.StatusCode, bodyBytes)
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: failureMessage(goai.StopReasonError, err), Err: err})
 			return
 		}
 
@@ -482,13 +517,25 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 			providerThinkingLevel = anthropicEffortForOptions(model, opts)
 		}
 		if fallbackDiagnostic != nil {
+			threadDiagnostics = append(threadDiagnostics, *fallbackDiagnostic)
+		}
+		if len(threadDiagnostics) != 0 {
 			originalSend := send
 			send = func(event goai.Event) {
 				switch e := event.(type) {
 				case *goai.StartEvent:
 					if e.Partial != nil {
-						e.Partial.Diagnostics = append(e.Partial.Diagnostics, *fallbackDiagnostic)
+						e.Partial.Diagnostics = append(e.Partial.Diagnostics, threadDiagnostics...)
 					}
+				}
+				originalSend(event)
+			}
+		}
+		if thread != nil {
+			originalSend := send
+			send = func(event goai.Event) {
+				if done, ok := event.(*goai.DoneEvent); ok {
+					thread.recordReply(model, opts, done.Message)
 				}
 				originalSend(event)
 			}

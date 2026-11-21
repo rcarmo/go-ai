@@ -563,20 +563,21 @@ type TelemetryMetrics struct {
 }
 
 type StreamOptions struct {
-	// HTTPTransport supplies a per-request HTTP transport for the Google adapters.
+	// HTTPTransport supplies a per-request HTTP transport for the Google and Anthropic adapters.
 	HTTPTransport http.RoundTripper `json:"-"`
 	Identity      *ClientIdentity   `json:"identity,omitempty"`
 	Temperature   *float64          `json:"temperature,omitempty"`
 	// SamplingParams is an OpenAI-compatible escape hatch for advanced sampling
 	// controls (for example top_p, top_k, min_p, repetition_penalty). Providers
 	// that do not support arbitrary request-body parameters ignore it.
-	SamplingParams map[string]any    `json:"samplingParams,omitempty"`
-	MaxTokens      *int              `json:"maxTokens,omitempty"`
-	APIKey         string            `json:"-"`
-	Transport      Transport         `json:"transport,omitempty"`
-	CacheRetention CacheRetention    `json:"cacheRetention,omitempty"`
-	SessionID      string            `json:"sessionId,omitempty"`
-	Headers        map[string]string `json:"headers,omitempty"`
+	SamplingParams      map[string]any    `json:"samplingParams,omitempty"`
+	MaxTokens           *int              `json:"maxTokens,omitempty"`
+	APIKey              string            `json:"-"`
+	Transport           Transport         `json:"transport,omitempty"`
+	CacheRetention      CacheRetention    `json:"cacheRetention,omitempty"`
+	SessionID           string            `json:"sessionId,omitempty"`
+	DisableContinuation bool              `json:"disableContinuation,omitempty"`
+	Headers             map[string]string `json:"headers,omitempty"`
 	// SuppressHeaders mirrors upstream ProviderHeaders null values: each name
 	// removes a provider/model/default header after normal header merging.
 	SuppressHeaders []string       `json:"suppressHeaders,omitempty"`
