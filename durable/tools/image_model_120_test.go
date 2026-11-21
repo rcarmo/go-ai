@@ -384,3 +384,118 @@ func mapField(args any, key string) any {
 	}
 	return nil
 }
+
+// Supplemental integration: Codemode and the transcript each have a chunking
+// boundary. The model-facing hook must see full bytes between them.
+func TestSourceV160FitImagesLargeCodemodeOutput(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
+	defer cancel()
+	registry := durable.NewRegistry()
+	var processed atomic.Int32
+	if err := registry.Install(CreateFitImagesExtension(func(ctx context.Context, data []byte, mime string, limits ImageLimits) (*PreparedImage, error) {
+		processed.Add(1)
+		return NativeImageProcessor(ctx, data, mime, limits)
+	})); err != nil {
+		t.Fatal(err)
+	}
+	engine, err := durable.NewQuickJSSandbox(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer engine.Close(context.Background())
+	codemode, err := durable.NewCodemodeExtension(engine)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := registry.Install(&codemode); err != nil {
+		t.Fatal(err)
+	}
+
+	noisy := image.NewNRGBA(image.Rect(0, 0, 400, 100))
+	seed := uint32(17)
+	for y := 0; y < 100; y++ {
+		for x := 0; x < 400; x++ {
+			var rgb [3]byte
+			for i := range rgb {
+				seed = 1664525*seed + 1013904223
+				rgb[i] = byte(seed >> 24)
+			}
+			noisy.SetNRGBA(x, y, color.NRGBA{R: rgb[0], G: rgb[1], B: rgb[2], A: 255})
+		}
+	}
+	var pngData bytes.Buffer
+	if err := png.Encode(&pngData, noisy); err != nil {
+		t.Fatal(err)
+	}
+	original := fitBlock(pngData.Bytes())
+	script := `image({type:'image',mimeType:'image/png',data:'` + original.Data + `'}); text('large output');`
+	budget := durable.DefaultLimits().MaxStringBytes
+	if len(original.Data) <= budget/2 || len(script) >= budget {
+		t.Fatalf("fixture not within the chunked-image / inline-code interval: image=%d script=%d budget=%d", len(original.Data), len(script), budget)
+	}
+
+	api := goai.Api("fit-images-large-codemode-160")
+	var providerCalls atomic.Int32
+	modelResult := make(chan goai.Message, 1)
+	goai.RegisterApi(&goai.ApiProvider{Api: api, Stream: func(_ context.Context, _ *goai.Model, input *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
+		m := &goai.Message{Role: goai.RoleAssistant, StopReason: goai.StopReasonStop, Content: []goai.ContentBlock{{Type: "text", Text: "done"}}}
+		switch providerCalls.Add(1) {
+		case 1:
+			m.StopReason = goai.StopReasonToolUse
+			m.Content = []goai.ContentBlock{{Type: "toolCall", ID: "large", Name: "codemode", Arguments: map[string]any{"code": script}}}
+		case 2:
+			modelResult <- input.Messages[len(input.Messages)-1]
+		}
+		out := make(chan goai.Event, 1)
+		out <- &goai.DoneEvent{Reason: m.StopReason, Message: m}
+		close(out)
+		return out
+	}})
+	defer goai.UnregisterApi(api)
+	store, err := newSQLiteStore(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h, err := durable.Open(ctx, store, durable.Options{Registry: registry, Models: func(goai.Provider, string) *goai.Model {
+		return &goai.Model{Provider: "test", ID: "model", Api: api, Input: []string{"text", "image"}, ContextWindow: 1000000, MaxTokens: 100, InputLimits: &goai.ModelInputLimits{Images: &goai.ModelImageInputLimits{Resize: &goai.ModelImageResizeOptions{MaxWidth: 100}}}}
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer h.Close(context.Background())
+	c, err := h.Root(ctx, durable.AgentChange{Model: durable.ModelRef{Provider: "test", ID: "model"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sub, err := c.Submit(ctx, durable.Input{Content: "show"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := sub.Wait(ctx); err != nil || got.Record.Status != "done" || providerCalls.Load() != 2 {
+		t.Fatalf("submission status=%s provider calls=%d processor calls=%d err=%v", got.Record.Status, providerCalls.Load(), processed.Load(), err)
+	}
+	if processed.Load() != 1 {
+		t.Fatalf("processor calls = %d; want 1", processed.Load())
+	}
+	got := <-modelResult
+	const wantNote = "<harness>\n[info] Resized from 400x100 to 100x25. Multiply coordinates by 4.00 to map them to the original.\n</harness>"
+	if got.ToolCallID != "large" || got.IsError || len(got.Content) != 3 || !strings.Contains(got.Content[0].Text, "large output") || got.Content[2].Text != wantNote {
+		t.Fatalf("model image result: call=%q error=%v blocks=%d text=%q", got.ToolCallID, got.IsError, len(got.Content), goai.ContentText(got.Content))
+	}
+	fitDims(t, got.Content[1], 100, 25)
+	page, err := c.Entries(ctx, durable.EntryQuery{}, 100, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range page.Items {
+		for _, m := range entry.Model {
+			if m.ToolCallID == "large" {
+				if !reflect.DeepEqual(m.Content, got.Content) {
+					t.Fatal("persisted output differs from model-facing output")
+				}
+				return
+			}
+		}
+	}
+	t.Fatal("missing persisted tool output")
+}

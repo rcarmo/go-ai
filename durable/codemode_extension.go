@@ -105,11 +105,9 @@ func NewCodemodeExtension(sandbox CodemodeSandbox, options ...CodemodeExtensionO
 		for _, image := range result.Images {
 			blocks = append(blocks, goai.ContentBlock{Type: "image", Data: image.Data, MimeType: image.MimeType})
 		}
-		blocks, refs, err := api.runtime.chunkTranscriptImages(ctx, blocks)
-		if err != nil {
-			return ToolResult{}, err
-		}
-		return ToolResult{Blocks: blocks, imageChunks: refs, IsError: result.Error != "", Details: JSON{"fullOutputPath": result.FullOutputPath}}, nil
+		// Keep image bytes visible to model-facing hooks. Tool settlement chunks
+		// the final blocks after those hooks have fitted or replaced them.
+		return ToolResult{Blocks: blocks, IsError: result.Error != "", Details: JSON{"fullOutputPath": result.FullOutputPath}}, nil
 	}}
 	section := PromptSection{Key: "codemode", Render: func(ctx context.Context, input PromptInput) (*string, error) {
 		enabled := false
