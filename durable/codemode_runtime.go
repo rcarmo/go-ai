@@ -186,6 +186,10 @@ func (r *TaskRuntime) runCodemode(ctx context.Context, key, source string, sandb
 	if namespaces != nil {
 		selectedNamespaces = *namespaces
 	}
+	selectedNamespaces, err = r.codemodeNamespaces(ctx, tools, selectedNamespaces)
+	if err != nil {
+		return CodemodeResult{}, err
+	}
 	budget := DefaultCodemodeInterruptBudget
 	if interruptBudget != nil {
 		budget = *interruptBudget
@@ -193,7 +197,7 @@ func (r *TaskRuntime) runCodemode(ctx context.Context, key, source string, sandb
 	if budget < 0 || budget > 1000000 {
 		return CodemodeResult{}, reject("invalid codemode interrupt budget")
 	}
-	start := CodemodeStart{InterruptBudget: budget, PaidModels: paid, Namespaces: append([]CodemodeNamespace(nil), selectedNamespaces...), RuntimeIdentity: identity, Deadline: now + parsed.TimeoutMs, MaxOutputTokens: parsed.MaxOutputTokens, Version: 2, StartedAt: now, Seed: uint64(binary.LittleEndian.Uint32(random[:4])), Tools: tools}
+	start := CodemodeStart{InterruptBudget: budget, PaidModels: paid, Namespaces: selectedNamespaces, RuntimeIdentity: identity, Deadline: now + parsed.TimeoutMs, MaxOutputTokens: parsed.MaxOutputTokens, Version: 2, StartedAt: now, Seed: uint64(binary.LittleEndian.Uint32(random[:4])), Tools: tools}
 	if drains, ok := sandbox.(CodemodeSandboxDrains); ok {
 		start.DrainAcknowledgements = drains.SupportsDrainAcknowledgements()
 	}

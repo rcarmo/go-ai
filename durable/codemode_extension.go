@@ -66,7 +66,7 @@ func NewCodemodeExtension(sandbox CodemodeSandbox, options ...CodemodeExtensionO
 	}
 	var namespaces *[]CodemodeNamespace
 	if len(options) == 1 && options[0].Namespaces != nil {
-		copy := append([]CodemodeNamespace{}, (*options[0].Namespaces)...)
+		copy := copyCodemodeNamespaces(*options[0].Namespaces)
 		if err := validateCodemodeNamespaces(copy, DefaultLimits()); err != nil {
 			return Extension{}, err
 		}
@@ -130,16 +130,20 @@ func NewCodemodeExtension(sandbox CodemodeSandbox, options ...CodemodeExtensionO
 		if err != nil {
 			return nil, err
 		}
+		selectedNamespaces := runtime.harness.options.CodemodeNamespaces
+		if namespaces != nil {
+			selectedNamespaces = *namespaces
+		}
+		selectedNamespaces, err = runtime.codemodeNamespaces(ctx, tools, selectedNamespaces)
+		if err != nil {
+			return nil, err
+		}
 		// Deferred tools remain callable/discoverable but are omitted inline.
 		inline := tools[:0]
 		for _, tool := range tools {
 			if !tool.Deferred {
 				inline = append(inline, tool)
 			}
-		}
-		selectedNamespaces := runtime.harness.options.CodemodeNamespaces
-		if namespaces != nil {
-			selectedNamespaces = *namespaces
 		}
 		catalogue, err := CodemodeSection(inline, selectedNamespaces, budget)
 		if err != nil {

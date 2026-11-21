@@ -2,6 +2,7 @@ package durable
 
 import (
 	"context"
+	"slices"
 	"sort"
 	"strings"
 	"unicode/utf16"
@@ -14,6 +15,7 @@ type CodemodeNamespace struct {
 	Description  string
 	Instructions string
 	Prefix       string
+	Tools        *[]string `json:"tools,omitempty"`
 }
 type CodemodeToolDescription struct {
 	Deferred         bool `json:"deferred,omitempty"`
@@ -86,7 +88,13 @@ func CodemodeNamespaceOf(name string, namespaces []CodemodeNamespace) *CodemodeN
 	var found *CodemodeNamespace
 	for i := range namespaces {
 		ns := namespaces[i]
-		if strings.HasPrefix(name, ns.Prefix) && (found == nil || len(ns.Prefix) > len(found.Prefix)) {
+		if ns.Tools != nil {
+			if slices.Contains(*ns.Tools, name) {
+				return &ns
+			}
+			continue
+		}
+		if ns.Prefix != "" && strings.HasPrefix(name, ns.Prefix) && (found == nil || len(ns.Prefix) > len(found.Prefix)) {
 			copy := ns
 			found = &copy
 		}
@@ -107,7 +115,8 @@ func CodemodeSection(tools []CodemodeToolDescription, namespaces []CodemodeNames
 	if budget < 0 {
 		return "", reject("negative codemode budget")
 	}
-	if len(tools) == 0 {
+	explicit := slices.ContainsFunc(namespaces, func(ns CodemodeNamespace) bool { return ns.Tools != nil })
+	if len(tools) == 0 && !explicit {
 		return "", nil
 	}
 	type entry struct {
@@ -120,6 +129,11 @@ func CodemodeSection(tools []CodemodeToolDescription, namespaces []CodemodeNames
 		queue     []entry
 	}
 	groups := map[string]*group{"": {}}
+	for i := range namespaces {
+		if ns := &namespaces[i]; ns.Tools != nil {
+			groups[ns.Name] = &group{namespace: ns}
+		}
+	}
 	for _, tool := range tools {
 		ns := CodemodeNamespaceOf(tool.Name, namespaces)
 		key := ""
@@ -167,9 +181,12 @@ func CodemodeSection(tools []CodemodeToolDescription, namespaces []CodemodeNames
 		active = next
 	}
 	parts := []string{"Tools scripts can call (`await tools.<name>(args)`):"}
+	if explicit && len(shown) < len(tools) {
+		parts = append(parts, "Some tools are not listed: find them with `searchTools()`.")
+	}
 	for _, key := range keys {
 		g := groups[key]
-		if len(g.entries) == 0 {
+		if len(g.entries) == 0 && g.namespace == nil {
 			continue
 		}
 		visible := 0
@@ -178,9 +195,11 @@ func CodemodeSection(tools []CodemodeToolDescription, namespaces []CodemodeNames
 				visible++
 			}
 		}
-		if g.namespace != nil {
+		if g.namespace != nil && explicit {
+			parts = append(parts, "## "+g.namespace.Name+"\n"+strings.TrimSpace(g.namespace.Description))
+		} else if g.namespace != nil {
 			note := ""
-			if visible == 0 {
+			if visible == 0 && len(g.entries) != 0 {
 				note = " (tools not listed)"
 			} else if visible < len(g.entries) {
 				note = " (some tools not listed)"
@@ -190,7 +209,7 @@ func CodemodeSection(tools []CodemodeToolDescription, namespaces []CodemodeNames
 				heading += "\n" + description
 			}
 			parts = append(parts, heading)
-		} else if visible < len(g.entries) {
+		} else if !explicit && visible < len(g.entries) {
 			parts = append(parts, "Some tools are not listed: find them with `searchTools()`.")
 		}
 		for _, entry := range g.entries {

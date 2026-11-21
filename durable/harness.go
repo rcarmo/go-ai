@@ -84,7 +84,7 @@ func Open(ctx context.Context, store Storage, options Options) (*Harness, error)
 	if err := validateCodemodeNamespaces(options.CodemodeNamespaces, DefaultLimits()); err != nil {
 		return nil, err
 	}
-	options.CodemodeNamespaces = append([]CodemodeNamespace(nil), options.CodemodeNamespaces...)
+	options.CodemodeNamespaces = copyCodemodeNamespaces(options.CodemodeNamespaces)
 	if options.Settings != nil {
 		if !validAfterFailedRun(options.Settings.AfterFailedRun) {
 			return nil, reject("invalid failed-run policy")

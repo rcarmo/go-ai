@@ -9,12 +9,13 @@ import (
 // wrappers remain process-local; stored instructions/settings are copied.
 // Every Agent call returns an independent copy, unlike upstream object identity.
 type TaskAgent struct {
-	Deferred      []goai.Tool // enabled model-callable tools omitted from this phase's model offers
-	Callable      []goai.Tool // enabled tools permitting nested tool invocation
-	Configuration AgentChange
-	Extensions    []string
-	Tools         []goai.Tool
-	Sections      []PromptSection
+	Deferred           []goai.Tool // enabled model-callable tools omitted from this phase's model offers
+	Callable           []goai.Tool // enabled tools permitting nested tool invocation
+	Configuration      AgentChange
+	Extensions         []string
+	Tools              []goai.Tool
+	Sections           []PromptSection
+	codemodeNamespaces codemodeNamespaceSelection
 }
 type phaseAgentResolution struct {
 	done  chan struct{}
@@ -221,7 +222,8 @@ func (h *Harness) resolveTaskAgent(agent agentState, snapshot TaskRegistrySnapsh
 	extensions := []string{}
 	hooks := []selectedTaskHook{}
 	registry.mu.RLock()
-	for _, extension := range registry.selectedExtensionsLocked(selected) {
+	selectedExtensions := registry.selectedExtensionsLocked(selected)
+	for _, extension := range selectedExtensions {
 		extensions = append(extensions, extension.name)
 		for _, hook := range extension.taskHooks {
 			hooks = append(hooks, selectedTaskHook{hook, extension.name})
@@ -231,7 +233,7 @@ func (h *Harness) resolveTaskAgent(agent agentState, snapshot TaskRegistrySnapsh
 	if agent.ThinkingLevel == "" {
 		agent.ThinkingLevel = "off"
 	}
-	value := TaskAgent{Deferred: deferredTools, Callable: callableTools, Configuration: AgentChange{Compaction: agent.Compaction, ModelTools: agent.ModelTools, Model: agent.Model, ThinkingLevel: agent.ThinkingLevel, Name: agent.Name, Cwd: agent.Cwd, SystemPrompt: agent.SystemPrompt, Instructions: agent.Instructions, Settings: agent.Settings, Extensions: agent.Extensions, Tools: agent.Tools, ExtensionFilter: agent.ExtensionFilter, ToolsRemoved: agent.ToolsRemoved}, Extensions: extensions, Tools: tools, Sections: sections}
+	value := TaskAgent{codemodeNamespaces: captureCodemodeNamespaces(selectedExtensions), Deferred: deferredTools, Callable: callableTools, Configuration: AgentChange{Compaction: agent.Compaction, ModelTools: agent.ModelTools, Model: agent.Model, ThinkingLevel: agent.ThinkingLevel, Name: agent.Name, Cwd: agent.Cwd, SystemPrompt: agent.SystemPrompt, Instructions: agent.Instructions, Settings: agent.Settings, Extensions: agent.Extensions, Tools: agent.Tools, ExtensionFilter: agent.ExtensionFilter, ToolsRemoved: agent.ToolsRemoved}, Extensions: extensions, Tools: tools, Sections: sections}
 	return value, hooks, nil
 }
 func copyTaskAgent(agent TaskAgent, limits Limits) (TaskAgent, error) {

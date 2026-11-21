@@ -3,6 +3,7 @@ package durable
 // Extension publishes a named group of tools, tasks and prompt sections as one
 // immutable registry revision. Replacing a name retains its installation order.
 type Extension struct {
+	Namespace       *ToolNamespace
 	Name            string
 	Tools           []ToolRegistration
 	Tasks           []*TaskDefinition
@@ -26,6 +27,7 @@ type ExtensionWrap struct {
 }
 type installedExtension struct {
 	source          *Extension
+	namespace       *ToolNamespace
 	name            string
 	tools           map[string]registeredTool
 	toolOrder       []string
@@ -67,6 +69,14 @@ func (r *Registry) Install(extension *Extension) error {
 		return reject("invalid extension")
 	}
 	prepared := installedExtension{source: extension, name: extension.Name, tools: map[string]registeredTool{}, tasks: map[string]*TaskDefinition{}, sections: append([]PromptSection(nil), extension.Sections...), hooks: extension.Hooks, toolHooks: extension.ToolHooks, compactionHooks: extension.CompactionHooks}
+	if extension.Namespace != nil {
+		ns := *extension.Namespace
+		members := []string{}
+		if err := validateCodemodeNamespaces([]CodemodeNamespace{{Name: ns.Name, Description: ns.Description, Instructions: ns.Instructions, Tools: &members}}, DefaultLimits()); err != nil {
+			return err
+		}
+		prepared.namespace = &ns
+	}
 	prepared.wraps = append([]ExtensionWrap(nil), extension.Wraps...)
 	if len(prepared.wraps) > DefaultLimits().MaxPage {
 		return reject("extension wrapper limit")

@@ -21,7 +21,7 @@ func (r *TaskRuntime) executeCodemodeCall(linked context.Context, key string, st
 			value, globalErr = codemodeDiscoveryOutcome(start, call)
 		}
 		undefined := false
-		if codemodeCustomGlobal(start, call.Name) != nil && globalErr == nil {
+		if globalErr == nil {
 			_, undefined = value.(codemodeUndefined)
 			if undefined {
 				value = nil

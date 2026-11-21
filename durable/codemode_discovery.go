@@ -34,13 +34,13 @@ func quickjsDiscoveryGlobals(start CodemodeStart) []quickjs.Global {
 						return json.Marshal(RenderCodemodeToolSample(tool))
 					}
 				}
-				return nil, fmt.Errorf("unknown tool %s", query)
+				return nil, nil
 			case "describeNamespace":
 				if len(args) != 1 {
 					return nil, fmt.Errorf("invalid describeNamespace arguments")
 				}
 				for _, ns := range start.Namespaces {
-					if ns.Name == query || CodemodeIdentifier(ns.Name) == query {
+					if ns.Name == query || CodemodeIdentifier(ns.Name) == CodemodeIdentifier(query) {
 						tools := []string{}
 						for _, tool := range start.Tools {
 							matched := CodemodeNamespaceOf(tool.Name, start.Namespaces)
@@ -48,10 +48,14 @@ func quickjsDiscoveryGlobals(start CodemodeStart) []quickjs.Global {
 								tools = append(tools, tool.Identifier)
 							}
 						}
-						return json.Marshal(JSON{"name": CodemodeIdentifier(ns.Name), "description": ns.Description, "instructions": ns.Instructions, "tools": tools})
+						value := JSON{"name": ns.Name, "description": ns.Description, "tools": tools}
+						if ns.Instructions != "" {
+							value["instructions"] = ns.Instructions
+						}
+						return json.Marshal(value)
 					}
 				}
-				return nil, fmt.Errorf("unknown namespace %s", query)
+				return nil, nil
 			default:
 				options := struct {
 					Limit     int    `json:"limit"`
@@ -119,6 +123,9 @@ func codemodeDiscoveryOutcome(start CodemodeStart, call CodemodeCall) (any, erro
 			out, err := global.Execute(context.Background(), raw)
 			if err != nil {
 				return nil, err
+			}
+			if len(out) == 0 {
+				return CodemodeUndefined, nil
 			}
 			var value any
 			if err = decodeQuickJSValue(out, &value); err != nil {
