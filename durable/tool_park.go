@@ -160,10 +160,16 @@ func canonicalToolParkedPhase(ctx context.Context, task TaskRecord, r *TaskRunti
 	return runCanonicalTool(ctx, r, input, call, agent, reg, unwrapToolArgumentValue(parked["arguments"]), toolResume{wake: task.State.Wake, checkpoint: parked["checkpoint"]})
 }
 
-func (a *ToolAPI) checkParkCancellationStarts() error {
+func (a *ToolAPI) checkToolStarts(implicit bool) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	if a.cancelling {
 		//lint:ignore ST1005 Exact pinned cancel API error.
 		return fmt.Errorf("Tool %s cannot start nested calls or tasks in cancel", a.checkpoint.Offer.Name)
+	}
+	if implicit && a.Wake != nil {
+		//lint:ignore ST1005 Exact pinned tool wake error.
+		return fmt.Errorf("Tool call %s needs explicit keys after a wake", a.checkpoint.CallID)
 	}
 	return nil
 }
@@ -247,4 +253,49 @@ func (a *ToolAPI) hasBasePark(park *ToolPark) bool {
 	defer a.mu.Unlock()
 	_, found := a.baseParks[park]
 	return found
+}
+
+// Only an interrupted tool run loses children that depend on it. A tool
+// waiting between runs will reattach by the same durable child keys.
+func toolKeepsChildren(owner Task) bool {
+	if !canonicalToolRecord(owner) || terminalStatus(owner.Status) || taskHasDecidedOutcome(owner) {
+		return false
+	}
+	phase := taskCheckpointMap(owner.Execution.Native.State.Checkpoint)["phase"]
+	return phase == "call" || phase == "parked"
+}
+
+func createKeyedToolTask(tx *Tx, caller ID, callID string, def *TaskDefinition, input any, options TaskOptions) (ID, error) {
+	member, err := tx.AcquireDocument(canonicalNestedCallDoc, caller, &options.Key, nil)
+	if err != nil {
+		return 0, err
+	}
+	value, err := member.Get()
+	if err != nil {
+		return 0, err
+	}
+	if id := submissionEntryID(value["taskId"]); id != 0 {
+		if value["kind"] == "task" {
+			existing, found, err := tx.Task(id)
+			if err != nil {
+				return 0, err
+			}
+			if found && existing.Kind == def.Kind() && existing.Input != nil {
+				candidate, err := ownJSONValue(input, tx.limits)
+				if err != nil {
+					return 0, err
+				}
+				if equalJSONValue(existing.Input.Value, candidate) {
+					return id, nil
+				}
+			}
+		}
+		return 0, fmt.Errorf("Key %s of tool call %s was already used for another call or task", options.Key, callID)
+	}
+	id, err := tx.CreateTask(def, input, options)
+	if err != nil {
+		return 0, err
+	}
+	value["kind"], value["taskId"] = "task", id
+	return id, member.Set(value)
 }

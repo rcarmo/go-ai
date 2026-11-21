@@ -867,13 +867,26 @@ func (a *ToolAPI) Commit(ctx context.Context, callback func(*Tx) (any, error), o
 	return value, nil
 }
 func (a *ToolAPI) CreateTask(ctx context.Context, def *TaskDefinition, input any, options TaskOptions) (ID, error) {
-	if err := a.checkParkCancellationStarts(); err != nil {
+	if err := a.checkToolStarts(options.Key == ""); err != nil {
 		return 0, err
+	}
+	a.mu.Lock()
+	callID, replaySafe := a.checkpoint.CallID, a.checkpoint.Offer.ReplaySafe
+	a.mu.Unlock()
+	if a.canonicalInput.Kind != "" && options.Ownership.Kind == "task" && !replaySafe && !options.AbandonOnRestartSet {
+		options.AbandonOnRestart = true
+	}
+	if options.Key != "" && (!validNestedKey(options.Key) || len(options.Key) > a.h.session.limits.MaxRequestIDBytes) {
+		return 0, reject("invalid nested call key/name")
 	}
 	var id ID
 	_, err := a.Commit(ctx, func(tx *Tx) (any, error) {
 		var err error
-		id, err = tx.CreateTask(def, input, options)
+		if options.Key == "" {
+			id, err = tx.CreateTask(def, input, options)
+		} else {
+			id, err = createKeyedToolTask(tx, a.task.ID, callID, def, input, options)
+		}
 		return nil, err
 	})
 	return id, err

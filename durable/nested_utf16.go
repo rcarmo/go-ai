@@ -89,7 +89,7 @@ func (input nestedToolInput) argumentCall(args JSON) goai.ToolCall {
 
 // StartToolWithArguments admits a typed nested call while this API is active.
 func (a *ToolAPI) StartToolWithArguments(ctx context.Context, key, name string, args goai.StreamingArgumentsJSON) (*NestedToolHandle, error) {
-	if err := a.checkParkCancellationStarts(); err != nil {
+	if err := a.checkToolStarts(false); err != nil {
 		return nil, err
 	}
 	a.mu.Lock()

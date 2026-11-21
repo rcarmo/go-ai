@@ -54,7 +54,7 @@ func (r *TaskRuntime) startCanonicalTool(ctx context.Context, key, name string, 
 				return nil, err
 			}
 			var same canonicalToolInput
-			if found && record.Input != nil {
+			if found && record.Input != nil && value["kind"] != "task" {
 				if err := fromObject(taskCheckpointMap(record.Input.Value), &same, l); err != nil {
 					return nil, err
 				}
@@ -72,7 +72,7 @@ func (r *TaskRuntime) startCanonicalTool(ctx context.Context, key, name string, 
 		if err != nil {
 			return nil, err
 		}
-		value["taskId"] = id
+		value["kind"], value["taskId"] = "nested", id
 		handle.task = id
 		if err := doc.Set(value); err != nil {
 			return nil, err

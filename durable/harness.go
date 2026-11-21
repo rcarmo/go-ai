@@ -221,7 +221,7 @@ func Open(ctx context.Context, store Storage, options Options) (*Harness, error)
 	h.scheduler = newTaskScheduler(h)
 	h.scheduler.abandoned = map[ID]bool{}
 	for id, task := range state.Tasks {
-		if task.AbandonOnRestart && !terminalStatus(task.Status) {
+		if task.AbandonOnRestart && !terminalStatus(task.Status) && !toolKeepsChildren(state.Tasks[task.Owner]) {
 			h.scheduler.abandoned[id] = true
 		}
 	}

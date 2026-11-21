@@ -251,7 +251,7 @@ func (r *TaskRuntime) CallTool(ctx context.Context, key, name string, args JSON)
 	return handle.Wait(ctx)
 }
 func (a *ToolAPI) StartToolAuto(ctx context.Context, name string, args JSON) (*NestedToolHandle, error) {
-	if err := a.checkParkCancellationStarts(); err != nil {
+	if err := a.checkToolStarts(true); err != nil {
 		return nil, err
 	}
 	a.mu.Lock()
@@ -270,7 +270,7 @@ func (a *ToolAPI) CallToolAuto(ctx context.Context, name string, args JSON) (Too
 	return handle.Wait(ctx)
 }
 func (a *ToolAPI) StartTool(ctx context.Context, key, name string, args JSON) (*NestedToolHandle, error) {
-	if err := a.checkParkCancellationStarts(); err != nil {
+	if err := a.checkToolStarts(false); err != nil {
 		return nil, err
 	}
 	a.mu.Lock()
@@ -282,13 +282,11 @@ func (a *ToolAPI) StartTool(ctx context.Context, key, name string, args JSON) (*
 	return a.runtime.StartTool(ctx, key, name, args)
 }
 func (a *ToolAPI) CallTool(ctx context.Context, key, name string, args JSON) (ToolResult, error) {
-	a.mu.Lock()
-	active := a.active
-	a.mu.Unlock()
-	if !active {
-		return ToolResult{}, ErrSealed
+	handle, err := a.StartTool(ctx, key, name, args)
+	if err != nil {
+		return ToolResult{}, err
 	}
-	return a.runtime.CallTool(ctx, key, name, args)
+	return handle.Wait(ctx)
 }
 
 var nestedDefinition = func() *TaskDefinition {

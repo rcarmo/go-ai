@@ -305,10 +305,14 @@ type TaskOwnership struct {
 }
 
 type TaskOptions struct {
-	AbandonOnRestart bool
-	Conversation     ID
-	Ownership        TaskOwnership
-	Background       bool
+	// Key is a durable ToolAPI.CreateTask identity, scoped to the calling tool.
+	Key string
+	// AbandonOnRestartSet distinguishes an explicit false from the ToolAPI default.
+	AbandonOnRestartSet bool
+	AbandonOnRestart    bool
+	Conversation        ID
+	Ownership           TaskOwnership
+	Background          bool
 	// Nil inherits the creating context; "root" explicitly stores no carrier.
 	// Other values must be data-only string maps (TelemetryCarrier).
 	Trace any                      `json:"trace,omitempty"`

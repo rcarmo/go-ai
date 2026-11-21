@@ -6,6 +6,7 @@ import (
 	"fmt"
 	goai "github.com/rcarmo/go-ai"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -223,7 +224,7 @@ func TestToolExecutionParallelAndSequentialRounds(t *testing.T) {
 				firstRequest, secondRequest := watchReceive(t, requests), watchReceive(t, requests)
 				for _, request := range []TaskRecord{firstRequest, secondRequest} {
 					cp := taskCheckpointMap(request.State.Checkpoint)
-					if request.Version != 2 || submissionEntryID(cp["attempt"]) != 1 || request.Input == nil || !request.Input.Present || !equalJSONValue(request.Input.Value, JSON{}) {
+					if request.Version != 3 || submissionEntryID(cp["attempt"]) != 1 || request.Input == nil || !request.Input.Present || !equalJSONValue(request.Input.Value, JSON{}) {
 						t.Fatal("request is not a fresh canonical generation", request, cp)
 					}
 				}
@@ -399,14 +400,20 @@ func TestToolRoundReadsLiveHostModeAndKeepsRoundDecision(t *testing.T) {
 // Capture the actual accepted task write rather than polling for a parked task.
 type toolParkTestStorage struct {
 	Storage
-	parked chan ID
+	parked  chan ID
+	waiting chan TaskRecord
 }
 
 func (s *toolParkTestStorage) Commit(ctx context.Context, batches [][]StorageWrite, receive func(int, uint64)) (CommitResult, error) {
 	return s.Storage.Commit(ctx, batches, func(index int, seq uint64) {
 		for _, write := range batches[index] {
-			if record, ok := recordValue[TaskRecord](write.Value); write.Type == "task" && ok && record.Kind == "pi.tool" && record.State.Status == "sleeping" {
-				s.parked <- record.ID
+			if record, ok := recordValue[TaskRecord](write.Value); write.Type == "task" && ok && record.Kind == "pi.tool" {
+				if record.State.Status == "sleeping" {
+					s.parked <- record.ID
+				}
+				if record.State.Status == "waiting" && s.waiting != nil {
+					s.waiting <- record
+				}
 			}
 		}
 		if receive != nil {
@@ -748,6 +755,12 @@ func TestSourceV160CanonicalToolCancel(t *testing.T) {
 					if _, err := api.StartToolAuto(cleanup, "ci", JSON{}); err == nil || err.Error() != message {
 						t.Errorf("cancel nested start = %v", err)
 					}
+					if _, err := api.CallTool(cleanup, "key", "ci", JSON{}); err == nil || err.Error() != message {
+						t.Errorf("cancel blocking nested call = %v", err)
+					}
+					if _, err := api.CallToolAuto(cleanup, "ci", JSON{}); err == nil || err.Error() != message {
+						t.Errorf("cancel blocking automatic nested call = %v", err)
+					}
 					if _, err := api.CreateTask(cleanup, ToolTask(), JSON{}, TaskOptions{}); err == nil || err.Error() != message {
 						t.Errorf("cancel task start = %v", err)
 					}
@@ -838,6 +851,298 @@ func TestSourceV160CanonicalToolCancel(t *testing.T) {
 						t.Fatalf("no report %q", wantReport)
 					}
 				}
+			}
+		})
+	}
+}
+
+// Source: harness-park-children.test.ts, nonblocking nested calls and unsafe
+// parents that were parked (rather than running) when the writer closed.
+func TestSourceV160ParkedToolKeepsNestedChildren(t *testing.T) {
+	for _, reopen := range []bool{false, true} {
+		t.Run(fmt.Sprintf("reopen=%v", reopen), func(t *testing.T) { testV160ParkedToolKeepsNestedChildren(t, reopen) })
+	}
+}
+
+func testV160ParkedToolKeepsNestedChildren(t *testing.T, reopen bool) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(bg, 10*time.Second)
+	defer cancel()
+	native, err := newTestSQLite(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	storage := &toolParkTestStorage{Storage: native, parked: make(chan ID, 12), waiting: make(chan TaskRecord, 12)}
+	token := testSignalAnswer(t)
+	key, err := token.Key("done")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var calls atomic.Int32
+	ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
+		ch := make(chan goai.Event, 1)
+		if calls.Add(1) == 1 {
+			ch <- toolAnswer("c1", "both", JSON{})
+		} else {
+			ch <- terminal("done")
+		}
+		close(ch)
+		return ch
+	})
+	wakes := make(chan *WakeReason, 6)
+	idle := make(chan Wake, 64)
+	options.OnWake = func(w Wake) { idle <- w }
+	options.Registry = NewRegistry()
+	if err := options.Registry.Register(ToolRegistration{Definition: goai.Tool{Name: "research", Parameters: json.RawMessage(`{"type":"object","properties":{"topic":{"type":"string"}},"required":["topic"]}`)}, Implementation: "park.child", Version: 1,
+		Execute: func(run context.Context, args any, api *ToolAPI) (ToolResult, error) {
+			state, err := api.ReadSignal(run, token, "done")
+			if err != nil {
+				return ToolResult{}, err
+			}
+			if state == nil {
+				return ToolResult{Park: &ToolPark{Sleep: &ToolSleep{Signals: []SignalKey{key}}}}, nil
+			}
+			topic := generationObject(args)["topic"]
+			text := generationObject(state.Value)["text"]
+			return ToolResult{Content: fmt.Sprintf("%s: %s", topic, text)}, nil
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := options.Registry.Register(ToolRegistration{Definition: goai.Tool{Name: "both", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "park.both", Version: 1, ReplaySafe: !reopen,
+		Execute: func(run context.Context, _ any, api *ToolAPI) (ToolResult, error) {
+			wakes <- api.Wake
+			var handles []*NestedToolHandle
+			for _, topic := range []string{"a", "b"} {
+				if reopen && topic == "b" {
+					break
+				}
+				h, err := api.StartTool(run, topic, "research", JSON{"topic": topic})
+				if err != nil {
+					return ToolResult{}, err
+				}
+				handles = append(handles, h)
+			}
+			done := generationTaskIDs(generationObject(api.Checkpoint)["done"])
+			if api.Wake != nil {
+				done = append(done, api.Wake.Ended...)
+			}
+			var on []ID
+			for _, h := range handles {
+				if !slices.Contains(done, h.ID()) {
+					on = append(on, h.ID())
+				}
+			}
+			if len(on) != 0 {
+				values := make([]any, len(done))
+				for i, id := range done {
+					values[i] = id
+				}
+				return ToolResult{Park: &ToolPark{Wait: &ToolWait{On: on, Policy: "any", Checkpoint: JSON{"done": values}}}}, nil
+			}
+			var results []string
+			for _, h := range handles {
+				result, err := h.Wait(run)
+				if err != nil {
+					return ToolResult{}, err
+				}
+				if result.IsError {
+					return ToolResult{}, fmt.Errorf("nested result failed: %v", result.Diagnostics)
+				}
+				results = append(results, fmt.Sprint(result.StructuredOutput))
+			}
+			return ToolResult{Content: strings.Join(results, " + ")}, nil
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	h := openHarness(t, storage, options)
+	c := root(t, h, ref)
+	sub, err := c.Submit(ctx, Input{Type: "input", Content: "go"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitParent := func() TaskRecord {
+		select {
+		case task := <-storage.waiting:
+			return task
+		case <-ctx.Done():
+			t.Fatal("parent not parked", ctx.Err())
+			return TaskRecord{}
+		}
+	}
+	parent := waitParent()
+	ids := append([]ID(nil), parent.State.On...)
+	if len(ids) != map[bool]int{true: 1, false: 2}[reopen] {
+		t.Fatalf("wait ids = %v", ids)
+	}
+	for range ids {
+		select {
+		case id := <-storage.parked:
+			if !slices.Contains(ids, id) {
+				t.Fatalf("unexpected child %d", id)
+			}
+		case <-ctx.Done():
+			t.Fatal("child not parked", ctx.Err())
+		}
+	}
+	awaitWake140(t, idle, false, nil)
+	if reopen {
+		id := sub.ID()
+		if err := h.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+		storage = &toolParkTestStorage{Storage: reopenStoreAfterHarnessClose(t, native), parked: make(chan ID, 12), waiting: make(chan TaskRecord, 12)}
+		options.OnWake = nil
+		h = openHarness(t, storage, options)
+		sub, err = h.Submission(ctx, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		c, err = h.Conversation(ctx, c.ID())
+		if err != nil {
+			t.Fatal(err)
+		}
+		child, found, err := h.Task(ctx, ids[0])
+		if err != nil || !found || child.Owner != parent.ID || child.AbortRequested || !child.AbandonOnRestart || child.State.Status != "sleeping" {
+			t.Fatalf("retained child = %+v, %v", child, err)
+		}
+	} else {
+		if got, err := h.Signal(ctx, ids[1], token, "done", JSON{"text": "bee"}); err != nil || got != SignalDelivered {
+			t.Fatalf("signal b = %q, %v", got, err)
+		}
+		next := waitParent()
+		if !reflect.DeepEqual(next.State.On, ids[:1]) {
+			t.Fatalf("remaining children = %v", next.State.On)
+		}
+	}
+	if got, err := h.Signal(ctx, ids[0], token, "done", JSON{"text": "ay"}); err != nil || got != SignalDelivered {
+		t.Fatalf("signal a = %q, %v", got, err)
+	}
+	if got, err := sub.Wait(ctx); err != nil || got.Record.Status != "done" {
+		t.Fatalf("submission = %+v, %v", got.Record, err)
+	}
+	want := "a: ay + b: bee"
+	if reopen {
+		want = "a: ay"
+	}
+	result := v160ToolResult(t, ctx, c, "c1")
+	if result.IsError || v160ToolResultText(result) != want {
+		t.Fatalf("result = %q", v160ToolResultText(result))
+	}
+	var seen []*WakeReason
+	for len(wakes) > 0 {
+		seen = append(seen, <-wakes)
+	}
+	expected := []*WakeReason{nil}
+	for i := len(ids) - 1; i >= 0; i-- {
+		expected = append(expected, &WakeReason{Reason: "tasks", Ended: []ID{ids[i]}})
+	}
+	if !reflect.DeepEqual(seen, expected) {
+		t.Fatalf("tool wakes = %+v, want %+v", seen, expected)
+	}
+}
+
+// Source: harness-park-children.test.ts, explicit keys after wake and shared
+// membership between keyed tasks and nested calls.
+func TestSourceV160ToolChildKeys(t *testing.T) {
+	for _, afterWake := range []bool{false, true} {
+		t.Run(fmt.Sprintf("wake=%v", afterWake), func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(bg, 8*time.Second)
+			defer cancel()
+			var calls, initialized atomic.Int32
+			ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
+				ch := make(chan goai.Event, 1)
+				if calls.Add(1) == 1 {
+					ch <- toolAnswer("c1", "keyed", JSON{})
+				} else {
+					ch <- terminal("done")
+				}
+				close(ch)
+				return ch
+			})
+			child, err := DefineTask(TaskDefinitionOptions{Kind: "test.keyed", Version: 1, Initial: func(any) (JSON, error) { initialized.Add(1); return JSON{"phase": "run"}, nil },
+				Phases: map[string]TaskPhase{"run": func(run context.Context, _ TaskRecord, r *TaskRuntime) error {
+					return r.Commit(run, func(*Tx, TaskRecord) (*TaskState, error) {
+						return &TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "completed", Result: &TaskValue{Present: true}}}, nil
+					})
+				}},
+				Abort: func(run context.Context, _ TaskRecord, r *TaskRuntime) error {
+					return r.Commit(run, func(*Tx, TaskRecord) (*TaskState, error) {
+						return &TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "aborted"}}, nil
+					})
+				},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			options.Registry = NewRegistry()
+			if _, err := options.Registry.RegisterTask(child); err != nil {
+				t.Fatal(err)
+			}
+			seen := make(chan []any, 1)
+			if err := options.Registry.Register(ToolRegistration{Definition: goai.Tool{Name: "keyed", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "keyed.child", Version: 1,
+				Execute: func(run context.Context, _ any, api *ToolAPI) (ToolResult, error) {
+					own := TaskOptions{Ownership: TaskOwnership{Kind: "task", Task: api.TaskID()}}
+					if afterWake {
+						if api.Wake == nil {
+							until := int64(0)
+							return ToolResult{Park: &ToolPark{Sleep: &ToolSleep{Until: &until}}}, nil
+						}
+						_, toolErr := api.StartToolAuto(run, "research", JSON{})
+						_, taskErr := api.CreateTask(run, child, nil, own)
+						seen <- []any{fmt.Sprint(toolErr), fmt.Sprint(taskErr)}
+						return ToolResult{Content: "done"}, nil
+					}
+					own.Key = "k"
+					first, err := api.CreateTask(run, child, JSON{"n": 1}, own)
+					if err != nil {
+						return ToolResult{}, err
+					}
+					again, err := api.CreateTask(run, child, JSON{"n": 1}, own)
+					if err != nil {
+						return ToolResult{}, err
+					}
+					_, wrong := api.CreateTask(run, child, JSON{"n": 2}, own)
+					if _, err := api.StartTool(run, "n", "research", JSON{}); err != nil {
+						return ToolResult{}, err
+					}
+					own.Key = "n"
+					_, nestedKey := api.CreateTask(run, child, JSON{"n": 1}, own)
+					_, taskKey := api.StartTool(run, "k", "research", JSON{})
+					seen <- []any{first, again, fmt.Sprint(wrong), fmt.Sprint(nestedKey), fmt.Sprint(taskKey)}
+					return ToolResult{Content: "done"}, nil
+				},
+			}); err != nil {
+				t.Fatal(err)
+			}
+			native, err := newTestSQLite(t)
+			if err != nil {
+				t.Fatal(err)
+			}
+			h := openHarness(t, native, options)
+			c := root(t, h, ref)
+			sub, err := c.Submit(ctx, Input{Type: "input", Content: "go"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got, err := sub.Wait(ctx); err != nil || got.Record.Status != "done" {
+				t.Fatalf("submission = %+v, %v", got.Record, err)
+			}
+			if len(seen) != 1 {
+				t.Fatal("tool did not finish observing its keys")
+			}
+			values := <-seen
+			if afterWake {
+				want := "Tool call c1 needs explicit keys after a wake"
+				if !reflect.DeepEqual(values, []any{want, want}) || initialized.Load() != 0 {
+					t.Fatalf("keyless requests = %v; initializations=%d", values, initialized.Load())
+				}
+				return
+			}
+			want := []any{values[0], values[0], "Key k of tool call c1 was already used for another call or task", "Key n of tool call c1 was already used for another call or task", "Nested call c1/k was already made with another tool or other arguments"}
+			if values[0] == ID(0) || !reflect.DeepEqual(values, want) || initialized.Load() != 1 {
+				t.Fatalf("keyed requests = %v; initializations=%d", values, initialized.Load())
 			}
 		})
 	}
