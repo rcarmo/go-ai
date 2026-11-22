@@ -3,7 +3,9 @@ package openaicodex
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -177,5 +179,181 @@ func sourceCodexRecoveryFrames(responseID, messageID, text string) []string {
 		fmt.Sprintf(`{"type":"response.output_item.added","output_index":0,"item":{"type":"message","id":%q,"role":"assistant","status":"in_progress","content":[]}}`, messageID),
 		fmt.Sprintf(`{"type":"response.output_item.done","output_index":0,"item":{"type":"message","id":%q,"role":"assistant","status":"completed","content":[{"type":"output_text","text":%q}]}}`, messageID, text),
 		fmt.Sprintf(`{"type":"response.completed","response":{"id":%q,"status":"completed","usage":{"input_tokens":5,"output_tokens":3,"total_tokens":8}}}`, responseID),
+	}
+}
+
+// ai.codex.ws-started-limit-reconnect: a started lifetime-limit failure is
+// terminal for the provider stream, but retryable by the assistant call.
+func TestSourceV160CodexStartedLimitReconnect(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		frames     []string
+		responseID string
+		thinking   string
+	}{
+		{
+			name:       "response metadata",
+			frames:     []string{`{"type":"response.created","response":{"id":"resp_expired"}}`},
+			responseID: "resp_expired",
+		},
+		{
+			name:   "rate-limit metadata",
+			frames: []string{`{"type":"codex.rate_limits","rate_limits":{"allowed":true,"limit_reached":false}}`},
+		},
+		{
+			name: "partial thinking",
+			frames: []string{
+				`{"type":"response.output_item.added","item":{"type":"reasoning","id":"rs_1","summary":[]}}`,
+				`{"type":"response.reasoning_summary_part.added","part":{"type":"summary_text","text":""}}`,
+				`{"type":"response.reasoning_summary_text.delta","delta":"unfinished thinking"}`,
+			},
+			thinking: "unfinished thinking",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			const limitMessage = "Responses websocket connection limit reached (60 minutes). Create a new websocket connection to continue."
+			limitFrame := fmt.Sprintf(`{"type":"error","error":{"code":"websocket_connection_limit_reached","message":%q}}`, limitMessage)
+			failedFrames := append(append([]string(nil), tc.frames...), limitFrame)
+			recoveredFrames := []string{
+				`{"type":"response.output_item.added","item":{"type":"message","id":"msg_2","role":"assistant","content":[]}}`,
+				`{"type":"response.output_item.done","item":{"type":"message","id":"msg_2","role":"assistant","content":[{"type":"output_text","text":"Recovered"}]}}`,
+				`{"type":"response.completed","response":{"id":"resp_2","status":"completed","usage":{"input_tokens":5,"output_tokens":3,"total_tokens":8}}}`,
+			}
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			defer cancel()
+			type request struct {
+				connection int32
+				previous   json.RawMessage
+			}
+			var connections, requests, fetches atomic.Int32
+			sent := make(chan request, 2)
+			peerClosed := make(chan error, 1)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Header.Get("Upgrade") != "websocket" {
+					fetches.Add(1)
+					http.Error(w, "unexpected SSE fallback", http.StatusBadRequest)
+					return
+				}
+				conn, err := websocket.Accept(w, r, nil)
+				if err != nil {
+					t.Error(err)
+					return
+				}
+				defer conn.CloseNow()
+				id := connections.Add(1)
+				_, raw, err := conn.Read(ctx)
+				if err != nil {
+					t.Error(err)
+					return
+				}
+				var body map[string]json.RawMessage
+				if err := json.Unmarshal(raw, &body); err != nil {
+					t.Error(err)
+					return
+				}
+				if requests.Add(1) > 2 {
+					t.Error("unexpected extra WebSocket request")
+					return
+				}
+				sent <- request{connection: id, previous: body["previous_response_id"]}
+				frames := recoveredFrames
+				if id == 1 {
+					frames = failedFrames
+				}
+				for _, frame := range frames {
+					if err := conn.Write(ctx, websocket.MessageText, []byte(frame)); err != nil {
+						t.Error(err)
+						return
+					}
+				}
+				if id == 1 {
+					// Do not close the failed socket from the fixture. Observe the
+					// client's actual close (instead of its empty cache slot).
+					_, _, err := conn.Read(ctx)
+					peerClosed <- err
+				}
+			}))
+			defer server.Close()
+
+			session := t.Name()
+			defer ResetOpenAICodexWebSocketDebugStats(session)
+			defer CloseOpenAICodexWebSocketSessions(session)
+			model := &goai.Model{ID: "gpt-5.1-codex", Provider: goai.ProviderOpenAICodex, Api: goai.ApiOpenAICodexResponses, BaseURL: server.URL, Reasoning: true}
+			var rawEvents [][]any
+			opts := &goai.StreamOptions{
+				Transport: goai.TransportWebSocketCached, SessionID: session, APIKey: payloadJWT,
+				OnProviderStreamEvent: func(event any, _ *goai.Model) error {
+					i := len(rawEvents) - 1
+					rawEvents[i] = append(rawEvents[i], event)
+					return nil
+				},
+			}
+			var attempts []*goai.Message
+			var boundaries [][]string
+			result := goai.RetryAssistantCall(ctx, func() *goai.Message {
+				rawEvents = append(rawEvents, nil)
+				var message *goai.Message
+				var events []string
+				for ev := range goai.Stream(ctx, model, &goai.Context{}, opts) {
+					switch e := ev.(type) {
+					case *goai.StartEvent:
+						events = append(events, "start")
+					case *goai.ErrorEvent:
+						events = append(events, "error")
+						message = e.Error
+					case *goai.DoneEvent:
+						events = append(events, "done")
+						message = e.Message
+					}
+				}
+				boundaries = append(boundaries, events)
+				attempts = append(attempts, message)
+				return message
+			}, &goai.AssistantRetryPolicy{Enabled: true, MaxRetries: 1}, nil)
+
+			if len(attempts) != 2 || attempts[0] == nil || attempts[0].StopReason != goai.StopReasonError {
+				t.Fatalf("assistant attempt boundaries = %v; want two attempts with a terminal first error", boundaries)
+			}
+			if !reflect.DeepEqual(boundaries, [][]string{{"start", "error"}, {"start", "done"}}) {
+				t.Errorf("stream boundaries = %v; want one start and terminal outcome per attempt", boundaries)
+			}
+			if first := attempts[0]; first.ResponseID != tc.responseID || first.ErrorMessage != "Codex error: "+limitMessage {
+				t.Errorf("first attempt response ID, error = %q, %q", first.ResponseID, first.ErrorMessage)
+			}
+			if tc.thinking != "" {
+				if content := attempts[0].Content; len(content) != 1 || content[0].Type != "thinking" || content[0].Thinking != tc.thinking {
+					t.Errorf("failed thinking content = %+v; want one thinking block with %q", content, tc.thinking)
+				}
+			}
+			if result.StopReason != goai.StopReasonStop || len(result.Content) != 1 || result.Content[0].Type != "text" || result.Content[0].Text != "Recovered" {
+				t.Errorf("recovered result = %+v; want stop and exactly one %q text block", result, "Recovered")
+			}
+			var wantFrames []any
+			for _, frame := range failedFrames {
+				var value any
+				if err := json.Unmarshal([]byte(frame), &value); err != nil {
+					t.Fatal(err)
+				}
+				wantFrames = append(wantFrames, value)
+			}
+			if !reflect.DeepEqual(rawEvents[0], wantFrames) {
+				t.Errorf("first attempt raw frames = %+v; want %+v", rawEvents[0], wantFrames)
+			}
+			if connections.Load() != 2 || requests.Load() != 2 || fetches.Load() != 0 {
+				t.Fatalf("connections, sends, SSE = %d, %d, %d; want 2, 2, 0", connections.Load(), requests.Load(), fetches.Load())
+			}
+			first, second := <-sent, <-sent
+			if first.connection != 1 || second.connection != 2 || second.previous != nil {
+				t.Errorf("send order = [%d %d], second previous_response_id = %s; want [1 2] and absent continuation", first.connection, second.connection, second.previous)
+			}
+			select {
+			case err := <-peerClosed:
+				if websocket.CloseStatus(err) < 0 && !errors.Is(err, io.EOF) {
+					t.Errorf("first socket peer close = %v; want close frame or EOF", err)
+				}
+			case <-ctx.Done():
+				t.Fatal("first socket did not close")
+			}
+		})
 	}
 }
