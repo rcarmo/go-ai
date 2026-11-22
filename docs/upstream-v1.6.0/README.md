@@ -223,3 +223,13 @@ Seven selected unchanged originals passed: `codemode.test.ts` (finished calls, j
 A failed replay attempt that has not emitted its own start can fall back to SSE without emitting a second logical stream start. The public Go transport test checks stop reason and terminal text, one start and no error, socket order `[1, 1, 2]`, exact delta input, four-item full input without a continuation ID, fetch counts and debug counters.
 
 The two unchanged `recovers a missing cached websocket continuation via %s` variants passed (`websocket`, `sse`). Before the fix SSE recovery emitted `start, error` without issuing SSE. Restoring the old guard reproduced the red; allowing another start produced `start, start, done` on both transports. Focused native verification passed twice with vet and Staticcheck. Started lifetime-limit retry and broader session resources remain open.
+
+### Started Codex lifetime-limit retry boundaries
+
+Three unchanged source variants passed: the limit arrives after response metadata, rate-limit metadata, or partial thinking. The native public-stream and assistant-retry test checks two distinct attempts, one start per attempt, terminal error and retained thinking on the first attempt, an exact recovered result on the second, closure of the first socket and a fresh request without a continuation ID or SSE. The existing provider behavior already passed. Forcing an internal retry collapsed the two public attempts into one for all three variants; the control was removed. Focused provider tests passed twice along with vet and Staticcheck.
+
+### Host-supplied Schema references
+
+`ValidateJSONSchemaValueWithResources` resolves only documents supplied by the host. It uses a per-call registry, retains retrieval URI and `$id` base behavior, fetches nothing, and leaves the existing public check and tool coercion APIs unchanged.
+
+Twenty unchanged assertions ran for groups 1, 2, 3, 10 and 11 of pinned `refRemote.json`: ten validity checks and ten upstream check/error consistency checks. The native path maps ten exact validity cases and checks exact diagnostics for five rejections; it does not expose separate native check and error APIs. All ten native comparisons failed without the registry. Substituting the root base for a remote retrieval URI broke the two nested-reference cases. Focused native tests passed twice along with vet and Staticcheck. The other remote groups, draft 7, external dynamic scope and compiler annotations remain open.
