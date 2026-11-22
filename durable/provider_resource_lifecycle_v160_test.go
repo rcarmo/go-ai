@@ -124,7 +124,7 @@ func TestSourceV160HarnessProviderResourceLifecycle(t *testing.T) {
 			case "failure":
 				failure.fail.Store(true)
 				_, err := conversation.Commit(ctx, func(tx *Tx) (any, error) { return tx.AppendEntry(conversation.ID(), EntryDraft{"kind": "note"}) })
-				if !errors.Is(err, failure.cause) {
+				if err != failure.cause {
 					t.Fatalf("failing write: %v", err)
 				}
 				end, err := h.Closed(ctx)
