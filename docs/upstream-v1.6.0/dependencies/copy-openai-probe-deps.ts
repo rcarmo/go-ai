@@ -1,11 +1,12 @@
 import { cpSync, existsSync, lstatSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 
-const [graphFile, lockSha, oracle, scratch, libc] = process.argv.slice(2);
-if (process.argv.length !== 7) throw Error("Expected graph, lock digest, Oracle, scratch, and host libc");
+const [graphFile, lockSha, oracle, scratch, libc, ...requestedRoots] = process.argv.slice(2);
+if (!libc) throw Error("Expected graph, lock digest, Oracle, scratch, host libc, and optional root placements");
 const rows = (await Bun.file(graphFile).text()).trimEnd().split("\n").map(line => JSON.parse(line));
 if (rows[0]?.pin !== "faac585884ae2c013a6b1400f3e9e77f10b34bac" || rows[0]?.inputs?.["package-lock.json"] !== lockSha) throw Error("Invalid pinned closure");
-const roots = ["node_modules/vitest", "node_modules/openai", "node_modules/partial-json"].map(path => `npm:${path}`);
+const roots = (requestedRoots.length ? requestedRoots : ["node_modules/vitest", "node_modules/openai", "node_modules/partial-json"])
+	.map(path => `npm:${path}`);
 const placements = new Map(rows.filter(row => row.kind === "npm").map(row => [row.id, row]));
 const edges = rows.filter(row => row.kind === "edge" && row.state === "resolved" && ["runtime", "optional", "peer"].includes(row.class));
 const host = { os: process.platform, cpu: process.arch, libc };

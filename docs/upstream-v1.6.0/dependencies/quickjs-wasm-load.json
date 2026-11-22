@@ -1,0 +1,104 @@
+{
+  "format": 1,
+  "pin": "faac585884ae2c013a6b1400f3e9e77f10b34bac",
+  "evidenceBase": "10a9f34c60549069026e02930279f9fdf5228a7f",
+  "node": "v26.13.0",
+  "vitest": "4.1.12",
+  "selectedOriginal": {
+    "test": "packages/codemode/test/sandbox.test.ts",
+    "sha256": "a76f2e0f3688286fcb15de79a675cc05bae699117e5f740b12dd26dbb0090931",
+    "selector": "inline backend script execution returns the script's return value after a JSON round trip",
+    "passed": 1
+  },
+  "archive": {
+    "url": "https://registry.npmjs.org/quickjs-wasi/-/quickjs-wasi-3.6.2.tgz",
+    "integrity": "sha512-FCqGtGOrMgzUiIrMNMA2YnsOxCNwo31dzqXvclXUC6xeT35NJLKXQJsvbeCTjvoFAwZgEAPg8U6+KAPDGXn8Mg==",
+    "sha256": "f1f4349f19a2d849e33ea0ae9bec2e7062b8839f4eceb17c9051ddbaa2720982",
+    "cacheKey": "content-v2/sha512/14/2a/86b463ab320cd4888acc34c036627b0ec42370a37d5dcea5ef7255d40bac5e4f7e4d24b297409b2f6de0938efa050306601003e0f14ebe2803c31979fc32",
+    "member": "package/quickjs.wasm"
+  },
+  "compiled": {
+    "source": "packages/codemode/src/wasm.ts",
+    "api": "WebAssembly.compile",
+    "bytes": 637405,
+    "sha256": "d4c9375f2b1ca4dc95f72c8aa2982a7a9951ac8011490d79c6582df732b4bbd9",
+    "inputFile": "node_modules/quickjs-wasi/quickjs.wasm",
+    "sourceSha256": "0785024745568c86611b00a82f2bc8f70fc1559eff7200e64a449ebbeeeebb94"
+  },
+  "nativeEmbedded": {
+    "file": "internal/quickjs/guest/quickjs.wasm",
+    "sha256": "d4c9375f2b1ca4dc95f72c8aa2982a7a9951ac8011490d79c6582df732b4bbd9",
+    "commit": "10a9f34c60549069026e02930279f9fdf5228a7f",
+    "state": "same-bytes-not-a-native-load-trace"
+  },
+  "control": {
+    "change": "append-valid-empty-custom-section-to-copied-wasm",
+    "selectedOriginalPassed": 1,
+    "compiled": {
+      "source": "packages/codemode/src/wasm.ts",
+      "api": "WebAssembly.compile",
+      "bytes": 637408,
+      "sha256": "55772129c793e984ea341f090f42af33da0024a6ca9916b46a430d58af8fa5f5"
+    },
+    "result": "archive-digest-rejected"
+  },
+  "copiedDependencies": {
+    "roots": [
+      "npm:node_modules/vitest",
+      "npm:node_modules/quickjs-wasi"
+    ],
+    "host": {
+      "os": "linux",
+      "cpu": "arm64",
+      "libc": "glibc"
+    },
+    "placements": [
+      "node_modules/@jridgewell/sourcemap-codec",
+      "node_modules/@oxc-project/types",
+      "node_modules/@rolldown/binding-linux-arm64-gnu",
+      "node_modules/@rolldown/pluginutils",
+      "node_modules/@standard-schema/spec",
+      "node_modules/@types/chai",
+      "node_modules/@types/deep-eql",
+      "node_modules/@types/estree",
+      "node_modules/@vitest/expect",
+      "node_modules/@vitest/mocker",
+      "node_modules/@vitest/pretty-format",
+      "node_modules/@vitest/runner",
+      "node_modules/@vitest/snapshot",
+      "node_modules/@vitest/spy",
+      "node_modules/@vitest/utils",
+      "node_modules/assertion-error",
+      "node_modules/chai",
+      "node_modules/convert-source-map",
+      "node_modules/detect-libc",
+      "node_modules/es-module-lexer",
+      "node_modules/estree-walker",
+      "node_modules/expect-type",
+      "node_modules/fdir",
+      "node_modules/lightningcss",
+      "node_modules/lightningcss-linux-arm64-gnu",
+      "node_modules/magic-string",
+      "node_modules/nanoid",
+      "node_modules/obug",
+      "node_modules/pathe",
+      "node_modules/picocolors",
+      "node_modules/picomatch",
+      "node_modules/postcss",
+      "node_modules/quickjs-wasi",
+      "node_modules/rolldown",
+      "node_modules/siginfo",
+      "node_modules/source-map-js",
+      "node_modules/stackback",
+      "node_modules/std-env",
+      "node_modules/tinybench",
+      "node_modules/tinyexec",
+      "node_modules/tinyglobby",
+      "node_modules/tinyrainbow",
+      "node_modules/vite",
+      "node_modules/vitest",
+      "node_modules/why-is-node-running"
+    ]
+  },
+  "scope": "new-focused-Oracle-inline-run-only"
+}
