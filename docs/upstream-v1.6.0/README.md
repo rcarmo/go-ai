@@ -425,3 +425,23 @@ Six unchanged named cases across worker, inline and remote passed. The committed
 The [primary queue](test-inventory/primary-queue-reconciled.md) reconciles the 37 files without ledger rows at the inventory baseline: 15 with prior selected-source receipts, one new exact original receipt and 21 with no receipt in the audited records. Three conditional areas were withheld, not excluded. This is historical evidence, not the current total of mapped tests.
 
 Focused integrated Go tests passed twice, as did vet, Staticcheck v0.8.2 and offline receipt reproduction. No broad acceptance or profiling ran.
+
+### Harness provider cleanup and scheduling boundaries
+
+All 17 unchanged `harness-lifecycle.test.ts` originals passed. The native Harness now cleans up only provider session IDs used by its invocations after they actually join, including on automatic failure close. Another Harness and an unused conversation are not swept. The three compiled resource cases initially leaked every allocation, and cancelling a stubborn host was insufficient to allow the early-cleanup mutation. Cleanup panics no longer prevent later provider callbacks; aggregate causes remain available. `Harness.Closed` waits for this shutdown without initiating it.
+
+A passive submit now requests scheduler progress, as the other successful public progress calls already did. The translated marker test ran six callers on the compiled baseline; passive submit alone left the marker paused. Reads, watches and document acquisition leave a paused Harness paused. The separate late-registration case observes `missing_task`, a ready pending task after registration, and exactly one invocation of the replacement on resume. Timing for failed admission is not inferred from successful calls.
+
+### Responses remaining wire defaults and costs
+
+The full 42-case Responses compatibility file passed unchanged. Native public HTTPS fixtures preserve endpoint authority and cover the remaining 27 affinity, clamp, reasoning and token-cap cases, plus all five service-tier cost cases. The five tiers compare transmitted values and the three cost components at the pinned 12-decimal precision. Production already passed; mutations distinguish absent fields, wrong cache-key length, reasoning support, and returned versus requested tier precedence. This closes the scoped file, not other Responses contracts or live platform behavior.
+
+### Codemode completion order and fork store
+
+The selected unchanged completion-order, fork store and text-layout cases passed. Native reopen already returned the exact completion order `[2,1]` without repeated finished effects. Fork store now uses separate public header and result blocks; the provider path preserves both in OpenAI Completions, joining textual blocks in source order with LF. Before the fix the fork probe could not see the separate body, and the compiled wire test lost it in Completions. Native controls for altered replay order, fork policy and merged output failed as expected. Explicit empty JavaScript output shape is separate.
+
+### Request-local HTTP transport
+
+The exact six-source [fetch-option receipt](test-inventory/fetch-option.md) reproduced offline, and [native adapters](test-inventory/fetch-option-native.md) exercise all six source groups via the public request-local transport. OpenAI, Azure, Mistral, Codex SSE and pi-messages retain ambient defaults when no override is supplied, and a request-local override does not affect WebSocket dialing or global clients. Native OpenAI and direct-HTTP grouped controls failed before the fix. The Google ambient request test has no separate native Undici dispatcher field.
+
+The integrated focused Go tests passed twice, vet and Staticcheck v0.8.2 passed, and the offline fetch receipt reproduced. No broad acceptance or profiling ran.
