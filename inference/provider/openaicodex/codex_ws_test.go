@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -468,5 +469,134 @@ func TestStreamViaWebSocketProtocolFlow(t *testing.T) {
 	}
 	if !sawStart || !sawText || !sawDone {
 		t.Fatalf("expected start/text/done events, got start=%v text=%v done=%v", sawStart, sawText, sawDone)
+	}
+}
+
+// ai.codex.ws-normal-deltas: persist a grammar-tool call in the first turn,
+// then send its output and the next user message as the entire second input.
+func TestSourceV160CodexWebSocketNormalDeltas(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+	defer cancel()
+	session := t.Name()
+	var sockets, sends, sse atomic.Int32
+	bodies := make(chan map[string]json.RawMessage, 2)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Upgrade") != "websocket" {
+			sse.Add(1)
+			http.Error(w, "unexpected SSE", http.StatusBadRequest)
+			return
+		}
+		conn, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		defer conn.CloseNow()
+		sockets.Add(1)
+		for {
+			_, data, err := conn.Read(ctx)
+			if err != nil {
+				return
+			}
+			n := sends.Add(1)
+			if n > 2 {
+				t.Error("unexpected extra WebSocket input")
+				return
+			}
+			var body map[string]json.RawMessage
+			if err := json.Unmarshal(data, &body); err != nil {
+				t.Error(err)
+				return
+			}
+			bodies <- body
+			frames := []string{fmt.Sprintf(`{"type":"response.created","response":{"id":"resp_%d"}}`, n)}
+			if n == 1 {
+				frames = append(frames,
+					`{"type":"response.output_item.added","item":{"type":"custom_tool_call","id":"ctc_1","call_id":"call_1","name":"sample_tool","input":""}}`,
+					`{"type":"response.custom_tool_call_input.delta","item_id":"ctc_1","delta":"abc"}`,
+					`{"type":"response.custom_tool_call_input.done","item_id":"ctc_1","input":"abc"}`,
+					`{"type":"response.output_item.done","item":{"type":"custom_tool_call","id":"ctc_1","call_id":"call_1","name":"sample_tool","input":"abc"}}`,
+				)
+			}
+			frames = append(frames, fmt.Sprintf(`{"type":"response.completed","response":{"id":"resp_%d","status":"completed","usage":{"input_tokens":5,"output_tokens":3,"total_tokens":8,"input_tokens_details":{"cached_tokens":0}}}}`, n))
+			for _, frame := range frames {
+				if err := conn.Write(ctx, websocket.MessageText, []byte(frame)); err != nil {
+					t.Error(err)
+					return
+				}
+			}
+		}
+	}))
+	defer server.Close()
+	defer ResetOpenAICodexWebSocketDebugStats(session)
+	defer CloseOpenAICodexWebSocketSessions(session)
+
+	model := codexGrammarModel()
+	model.ID, model.BaseURL, model.Reasoning = "gpt-5.1-codex", server.URL, true
+	model.ContextWindow, model.MaxTokens = 400_000, 128_000
+	tool := goai.Tool{
+		Name: "sample_tool", Description: "Sample tool",
+		Parameters:          json.RawMessage(`{"type":"object","properties":{"payload":{"type":"string"}},"required":["payload"]}`),
+		ConstrainedSampling: &goai.ToolConstrainedSampling{Type: "grammar", Variants: map[string]string{"openai_lark": "start: /[a-z]+/"}},
+	}
+	input := goai.Context{
+		SystemPrompt: "You are a helpful assistant.",
+		Messages:     []goai.Message{{Role: goai.RoleUser, Content: []goai.ContentBlock{{Type: "text", Text: "Use the tool"}}, Timestamp: 1}},
+		Tools:        []goai.Tool{tool},
+	}
+	opts := &goai.StreamOptions{APIKey: payloadJWT, SessionID: session, Transport: goai.TransportWebSocketCached}
+	run := func() *goai.Message {
+		t.Helper()
+		var terminal *goai.Message
+		for ev := range goai.Stream(ctx, model, &input, opts) {
+			switch e := ev.(type) {
+			case *goai.ErrorEvent:
+				t.Fatalf("Codex stream: %v", e.Err)
+			case *goai.DoneEvent:
+				terminal = e.Message
+			}
+		}
+		if terminal == nil {
+			t.Fatal("missing terminal assistant message")
+		}
+		return terminal
+	}
+	first := run()
+	if first.ResponseID != "resp_1" || len(first.Content) != 1 || first.Content[0].Type != "toolCall" || first.Content[0].ID != "call_1|ctc_1" || first.Content[0].Name != "sample_tool" || !reflect.DeepEqual(first.Content[0].Arguments, map[string]any{"payload": "abc"}) {
+		t.Fatalf("first assistant message = %+v; want the exact grammar-tool call", first)
+	}
+	input.Messages = append(input.Messages, *first,
+		goai.Message{Role: goai.RoleToolResult, ToolCallID: "call_1|ctc_1", ToolName: "sample_tool", Content: []goai.ContentBlock{{Type: "text", Text: "real result"}}, Timestamp: 2},
+		goai.Message{Role: goai.RoleUser, Content: []goai.ContentBlock{{Type: "text", Text: "Now finish"}}, Timestamp: 3},
+	)
+	run()
+	if sends.Load() != 2 || sockets.Load() != 1 || sse.Load() != 0 {
+		t.Fatalf("sends, sockets, SSE = %d, %d, %d; want 2, 1, 0", sends.Load(), sockets.Load(), sse.Load())
+	}
+	firstBody, secondBody := <-bodies, <-bodies
+	if string(firstBody["store"]) != "false" || string(secondBody["store"]) != "false" {
+		t.Errorf("store = %s then %s; want explicit false both times", firstBody["store"], secondBody["store"])
+	}
+	if _, present := firstBody["previous_response_id"]; present || string(secondBody["previous_response_id"]) != `"resp_1"` {
+		t.Errorf("previous_response_id = %s then %s; want absent on first request and resp_1 on second", firstBody["previous_response_id"], secondBody["previous_response_id"])
+	}
+	assertInput := func(label string, actual json.RawMessage, expected string) {
+		t.Helper()
+		var got, want []any
+		if err := json.Unmarshal(actual, &got); err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal([]byte(expected), &want); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("%s input = %s; want %s", label, actual, expected)
+		}
+	}
+	assertInput("initial", firstBody["input"], `[{"role":"developer","content":"You are a helpful assistant."},{"role":"user","content":[{"type":"input_text","text":"Use the tool"}]}]`)
+	assertInput("delta", secondBody["input"], `[{"type":"custom_tool_call_output","call_id":"call_1","output":"real result"},{"role":"user","content":[{"type":"input_text","text":"Now finish"}]}]`)
+	stats := GetOpenAICodexWebSocketDebugStats(session)
+	if stats == nil || stats.Requests != 2 || stats.ConnectionsCreated != 1 || stats.ConnectionsReused != 1 || stats.CachedContextRequests != 2 || stats.StoreTrueRequests != 0 || stats.FullContextRequests != 1 || stats.DeltaRequests != 1 || stats.LastDeltaInputItems == nil || *stats.LastDeltaInputItems != 2 || stats.LastPreviousResponseID != "resp_1" {
+		t.Errorf("normal delta debug counters = %+v; want exact requests, caching, store, full/delta and continuation counters", stats)
 	}
 }
