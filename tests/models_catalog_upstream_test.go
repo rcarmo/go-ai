@@ -135,11 +135,14 @@ func TestXiaomiModelsOmitRetiredMimoV2Flash(t *testing.T) {
 }
 
 // Source: cache-retention.test.ts. A documented TTL is not a warming policy.
+// Source: pi v1.6.0 packages/ai/test/cache-retention.test.ts:243-255.
 func TestSourceV160OpenAIModelsDoNotInferCacheWarming(t *testing.T) {
 	for _, id := range []string{"gpt-5.6-luna", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-6-astra", "gpt-6-luna", "gpt-6-sol", "gpt-6.1-terra", "gpt-6.2-astra", "gpt-6.2-sol"} {
-		model := requireModel(t, goai.ProviderOpenAI, id)
-		if model.PromptCache != nil {
-			t.Errorf("%s: missing model or unexpected cache warming policy: %+v", id, model)
-		}
+		t.Run(id, func(t *testing.T) {
+			model := requireModel(t, goai.ProviderOpenAI, id)
+			if model.PromptCache != nil {
+				t.Errorf("unexpected cache warming policy: %+v", model.PromptCache)
+			}
+		})
 	}
 }
