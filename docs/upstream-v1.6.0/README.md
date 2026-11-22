@@ -239,3 +239,17 @@ Twenty unchanged assertions ran for groups 1, 2, 3, 10 and 11 of pinned `refRemo
 Go cannot order arbitrary code scheduled after a function returns against another goroutine. `Session.CommitWithContinuation` provides an explicit synchronous turn: the current result is available and its observers have run, but the writer has not published the next part. A turn can read an unaffected task from Storage; it rejects a read that would wait for a later unpublished task. A task read failure or an explicit continuation error fences subsequent publication without revoking the current result. Ordinary `Commit` does not add this turn.
 
 All three selected unchanged `session-group-commit.test.ts` originals passed (698, 770 and 796). The native public Session/Storage tests store the second and third parts in one call, check that the second continuation sees exactly two publications, and verify that both failure paths publish only `lead, one` and reject `two` with the unchanged cause. The inert API stub produced compiled failures. Delaying the continuation until all parts had published made every case observe the third publication. Focused native publication tests passed twice (4.277s), along with vet and Staticcheck.
+
+### Codex socket partition and cleanup
+
+The public stream probes check cached handshakes for two authenticated accounts, exact account and authorization headers, reuse counters, and the lack of an SSE request. With retention `none`, each request uses and closes a fresh socket, omits the prompt cache key, and creates no session debug record. Both unchanged source originals passed. Removing either partitioning or one-shot retention made the native handshake count incorrect.
+
+The supplemental explicit-close probe found bare EOF instead of the source's `1000/debug_close`. The provider now sends the normal close frame before cancelling its reader, closing both target account sockets without closing the other session's socket. Close and scoped debug reset remain separate. Replacing the handshake with immediate close failed on both target sockets. Focused provider verification, vet and Staticcheck passed.
+
+### All draft 2020-12 host registry remote references
+
+The host registry test now covers all 31 validity vectors across 15 groups from `refRemote.json`. The nine added host documents are byte-identical to the pin. All 62 unchanged originals passed (31 validity and 31 error-agreement variants). The native test checks validity and exact rejection diagnostics through one public validation path, not two independent APIs. Incorrect folder rebasing and a missing canonical URN registration each failed an otherwise valid case. Both controls were restored; no production change was needed. Draft 7 remote references, external dynamic scope and annotation/compiler coverage are separate.
+
+### Pinned npm dependency graph
+
+The [dependency ledger](dependencies/README.md) records the npm lock closure from AI, Durable, Codemode and Schema: six workspace entries including Chord and Telemetry, 305 npm placements and 546 declaration edges. Of those edges, 521 resolve and 25 have no optional-peer slot. Those absences are not test exclusions. The generator revalidates pinned inputs and six workspace archives offline; the integrated regeneration was byte-identical. Controls rejected altered input bytes and incorrect hoisting. Third-party archive bytes, native correspondence and package-external/platform evidence remain open.
