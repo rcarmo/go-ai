@@ -277,3 +277,15 @@ A supplemental public Storage scope witness found that the next scope was still 
 A supplemental public read test covers the transaction's memoised task lookup (`transaction.ts` committed task read). The same transaction and line callback each read a missing ID once; a subsequent public Session read still consults Storage. The memo is scoped to the adopted image and returns detached records. Before the fix, and with memoisation removed, the first transaction issued two requests. Focused tests passed twice with vet and Staticcheck.
 
 The parked-child source slice now compares the exact retained-child text `x: kept` after reopen and the complete paired-settlement memo key list in the durable batch. The focused Go park, crash-recovery and notification cases passed twice (6.851s), with vet and Staticcheck. All ten unchanged originals were already verified at the same pin; these are stricter native comparisons, not additional original cases.
+
+### Codex WebSocket connect timeout
+
+A stalled upgrade now yields exactly `WebSocket connect timeout after 50ms` in the pinned fixture, makes one dial and one SSE request, and delivers one logical start and the recovered first text. Caller cancellation does not trigger fallback. The baseline returned wrapped network text and redialled if a retry budget was available; separate mutations reproduced each failure. The unchanged connect-timeout original, integrated native tests, vet and Staticcheck passed. Peer-visible idle shutdown and other timeout-normalisation cases remain open.
+
+### Draft 7 host-registry references
+
+The host registry accepts an explicit draft 7 reference policy. A `$ref` ignores sibling constraints and rebasing, and a fragment-only `$id` registers its anchor without replacing the enclosing document. The default draft remains 2020-12. All 23 draft 7 remote validity vectors and 11 invalid diagnostics passed in Go. The 56 selected unchanged originals include the 46 remote validity/error-agreement cases and 10 from the sibling-policy groups. The remote fixture alone was already green; supplemental draft-policy cases exposed the compiled reds and distinguished four controls. This packet does not verify a separate native error API or all draft 7 compiler keywords.
+
+### Retained Oracle and native input correspondence
+
+The [native input receipt](dependencies/native-inputs.md) verifies retained QuickJS and Photon assets, selected AI/Chord archive members, and Vitest launch files. It reproduces the pinned SQLite migration statements byte for byte and records the separate `modernc.org/sqlite` runtime. Integrated offline regeneration matched exactly. These are asset, module and focused test receipts, not historical module-load traces or package-wide native parity. The OpenAI and Google GenAI archives remain unresolved.

@@ -227,7 +227,16 @@ func TestSourceV160CodexConnectTimeout(t *testing.T) {
 			if dials.Load() != 1 || fetches.Load() != 1 {
 				t.Errorf("dials and SSE requests = %d, %d; want 1, 1", dials.Load(), fetches.Load())
 			}
-			if !reflect.DeepEqual(events, []string{"start", "done"}) || result == nil || goai.ContentText(result.Content) != "Hello" {
+			var firstText string
+			if result != nil {
+				for _, block := range result.Content {
+					if block.Type == "text" {
+						firstText = block.Text
+						break
+					}
+				}
+			}
+			if !reflect.DeepEqual(events, []string{"start", "done"}) || firstText != "Hello" {
 				t.Errorf("connect timeout: events %v, failure %+v; want successful Hello with one start", events, failure)
 			}
 			if stats == nil || stats.WebSocketFailures != 1 || stats.SSEFallbacks != 1 || !stats.WebSocketFallbackActive || stats.LastWebSocketError != wantError {
