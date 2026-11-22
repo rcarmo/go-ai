@@ -2,9 +2,12 @@ package durable
 
 import (
 	"context"
-	goai "github.com/rcarmo/go-ai"
+	"reflect"
+	"strings"
 	"sync/atomic"
 	"testing"
+
+	goai "github.com/rcarmo/go-ai"
 )
 
 type recoveryEnvironment string
@@ -109,7 +112,9 @@ func TestToolRecoveryPinnedCurrentAgentCwdAndDeselection(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			waitSubmission(t, resumed)
+			if settled := waitSubmission(t, resumed).Record; settled.Status != "done" {
+				t.Fatalf("recovered submission: %+v", settled)
+			}
 			want := int64(2)
 			if change == "deselect" || change == "caller-revoked" || change == "model-offer-removed" || change == "newly-deferred" {
 				want = 1
@@ -117,26 +122,50 @@ func TestToolRecoveryPinnedCurrentAgentCwdAndDeselection(t *testing.T) {
 			if runs.Load() != want {
 				t.Fatal("current selection not applied", runs.Load(), want)
 			}
-			if cwds[0] != "/one" {
-				t.Fatal(cwds)
+			wantCwds := []string{"/one"}
+			if change == "cwd" {
+				wantCwds = append(wantCwds, "/two")
+			} else if change == "clear" {
+				wantCwds = append(wantCwds, "")
 			}
-			if change == "cwd" && cwds[1] != "/two" || change == "clear" && cwds[1] != "" {
-				t.Fatal("current cwd", cwds)
+			if !reflect.DeepEqual(cwds, wantCwds) {
+				t.Fatalf("tool cwd sequence %q; want %q", cwds, wantCwds)
 			}
 			snapshot, err := h.Snapshot(bg)
 			if err != nil {
 				t.Fatal(err)
 			}
+			toolTasks := 0
 			for _, task := range snapshot.Tasks {
-				if task.Kind == "pi.tool" {
-					var cp toolCheckpoint
-					if err := fromObject(task.Checkpoint, &cp, h.session.limits); err != nil {
-						t.Fatal(err)
-					}
-					if want == 1 && cp.ErrorCode != "interrupted" {
-						t.Fatal(cp.ErrorCode)
-					}
+				if task.Kind != "pi.tool" {
+					continue
 				}
+				toolTasks++
+				record, found, err := h.Task(bg, task.ID)
+				outcome := record.State.Outcome
+				if err != nil || !found || record.State.Status != "terminal" || outcome == nil || outcome.Result == nil || !outcome.Result.Present {
+					t.Fatalf("terminal tool receipt: %+v, found %t, err %v", record, found, err)
+				}
+				entryID := submissionEntryID(generationObject(outcome.Result.Value)["entryId"])
+				entry, found, err := h.Entry(bg, entryID)
+				if err != nil || !found {
+					t.Fatalf("tool receipt entry %d: found %t, err %v", entryID, found, err)
+				}
+				var receipt MessageReceipt
+				if err := decodeEntryMessage(entry, h.session.limits, &receipt); err != nil || receipt.ToolCallID != "work-call" || receipt.IsError != (want == 1) {
+					t.Fatalf("tool result %+v, err %v", receipt, err)
+				}
+				if want == 1 {
+					if outcome.Status != "failed" || outcome.Error == nil || outcome.Error.Message != "Tool work was interrupted and may have partially run" ||
+						len(receipt.Content) != 1 || !strings.Contains(receipt.Content[0].Text, "was interrupted") {
+						t.Fatalf("revoked tool should be interrupted: status %q error %+v", outcome.Status, outcome.Error)
+					}
+				} else if outcome.Status != "completed" || outcome.Error != nil {
+					t.Fatalf("retained tool should complete: %+v", outcome)
+				}
+			}
+			if toolTasks != 1 {
+				t.Fatalf("tool task count = %d; want one", toolTasks)
 			}
 		})
 	}

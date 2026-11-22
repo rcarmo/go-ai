@@ -3244,7 +3244,9 @@ func TestTaskRecoveryQueuedWithdrawalOwnedChildDefersSettlement(t *testing.T) {
 		}
 		// Passive write in the descendant conversation and own queue records
 		// remain outside reached follow-up withdrawal.
-		write, err := foreignHandle.Submit(bg, Input{Type: "write", Content: "preserve passive"})
+		// A data-only write has no model contribution and must not open a
+		// new inbox boundary in this legacy fixture's idle live document.
+		write, err := foreignHandle.Submit(bg, Input{Type: "write", Entry: &Entry{Kind: "test.note"}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -3276,7 +3278,7 @@ func TestTaskRecoveryQueuedWithdrawalOwnedChildDefersSettlement(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !taskAborted(marked.Tasks[generationID]) || terminalStatus(marked.Tasks[generationID].Status) || marked.Submissions[sub.ID()].Status != "pending" || requests.Load() != 0 {
+		if !taskAborted(marked.Tasks[generationID]) || terminalStatus(marked.Tasks[generationID].Status) || marked.Submissions[sub.ID()].Status != "pending" || submissionEntryID(marked.Submissions[sub.ID()].Value["placedEntry"]) != 0 || requests.Load() != 0 {
 			t.Fatal("owned queued cascade settled before actual child join")
 		}
 		if err := h.scheduler.reconcile(); err != nil {
@@ -3296,8 +3298,8 @@ func TestTaskRecoveryQueuedWithdrawalOwnedChildDefersSettlement(t *testing.T) {
 		if record := waitPublicTask(t, h, childID); record.State.Outcome.Status != "aborted" {
 			t.Fatal(record)
 		}
-		if settled := waitSubmission(t, sub); settled.Submission.Status != "aborted" {
-			t.Fatal(settled)
+		if settled := waitSubmission(t, sub).Record; settled.Status != "unanswered" || settled.Reason != "aborted" || settled.Entry != 0 || settled.Answer != 0 {
+			t.Fatalf("queued input was not withdrawn without placement: %+v", settled)
 		}
 		if settled := waitSubmission(t, write); settled.Submission.Status != "done" {
 			t.Fatal("passive write was withdrawn", settled)
