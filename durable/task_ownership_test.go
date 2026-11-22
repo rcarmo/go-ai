@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"runtime"
 	"sync/atomic"
 	"testing"
@@ -1067,10 +1068,15 @@ func TestTaskOwnershipPublicRawTypedDocumentOwnerAdmission(t *testing.T) {
 						owner.Status, owner.Execution.Native.State = "done", *taskDone("settled")
 						apply(t, b.store, Write{Op: "put-task", Task: &owner})
 					} else if ownerKind == "builtin-terminal" {
-						// Metadata-bearing terminal DTO, not a production scheduler-tool
-						// fault/orphan fixture. Receipt policy is not under test here.
-						owner := Task{ID: ownerID, Conversation: 1, Kind: "pi.tool", Status: "done", Checkpoint: JSON{}, Execution: &TaskExecution{Tag: builtinTaskTag, Builtin: &BuiltinTaskExecution{}}}
-						apply(t, b.store, Write{Op: "put-task", Task: &owner})
+						// A persisted terminal no-model generation carries the canonical
+						// input and outcome required by the SQLite task projection.
+						input := mint(t, b.store)
+						sub := Submission{ID: input, Conversation: 1, Type: "follow-up", Status: "failed", Value: JSON{"errorCode": "no_model"}}
+						outcome := TaskOutcome{Status: "failed", Error: &TaskOutcomeError{Message: "No model is configured"}}
+						owner := Task{ID: ownerID, Conversation: 1, Kind: "pi.generation", Status: "failed", Checkpoint: JSON{"phase": "terminal", "submission": input}, Execution: &TaskExecution{Tag: builtinTaskTag, Builtin: &BuiltinTaskExecution{Hold: &BuiltinTaskHold{
+							Stage: "final", Action: "generation-no-model", FinalStatus: "failed", Conversation: 1, Submission: input, Outcome: outcome,
+						}}}}
+						apply(t, b.store, Write{Op: "put-submission", Submission: &sub}, Write{Op: "put-task", Task: &owner})
 					}
 					docID := mint(t, b.store) // Allocate before the rejection sequence witness.
 					h := taskTestHarness(t, b.store)
@@ -1288,23 +1294,37 @@ func TestTaskOwnershipTerminalCandidateDocumentOverlayAndPublication(t *testing.
 }
 
 func TestTaskOwnershipRawAbsentExecutionTerminalDocumentPolicyPreserved(t *testing.T) {
-	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
-		id, doc := mint(t, b.store), mint(t, b.store)
-		owner := Task{ID: id, Conversation: 1, Kind: "legacy.document-owner", Status: "done", Checkpoint: JSON{}}
-		apply(t, b.store, Write{Op: "put-task", Task: &owner})
-		h := taskTestHarness(t, b.store)
-		_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
-			_, err := tx.createDocumentRecord(Document{ID: doc, Scope: "task", Owner: id, Kind: "app.legacy-taskdoc", Version: 1, Value: JSON{"kept": true}})
-			return err
-		})
-		if err != nil {
-			t.Fatal("raw legacy taskdoc policy expanded", err)
-		}
-		state, err := h.Snapshot(bg)
-		if err != nil || state.Documents[doc].Retired || state.Tasks[id].Execution != nil {
-			t.Fatal("legacy inferred native lifetime", err)
-		}
+	// Historical frames can contain a terminal record without input or outcome.
+	// Canonical SQLite rejects that shape, so use the historical SQLite format.
+	path := filepath.Join(t.TempDir(), "history.sqlite")
+	store, err := openFrameSQLiteFixture(t, path, SQLiteOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close(bg) })
+	seedRootConversation(t, store)
+	id, doc := mint(t, store), mint(t, store)
+	owner := Task{ID: id, Conversation: 1, Kind: "legacy.document-owner", Status: "done", Checkpoint: JSON{}}
+	apply(t, store, Write{Op: "put-task", Task: &owner})
+	h := taskTestHarness(t, store)
+	_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
+		_, err := tx.createDocumentRecord(Document{ID: doc, Scope: "task", Owner: id, Kind: "app.legacy-taskdoc", Version: 1, Value: JSON{"kept": true}})
+		return err
 	})
+	if err != nil {
+		t.Fatal("raw legacy taskdoc policy expanded", err)
+	}
+	if err := h.Close(bg); err != nil {
+		t.Fatal(err)
+	}
+	reopened := reopenStoreAfterHarnessClose(t, store)
+	t.Cleanup(func() { _ = reopened.Close(bg) })
+	state := snap(t, reopened)
+	kept, found := state.Documents[doc]
+	task, taskFound := state.Tasks[id]
+	if !found || kept.Owner != id || kept.Retired || kept.Value["kept"] != true || !taskFound || task.Status != "done" || task.Execution != nil {
+		t.Fatalf("legacy ownership changed on reopen: document %+v, task %+v", kept, task)
+	}
 }
 
 func TestTaskOwnershipInspectMarkedOwnedAbortActualReturnPrecedence(t *testing.T) {
@@ -1587,7 +1607,7 @@ func TestTaskOwnershipInspectPausedReopenNativeBuiltinWaitBeforeDefinitionFit(t 
 							t.Error(err)
 						}
 					})
-					inspect := func(host *Harness, want string, on []ID, reason string) {
+					inspect := func(host *Harness, want string, on []ID, reason string, migrates bool) {
 						t.Helper()
 						beforeClock := clocks.Load()
 						before, err := host.Snapshot(bg)
@@ -1603,7 +1623,7 @@ func TestTaskOwnershipInspectPausedReopenNativeBuiltinWaitBeforeDefinitionFit(t 
 						for _, item := range view.Tasks {
 							if item.Record.ID == parentID {
 								found = true
-								if item.Kind != want || item.Reason != reason || item.Migrates || len(item.On) != len(on) {
+								if item.Kind != want || item.Reason != reason || item.Migrates != migrates || len(item.On) != len(on) {
 									t.Fatal("paused parent derived state", item, want, on, reason)
 								}
 								for i, id := range on {
@@ -1645,14 +1665,14 @@ func TestTaskOwnershipInspectPausedReopenNativeBuiltinWaitBeforeDefinitionFit(t 
 					if marked {
 						on = []ID{childID}
 					}
-					inspect(h, "waiting", on, "") // No migration or fit result leaks into waiting.
+					inspect(h, "waiting", on, "", false) // No migration or fit result leaks into waiting.
 					// Remove the native definition: dependencies still take precedence.
 					dispose, err := registry.RegisterTask(definition)
 					if err != nil {
 						t.Fatal(err)
 					}
 					dispose()
-					inspect(h, "waiting", on, "")
+					inspect(h, "waiting", on, "", false)
 					if err := h.Close(bg); err != nil {
 						t.Fatal(err)
 					}
@@ -1667,7 +1687,7 @@ func TestTaskOwnershipInspectPausedReopenNativeBuiltinWaitBeforeDefinitionFit(t 
 							t.Error(err)
 						}
 					})
-					inspect(second, "waiting", on, "")
+					inspect(second, "waiting", on, "", false)
 					// Drain just the authoritative dependency; marked records ignore
 					// their still-live foreign On, ordinary records ignore ownedchild.
 					_, err = second.commitTasks(bg, 1, func(tx *Tx) error {
@@ -1691,7 +1711,9 @@ func TestTaskOwnershipInspectPausedReopenNativeBuiltinWaitBeforeDefinitionFit(t 
 						want = "blocked"
 						reason = "missing_task"
 					}
-					inspect(second, want, nil, reason)
+					// Once dependencies drain, legacy generations report the pending
+					// migration without invoking it while scheduling is paused.
+					inspect(second, want, nil, reason, want == "ready")
 				})
 			})
 		}
