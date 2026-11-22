@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math"
 	"math/big"
-	"reflect"
 	"strconv"
 )
 
@@ -131,22 +130,6 @@ func (v *toolSchemaValidator) constraintIssue(value interface{}, schema map[stri
 		}
 		if branch, present := schema[key]; present && !v.acceptsRaw(value, branch) {
 			return v.rawIssue(value, branch, path, active)
-		}
-	}
-	if raw, present := schema["unevaluatedProperties"]; present {
-		if object, ok := value.(map[string]interface{}); ok {
-			evaluated := v.evaluatedProperties(value, schema, make(map[uintptr]bool))
-			for _, key := range sortedSchemaKeys(object) {
-				if evaluated[key] {
-					continue
-				}
-				if !v.acceptsRaw(object[key], raw) {
-					if no, ok := raw.(bool); ok && !no {
-						return &toolSchemaIssue{schemaIssuePath(path, key), "unknown field"}
-					}
-					return v.rawIssue(object[key], raw, schemaIssuePath(path, key), active)
-				}
-			}
 		}
 	}
 	return nil
@@ -311,66 +294,3 @@ func schemaUniqueItems(items []interface{}) bool {
 
 // Collect the property annotations of successful in-place applicators. A local
 // visited set cuts recursive references without confusing independent values.
-func (v *toolSchemaValidator) evaluatedProperties(value interface{}, schema map[string]interface{}, seen map[uintptr]bool) map[string]bool {
-	result := make(map[string]bool)
-	id := reflect.ValueOf(schema).Pointer()
-	if seen[id] {
-		return result
-	}
-	seen[id] = true
-	object, ok := value.(map[string]interface{})
-	if !ok {
-		return result
-	}
-	members := v.membersFor(schema)
-	for key := range object {
-		if _, declared := members.properties[key]; declared {
-			result[key] = true
-		}
-		for _, pattern := range members.patterns {
-			if v.matchSchemaPattern(pattern.source, key).matched {
-				result[key] = true
-			}
-		}
-		if members.additional != nil {
-			result[key] = true
-		}
-	}
-	add := func(raw interface{}) {
-		if child, ok := raw.(map[string]interface{}); ok {
-			for key := range v.evaluatedProperties(value, child, seen) {
-				result[key] = true
-			}
-		}
-	}
-	if ref, ok := schema["$ref"].(string); ok {
-		add(v.resolvePureDataReference(ref, schema))
-	}
-	for _, keyword := range []string{"allOf", "anyOf", "oneOf"} {
-		if branches, ok := schema[keyword].([]interface{}); ok {
-			for _, branch := range branches {
-				if v.acceptsRaw(value, branch) {
-					add(branch)
-				}
-			}
-		}
-	}
-	if condition, present := schema["if"]; present {
-		if v.acceptsRaw(value, condition) {
-			add(condition)
-			add(schema["then"])
-		} else {
-			add(schema["else"])
-		}
-	}
-	for _, keyword := range []string{"dependentSchemas", "dependencies"} {
-		if entries, ok := schema[keyword].(map[string]interface{}); ok {
-			for key, entry := range entries {
-				if _, present := object[key]; present {
-					add(entry)
-				}
-			}
-		}
-	}
-	return result
-}

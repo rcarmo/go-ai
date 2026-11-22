@@ -432,9 +432,19 @@ func (v *toolSchemaValidator) issue(value interface{}, schema map[string]interfa
 			return issue
 		}
 	}
-	if array, ok := value.([]interface{}); ok {
-		if index := v.firstUnevaluatedItemFailure(array, schema); index >= 0 {
-			return v.rawIssue(array[index], schema["unevaluatedItems"], schemaIssuePath(path, strconv.Itoa(index)), active)
+	switch value := value.(type) {
+	case map[string]interface{}:
+		if key, fails := v.firstUnevaluatedPropertyFailure(value, schema); fails {
+			childPath := schemaIssuePath(path, key)
+			raw := schema["unevaluatedProperties"]
+			if raw == false {
+				return &toolSchemaIssue{childPath, "unknown field"}
+			}
+			return v.rawIssue(value[key], raw, childPath, active)
+		}
+	case []interface{}:
+		if index := v.firstUnevaluatedItemFailure(value, schema); index >= 0 {
+			return v.rawIssue(value[index], schema["unevaluatedItems"], schemaIssuePath(path, strconv.Itoa(index)), active)
 		}
 	}
 	return generic

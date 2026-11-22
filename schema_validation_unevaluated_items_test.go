@@ -11,7 +11,12 @@ import (
 // Byte-identical draft 2020-12 JSON Schema Test Suite fixture from pi v1.6.0.
 // CheckJSONSchemaValue corresponds to the non-coercing source check directly.
 func TestSourceV160SchemaUnevaluatedItems(t *testing.T) {
-	fixture, err := os.ReadFile("tests/testdata/upstream-main/unevaluated-items-2020-12-v160.json")
+	checkV160SchemaAnnotationFixture(t, "unevaluated-items-2020-12-v160.json", 29, 71)
+}
+
+func checkV160SchemaAnnotationFixture(t *testing.T, file string, wantGroups, wantCases int) {
+	t.Helper()
+	fixture, err := os.ReadFile("tests/testdata/upstream-main/" + file)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -27,8 +32,8 @@ func TestSourceV160SchemaUnevaluatedItems(t *testing.T) {
 	if err := json.Unmarshal(fixture, &groups); err != nil {
 		t.Fatal(err)
 	}
-	if len(groups) != 29 {
-		t.Fatalf("got %d source groups, want 29", len(groups))
+	if len(groups) != wantGroups {
+		t.Fatalf("got %d source groups, want %d", len(groups), wantGroups)
 	}
 	cases := 0
 	for _, group := range groups {
@@ -43,8 +48,8 @@ func TestSourceV160SchemaUnevaluatedItems(t *testing.T) {
 			}
 		})
 	}
-	if cases != 71 {
-		t.Fatalf("got %d source cases, want 71", cases)
+	if cases != wantCases {
+		t.Fatalf("got %d source cases, want %d", cases, wantCases)
 	}
 }
 

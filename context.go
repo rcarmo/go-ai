@@ -509,6 +509,8 @@ func (v *toolSchemaValidator) schemaAcceptsValue(value interface{}, schema map[s
 				return false
 			}
 		}
+		_, fails := v.firstUnevaluatedPropertyFailure(value, schema)
+		return !fails
 	case []interface{}:
 		for i, current := range value {
 			if item := validationItemRaw(schema, i); item != nil && !v.acceptsRaw(current, item) {

@@ -48,8 +48,8 @@ reference fixtures under `tests/testdata/upstream-main/ref-remote-2020-12-v160/`
 and `tests/testdata/upstream-main/ref-remote-draft7-v160/`,
 `tests/testdata/upstream-main/dynamic-ref-2020-12-v160.json` with its
 `dynamic-ref-2020-12-v160-remotes/` documents, and
-`tests/testdata/upstream-main/unevaluated-items-2020-12-v160.json` come from the
-pinned upstream JSON Schema Test Suite. Its copyright and the MIT
+`tests/testdata/upstream-main/unevaluated-{items,properties}-2020-12-v160.json`
+come from the pinned upstream JSON Schema Test Suite. Its copyright and the MIT
 permission/disclaimer printed above apply to these fixtures:
 
 Copyright (c) 2012 Julian Berman
