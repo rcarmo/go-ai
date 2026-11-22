@@ -161,3 +161,54 @@ func TestSourceV160HarnessProgressCallsSchedule(t *testing.T) {
 		})
 	}
 }
+
+// Source harness-lifecycle.test.ts:690. Reads and registration do not resume;
+// a pending task resolves its definition only from the registry at admission.
+func TestSourceV160HarnessLateRegistryDefinition(t *testing.T) {
+	ctx, cancel := context.WithTimeout(bg, 5*time.Second)
+	defer cancel()
+	store, err := newTestSQLite(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ran := make(chan string, 3)
+	define := func(label string) *TaskDefinition {
+		return taskDefinition(t, "test.late-definition", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+			ran <- label
+			return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone(nil), nil })
+		})
+	}
+	h := taskTestHarness(t, store)
+	root, err := h.Root(ctx, AgentChange{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := createPublicTask(t, h, define("unused"), nil, TaskOptions{Conversation: root.ID(), Ownership: TaskOwnership{Kind: "conversation"}})
+	inspect := func(kind, reason string) {
+		t.Helper()
+		view, err := h.Inspect(ctx)
+		if err != nil || view.Scheduling != "paused" || len(view.Tasks) != 1 || view.Tasks[0].Record.ID != id ||
+			view.Tasks[0].Kind != kind || view.Tasks[0].Reason != reason || view.Tasks[0].Record.State.Status != "pending" {
+			t.Fatalf("late registry inspection = %+v, %v; want %s/%s for pending %d", view, err, kind, reason, id)
+		}
+	}
+	inspect("blocked", "missing_task")
+	dispose, err := h.options.Registry.RegisterTask(define("v1"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	inspect("ready", "")
+	dispose()
+	if _, err := h.options.Registry.RegisterTask(define("v2")); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.Resume(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if result, err := h.WaitForTask(ctx, id); err != nil || result.State.Outcome == nil || result.State.Outcome.Status != "completed" {
+		t.Fatalf("late installed definition did not finish: %+v, %v", result, err)
+	}
+	if count := len(ran); count != 1 || <-ran != "v2" {
+		t.Fatalf("newest definition did not run exactly once; count %d", count)
+	}
+}
