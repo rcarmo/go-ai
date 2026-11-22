@@ -359,7 +359,11 @@ func (s *Session) Submission(ctx context.Context, id ID) (record SubmissionRecor
 		err = e
 		return
 	}
-	return lookupSubmission(state, s.limits, id)
+	record, found, err = lookupSubmission(state, s.limits, id)
+	if err == nil && !found && s.delegatedStorage {
+		return s.guardedStorage().Submission(ctx, id)
+	}
+	return
 }
 func (s *Session) SubmissionByRequest(ctx context.Context, conversation ID, request string) (record SubmissionRecord, found bool, err error) {
 	if err = s.enter(ctx); err != nil {
@@ -388,7 +392,11 @@ func (s *Session) SubmissionByRequest(ctx context.Context, conversation ID, requ
 		err = e
 		return
 	}
-	return lookupSubmissionByRequest(state, s.limits, conversation, request)
+	record, found, err = lookupSubmissionByRequest(state, s.limits, conversation, request)
+	if err == nil && !found && s.delegatedStorage {
+		return s.guardedStorage().SubmissionByRequest(ctx, conversation, request)
+	}
+	return
 }
 
 // Submission looks up a committed submission before the first table write.
@@ -401,7 +409,11 @@ func (t *Tx) Submission(id ID) (SubmissionRecord, bool, error) {
 	if t.session != nil && !t.session.hasNativeReadImage() {
 		return t.session.guardedStorage().Submission(t.ctx, id)
 	}
-	return lookupSubmission(t.state, t.limits, id)
+	record, found, err := lookupSubmission(t.state, t.limits, id)
+	if err == nil && !found && t.session != nil && t.session.delegatedStorage {
+		return t.session.guardedStorage().Submission(t.ctx, id)
+	}
+	return record, found, err
 }
 func (t *Tx) SubmissionByRequest(conversation ID, request string) (SubmissionRecord, bool, error) {
 	if err := t.enterTableRead("submissionByRequest", requestKey(conversation, request)); err != nil {
@@ -411,5 +423,9 @@ func (t *Tx) SubmissionByRequest(conversation ID, request string) (SubmissionRec
 	if t.session != nil && !t.session.hasNativeReadImage() {
 		return t.session.guardedStorage().SubmissionByRequest(t.ctx, conversation, request)
 	}
-	return lookupSubmissionByRequest(t.state, t.limits, conversation, request)
+	record, found, err := lookupSubmissionByRequest(t.state, t.limits, conversation, request)
+	if err == nil && !found && t.session != nil && t.session.delegatedStorage {
+		return t.session.guardedStorage().SubmissionByRequest(t.ctx, conversation, request)
+	}
+	return record, found, err
 }

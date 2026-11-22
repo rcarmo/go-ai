@@ -3,6 +3,7 @@ package durable
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"sync"
 	"sync/atomic"
@@ -1001,5 +1002,96 @@ func TestSourceV160SessionColdTaskReadMemoIsScoped(t *testing.T) {
 	}
 	if counted.reads.Load() != 3 {
 		t.Fatalf("total task reads = %d; want three", counted.reads.Load())
+	}
+}
+
+type coldSubmissionStorage struct {
+	Storage
+	witness           SubmissionRecord
+	failure           error
+	idReads, keyReads atomic.Int64
+}
+
+func (a *coldSubmissionStorage) Submission(ctx context.Context, id ID) (SubmissionRecord, bool, error) {
+	if id != a.witness.ID {
+		return a.Storage.Submission(ctx, id)
+	}
+	a.idReads.Add(1)
+	if a.failure != nil {
+		return SubmissionRecord{}, false, a.failure
+	}
+	return a.witness, true, nil
+}
+
+func (a *coldSubmissionStorage) SubmissionByRequest(ctx context.Context, conversation ID, key string) (SubmissionRecord, bool, error) {
+	if conversation != a.witness.Conversation || key != a.witness.RequestID {
+		return a.Storage.SubmissionByRequest(ctx, conversation, key)
+	}
+	a.keyReads.Add(1)
+	if a.failure != nil {
+		return SubmissionRecord{}, false, a.failure
+	}
+	return a.witness, true, nil
+}
+
+// Supplemental public Storage witness for session/transaction.ts committed
+// submission reads. A delegated read image can lack either cold key.
+func TestSourceV160SessionColdSubmissionReads(t *testing.T) {
+	for _, scope := range []string{"session", "transaction"} {
+		for _, by := range []string{"id", "request"} {
+			for _, fault := range []bool{false, true} {
+				t.Run(fmt.Sprintf("%s/%s/fault=%t", scope, by, fault), func(t *testing.T) {
+					store, err := newTestSQLite(t)
+					if err != nil {
+						t.Fatal(err)
+					}
+					seedRootConversation(t, store)
+					a := &coldSubmissionStorage{Storage: store, witness: SubmissionRecord{ID: 999, Conversation: 1, RequestID: "cold", RequestIDPresent: true, Type: "input", Status: "queued"}}
+					if fault {
+						a.failure = errors.New("cold submission backend failure")
+					}
+					s, err := OpenSession(a)
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer s.Close(bg)
+					var record SubmissionRecord
+					var found bool
+					if scope == "session" {
+						if by == "id" {
+							record, found, err = s.Submission(bg, a.witness.ID)
+						} else {
+							record, found, err = s.SubmissionByRequest(bg, a.witness.Conversation, a.witness.RequestID)
+						}
+					} else {
+						_, err = s.Commit(bg, func(tx *Tx) (any, error) {
+							var readErr error
+							if by == "id" {
+								record, found, readErr = tx.Submission(a.witness.ID)
+							} else {
+								record, found, readErr = tx.SubmissionByRequest(a.witness.Conversation, a.witness.RequestID)
+							}
+							return nil, readErr
+						})
+					}
+					if fault {
+						if !errors.Is(err, a.failure) || found {
+							t.Fatalf("cold read failure: found %t, err %v", found, err)
+						}
+						ctx, cancel := context.WithTimeout(bg, 3*time.Second)
+						defer cancel()
+						end, closeErr := s.Closed(ctx)
+						if closeErr != nil || end.Failure.AsError() != a.failure || end.Reason != "failed" {
+							t.Fatalf("first cause: %+v, err %v", end, closeErr)
+						}
+					} else if err != nil || !found || !reflect.DeepEqual(record, a.witness) {
+						t.Fatalf("cold read: got %+v, found %t, err %v", record, found, err)
+					}
+					if by == "id" && (a.idReads.Load() != 1 || a.keyReads.Load() != 0) || by == "request" && (a.idReads.Load() != 0 || a.keyReads.Load() != 1) {
+						t.Fatalf("guarded backend reads by ID %d and by request %d", a.idReads.Load(), a.keyReads.Load())
+					}
+				})
+			}
+		}
 	}
 }
