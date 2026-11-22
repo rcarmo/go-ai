@@ -248,10 +248,18 @@ func TestMainIdleNestedWorkModel(t *testing.T) {
 				state := h.session.readImage
 				for _, cid := range append([]ID{0}, conversations...) {
 					expected := mainIdleModelTargets(state, h.scheduler.invocations, cid)
+					contextBusy := false
+					for _, id := range expected {
+						switch state.Tasks[id].Status {
+						case "sleeping", "waiting", "completing":
+						default:
+							contextBusy = true
+						}
+					}
 					work := h.scheduler.idleIndex.work
 					busy, indexed := h.scheduler.indexedContextBusy(cid)
-					if !indexed || busy != (len(expected) > 0) || h.scheduler.idleIndex.work != work || h.scheduler.idleIndex.rebuilds != 1 {
-						t.Fatalf("step%d conversation%d indexed=%v busy=%v expected=%v work=%d/%d rebuilds=%d", step, cid, indexed, busy, expected, work, h.scheduler.idleIndex.work, h.scheduler.idleIndex.rebuilds)
+					if !indexed || busy != contextBusy || h.scheduler.idleIndex.work != work || h.scheduler.idleIndex.rebuilds != 1 {
+						t.Fatalf("step%d conversation%d indexed=%v busy=%v want busy=%v, idle targets=%v work=%d/%d rebuilds=%d", step, cid, indexed, busy, contextBusy, expected, work, h.scheduler.idleIndex.work, h.scheduler.idleIndex.rebuilds)
 					}
 					indexedTargets, ok := h.scheduler.indexedIdleTargets(cid)
 					if !ok || !slices.Equal(indexedTargets, expected) {
@@ -262,7 +270,7 @@ func TestMainIdleNestedWorkModel(t *testing.T) {
 					if !slices.Equal(actual, expected) {
 						t.Fatalf("step%d conversation%d targets=%v want=%v", step, cid, actual, expected)
 					}
-					if r := h.session.contextRanges[cid]; r != nil && (r.idleSince == nil) != (len(expected) > 0) {
+					if r := h.session.contextRanges[cid]; r != nil && (r.idleSince == nil) != contextBusy {
 						t.Fatalf("step%d conversation%d cached idle disagrees with recompute", step, cid)
 					}
 				}

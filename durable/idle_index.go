@@ -14,7 +14,8 @@ type idleScopeNode struct {
 	parent                     *idleScopeNode
 	activeChildren             map[*idleScopeNode]struct{}
 	childrenLive, childrenIdle int
-	live, idle                 int
+	childrenBusy               int // runnable work for context retention, not idle wait targets
+	live, idle, busy           int
 }
 type idleLiveDocument struct {
 	owner ID
@@ -68,7 +69,7 @@ func idleParent(state Snapshot, key idleScope) (idleScope, bool) {
 func (x *idleIndex) refresh(n *idleScopeNode, hosts map[ID]*TaskRuntime) {
 	for n != nil {
 		x.work++
-		live, idle := n.childrenLive, n.childrenIdle
+		live, idle, busy := n.childrenLive, n.childrenIdle, n.childrenBusy
 		if !n.key.conversation {
 			t, exists := x.image.Tasks[n.key.id]
 			host := hosts[n.key.id] != nil
@@ -78,13 +79,16 @@ func (x *idleIndex) refresh(n *idleScopeNode, hosts map[ID]*TaskRuntime) {
 				phase, _ := t.Checkpoint["phase"].(string)
 				if !held || phase != "queued" {
 					idle++
+					if taskKeepsContextBusy(t, host) {
+						busy++
+					}
 				}
 			}
 		}
-		dl, di := live-n.live, idle-n.idle
+		dl, di, db := live-n.live, idle-n.idle, busy-n.busy
 		wasActive := n.idle != 0
-		n.live, n.idle = live, idle
-		if dl == 0 && di == 0 {
+		n.live, n.idle, n.busy = live, idle, busy
+		if dl == 0 && di == 0 && db == 0 {
 			return
 		}
 		child := n
@@ -95,6 +99,7 @@ func (x *idleIndex) refresh(n *idleScopeNode, hosts map[ID]*TaskRuntime) {
 			}
 			n.childrenLive += dl
 			n.childrenIdle += di
+			n.childrenBusy += db
 		}
 	}
 }
@@ -104,6 +109,7 @@ func (x *idleIndex) detach(n *idleScopeNode, hosts map[ID]*TaskRuntime) {
 		idleActiveChild(p, n, false)
 		p.childrenLive -= n.live
 		p.childrenIdle -= n.idle
+		p.childrenBusy -= n.busy
 		x.refresh(p, hosts)
 	}
 }
@@ -132,6 +138,7 @@ func (x *idleIndex) attach(n *idleScopeNode, state Snapshot, hosts map[ID]*TaskR
 	}
 	p.childrenLive += n.live
 	p.childrenIdle += n.idle
+	p.childrenBusy += n.busy
 	x.refresh(p, hosts)
 }
 func (x *idleIndex) generation(t Task, add bool) {
@@ -321,7 +328,7 @@ func (s *taskScheduler) indexedContextBusy(conversation ID) (bool, bool) {
 		return false, false
 	}
 	n := x.nodes[idleScope{id: conversation, conversation: true}]
-	return n != nil && n.idle != 0, true
+	return n != nil && n.busy != 0, true
 }
 
 // Only idle-relevant branches are retained here. Zero-weight historical leaves

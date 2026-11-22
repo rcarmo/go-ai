@@ -112,6 +112,19 @@ func contextTail(state Snapshot, conversation, at ID) (ID, error) {
 	}
 	return 0, nil
 }
+
+// A parked task still blocks WaitForIdle, but does not keep the context
+// young. Once a park is committed, the outgoing phase may still be unwinding
+// with its authority revoked; that is not runnable context work.
+func taskKeepsContextBusy(task Task, host bool) bool {
+	switch task.Status {
+	case "sleeping", "waiting", "completing":
+		return false
+	default:
+		return host || !terminalStatus(task.Status)
+	}
+}
+
 func (s *Session) contextBusy(conversation ID) bool {
 	if s.taskScheduler == nil {
 		return false
@@ -122,7 +135,7 @@ func (s *Session) contextBusy(conversation ID) bool {
 		return busy
 	}
 	for _, task := range s.readImage.Tasks {
-		if s.taskScheduler.idleTaskInScope(s.readImage, task, conversation) {
+		if taskKeepsContextBusy(task, s.taskScheduler.invocations[task.ID] != nil) && s.taskScheduler.idleTaskInScope(s.readImage, task, conversation) {
 			return true
 		}
 	}
