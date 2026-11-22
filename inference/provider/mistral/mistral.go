@@ -103,6 +103,9 @@ func streamMistral(ctx context.Context, model *goai.Model, convCtx *goai.Context
 
 		retryCfg := goai.RetryConfigFromOptions(opts)
 		client := retryCfg.NewHTTPClient()
+		if opts != nil && opts.HTTPTransport != nil {
+			client.Transport = opts.HTTPTransport
+		}
 		client.Timeout = 0 // http.Client.Timeout would also cancel the SSE body
 		var timerMu sync.Mutex
 		headerDone, timedOut := false, false

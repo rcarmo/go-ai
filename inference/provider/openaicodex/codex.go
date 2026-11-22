@@ -1409,6 +1409,9 @@ func streamViaSSE(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 
 	retryCfg := goai.RetryConfigFromOptions(opts)
 	client := retryCfg.NewHTTPClient()
+	if opts != nil && opts.HTTPTransport != nil {
+		client.Transport = opts.HTTPTransport
+	}
 	resp, err := goai.DoProviderRequestWithRetry(ctx, client, req, retryCfg)
 	if err != nil {
 		if ctx.Err() != nil {

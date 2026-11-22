@@ -157,6 +157,9 @@ func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 
 		retryCfg := goai.RetryConfigFromOptions(opts)
 		client := retryCfg.NewHTTPClient()
+		if opts != nil && opts.HTTPTransport != nil {
+			client.Transport = opts.HTTPTransport
+		}
 		protectAzureAPIKeyRedirects(client, req, model)
 		goai.GetLogger().Debug("HTTP request", "url", req.URL.String(), "provider", model.Provider, "model", model.ID, "retries", retryCfg.MaxRetries)
 		resp, err := goai.DoProviderRequestWithRetry(ctx, client, req, retryCfg)

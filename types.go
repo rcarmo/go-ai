@@ -563,7 +563,8 @@ type TelemetryMetrics struct {
 }
 
 type StreamOptions struct {
-	// HTTPTransport supplies a per-request HTTP transport for the Google and Anthropic adapters.
+	// HTTPTransport overrides the per-request transport on supported HTTP
+	// streaming adapters. It does not replace ambient defaults or change WebSocket dialing.
 	HTTPTransport http.RoundTripper `json:"-"`
 	Identity      *ClientIdentity   `json:"identity,omitempty"`
 	Temperature   *float64          `json:"temperature,omitempty"`

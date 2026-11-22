@@ -74,7 +74,13 @@ func stream(ctx context.Context, model *goai.Model, convCtx *goai.Context, opts 
 		if opts != nil {
 			goai.ApplyHeaders(req.Header, opts.Headers)
 		}
-		resp, err := http.DefaultClient.Do(req)
+		client := http.DefaultClient
+		if opts != nil && opts.HTTPTransport != nil {
+			local := *client
+			local.Transport = opts.HTTPTransport
+			client = &local
+		}
+		resp, err := client.Do(req)
 		if err != nil {
 			send(createErrorEvent(model, err, ctx.Err() != nil))
 			return
