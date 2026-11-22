@@ -966,7 +966,7 @@ func TestMainAfterRunBuiltinNames(t *testing.T) {
 
 // Source: harness-hook-tasks.test.ts, afterTools tasks / onYield tasks.
 func TestSourceV160GenerationHookDecisionTasks(t *testing.T) {
-	for _, mode := range []string{"terminate", "steer", "invalid-after-tools", "continue", "invalid-yield", "stand", "queued", "after-run", "abort-yield"} {
+	for _, mode := range []string{"terminate", "steer", "invalid-after-tools", "continue", "invalid-yield", "stand", "queued", "after-run", "abort-yield", "restart-yield", "faulted-yield"} {
 		t.Run(mode, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(bg, 8*time.Second)
 			defer cancel()
@@ -1123,6 +1123,62 @@ func TestSourceV160GenerationHookDecisionTasks(t *testing.T) {
 				if pending, err := sub.Status(ctx); err != nil || pending.Status == "done" || pending.Answer != 0 {
 					t.Fatalf("yield settled its input early: %+v, %v", pending, err)
 				}
+			}
+			if mode == "restart-yield" || mode == "faulted-yield" {
+				// Keep the answer marker and the committed decision children. As in
+				// the source, seed only what the dead generation left in Storage.
+				if err := h.Close(ctx); err != nil {
+					t.Fatal(err)
+				}
+				<-settled // the wait attached to the closed host has ended
+				reopened := reopenStoreAfterHarnessClose(t, native)
+				defer reopened.Close(bg)
+				stored, found, err := reopened.Task(ctx, parent.ID)
+				if err != nil || !found {
+					t.Fatalf("stored generation: %v, %v", found, err)
+				}
+				cp := taskCheckpointMap(stored.State.Checkpoint)
+				if submissionEntryID(cp["answer"]) != answer || cp["phase"] != "yield" {
+					t.Fatalf("stored yield=%v, answer=%d", cp, answer)
+				}
+				if mode == "restart-yield" {
+					stored.Restarts = DefaultRestartLimit
+				} else {
+					// Drive the actual scheduler fault handler rather than calling
+					// its private cleanup directly, as the TypeScript test does.
+					cp["phase"] = "test.missing"
+				}
+				stored.State = TaskState{Status: "running", Checkpoint: cp}
+				written, err := reopened.Commit(ctx, [][]StorageWrite{{{Type: "task", Value: stored}}}, nil)
+				if err != nil || written.Stored != 1 || written.Refused != nil {
+					t.Fatalf("seeded generation=%+v, %v", written, err)
+				}
+				h = openHarness(t, reopened, options)
+				if err := h.Resume(ctx); err != nil {
+					t.Fatal(err)
+				}
+				rebound, err := h.Submission(ctx, sub.ID())
+				if err != nil {
+					t.Fatal(err)
+				}
+				got, err := rebound.Wait(ctx)
+				if err != nil || got.Record.Status != "done" || got.Record.Answer != answer || calls.Load() != 1 || asked.Load() != 1 {
+					t.Fatalf("yield recovery=%+v, %v; want answer %d; requests=%d decisions=%d", got.Record, err, answer, calls.Load(), asked.Load())
+				}
+				live, found, err := h.SnapshotDefinition(ctx, LiveDoc(), c.ID(), nil)
+				if err != nil || !found {
+					t.Fatalf("live document found=%v, %v", found, err)
+				}
+				if doc := generationObject(live.Copy()); doc["run"] != nil || doc["runFailure"] != nil {
+					t.Fatalf("answered yield left run state: %v", doc)
+				}
+				if mode == "faulted-yield" {
+					generation, found, err := h.Task(ctx, parent.ID)
+					if err != nil || !found || generation.State.Outcome == nil || generation.State.Outcome.Status != "faulted" {
+						t.Fatalf("scheduler did not fault the generation: %+v, %v", generation.State, err)
+					}
+				}
+				return
 			}
 			var queued *SubmissionHandle
 			if mode == "queued" {

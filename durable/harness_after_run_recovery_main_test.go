@@ -5,10 +5,15 @@ package durable
 // reopens the backend. No task/checkpoint/restart markers are fabricated.
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"reflect"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 
@@ -343,4 +348,167 @@ func TestMainAfterRunLoweredLimitNormalWorkerNoInterrupted(t *testing.T) {
 		}
 		mainAfterRecoveryReports(t, p, "task_interrupted", "", false)
 	})
+}
+
+// Source: harness-hook-tasks.test.ts, afterTools is asked again before its
+// decision tasks exist, and not once their IDs and the wait have been stored.
+func TestSourceV160GenerationAfterToolsTaskCrash(t *testing.T) {
+	const witnessEnv = "GOAI_TEST_AFTER_TOOLS_CRASH_DIR"
+	dir := os.Getenv(witnessEnv)
+	crashing := dir != ""
+	ctx, cancel := context.WithTimeout(bg, 14*time.Second)
+	defer cancel()
+	var addresses struct{ Conversation, Submission ID }
+	if !crashing {
+		dir = t.TempDir()
+		cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestSourceV160GenerationAfterToolsTaskCrash$")
+		cmd.Env = append(os.Environ(), witnessEnv+"="+dir)
+		output, err := cmd.CombinedOutput()
+		exit, ok := err.(*exec.ExitError)
+		if ctx.Err() != nil || !ok || exit.ProcessState.Sys().(syscall.WaitStatus).Signal() != syscall.SIGKILL {
+			t.Fatalf("child did not crash at the hook: %v\n%s", err, output)
+		}
+		data, err := os.ReadFile(filepath.Join(dir, "addresses.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(data, &addresses); err != nil {
+			t.Fatal(err)
+		}
+	}
+	store, err := OpenSQLite(filepath.Join(dir, "store.sqlite"), SQLiteOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close(bg)
+	var requests, asked atomic.Int32
+	ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
+		request := requests.Add(1)
+		out := make(chan goai.Event, 1)
+		if crashing && request == 1 {
+			out <- toolAnswer("c1", "noop", JSON{})
+		} else {
+			out <- terminal("done")
+		}
+		close(out)
+		return out
+	})
+	const kind = "test.aftertools-recovery"
+	token := testSignalAnswer(t)
+	key, err := token.Key("go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	atHook := make(chan struct{}, 1)
+	parked := make(chan TaskRecord, 1)
+	child, err := DefineTask(TaskDefinitionOptions{Kind: kind, Version: 1, Initial: func(any) (JSON, error) { return JSON{"phase": "park"}, nil }, Phases: map[string]TaskPhase{
+		"park": func(run context.Context, record TaskRecord, r *TaskRuntime) error {
+			err := r.Commit(run, func(*Tx, TaskRecord) (*TaskState, error) {
+				return &TaskState{Status: "sleeping", Checkpoint: JSON{"phase": "done"}, Signals: []SignalKey{key}}, nil
+			})
+			if err == nil {
+				parked <- record
+			}
+			return err
+		},
+		"done": func(run context.Context, _ TaskRecord, r *TaskRuntime) error {
+			return r.Commit(run, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone(nil), nil })
+		},
+	}, Abort: func(run context.Context, _ TaskRecord, r *TaskRuntime) error {
+		return r.Commit(run, func(*Tx, TaskRecord) (*TaskState, error) {
+			return &TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "aborted"}}, nil
+		})
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	options.Registry = NewRegistry()
+	if err := options.Registry.Install(&Extension{Name: "deciders", Tools: []ToolRegistration{wrapRegistration("noop")}, Tasks: []*TaskDefinition{child}, Hooks: GenerationHooks{
+		AfterToolsTasks: func(run context.Context, _ ID, _ []ID, _ *HookAPI) (*HookTasksResult, error) {
+			asked.Add(1)
+			if crashing {
+				atHook <- struct{}{}
+				<-run.Done()
+				return nil, run.Err()
+			}
+			return &HookTasksResult{Tasks: []RunEndTask{{Task: child}}}, nil
+		},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	h := openHarness(t, store, options)
+	if err := h.Resume(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if crashing {
+		c := root(t, h, ref)
+		sub, err := c.Submit(ctx, Input{Type: "input", Content: "go"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case <-atHook:
+		case <-ctx.Done():
+			t.Fatal("first host never asked", ctx.Err())
+		}
+		state, err := h.Snapshot(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, record := range state.Tasks {
+			if record.Kind == kind {
+				t.Fatal("decision task stored before the hook returned")
+			}
+		}
+		if asked.Load() != 1 || requests.Load() != 1 {
+			t.Fatalf("first host asked=%d requests=%d", asked.Load(), requests.Load())
+		}
+		addresses.Conversation, addresses.Submission = c.ID(), sub.ID()
+		data, err := json.Marshal(addresses)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "addresses.json"), data, 0600); err != nil {
+			t.Fatal(err)
+		}
+		if err := syscall.Kill(os.Getpid(), syscall.SIGKILL); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
+	var decision TaskRecord
+	select {
+	case decision = <-parked:
+	case <-ctx.Done():
+		t.Fatal("reopened host did not ask and park", ctx.Err())
+	}
+	if asked.Load() != 1 || requests.Load() != 0 {
+		t.Fatalf("reopened host asked=%d requests=%d", asked.Load(), requests.Load())
+	}
+	if err := h.Close(ctx); err != nil {
+		t.Fatal(err)
+	}
+	reopened := reopenStoreAfterHarnessClose(t, store)
+	h = openHarness(t, reopened, options)
+	if err := h.Resume(ctx); err != nil {
+		t.Fatal(err)
+	}
+	park, found, err := h.Task(ctx, decision.ID)
+	if err != nil || !found || park.State.Status != "sleeping" || park.Owner != decision.Owner {
+		t.Fatalf("decision on reopen: %+v, found=%v, %v", park, found, err)
+	}
+	parent, found, err := h.Task(ctx, decision.Owner)
+	if err != nil || !found || parent.Version != 3 || parent.State.Status != "waiting" || taskCheckpointMap(parent.State.Checkpoint)["phase"] != "afterTools" || !reflect.DeepEqual(parent.State.On, []ID{decision.ID}) {
+		t.Fatalf("generation wait on reopen: %+v, found=%v, %v", parent, found, err)
+	}
+	if delivered, err := h.Signal(ctx, decision.ID, token, "go", JSON{"text": "done"}); err != nil || delivered != SignalDelivered {
+		t.Fatalf("signal %v, %v", delivered, err)
+	}
+	sub, err := h.Submission(ctx, addresses.Submission)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result, err := sub.Wait(ctx); err != nil || result.Record.Status != "done" || result.Record.Conversation != addresses.Conversation || asked.Load() != 1 || requests.Load() != 1 {
+		t.Fatalf("final submission=%+v, %v; asked=%d requests=%d", result.Record, err, asked.Load(), requests.Load())
+	}
 }
