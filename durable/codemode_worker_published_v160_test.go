@@ -51,9 +51,17 @@ func TestSourceV160CodemodePublishedWorkerNamespacedGlobals(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
+	checkV160CodemodeNamespacedGlobals(t, ctx, sandbox, observed, true)
+}
+
+func checkV160CodemodeNamespacedGlobals(t *testing.T, ctx context.Context, sandbox interface {
+	CodemodeSandbox
+	CodemodeSandboxIdentity
+}, observed chan<- int, workerArgumentPresence bool) {
+	t.Helper()
 	const startedAt = 100
 	vm, err := sandbox.Start(ctx, v160NamespacedGlobalScript, CodemodeStart{
-		RuntimeIdentity: officialWorkerFingerprintV160, WorkerArgumentPresence: true,
+		RuntimeIdentity: sandbox.RuntimeIdentity(), WorkerArgumentPresence: workerArgumentPresence,
 		ParallelCalls: true, DrainAcknowledgements: true, StartedAt: startedAt, Seed: 7,
 		MemoryLimitBytes: DefaultCodemodeMemoryLimitBytes, InterruptBudget: DefaultCodemodeInterruptBudget,
 		Globals: []CodemodeGlobalDescription{
@@ -72,20 +80,23 @@ func TestSourceV160CodemodePublishedWorkerNamespacedGlobals(t *testing.T) {
 	for {
 		event, err := vm.Next(ctx)
 		if err != nil {
-			t.Fatalf("published worker event after %d deliveries: %v", delivered, err)
+			t.Fatalf("sandbox event after %d deliveries: %v", delivered, err)
 		}
 		switch {
 		case event.Call != nil:
 			call := event.Call
 			if pending != nil || !call.Global || call.ID != delivered+1 {
-				t.Fatalf("unexpected worker global: %+v", call)
+				t.Fatalf("unexpected sandbox global: %+v", call)
 			}
 			pending = call
-			// The bridge can now admit the worker's following idle frame.
-			select {
-			case observed <- call.ID:
-			case <-ctx.Done():
-				t.Fatal(ctx.Err())
+			if observed != nil {
+				// Only the process bridge needs a receipt before it can admit
+				// the guest's following idle frame.
+				select {
+				case observed <- call.ID:
+				case <-ctx.Done():
+					t.Fatal(ctx.Err())
+				}
 			}
 		case event.Drain != nil:
 			if err := vm.(CodemodeDrainExecution).AcknowledgeDrain(ctx, *event.Drain); err != nil {
@@ -100,7 +111,7 @@ func TestSourceV160CodemodePublishedWorkerNamespacedGlobals(t *testing.T) {
 			// envelope. The callbacks receive that value, not the envelope.
 			args, present := pending.Arguments["args"]
 			if !present || pending.UndefinedArgument {
-				t.Fatalf("worker global omitted its arguments: %+v", pending)
+				t.Fatalf("sandbox global omitted its arguments: %+v", pending)
 			}
 			switch pending.Name {
 			case "models.list":
@@ -117,7 +128,7 @@ func TestSourceV160CodemodePublishedWorkerNamespacedGlobals(t *testing.T) {
 		case event.Result != nil:
 			value, err := json.Marshal(event.Result.Value)
 			if err != nil || !event.Result.HasValue || event.Result.Error != "" || string(value) != `[["list","first"],"a",false]` {
-				t.Fatalf("published worker result = %+v (%s), marshal error %v", event.Result, value, err)
+				t.Fatalf("sandbox result = %+v (%s), marshal error %v", event.Result, value, err)
 			}
 			args, err := json.Marshal(seen)
 			if err != nil || pending != nil || delivered != 3 || string(args) != `[["classifier",null,3],[]]` {
@@ -128,7 +139,7 @@ func TestSourceV160CodemodePublishedWorkerNamespacedGlobals(t *testing.T) {
 			}
 			return
 		default:
-			t.Fatalf("unexpected published worker event: %+v", event)
+			t.Fatalf("unexpected sandbox event: %+v", event)
 		}
 	}
 }
