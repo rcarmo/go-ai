@@ -259,6 +259,11 @@ func (w *sessionWriter) publish(parts []*sessionWriterPart, receipts map[int]com
 			if err := p.spec.after(*receipt); err != nil {
 				w.host.fail(err, p.spec.index, nil)
 			}
+			// A caller turn can also fail by reading Storage. Do not even
+			// request another host scope once that failure is already known.
+			if cause := w.host.failure(); cause != nil {
+				stop, at, external = cause, p.spec.index, true
+			}
 		}
 	}
 	if rejected != nil || stop != nil {

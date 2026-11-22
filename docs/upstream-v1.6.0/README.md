@@ -271,3 +271,5 @@ The external host registry already supports the pinned draft 2020-12 dynamic res
 ### Third-party archives, tranche 1
 
 The [offline archive verifier](dependencies/archives.md) matched pinned SHA-512 for seven of nine scoped retained archives. The verified QuickJS-WASI archive contains the same WASM bytes as the native embedded asset. Neither archive presence nor byte identity alone proves native behavior or which bytes a past Oracle run loaded. OpenAI and Google GenAI archives were not present at the exact integrity keys in the checked caches. Offline regeneration matched byte for byte; tampered and empty-cache controls are recorded separately.
+
+A supplemental public Storage scope witness found that the next scope was still requested after a continuation failed, although it did not publish. The writer now stops before requesting that scope. Both failure fixtures issued three requests before the fix; the restored focused test checks exactly two. Existing deferred-scope failure checks still pass, as do focused vet and Staticcheck.

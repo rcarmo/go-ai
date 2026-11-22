@@ -835,6 +835,9 @@ func TestSourceV160SessionGroupedPublicationContinuation(t *testing.T) {
 			if !reflect.DeepEqual(kinds, want) {
 				t.Fatalf("published kinds = %v; want %v", kinds, want)
 			}
+			if store.scopes.Load() != int32(len(want)) {
+				t.Fatalf("requested publication scopes = %d; want %d", store.scopes.Load(), len(want))
+			}
 			if mode == "backend-read" && store.reads.Load() != 1 {
 				t.Fatalf("storage task reads = %d; want 1", store.reads.Load())
 			}
@@ -844,11 +847,11 @@ func TestSourceV160SessionGroupedPublicationContinuation(t *testing.T) {
 
 type continuationTestStore struct {
 	Storage
-	entered, release chan struct{}
-	calls            chan int
-	numCalls, reads  atomic.Int32
-	readError        error
-	writeError       error
+	entered, release        chan struct{}
+	calls                   chan int
+	numCalls, reads, scopes atomic.Int32
+	readError               error
+	writeError              error
 }
 
 func (s *continuationTestStore) Commit(ctx context.Context, batches [][]StorageWrite, receive func(int, uint64)) (CommitResult, error) {
@@ -861,6 +864,12 @@ func (s *continuationTestStore) Commit(ctx context.Context, batches [][]StorageW
 		}
 	}
 	return s.Storage.Commit(ctx, batches, receive)
+}
+
+func (s *continuationTestStore) Publishing(_ context.Context, publish func()) <-chan struct{} {
+	s.scopes.Add(1)
+	publish()
+	return nil
 }
 
 func (s *continuationTestStore) Task(ctx context.Context, id ID) (TaskRecord, bool, error) {
