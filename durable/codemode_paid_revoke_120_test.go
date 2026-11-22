@@ -8,9 +8,10 @@ import (
 )
 
 type revokeSandbox120 struct {
-	sandbox *QuickJSSandbox
-	starts  atomic.Int64
-	ready   chan struct{}
+	sandbox  *QuickJSSandbox
+	starts   atomic.Int64
+	ready    chan struct{}
+	holdCall int
 }
 
 func (s *revokeSandbox120) RuntimeIdentity() string { return s.sandbox.RuntimeIdentity() }
@@ -19,18 +20,23 @@ func (s *revokeSandbox120) Start(ctx context.Context, code string, start Codemod
 	if err != nil {
 		return nil, err
 	}
-	return &revokeExecution120{CodemodeExecution: vm, first: s.starts.Add(1) == 1, ready: s.ready}, nil
+	holdCall := s.holdCall
+	if holdCall == 0 {
+		holdCall = 2
+	}
+	return &revokeExecution120{CodemodeExecution: vm, first: s.starts.Add(1) == 1, ready: s.ready, holdCall: holdCall}, nil
 }
 
 type revokeExecution120 struct {
 	CodemodeExecution
-	first bool
-	ready chan struct{}
+	first    bool
+	ready    chan struct{}
+	holdCall int
 }
 
 func (e *revokeExecution120) Next(ctx context.Context) (CodemodeEvent, error) {
 	event, err := e.CodemodeExecution.Next(ctx)
-	if err == nil && event.Call != nil && event.Call.ID == 2 && e.first {
+	if err == nil && event.Call != nil && event.Call.ID == e.holdCall && e.first {
 		close(e.ready)
 		<-ctx.Done()
 		return CodemodeEvent{}, ctx.Err()

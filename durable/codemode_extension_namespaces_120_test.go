@@ -172,3 +172,123 @@ return {
 		t.Fatalf("codemode prompt = %q", prompt)
 	}
 }
+
+// Supplemental composition of the pinned Codemode discovery, restart, and
+// journaled-global cases. No upstream original changes installed declarations
+// between these observations of a single script.
+func TestV160CodemodeExtensionNamespaceReplay(t *testing.T) {
+	ctx, cancel := context.WithTimeout(bg, 12*time.Second)
+	defer cancel()
+	engine, err := NewQuickJSSandbox(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer engine.Close(bg)
+	// The first two deliveries are confirmed when the guest issues call 3.
+	sandbox := &revokeSandbox120{sandbox: engine, ready: make(chan struct{}), holdCall: 3}
+	registry := NewRegistry()
+	var retired, moved atomic.Int32
+	tool := func(name, value string, count *atomic.Int32) ToolRegistration {
+		registration := wrapRegistration(name)
+		registration.Execute = func(context.Context, any, *ToolAPI) (ToolResult, error) {
+			count.Add(1)
+			return ToolResult{Content: value}, nil
+		}
+		return registration
+	}
+	post := tool("post_issue", "posted", &moved)
+	if err = registry.Install(&Extension{
+		Name:      "issue-tracker",
+		Namespace: &ToolNamespace{Name: "github", Description: "GitHub server", Instructions: "Use owner/name"},
+		Tools:     []ToolRegistration{tool("list_issues", "confirmed", &retired), post},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	codemode, err := NewCodemodeExtension(sandbox)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = registry.Install(&codemode); err != nil {
+		t.Fatal(err)
+	}
+	const script = `const before = await describeNamespace("github");
+const confirmed = await tools.list_issues({});
+const after = await describeNamespace("github");
+const search = (await searchTools("post_issue", {namespace: "github", limit: 1})).map(tool => tool.name);
+const replacement = await describeNamespace("linear");
+const posted = await tools.post_issue({});
+let denial;
+try { await tools.list_issues({}); } catch (error) { denial = error.message; }
+return {before, confirmed, after, search, replacement: replacement ?? null, posted, denial,
+  listed: ALL_TOOLS.some(tool => tool.name === "list_issues"),
+  newTool: ALL_TOOLS.some(tool => tool.name === "assign_issue")};`
+	var requests atomic.Int32
+	ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
+		ch := make(chan goai.Event, 1)
+		if requests.Add(1) == 1 {
+			ch <- toolAnswer("namespace-replay", "codemode", JSON{"code": script})
+		} else {
+			ch <- terminal("done")
+		}
+		close(ch)
+		return ch
+	})
+	options.Registry = registry
+	store, err := newTestSQLite(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := openHarness(t, store, options)
+	conversation := root(t, h, ref)
+	submission, err := conversation.Submit(ctx, Input{Content: "go"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	awaitTaskSignal(t, sandbox.ready)
+	if retired.Load() != 1 || moved.Load() != 0 {
+		t.Fatalf("initial effects: list=%d post=%d", retired.Load(), moved.Load())
+	}
+	if err := h.Close(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err = registry.Install(&Extension{
+		Name:      "issue-tracker",
+		Namespace: &ToolNamespace{Name: "linear", Description: "Replacement tracker"},
+		Tools:     []ToolRegistration{post, wrapRegistration("assign_issue")},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	next := openHarness(t, reopenStoreAfterHarnessClose(t, store), options)
+	if err := next.Resume(ctx); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := next.Submission(ctx, submission.ID())
+	if err != nil || reopened == nil {
+		t.Fatal(reopened, err)
+	}
+	if result, err := reopened.Wait(ctx); err != nil || result.Submission.Status != "done" {
+		t.Fatalf("reopened submission = %+v, %v", result, err)
+	}
+	conversation, err = next.Conversation(ctx, conversation.ID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := v160ToolResult(t, ctx, conversation, "namespace-replay")
+	body := v160ToolResultText(result)
+	_, output, ok := strings.Cut(body, "Output:\n")
+	if !ok || result.IsError {
+		t.Fatalf("codemode replay result = %q", body)
+	}
+	const namespace = `{"name":"github","description":"GitHub server","instructions":"Use owner/name","tools":["list_issues","post_issue"]}`
+	const expected = `{"before":` + namespace + `,"confirmed":"confirmed","after":` + namespace + `,"search":["post_issue"],"replacement":null,"posted":"posted","denial":"Tool list_issues is no longer callable","listed":true,"newTool":false}`
+	var got, want any
+	if err := json.Unmarshal([]byte(expected), &want); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal([]byte(output), &got); err != nil || !reflect.DeepEqual(got, want) {
+		t.Fatalf("guest replay output = %s, %v; want %s", output, err, expected)
+	}
+	if sandbox.starts.Load() != 2 || requests.Load() != 2 || retired.Load() != 1 || moved.Load() != 1 {
+		t.Fatalf("starts=%d requests=%d list=%d post=%d", sandbox.starts.Load(), requests.Load(), retired.Load(), moved.Load())
+	}
+}
