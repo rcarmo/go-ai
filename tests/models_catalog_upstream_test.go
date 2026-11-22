@@ -32,6 +32,7 @@ func TestFireworksProviderEnvKeyCompatibilityRetained(t *testing.T) {
 	}
 }
 
+// Source: pi v1.6.0 packages/ai/test/together-models.test.ts:16.
 func TestTogetherModelsRegistersDefaultKimiK3ViaOpenAICompatibleChatCompletionsAPI(t *testing.T) {
 	model := requireModel(t, goai.ProviderTogether, "moonshotai/Kimi-K3")
 	if model.Api != goai.ApiOpenAICompletions || model.Provider != goai.ProviderTogether {
@@ -50,22 +51,31 @@ func TestTogetherModelsRegistersDefaultKimiK3ViaOpenAICompatibleChatCompletionsA
 	if !reflect.DeepEqual(model.Input, []string{"text", "image"}) {
 		t.Fatalf("input=%#v, want [text image]", model.Input)
 	}
-	if model.ContextWindow != 1048576 || model.MaxTokens != 131072 {
-		t.Fatalf("contextWindow/maxTokens=%d/%d, want 1048576/131072", model.ContextWindow, model.MaxTokens)
+	if model.ContextWindow != 1048576 || model.MaxTokens != 1048576 {
+		t.Fatalf("contextWindow/maxTokens=%d/%d, want 1048576/1048576", model.ContextWindow, model.MaxTokens)
 	}
 	wantCost := goai.ModelCost{Input: 3, Output: 15, CacheRead: 0.3, CacheWrite: 0}
 	if !reflect.DeepEqual(model.Cost, wantCost) {
 		t.Fatalf("cost=%#v, want %#v", model.Cost, wantCost)
 	}
-	compat := model.CompletionsCompat
-	if compat == nil {
-		t.Fatalf("CompletionsCompat is nil")
+	// The published record omits developer role entirely and sets each of
+	// these four options explicitly to false. Nil is not false here.
+	disabled := false
+	wantCompat := &goai.OpenAICompletionsCompat{
+		SupportsStore:              &disabled,
+		SupportsReasoningEffort:    &disabled,
+		MaxTokensField:             "max_tokens",
+		ThinkingFormat:             "together",
+		SupportsStrictMode:         &disabled,
+		SupportsLongCacheRetention: &disabled,
 	}
-	if ptrValue(compat.SupportsStore) != false || ptrValue(compat.SupportsDeveloperRole) != false || compat.MaxTokensField != "max_tokens" || compat.ThinkingFormat != "together" || ptrValue(compat.SupportsStrictMode) != false || ptrValue(compat.SupportsLongCacheRetention) != false {
-		t.Fatalf("compat=%#v, want upstream Together Kimi compat", compat)
+	if !reflect.DeepEqual(model.CompletionsCompat, wantCompat) {
+		t.Fatalf("compat=%#v, want exact upstream Together Kimi compat %#v", model.CompletionsCompat, wantCompat)
 	}
 }
 
+// Source: pi v1.6.0 packages/ai/test/together-models.test.ts:44 (GPT-OSS and DeepSeek).
+// The MiniMax assertion is an existing supplemental catalogue control.
 func TestTogetherModelsReasoningControlsFromTogetherAPISurface(t *testing.T) {
 	gptOss := requireModel(t, goai.ProviderTogether, "openai/gpt-oss-120b")
 	low, medium, high := "low", "medium", "high"

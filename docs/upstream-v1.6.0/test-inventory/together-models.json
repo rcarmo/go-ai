@@ -1,0 +1,117 @@
+{
+  "format": 1,
+  "pin": "faac585884ae2c013a6b1400f3e9e77f10b34bac",
+  "evidenceBase": "c32240b3d48af127e43cf9b4bc45ee9911a95b6e",
+  "node": "v26.13.0",
+  "vitest": "4.1.12",
+  "selection": {
+    "file": "packages/ai/test/together-models.test.ts",
+    "selector": "registers the default Kimi K3 model via OpenAI-compatible Chat Completions API|models Together reasoning controls from the Together API surface",
+    "caseNames": [
+      "Together models registers the default Kimi K3 model via OpenAI-compatible Chat Completions API",
+      "Together models models Together reasoning controls from the Together API surface"
+    ],
+    "filteredOut": [
+      "Together models resolves TOGETHER_API_KEY from the environment"
+    ]
+  },
+  "result": {
+    "passed": 2,
+    "failed": 0,
+    "selectedSkipped": 0
+  },
+  "sourceDigests": [
+    {
+      "file": "packages/ai/test/together-models.test.ts",
+      "sha256": "21104de3083ed7bd428f4bac88f0cbdf5b2b690f7aa14f98b9b752757c6d86a2"
+    },
+    {
+      "file": "packages/ai/vitest.config.ts",
+      "sha256": "628ade6e9960f0378ef8ddfd1c06f3a12cf375199725f3f6b41de0c8cf5c0313"
+    },
+    {
+      "file": "packages/ai/src/compat.ts",
+      "sha256": "fe077a90f918a69fa6595cf9a7b4571e28e78b57fd52ccde498c5151838569be"
+    },
+    {
+      "file": "packages/ai/src/providers/together.models.ts",
+      "sha256": "60d732a7883ff9514781debec5d24bb2a1128cd40cf3fe1b60b771346e150a10"
+    }
+  ],
+  "assets": {
+    "archive": "earendil-works-pi-ai-1.6.0.tgz",
+    "archiveSha256": "d68312ec574bc959cb7fee26da4f4876d067aed9bbbe76e876359e60d2294747",
+    "fileCount": 44,
+    "manifestSha256": "cc46553f3f008788e667600a873d3d83a4df8fe46c67b06c65b16fd828450e8b",
+    "togetherSha256": "d2d3a8dfbcfdf8295ba386f32f5e10665615eb4c1a8b51978e75372a9d487339"
+  },
+  "control": {
+    "change": "Kimi-K3 maxTokens 1048576 -> 131072 in scratch together.json",
+    "failed": [
+      "Together models registers the default Kimi K3 model via OpenAI-compatible Chat Completions API"
+    ],
+    "passed": [
+      "Together models models Together reasoning controls from the Together API surface"
+    ]
+  },
+  "copiedDependencies": {
+    "roots": [
+      "npm:node_modules/vitest",
+      "npm:node_modules/partial-json"
+    ],
+    "host": {
+      "os": "linux",
+      "cpu": "arm64",
+      "libc": "glibc"
+    },
+    "placements": [
+      "node_modules/@jridgewell/sourcemap-codec",
+      "node_modules/@oxc-project/types",
+      "node_modules/@rolldown/binding-linux-arm64-gnu",
+      "node_modules/@rolldown/pluginutils",
+      "node_modules/@standard-schema/spec",
+      "node_modules/@types/chai",
+      "node_modules/@types/deep-eql",
+      "node_modules/@types/estree",
+      "node_modules/@vitest/expect",
+      "node_modules/@vitest/mocker",
+      "node_modules/@vitest/pretty-format",
+      "node_modules/@vitest/runner",
+      "node_modules/@vitest/snapshot",
+      "node_modules/@vitest/spy",
+      "node_modules/@vitest/utils",
+      "node_modules/assertion-error",
+      "node_modules/chai",
+      "node_modules/convert-source-map",
+      "node_modules/detect-libc",
+      "node_modules/es-module-lexer",
+      "node_modules/estree-walker",
+      "node_modules/expect-type",
+      "node_modules/fdir",
+      "node_modules/lightningcss",
+      "node_modules/lightningcss-linux-arm64-gnu",
+      "node_modules/magic-string",
+      "node_modules/nanoid",
+      "node_modules/obug",
+      "node_modules/partial-json",
+      "node_modules/pathe",
+      "node_modules/picocolors",
+      "node_modules/picomatch",
+      "node_modules/postcss",
+      "node_modules/rolldown",
+      "node_modules/siginfo",
+      "node_modules/source-map-js",
+      "node_modules/stackback",
+      "node_modules/std-env",
+      "node_modules/tinybench",
+      "node_modules/tinyexec",
+      "node_modules/tinyglobby",
+      "node_modules/tinyrainbow",
+      "node_modules/vite",
+      "node_modules/vitest",
+      "node_modules/why-is-node-running"
+    ]
+  },
+  "exclusions": [],
+  "scope": "offline-model-only"
+}
