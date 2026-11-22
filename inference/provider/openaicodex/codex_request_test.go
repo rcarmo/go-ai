@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -364,4 +366,65 @@ func summarizeCodexProjection(t *testing.T, input any) []string {
 		}
 	}
 	return order
+}
+
+// max-thinking.test.ts captures real provider payloads before transport.
+func TestSourceV160CodexMaxThinkingRequest(t *testing.T) {
+	goai.RegisterBuiltinModels()
+	for _, id := range []string{"gpt-5.6-sol", "gpt-6-astra", "gpt-6-sol", "gpt-6-luna", "gpt-6.1-sol", "gpt-6.1-terra", "gpt-6.2-astra", "gpt-6.2-sol"} {
+		t.Run(id, func(t *testing.T) {
+			catalog := goai.GetModel(goai.ProviderOpenAICodex, id)
+			if catalog == nil || catalog.Api != goai.ApiOpenAICodexResponses {
+				t.Fatal("missing pinned Codex model")
+			}
+			var requests atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				requests.Add(1)
+				http.Error(w, "payload crossed the transport boundary", http.StatusBadRequest)
+			}))
+			defer server.Close()
+			model := *catalog
+			model.BaseURL = server.URL
+			stop := errors.New("payload captured")
+			var payload map[string]json.RawMessage
+			max := goai.ThinkingLevel(goai.ThinkingMax)
+			captured, stopped := 0, 0
+			opts := &goai.StreamOptions{APIKey: payloadJWT, Reasoning: &max, OnPayload: func(request any, _ *goai.Model) (any, error) {
+				captured++
+				wire, err := json.Marshal(request)
+				if err != nil {
+					return nil, err
+				}
+				if err := json.Unmarshal(wire, &payload); err != nil {
+					return nil, err
+				}
+				return nil, stop
+			}}
+			ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+			defer cancel()
+			input := &goai.Context{SystemPrompt: "You are a helpful assistant.", Messages: []goai.Message{goai.UserMessage("Hello")}}
+			for event := range goai.Stream(ctx, &model, input, opts) {
+				if err, ok := event.(*goai.ErrorEvent); ok && errors.Is(err.Err, stop) {
+					stopped++
+				} else {
+					t.Errorf("unexpected payload capture event: %T %v", event, event)
+				}
+			}
+			if captured != 1 || stopped != 1 || requests.Load() != 0 {
+				t.Fatalf("payload captures = %d, stops = %d, network calls = %d; want 1, 1, 0", captured, stopped, requests.Load())
+			}
+			if id == "gpt-5.6-sol" {
+				var reasoning map[string]any
+				if err := json.Unmarshal(payload["reasoning"], &reasoning); err != nil || !reflect.DeepEqual(reasoning, map[string]any{"effort": "max", "summary": "auto"}) {
+					t.Errorf("Codex reasoning = %s; want max effort and auto summary", payload["reasoning"])
+				}
+				return
+			}
+			var items []map[string]any
+			want := map[string]any{"type": "configuration_update", "reasoning": map[string]any{"effort": "max"}}
+			if err := json.Unmarshal(payload["input"], &items); err != nil || len(items) == 0 || !reflect.DeepEqual(items[len(items)-1], want) {
+				t.Errorf("Codex request input = %s; want exact terminal max configuration_update", payload["input"])
+			}
+		})
+	}
 }
