@@ -9,6 +9,7 @@ Oracle: official pi `faac585884ae2c013a6b1400f3e9e77f10b34bac`. Each lane file r
 | [`codex.jsonl`](codex.jsonl) | Five SSE request projection originals plus selected WebSocket cache, lifetime, timeout, replay, and continuation declarations. The two parameterized declarations identify their variants. |
 | [`durable-session-publication.jsonl`](durable-session-publication.jsonl) | Three between-part continuation cases and the cold task read failure at `session-group-commit.test.ts:486,698,770,796`. |
 | [`schema-ref-remote.jsonl`](schema-ref-remote.jsonl) | All draft 2020-12 `refRemote.json` vectors, with both runner checks per vector. |
+| [`schema-ref-remote-draft7.jsonl`](schema-ref-remote-draft7.jsonl) | All draft 7 `refRemote.json` vectors, with independent error-agreement rows tracked separately. |
 | [`schema-dynamic-ref.jsonl`](schema-dynamic-ref.jsonl) | All draft 2020-12 `dynamicRef.json` vectors, including those needing external resources. |
 
 ## Read and update the records

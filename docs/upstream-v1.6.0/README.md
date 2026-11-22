@@ -276,6 +276,8 @@ A supplemental public Storage scope witness found that the next scope was still 
 
 A supplemental public read test covers the transaction's memoised task lookup (`transaction.ts` committed task read). The same transaction and line callback each read a missing ID once; a subsequent public Session read still consults Storage. The memo is scoped to the adopted image and returns detached records. Before the fix, and with memoisation removed, the first transaction issued two requests. Focused tests passed twice with vet and Staticcheck.
 
+### Exact retained-child and paired-memo comparisons
+
 The parked-child source slice now compares the exact retained-child text `x: kept` after reopen and the complete paired-settlement memo key list in the durable batch. The focused Go park, crash-recovery and notification cases passed twice (6.851s), with vet and Staticcheck. All ten unchanged originals were already verified at the same pin; these are stricter native comparisons, not additional original cases.
 
 ### Codex WebSocket connect timeout
