@@ -955,3 +955,51 @@ func TestSourceV160SessionColdTaskReadWinsFailure(t *testing.T) {
 		t.Fatalf("end = %+v, %v; publications=%d reads=%d", end, err, advances.Load(), store.reads.Load())
 	}
 }
+
+// Supplemental witness of transaction.ts #committedTaskRecord: repeated reads
+// share one lookup inside the transaction, without inventing global negative cache.
+func TestSourceV160SessionColdTaskReadMemoIsScoped(t *testing.T) {
+	store, err := newTestSQLite(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	seedRootConversation(t, store)
+	counted := &continuationTestStore{Storage: store}
+	s, err := OpenSession(counted)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close(bg)
+	if _, err := s.Commit(bg, func(tx *Tx) (any, error) {
+		for range 2 {
+			if _, found, err := tx.Task(999); found || err != nil {
+				t.Fatalf("transaction read found=%t err=%v", found, err)
+			}
+		}
+		return nil, nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if counted.reads.Load() != 1 {
+		t.Fatalf("transaction task reads = %d; want one", counted.reads.Load())
+	}
+	if err := s.ReadOnLine(bg, func(read *ReadLine) error {
+		for range 2 {
+			if _, found, err := read.Task(999); found || err != nil {
+				t.Fatalf("line read found=%t err=%v", found, err)
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if counted.reads.Load() != 2 {
+		t.Fatalf("transaction and line task reads = %d; want two", counted.reads.Load())
+	}
+	if _, found, err := s.Task(bg, 999); found || err != nil {
+		t.Fatalf("session read found=%t err=%v", found, err)
+	}
+	if counted.reads.Load() != 3 {
+		t.Fatalf("total task reads = %d; want three", counted.reads.Load())
+	}
+}

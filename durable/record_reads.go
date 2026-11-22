@@ -89,11 +89,40 @@ func (t *Tx) Task(id ID) (TaskRecord, bool, error) {
 					return TaskRecord{}, false, err
 				}
 			}
-			return t.session.guardedStorage().Task(t.ctx, id)
+			return t.readColdTask(id)
 		}
 		return TaskRecord{}, false, nil
 	}
 	record, err := canonicalStoredTask(task, t.limits)
+	return record, true, err
+}
+
+// The lookup is scoped to this transaction and to its adopted read image;
+// misses never become a global negative cache. Detach present records again
+// on return so separate reads of a memo cannot alias one another.
+func (t *Tx) readColdTask(id ID) (TaskRecord, bool, error) {
+	value, cached := t.coldTaskReads[id]
+	if !cached {
+		record, found, err := t.session.guardedStorage().Task(t.ctx, id)
+		if err != nil {
+			return TaskRecord{}, false, err
+		}
+		if found {
+			owned, err := nativeTask(record, t.limits)
+			if err != nil || owned.ID != id {
+				return TaskRecord{}, false, t.session.backendResult(t.ctx, ErrCorrupt, false)
+			}
+			value = &owned
+		}
+		if t.coldTaskReads == nil {
+			t.coldTaskReads = make(map[ID]*Task)
+		}
+		t.coldTaskReads[id] = value
+	}
+	if value == nil {
+		return TaskRecord{}, false, nil
+	}
+	record, err := canonicalStoredTask(*value, t.limits)
 	return record, true, err
 }
 
