@@ -24,6 +24,6 @@ The script reads the stated Git objects and retained files, verifies compressed 
 
 ## Remaining decisions and evidence
 
-- No Google GenAI `2.32.0` or OpenAI `7.59.0` archive was found at the exact integrity keys in either retained npm cache. The bounded search of separately retained artifact directories found no matching named tarball. Do not infer archive verification from unpacked packages. Supply previously retained archives, or authorize acquisition if external retrieval is necessary.
+- This slice's two cache searches found neither Google GenAI `2.32.0` nor OpenAI `7.59.0`. The [separate provider archive receipt](provider-archives.md) later verified both compressed archives; neither receipt establishes which bytes earlier tests loaded.
 - Record the loaded module and executable provenance for future focused runs, including the Node and built-in SQLite versions and transitive Vitest files. Expand native and source mapping from these slices before claiming D26 closure.
 - Confirm the required platform and credential matrix, then run the separately authorized acceptance and profiling gate against the exact candidate. No additional skips, hosted CI, tags or release are authorized by this receipt.
