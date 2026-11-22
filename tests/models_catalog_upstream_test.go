@@ -25,10 +25,15 @@ func requireModel(t *testing.T, provider goai.Provider, id string) *goai.Model {
 	return model
 }
 
+// Source: pi v1.6.0 packages/ai/test/fireworks-models.test.ts:182-187 (key lookup only).
 func TestFireworksProviderEnvKeyCompatibilityRetained(t *testing.T) {
-	env := goai.ProviderEnv{"FIREWORKS_API_KEY": "test-fireworks-key"}
-	if got := goai.GetEnvAPIKeyWithEnv(goai.ProviderFireworks, env); got != "test-fireworks-key" {
-		t.Fatalf("fireworks env key=%q, want test-fireworks-key", got)
+	t.Setenv("FIREWORKS_API_KEY", "test-fireworks-key")
+	if got := goai.GetEnvAPIKey(goai.ProviderFireworks); got != "test-fireworks-key" {
+		t.Fatal("Fireworks key not resolved from process env")
+	}
+	env := goai.ProviderEnv{"FIREWORKS_API_KEY": "test-fireworks-scoped-key"}
+	if got := goai.GetEnvAPIKeyWithEnv(goai.ProviderFireworks, env); got != "test-fireworks-scoped-key" {
+		t.Fatal("Fireworks key not resolved from scoped env")
 	}
 }
 

@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
-	"sync/atomic"
+	"slices"
 	"testing"
 	"time"
 
@@ -61,59 +61,21 @@ func TestSourceV160FireworksModelProjection(t *testing.T) {
 			}
 		}
 
-		// The original aborts in OnPayload. Use loopback for the safety net so
-		// a missed hook can't send a request to the real provider.
-		var requests atomic.Int32
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			requests.Add(1)
-			w.WriteHeader(http.StatusBadRequest)
-		}))
-		defer server.Close()
-		model := *base
-		model.BaseURL = server.URL
 		requested := goai.ThinkingMax
-		var captured map[string]json.RawMessage
-		var calls int
-		for range goai.GetApiProvider(model.Api).StreamSimple(t.Context(), &model, &goai.Context{Messages: []goai.Message{goai.UserMessage("test")}}, &goai.StreamOptions{
-			APIKey: "test-fireworks-key", Reasoning: &requested,
-			OnPayload: func(payload any, _ *goai.Model) (any, error) {
-				calls++
-				encoded, err := json.Marshal(payload)
-				if err != nil {
-					t.Error(err)
-					return nil, err
-				}
-				if err = json.Unmarshal(encoded, &captured); err != nil {
-					t.Error(err)
-					return nil, err
-				}
-				return nil, errors.New("payload captured")
-			},
-		}) {
-		}
-		if calls != 1 || requests.Load() != 0 || string(captured["reasoning_effort"]) != `"max"` {
-			t.Fatalf("payload hooks=%d requests=%d reasoning_effort=%s; want 1, 0, and max", calls, requests.Load(), captured["reasoning_effort"])
-		}
+		payload := captureFireworksSimplePayload(t, base, goai.StreamOptions{Reasoning: &requested})
+		assertFireworksPayloadField(t, payload, "reasoning_effort", `"max"`)
 	})
 }
 
 // Source: pi v1.6.0 packages/ai/test/fireworks-models.test.ts:241-324,335-429.
 func TestSourceV160FireworksMessagesWire(t *testing.T) {
-	no, yes := false, true
+	no := false
 	anthropic := goai.Model{
 		ID: "claude-opus-4-8", Name: "Claude Opus 4.8", Api: goai.ApiAnthropicMessages,
 		Provider: goai.ProviderAnthropic, Reasoning: true, Input: []string{"text"},
 		ContextWindow: 200000, MaxTokens: 32000,
 	}
-	fireworks := anthropic
-	fireworks.ID, fireworks.Name, fireworks.Provider = "accounts/fireworks/models/kimi-k2p6", "Kimi K2.6", goai.ProviderFireworks
-	fireworks.Input = []string{"text", "image"}
-	fireworks.Cost = goai.ModelCost{Input: 0.95, Output: 4, CacheRead: 0.16}
-	fireworks.ContextWindow, fireworks.MaxTokens = 262000, 262000
-	fireworks.AnthropicCompat = &goai.AnthropicMessagesCompat{
-		AllowEmptySignature: &yes, SendSessionAffinityHeaders: &yes,
-		SupportsEagerToolInputStreaming: &no, SupportsCacheControlOnTools: &no, SupportsLongCacheRetention: &no,
-	}
+	fireworks := fireworksMessagesFixture()
 	openrouter := anthropic
 	openrouter.ID, openrouter.Provider = "anthropic/claude-opus-4.8", goai.ProviderOpenRouter
 	disabled := openrouter
@@ -242,5 +204,162 @@ func captureFireworksMessagesWire(t *testing.T, model goai.Model, opts goai.Stre
 	default:
 		t.Fatalf("no loopback request captured (stream error: %v)", lastError)
 		return fireworksMessagesRequest{}
+	}
+}
+
+// Source: pi v1.6.0 packages/ai/test/fireworks-models.test.ts:43-66,120-198.
+func TestSourceV160FireworksRemainingModels(t *testing.T) {
+	for _, id := range []string{"models/glm-5p3", "routers/glm-5p3-fast"} {
+		t.Run("long-cache-omitted/"+id, func(t *testing.T) {
+			model := requireModel(t, goai.ProviderFireworks, "accounts/fireworks/"+id)
+			payload := captureFireworksSimplePayload(t, model, goai.StreamOptions{
+				CacheRetention: goai.CacheRetentionLong, SessionID: "test-fireworks-session",
+			})
+			assertFireworksPayloadField(t, payload, "prompt_cache_retention", "")
+		})
+	}
+	for _, tc := range []struct {
+		id     string
+		levels []goai.ModelThinkingLevel
+	}{
+		{"deepseek-v4p1-flash", []goai.ModelThinkingLevel{"off", "low", "high", "max"}},
+		{"qwen3p8-max", []goai.ModelThinkingLevel{"off", "low", "medium", "xhigh"}},
+		{"qwen3p8-2p4t-a95b", []goai.ModelThinkingLevel{"off", "low", "medium", "xhigh"}},
+	} {
+		t.Run("native-messages-effort/"+tc.id, func(t *testing.T) {
+			model := requireModel(t, goai.ProviderFireworks, "accounts/fireworks/models/"+tc.id)
+			if model.Api != goai.ApiAnthropicMessages || model.AnthropicCompat == nil || !ptrValue(model.AnthropicCompat.ForceAdaptiveThinking) {
+				t.Fatalf("want an adaptive Messages model; got %s with compat %#v", model.Api, model.AnthropicCompat)
+			}
+			if got := goai.GetSupportedThinkingLevels(model); !slices.Equal(got, tc.levels) {
+				t.Errorf("thinking levels = %v; want %v", got, tc.levels)
+			}
+			for _, level := range tc.levels {
+				t.Run(string(level), func(t *testing.T) {
+					var opts goai.StreamOptions
+					thinking, config := `{"type":"disabled"}`, ""
+					if level != goai.ThinkingOff {
+						requested := goai.ThinkingLevel(level)
+						opts.Reasoning = &requested
+						thinking = `{"type":"adaptive","display":"summarized"}`
+						config = `{"effort":"` + string(level) + `"}`
+					}
+					payload := captureFireworksSimplePayload(t, model, opts)
+					assertFireworksPayloadField(t, payload, "thinking", thinking)
+					assertFireworksPayloadField(t, payload, "output_config", config)
+				})
+			}
+		})
+	}
+	for _, id := range []string{"models/glm-5p3", "routers/glm-5p3-fast", "models/kimi-k3", "routers/kimi-k3-fast"} {
+		t.Run("distinct-native-effort/"+id, func(t *testing.T) {
+			model := requireModel(t, goai.ProviderFireworks, "accounts/fireworks/"+id)
+			want := []goai.ModelThinkingLevel{"low", "high", "max"}
+			if got := goai.GetSupportedThinkingLevels(model); !slices.Equal(got, want) {
+				t.Fatalf("thinking levels = %v; want %v", got, want)
+			}
+		})
+	}
+	t.Run("non-adaptive-budget", func(t *testing.T) {
+		model := fireworksMessagesFixture()
+		if model.AnthropicCompat.ForceAdaptiveThinking != nil {
+			t.Fatal("budget fixture must omit ForceAdaptiveThinking")
+		}
+		high := goai.ThinkingHigh
+		payload := captureFireworksSimplePayload(t, &model, goai.StreamOptions{Reasoning: &high})
+		assertFireworksPayloadField(t, payload, "thinking", `{"type":"enabled","budget_tokens":16384,"display":"summarized"}`)
+		assertFireworksPayloadField(t, payload, "output_config", "")
+	})
+	t.Run("deepseek-messages-compat", func(t *testing.T) {
+		model := requireModel(t, goai.ProviderFireworks, "accounts/fireworks/models/deepseek-v4p1-flash")
+		compat := model.AnthropicCompat
+		if compat == nil {
+			t.Fatal("expected Fireworks Anthropic compatibility record")
+		}
+		for _, tc := range []struct {
+			name string
+			got  *bool
+			want bool
+		}{
+			{"sendSessionAffinityHeaders", compat.SendSessionAffinityHeaders, true},
+			{"supportsEagerToolInputStreaming", compat.SupportsEagerToolInputStreaming, false},
+			{"supportsCacheControlOnTools", compat.SupportsCacheControlOnTools, false},
+			{"supportsLongCacheRetention", compat.SupportsLongCacheRetention, false},
+			{"allowEmptySignature", compat.AllowEmptySignature, true},
+		} {
+			if tc.got == nil || *tc.got != tc.want {
+				t.Errorf("%s = %v (%v present); want explicit %t", tc.name, ptrValue(tc.got), tc.got != nil, tc.want)
+			}
+		}
+	})
+}
+
+func fireworksMessagesFixture() goai.Model {
+	no, yes := false, true
+	return goai.Model{
+		ID: "accounts/fireworks/models/kimi-k2p6", Name: "Kimi K2.6", Provider: goai.ProviderFireworks,
+		BaseURL: "http://127.0.0.1:0", Api: goai.ApiAnthropicMessages, Reasoning: true,
+		Input: []string{"text", "image"}, ContextWindow: 262000, MaxTokens: 262000,
+		Cost: goai.ModelCost{Input: 0.95, Output: 4, CacheRead: 0.16},
+		AnthropicCompat: &goai.AnthropicMessagesCompat{
+			AllowEmptySignature: &yes, SendSessionAffinityHeaders: &yes,
+			SupportsEagerToolInputStreaming: &no, SupportsCacheControlOnTools: &no, SupportsLongCacheRetention: &no,
+		},
+	}
+}
+
+func captureFireworksSimplePayload(t *testing.T, model *goai.Model, opts goai.StreamOptions) map[string]json.RawMessage {
+	t.Helper()
+	provider := goai.GetApiProvider(model.Api)
+	if provider == nil || provider.StreamSimple == nil {
+		t.Fatalf("missing streaming adapter for %q", model.Api)
+	}
+	stop := errors.New("payload captured")
+	var captured map[string]json.RawMessage
+	var calls, requests int
+	opts.APIKey = "test-fireworks-key"
+	opts.HTTPTransport = providerRetryTransportMain(func(*http.Request) (*http.Response, error) {
+		requests++
+		return nil, errors.New("unexpected HTTP request")
+	})
+	opts.OnPayload = func(payload any, _ *goai.Model) (any, error) {
+		calls++
+		encoded, err := json.Marshal(payload)
+		if err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(encoded, &captured); err != nil {
+			return nil, err
+		}
+		return nil, stop
+	}
+	var lastError error
+	for event := range provider.StreamSimple(t.Context(), model, &goai.Context{Messages: []goai.Message{goai.UserMessage("test")}}, &opts) {
+		if failure, ok := event.(*goai.ErrorEvent); ok {
+			lastError = failure.Err
+		}
+	}
+	if calls != 1 || requests != 0 || captured == nil || !errors.Is(lastError, stop) {
+		t.Fatalf("payload hooks=%d, HTTP requests=%d, payload=%v, error=%v; want one hook and no request", calls, requests, captured, lastError)
+	}
+	return captured
+}
+
+func assertFireworksPayloadField(t *testing.T, payload map[string]json.RawMessage, field, want string) {
+	t.Helper()
+	raw, present := payload[field]
+	if want == "" {
+		if present {
+			t.Fatalf("%s = %s; want absent", field, raw)
+		}
+		return
+	}
+	var gotValue, wantValue any
+	err := json.Unmarshal(raw, &gotValue)
+	if expectedErr := json.Unmarshal([]byte(want), &wantValue); expectedErr != nil {
+		t.Fatal(expectedErr)
+	}
+	if err != nil || !reflect.DeepEqual(gotValue, wantValue) {
+		t.Fatalf("%s = %s; want %s", field, raw, want)
 	}
 }
