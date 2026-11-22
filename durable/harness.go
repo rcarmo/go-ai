@@ -30,6 +30,9 @@ type Harness struct {
 	closeOnce             sync.Once
 	closeDone             chan struct{}
 	closeErr              error
+	providerSessionsMu    sync.Mutex
+	usedProviderSessions  map[string]struct{}
+	providerSessionOrder  []string
 	changed               chan struct{}
 	submissionWaiters     map[ID]map[chan struct{}]bool // Session-line owned; bounded registrations.
 }
@@ -701,6 +704,13 @@ func (h *Harness) scheduleLocked(id ID) {
 	h.workers[id] = true
 	h.scheduler.enable()
 }
+
+// Closed waits for shutdown without initiating it. The result retains the
+// first Storage failure after invocation joins and provider cleanup finish.
+func (h *Harness) Closed(ctx context.Context) (SessionEnd, error) {
+	return h.session.Closed(ctx)
+}
+
 func (h *Harness) Close(ctx context.Context) error {
 	if ctx == nil {
 		return reject("nil context")
@@ -739,6 +749,7 @@ func (h *Harness) Close(ctx context.Context) error {
 			for _, done := range joins {
 				<-done
 			}
+			h.cleanupProviderSessions()
 			// Actual host return can publish a retry barrier. Release process-only
 			// failure tokens and errors only after all host bookkeeping has joined.
 			h.session.taskBookkeeping(func() {

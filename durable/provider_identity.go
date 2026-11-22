@@ -48,13 +48,43 @@ func (r *TaskRuntime) providerSessionID(ctx context.Context) (string, error) {
 		}
 		return nil
 	})
-	if err != nil || id != "" {
-		return id, err
+	if err == nil && id == "" {
+		err = r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
+			var err error
+			id, err = ensureProviderDocument(tx, r.conversation)
+			return nil, err
+		})
 	}
-	err = r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
-		var err error
-		id, err = ensureProviderDocument(tx, r.conversation)
-		return nil, err
-	})
+	if err == nil && id != "" {
+		r.harness.noteProviderSession(id)
+	}
 	return id, err
+}
+
+func (h *Harness) noteProviderSession(id string) {
+	h.providerSessionsMu.Lock()
+	defer h.providerSessionsMu.Unlock()
+	if h.usedProviderSessions == nil {
+		h.usedProviderSessions = make(map[string]struct{})
+	}
+	if _, known := h.usedProviderSessions[id]; !known {
+		h.usedProviderSessions[id] = struct{}{}
+		h.providerSessionOrder = append(h.providerSessionOrder, id)
+	}
+}
+
+// Called after actual host joins. Creating or opening a conversation alone
+// does not grant authority to close its provider resources.
+func (h *Harness) cleanupProviderSessions() {
+	h.providerSessionsMu.Lock()
+	ids := h.providerSessionOrder
+	h.providerSessionOrder, h.usedProviderSessions = nil, nil
+	h.providerSessionsMu.Unlock()
+	for _, id := range ids {
+		if err := goai.CleanupSessionResources(id); err != nil {
+			// A caller-owned reporter may reenter Close. Do not hold up shutdown
+			// or replace a storage failure with a provider cleanup error.
+			go h.report(context.Background(), err, ReportInfo{Type: "host_error", Callback: "models"})
+		}
+	}
 }

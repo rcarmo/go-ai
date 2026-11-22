@@ -2,6 +2,7 @@ package goai
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 )
 
@@ -41,9 +42,22 @@ func CleanupSessionResources(sessionID string) error {
 		if cleanup == nil {
 			continue
 		}
-		if err := cleanup(sessionID); err != nil {
+		if err := invokeSessionCleanup(cleanup, sessionID); err != nil {
 			errs = append(errs, err)
 		}
 	}
 	return errors.Join(errs...)
+}
+
+func invokeSessionCleanup(cleanup func(string) error, sessionID string) (err error) {
+	defer func() {
+		if value := recover(); value != nil {
+			if cause, ok := value.(error); ok {
+				err = fmt.Errorf("session resource cleanup panic: %w", cause)
+			} else {
+				err = fmt.Errorf("session resource cleanup panic: %v", value)
+			}
+		}
+	}()
+	return cleanup(sessionID)
 }
