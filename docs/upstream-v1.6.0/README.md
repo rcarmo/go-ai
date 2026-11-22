@@ -290,4 +290,20 @@ The host registry accepts an explicit draft 7 reference policy. A `$ref` ignores
 
 ### Retained Oracle and native input correspondence
 
-The [native input receipt](dependencies/native-inputs.md) verifies retained QuickJS and Photon assets, selected AI/Chord archive members, and Vitest launch files. It reproduces the pinned SQLite migration statements byte for byte and records the separate `modernc.org/sqlite` runtime. Integrated offline regeneration matched exactly. These are asset, module and focused test receipts, not historical module-load traces or package-wide native parity. The OpenAI and Google GenAI archives remain unresolved.
+The [native input receipt](dependencies/native-inputs.md) verifies retained QuickJS and Photon assets, selected AI/Chord archive members, and Vitest launch files. It reproduces the pinned SQLite migration statements byte for byte and records the separate `modernc.org/sqlite` runtime. Integrated offline regeneration matched exactly. These are asset, module and focused test receipts, not historical module-load traces or package-wide native parity. The [provider archive receipt](dependencies/provider-archives.md) now verifies both exact Google GenAI and OpenAI tarballs against the pinned lock SHA-512 values. The module-load gap remains open.
+
+### Queued generation outcomes at withdrawal
+
+Three selected unchanged ownership originals (`harness-ownership.test.ts:656`, `:695`, `:804`) and the two input-entry abort originals (`harness-input-entries.test.ts:237`, `:258`) passed. The SQLite legacy queue fixture, which gives each waiting input a generation task, was red in all three scope cases: the aborted task lacked the canonical outcome required by Storage. Explicit withdrawal and scheduler cascade now commit the outcome with the submission and inbox changes. The scoped fixture checks a public persisted task outcome and `unanswered/aborted` with no entry or answer. Removing the task outcome reproduced the three failures.
+
+The write-budget probes distinguish refusal without partial adoption from successful atomic withdrawal and task document retirement. The old budget fixture's write row now starts pending instead of claiming a finished write with no entry. The legacy queue checks do not map all of the upstream scheduler or publication timing: the fixture verifies passive writes remain available and are eventually placed, rather than checking the original's immediate `queued` status. The public canonical `onAbort: keep` control still passes. The separate owned-descendant join fixture and four tool recovery reselection cases remained red at the start of this round and are not closed here.
+
+### Codex idle close and cache age
+
+The two unchanged read-idle cases and the cached connection age case passed. The cache age fixture checks two connections, send order `[1, 2]`, two created, and zero reused. Its native baseline already passed; doubling the age cap instead reused connection 1. A supplemental wire probe covers `1000/idle_timeout` for cached fallback and one-shot timeout. The baseline saw EOF; a wrong close reason and waiting for the peer to acknowledge the close both failed. The peer now sees the close while stream settlement and fallback proceed without waiting for its acknowledgment. The fixture keeps caller cancellation distinct. Cache idle and age eviction close reasons and the pre-output lifetime retry remain open.
+
+### Draft 2020-12 unevaluated array items
+
+The pinned `draft2020-12/unevaluatedItems` slice passed all 142 unchanged cases: 71 exact validity checks and 71 source error-agreement cases. The byte-identical fixture maps all 71 validity values through public `CheckJSONSchemaValue`; 27 failed on the compiled baseline. Evaluated indexes are scoped to an array instance and combine successful branches, `contains` matches, and reference annotations. Three mutations distinguished failed-branch leakage, dropped dynamic-reference annotations and dropped `contains` matches. The separate native diagnostic tests assert three paths; they do not map the source's independent error agreement.
+
+Round 6 focused Go tests for Durable, Schema and Codex passed twice, along with selected validation and strict-schema tests in `./tests`, `go vet`, and Staticcheck v0.8.2. No broad acceptance suite or profiling was run.
