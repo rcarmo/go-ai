@@ -336,6 +336,7 @@ type codexWebSocketSessionEntry struct {
 	cancelRead   context.CancelFunc
 	readDone     chan struct{}
 	busy         bool // guarded by codexWebSocketSessionsMu
+	debugClosing bool // guarded by codexWebSocketSessionsMu; Close owns shutdown
 	key          codexWebSocketSessionKey
 	conn         *websocket.Conn
 	continuation *codexWebSocketContinuation
@@ -406,7 +407,8 @@ func CloseOpenAICodexWebSocketSessions(sessionID string) {
 			if entry == nil {
 				continue
 			}
-			stopCodexSocketReader(entry)
+			entry.debugClosing = true
+			releaseCodexSocketLease(entry)
 			if entry.idleTimer != nil {
 				entry.idleTimer.Stop()
 				entry.idleTimer = nil
@@ -417,7 +419,12 @@ func CloseOpenAICodexWebSocketSessions(sessionID string) {
 	codexWebSocketSessionsMu.Unlock()
 	for _, entry := range entries {
 		if entry.conn != nil {
+			// Cancelling the in-flight Read closes the transport and can
+			// prevent the peer from receiving the normal close frame.
 			_ = entry.conn.Close(websocket.StatusNormalClosure, "debug_close")
+		}
+		if entry.cancelRead != nil {
+			entry.cancelRead()
 		}
 	}
 }
@@ -608,6 +615,10 @@ func removeCodexWebSocketSession(sessionID string, entry *codexWebSocketSessionE
 	key := entry.key
 	var conn *websocket.Conn
 	codexWebSocketSessionsMu.Lock()
+	if entry.debugClosing {
+		codexWebSocketSessionsMu.Unlock()
+		return
+	}
 	if codexWebSocketSessions[key] == entry {
 		delete(codexWebSocketSessions, key)
 	}
@@ -631,6 +642,10 @@ func scheduleCodexWebSocketIdleClose(sessionID string, entry *codexWebSocketSess
 	}
 	key := entry.key
 	codexWebSocketSessionsMu.Lock()
+	if entry.debugClosing {
+		codexWebSocketSessionsMu.Unlock()
+		return
+	}
 	if codexWebSocketSessions[key] != entry {
 		stopCodexSocketReader(entry)
 		if entry.idleTimer != nil {
@@ -652,10 +667,7 @@ func scheduleCodexWebSocketIdleClose(sessionID string, entry *codexWebSocketSess
 		}
 		return
 	}
-	if entry.lease != nil {
-		close(entry.lease.done)
-		entry.lease = nil
-	}
+	releaseCodexSocketLease(entry)
 	entry.busy = false
 	if entry.idleTimer != nil {
 		entry.idleTimer.Stop()

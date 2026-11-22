@@ -50,13 +50,17 @@ func startCodexSocketReader(entry *codexWebSocketSessionEntry) {
 	}()
 }
 
-// Caller holds the registry lock; no user callbacks run on this context.
-func stopCodexSocketReader(entry *codexWebSocketSessionEntry) {
-	entry.readClosed = true
+// Caller holds the registry lock.
+func releaseCodexSocketLease(entry *codexWebSocketSessionEntry) {
 	if entry.lease != nil {
 		close(entry.lease.done)
 		entry.lease = nil
 	}
+}
+
+func stopCodexSocketReader(entry *codexWebSocketSessionEntry) {
+	entry.readClosed = true
+	releaseCodexSocketLease(entry)
 	if entry.cancelRead != nil {
 		entry.cancelRead()
 	}
