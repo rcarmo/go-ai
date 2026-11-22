@@ -351,3 +351,21 @@ The pinned `draft2020-12/unevaluatedProperties` slice passed all 258 unchanged c
 The [loaded-input receipt](dependencies/openai-sdk-load.md) proves one focused, unchanged Oracle case loaded the exact 787-byte OpenAI 7.59.0 archive member. The expected behavior-pass/digest-fail control and the normal receipt reproduced offline. The copied closure is not a module-load list. Historical and transitive loads remain open for both SDKs.
 
 Round 8 focused Go tests passed twice in Durable, the Codex provider, the root Schema package and integration validation tests. Vet and Staticcheck v0.8.2 passed. No broad acceptance or profiling was run.
+
+### Signal sleep graph and task endings
+
+All 21 unchanged cases in `harness-signals.test.ts` passed. The native task graph omitted ordered signal keys from a sleeping node. It now sends those keys in the watcher update and returns detached snapshots. The compiled baseline failed on the missing `signals`; reversing the projection's keys failed the order check. The native witness also checks inactive wake, sleeping inspection and the exact delivered result. Separate public SQLite checks cover deadline expiry, explicit abort, and wake after reopen without first enabling scheduling. The ledger keeps source sites without an exact native comparison open.
+
+### Codex normal continuation deltas
+
+The unchanged cached delta case passed. Public native streaming now checks the same two full/delta arrays and custom tool output type, both explicit `store: false` flags, absent versus null first continuation, and all nine source counters. This is coverage of unchanged production. Changing the output type or adding explicit null failed the intended assertions. Eight partial Codex sites remain in this ledger slice: four developer prompt lines, request effort, output token cap, and two cached effort delta lines.
+
+### Codemode namespace prompt receipts
+
+Six unchanged selected declaration originals passed. Native system entries and QuickJS now map prompt order, empty catalogue, deferred stability, truncation warning, per-conversation sections, and exact constrained-sampling grammar. Both extension orders preserve first-declaration membership. These are coverage-only checks; four compiled controls distinguish deferred leakage, last-declaration precedence, grammar bytes and the missing budget warning. JS reference identity on the membership result stays partial because the Go guest receives detached values.
+
+### Retained provider catalogue assets
+
+The [catalogue receipt](dependencies/provider-catalog-assets.md) compares all 43 selected provider JSON files, the schema-v6 manifest and the generated model file against the verified pi-ai archive. All matched, and the native regeneration manifest matches the archived member. A valid JSON edit and a substituted filename with the same count both failed the verifier. This reproduces retained data, not historical module loads or a new model regeneration.
+
+Round 9 focused integrated tests passed twice, and vet, Staticcheck v0.8.2 and the offline catalogue receipt passed. No broad acceptance or profiling was run.
