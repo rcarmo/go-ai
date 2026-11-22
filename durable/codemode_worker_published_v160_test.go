@@ -14,11 +14,8 @@ import (
 // the first peer message.
 const officialWorkerFingerprintV160 = "quickjs-wasi 3.6.2, quickjs 0.17.0, prelude 4dce1bde, deterministic 1, stack 262144, heap 33554432, budget 100000"
 
-// Source: packages/codemode/test/sandbox.test.ts:506–523. Run the unchanged
-// guest script in the published portable guest, rather than feeding recorded
-// frames to the adapter. The portable endpoint is hosted by the same test
-// subprocess bridge used for the earlier official worker.
-func TestSourceV160CodemodePublishedWorkerNamespacedGlobals(t *testing.T) {
+func officialWorkerPackageRootV160(t *testing.T) string {
+	t.Helper()
 	root := os.Getenv("GOAI_CODEMODE_V160_PACKAGE_ROOT")
 	if root == "" {
 		t.Skip("opt-in: GOAI_CODEMODE_V160_PACKAGE_ROOT containing the verified pi-codemode 1.6.0 package and quickjs-wasi 3.6.2")
@@ -40,7 +37,15 @@ func TestSourceV160CodemodePublishedWorkerNamespacedGlobals(t *testing.T) {
 			t.Fatalf("%s version = %q; want %q", dependency.path, metadata.Version, dependency.version)
 		}
 	}
+	return root
+}
 
+// Source: packages/codemode/test/sandbox.test.ts:506–523. Run the unchanged
+// guest script in the published portable guest, rather than feeding recorded
+// frames to the adapter. The portable endpoint is hosted by the same test
+// subprocess bridge used for the earlier official worker.
+func TestSourceV160CodemodePublishedWorkerNamespacedGlobals(t *testing.T) {
+	root := officialWorkerPackageRootV160(t)
 	observed := make(chan int)
 	sandbox := &RemoteCodemodeSandbox{
 		Remote: &CodemodeWorkerRemote{

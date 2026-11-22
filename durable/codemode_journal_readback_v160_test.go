@@ -12,6 +12,8 @@ import (
 	goai "github.com/rcarmo/go-ai"
 )
 
+const v160UndefinedJournalScript = `const before = await nothing(); await tools.hold({}); return [before === undefined, (await nothing()) === undefined];`
+
 // codemode.test.ts:247–258 and 663–671. Compare the published text bytes,
 // stripping only the status/time envelope used by the original resultText.
 func TestSourceV160CodemodeGlobalJournalReadback(t *testing.T) {
@@ -19,13 +21,13 @@ func TestSourceV160CodemodeGlobalJournalReadback(t *testing.T) {
 		testV160CodemodeJournalReadback(t, `const n = await next(); await tools.hold({}); return [n, await next()];`, "next", "[1,2]", CodemodeUndefined, false)
 	})
 	t.Run("undefined", func(t *testing.T) {
-		testV160CodemodeJournalReadback(t, `const before = await nothing(); await tools.hold({}); return [before === undefined, (await nothing()) === undefined];`, "nothing", "[true,true]", CodemodeUndefined, false)
+		testV160CodemodeJournalReadback(t, v160UndefinedJournalScript, "nothing", "[true,true]", CodemodeUndefined, false)
 	})
 }
 
 // The native serial runner uses a separate guest callback path.
 func TestV160CodemodeSerialUndefinedGlobalJournalReadback(t *testing.T) {
-	testV160CodemodeJournalReadback(t, `const before = await nothing(); await tools.hold({}); return [before === undefined, (await nothing()) === undefined];`, "nothing", "[true,true]", CodemodeUndefined, true)
+	testV160CodemodeJournalReadback(t, v160UndefinedJournalScript, "nothing", "[true,true]", CodemodeUndefined, true)
 }
 
 // Supplemental: valid old explicit-null argument projections and their
@@ -44,12 +46,17 @@ func testV160CodemodeJournalReadback(t *testing.T, source, global, want string, 
 	}
 	defer engine.Close(bg)
 	engine.ParallelCalls = !serial
+	testV160CodemodeJournalWithSandbox(t, ctx, engine, source, global, want, wantArgument)
+}
+
+func testV160CodemodeJournalWithSandbox(t *testing.T, ctx context.Context, sandbox CodemodeSandbox, source, global, want string, wantArgument any) {
+	t.Helper()
 	store, err := newTestSQLite(t)
 	if err != nil {
 		t.Fatal(err)
 	}
 	registry := NewRegistry()
-	codemode, err := NewCodemodeExtension(engine)
+	codemode, err := NewCodemodeExtension(sandbox)
 	if err != nil {
 		t.Fatal(err)
 	}
