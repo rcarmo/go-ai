@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"hash/crc32"
 	"io"
+	"math"
 	"net/http"
 	"reflect"
 	"strings"
@@ -967,9 +968,17 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 		return &codexProtocolError{message: "Invalid Codex stream event: " + goai.FormatThrownValue(err), payload: string(payload), cause: err, partial: partial}
 	}
 
+	var idleTimeout time.Duration
+	var idleErr error
+	if opts != nil && opts.TimeoutMs != nil && *opts.TimeoutMs > 0 {
+		idleMs := int64(*opts.TimeoutMs)
+		idleTimeout = time.Duration(min(idleMs, math.MaxInt64/int64(time.Millisecond))) * time.Millisecond
+		idleErr = fmt.Errorf("WebSocket idle timeout after %dms", idleMs)
+	}
+
 readLoop:
 	for {
-		data, err := readCodexSocket(ctx, conn, lease)
+		data, err := readCodexSocketWithIdleTimeout(ctx, conn, lease, idleTimeout, idleErr)
 		if err != nil {
 			if useCachedSession && entry != nil && opts != nil {
 				removeCodexWebSocketSession(cacheSessionID, entry)
@@ -990,6 +999,9 @@ readLoop:
 				break
 			}
 			if !started {
+				if err == idleErr {
+					return err
+				}
 				return fmt.Errorf("WebSocket read: %w", err)
 			}
 			transportFailure(err)
