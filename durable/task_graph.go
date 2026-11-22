@@ -2,6 +2,7 @@ package durable
 
 import (
 	"context"
+	"slices"
 	"strconv"
 	"sync"
 )
@@ -23,12 +24,13 @@ type TaskGraphNode struct {
 	Conversations  []ID           `json:"conversations"`
 }
 type TaskGraphState struct {
-	Until   *int64 `json:"until,omitempty"`
-	Status  string `json:"status"`
-	Phase   string `json:"phase,omitempty"`
-	On      []ID   `json:"on,omitempty"`
-	Policy  string `json:"policy,omitempty"`
-	Outcome string `json:"outcome,omitempty"`
+	Until   *int64      `json:"until,omitempty"`
+	Status  string      `json:"status"`
+	Phase   string      `json:"phase,omitempty"`
+	Signals []SignalKey `json:"signals,omitzero"`
+	On      []ID        `json:"on,omitempty"`
+	Policy  string      `json:"policy,omitempty"`
+	Outcome string      `json:"outcome,omitempty"`
 }
 
 func graphNode(task Task, conversations []ID, limits Limits) (TaskGraphNode, error) {
@@ -41,6 +43,7 @@ func graphNode(task Task, conversations []ID, limits Limits) (TaskGraphNode, err
 		state.Outcome = record.State.Outcome.Status
 	} else {
 		state.Phase, _ = taskCheckpointMap(record.State.Checkpoint)["phase"].(string)
+		state.Signals = record.State.Signals // CanonicalTask already detached the slice.
 		state.On = append([]ID(nil), record.State.On...)
 		state.Policy = record.State.Policy
 	}
@@ -72,6 +75,7 @@ func copyTaskGraph(graph TaskGraph) TaskGraph {
 	for key, node := range graph.Tasks {
 		node.Conversations = append([]ID{}, node.Conversations...)
 		node.State.On = append([]ID(nil), node.State.On...)
+		node.State.Signals = slices.Clone(node.State.Signals)
 		if node.State.Until != nil {
 			until := *node.State.Until
 			node.State.Until = &until

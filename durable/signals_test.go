@@ -1309,3 +1309,208 @@ func TestSourceV160SignalReadingVersionsAndMigration(t *testing.T) {
 		})
 	}
 }
+
+// Source harness-signals.test.ts:177. The graph exposes the ordered waiting
+// keys without retaining an invocation or lending the watcher its slices.
+func TestSourceV160SignalSleepGraph(t *testing.T) {
+	ctx, cancel := context.WithTimeout(bg, 5*time.Second)
+	defer cancel()
+	store, err := newTestSQLite(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	answer := testSignalAnswer(t)
+	parked := make(chan error, 1)
+	wakes := make(chan Wake, 16)
+	def := signalAskDefinition(t, answer, nil, parked, "a", "b")
+	h := taskTestHarnessOptions(t, store, Options{OnWake: func(w Wake) {
+		select {
+		case wakes <- w:
+		default:
+		}
+	}}, def)
+	id := createPublicTask(t, h, def, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
+	watch, err := h.WatchTaskGraph(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer watch.Stop()
+	sleeping := make(chan TaskGraphState, 1)
+	if err := watch.Start(func(_ context.Context, graph TaskGraph, _ []Operation) error {
+		if state := graph.Tasks[idText(id)].State; state.Status == "sleeping" {
+			select {
+			case sleeping <- state:
+			default:
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.Resume(ctx); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err = <-parked:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	for {
+		wake, err := h.Wake(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !wake.Active {
+			if wake != (Wake{Active: false}) {
+				t.Fatalf("sleep without a deadline: %+v", wake)
+			}
+			break
+		}
+		select {
+		case <-wakes:
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+	}
+	const wanted = `{"status":"sleeping","phase":"answered","signals":[{"signal":"test.answer","key":"a"},{"signal":"test.answer","key":"b"}]}`
+	var observed TaskGraphState
+	select {
+	case observed = <-sleeping:
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	data, err := json.Marshal(observed)
+	if err != nil || string(data) != wanted {
+		t.Fatalf("sleep graph state = %s, %v; want %s", data, err, wanted)
+	}
+	snapshot := watch.Value()
+	snapshot.Tasks[idText(id)].State.Signals[0].Key = "changed snapshot"
+	observed.Signals[1].Key = "changed callback"
+	data, err = json.Marshal(watch.Value().Tasks[idText(id)].State)
+	if err != nil || string(data) != wanted {
+		t.Fatalf("detached sleep graph state = %s, %v; want %s", data, err, wanted)
+	}
+	inspection, err := h.Inspect(ctx)
+	if err != nil || len(inspection.Tasks) != 1 || inspection.Tasks[0].Record.ID != id || inspection.Tasks[0].Kind != "sleeping" {
+		t.Fatalf("sleep inspection = %+v, %v", inspection, err)
+	}
+	if got, err := h.Signal(ctx, id, answer, "b", JSON{"text": "bee"}); got != SignalDelivered || err != nil {
+		t.Fatalf("signal b = %q, %v", got, err)
+	}
+	record, err := h.WaitForTask(ctx, id)
+	want := taskDone(map[string]any{
+		"wake":   map[string]any{"reason": "signal", "signal": "test.answer", "key": "b"},
+		"states": []any{nil, map[string]any{"value": map[string]any{"text": "bee"}}},
+	}).Outcome
+	if err != nil || !reflect.DeepEqual(record.State.Outcome, want) {
+		got, _ := json.Marshal(record.State.Outcome)
+		t.Fatalf("sleep result %s, %v", got, err)
+	}
+}
+
+// Source harness-signals.test.ts:207, :387 and :556, using an injected clock
+// and committed sleep receipts rather than waiting for a wall-clock timer.
+func TestSourceV160SignalSleepEndings(t *testing.T) {
+	for _, ending := range []string{"deadline", "abort", "reopen"} {
+		t.Run(ending, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(bg, 8*time.Second)
+			defer cancel()
+			store, err := newTestSQLite(t)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var clock atomic.Int64
+			clock.Store(1000)
+			deadline := int64(2000)
+			var until *int64
+			if ending == "deadline" {
+				until = &deadline
+			}
+			wakes := make(chan Wake, 16)
+			options := Options{Now: clock.Load, OnWake: func(w Wake) {
+				select {
+				case wakes <- w:
+				default:
+				}
+			}}
+			answer := testSignalAnswer(t)
+			parked := make(chan error, 1)
+			def := signalAskDefinition(t, answer, until, parked)
+			h := taskTestHarnessOptions(t, store, options, def)
+			id := createPublicTask(t, h, def, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
+			if err := h.Resume(ctx); err != nil {
+				t.Fatal(err)
+			}
+			select {
+			case err := <-parked:
+				if err != nil {
+					t.Fatal(err)
+				}
+			case <-ctx.Done():
+				t.Fatal(ctx.Err())
+			}
+			for {
+				wake, err := h.Wake(ctx)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !wake.Active {
+					if !sameWake(wake, Wake{Active: false, At: until}) {
+						t.Fatalf("sleep wake = %+v; want inactive with deadline %v", wake, until)
+					}
+					break
+				}
+				select {
+				case <-wakes:
+				case <-ctx.Done():
+					t.Fatal(ctx.Err())
+				}
+			}
+			var want *TaskOutcome
+			switch ending {
+			case "deadline":
+				clock.Store(deadline)
+				if err := h.Resume(ctx); err != nil {
+					t.Fatal(err)
+				}
+				want = taskDone(map[string]any{"wake": map[string]any{"reason": "expired"}, "states": []any{map[string]any{"expired": true}}}).Outcome
+			case "abort":
+				if got, err := h.AbortTask(ctx, id); err != nil || got != "marked" {
+					t.Fatalf("abort = %q, %v", got, err)
+				}
+				want = &TaskOutcome{Status: "aborted", Reason: "test"}
+			case "reopen":
+				if err := h.Close(ctx); err != nil {
+					t.Fatal(err)
+				}
+				h = taskTestHarnessOptions(t, reopenStoreAfterHarnessClose(t, store), options, def)
+				if wake, err := h.Wake(ctx); err != nil || wake != (Wake{Active: false}) {
+					t.Fatalf("reopened sleep wake = %+v, %v", wake, err)
+				}
+				got, err := h.Commit(ctx, func(tx *Tx) (any, error) { return tx.Signal(id, answer, "a", JSON{"text": "later"}) })
+				if err != nil || got != SignalDelivered {
+					t.Fatalf("reopened sleep delivery = %v, %v", got, err)
+				}
+				if wake, err := h.Wake(ctx); err != nil || wake != (Wake{Active: true}) {
+					t.Fatalf("reopened wake after delivery = %+v, %v", wake, err)
+				}
+				if inspection, err := h.Inspect(ctx); err != nil || inspection.Scheduling != "paused" {
+					t.Fatalf("delivery enabled scheduling: %+v, %v", inspection, err)
+				}
+				if err := h.Resume(ctx); err != nil {
+					t.Fatal(err)
+				}
+				want = taskDone(map[string]any{"wake": map[string]any{"reason": "signal", "signal": "test.answer", "key": "a"}, "states": []any{map[string]any{"value": map[string]any{"text": "later"}}}}).Outcome
+			}
+			record, err := h.WaitForTask(ctx, id)
+			actual, encodeErr := json.Marshal(record.State.Outcome)
+			expected, _ := json.Marshal(want)
+			if err != nil || encodeErr != nil || string(actual) != string(expected) {
+				t.Fatalf("ending outcome = %s, %v, %v; want %s", actual, err, encodeErr, expected)
+			}
+		})
+	}
+}
