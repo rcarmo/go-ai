@@ -1,0 +1,152 @@
+{
+  "format": 1,
+  "pin": "faac585884ae2c013a6b1400f3e9e77f10b34bac",
+  "evidenceBase": "962c51d87a0038000ca37e3b34dcf53e6316dfc8",
+  "node": "v26.13.0",
+  "vitest": "4.1.12",
+  "selection": {
+    "file": "packages/ai/test/fireworks-models.test.ts",
+    "selector": "^Fireworks models (registers non-GLM, non-Kimi-K3 models via Anthropic-compatible Messages API|aligns GLM 5\\.3 Fast with GLM 5\\.3's OpenAI-compatible config|routes Kimi K3 through the OpenAI-compatible API with native effort controls)$",
+    "caseNames": [
+      "Fireworks models registers non-GLM, non-Kimi-K3 models via Anthropic-compatible Messages API",
+      "Fireworks models aligns GLM 5.3 Fast with GLM 5.3's OpenAI-compatible config",
+      "Fireworks models routes Kimi K3 through the OpenAI-compatible API with native effort controls"
+    ],
+    "filteredOut": [
+      "Fireworks models omits unsupported long cache retention for accounts/fireworks/models/glm-5p3",
+      "Fireworks models omits unsupported long cache retention for accounts/fireworks/routers/glm-5p3-fast",
+      "Fireworks models sends native Messages effort levels for accounts/fireworks/models/deepseek-v4p1-flash",
+      "Fireworks models sends native Messages effort levels for accounts/fireworks/models/qwen3p8-max",
+      "Fireworks models sends native Messages effort levels for accounts/fireworks/models/qwen3p8-2p4t-a95b",
+      "Fireworks models exposes distinct native effort levels for accounts/fireworks/models/glm-5p3",
+      "Fireworks models exposes distinct native effort levels for accounts/fireworks/routers/glm-5p3-fast",
+      "Fireworks models exposes distinct native effort levels for accounts/fireworks/models/kimi-k3",
+      "Fireworks models exposes distinct native effort levels for accounts/fireworks/routers/kimi-k3-fast",
+      "Fireworks models keeps non-adaptive Messages models on budget-based thinking",
+      "Fireworks models resolves FIREWORKS_API_KEY from the environment",
+      "Fireworks models sets Fireworks-specific compat for session affinity and unsupported tool fields",
+      "Anthropic-compatible session affinity and tool compat sends x-session-affinity header for Fireworks models",
+      "Anthropic-compatible session affinity and tool compat omits x-session-affinity header for native Anthropic models",
+      "Anthropic-compatible session affinity and tool compat omits x-session-affinity header when cacheRetention is none",
+      "Anthropic-compatible session affinity and tool compat sends only x-session-id for OpenRouter models",
+      "Anthropic-compatible session affinity and tool compat omits OpenRouter session headers when cacheRetention is none",
+      "Anthropic-compatible session affinity and tool compat allows OpenRouter session headers to be disabled",
+      "Anthropic-compatible session affinity and tool compat omits cache_control on tools for Fireworks models",
+      "Anthropic-compatible session affinity and tool compat omits eager_input_streaming on tools for Fireworks models",
+      "Anthropic-compatible session affinity and tool compat sends cache_control on tools for native Anthropic models",
+      "Anthropic-compatible session affinity and tool compat sends eager_input_streaming on tools for native Anthropic models"
+    ]
+  },
+  "result": {
+    "passed": 3,
+    "failed": 0,
+    "selectedSkipped": 0
+  },
+  "sourceDigests": [
+    {
+      "file": "packages/ai/test/fireworks-models.test.ts",
+      "sha256": "d810f57c33ae7757503da655f034449587e31b828ae9b3376e3e0da886791e3a"
+    },
+    {
+      "file": "packages/ai/vitest.config.ts",
+      "sha256": "628ade6e9960f0378ef8ddfd1c06f3a12cf375199725f3f6b41de0c8cf5c0313"
+    },
+    {
+      "file": "packages/ai/src/compat.ts",
+      "sha256": "fe077a90f918a69fa6595cf9a7b4571e28e78b57fd52ccde498c5151838569be"
+    },
+    {
+      "file": "packages/ai/src/providers/fireworks.models.ts",
+      "sha256": "96c61a9aff3469c1e2ebe18d2828c9f19115b77228ed29550b78914f26ce56a4"
+    }
+  ],
+  "assets": {
+    "archive": "earendil-works-pi-ai-1.6.0.tgz",
+    "archiveSha256": "d68312ec574bc959cb7fee26da4f4876d067aed9bbbe76e876359e60d2294747",
+    "fileCount": 44,
+    "manifestSha256": "cc46553f3f008788e667600a873d3d83a4df8fe46c67b06c65b16fd828450e8b",
+    "fireworksSha256": "71811ef203ad9e7284b6aa6647dedc665847a96a793cb8f364967256e3b6c647"
+  },
+  "control": {
+    "change": "reintroduce Kimi K3 explicit supportsDeveloperRole false in scratch fireworks.json",
+    "failed": [
+      "Fireworks models routes Kimi K3 through the OpenAI-compatible API with native effort controls"
+    ],
+    "passed": [
+      "Fireworks models registers non-GLM, non-Kimi-K3 models via Anthropic-compatible Messages API",
+      "Fireworks models aligns GLM 5.3 Fast with GLM 5.3's OpenAI-compatible config"
+    ]
+  },
+  "copiedDependencies": {
+    "roots": [
+      "npm:node_modules/vitest",
+      "npm:node_modules/partial-json",
+      "npm:node_modules/typebox",
+      "npm:node_modules/openai",
+      "npm:node_modules/@anthropic-ai/sdk"
+    ],
+    "host": {
+      "os": "linux",
+      "cpu": "arm64",
+      "libc": "glibc"
+    },
+    "placements": [
+      "node_modules/@anthropic-ai/sdk",
+      "node_modules/@babel/runtime",
+      "node_modules/@jridgewell/sourcemap-codec",
+      "node_modules/@oxc-project/types",
+      "node_modules/@rolldown/binding-linux-arm64-gnu",
+      "node_modules/@rolldown/pluginutils",
+      "node_modules/@stablelib/base64",
+      "node_modules/@standard-schema/spec",
+      "node_modules/@types/chai",
+      "node_modules/@types/deep-eql",
+      "node_modules/@types/estree",
+      "node_modules/@vitest/expect",
+      "node_modules/@vitest/mocker",
+      "node_modules/@vitest/pretty-format",
+      "node_modules/@vitest/runner",
+      "node_modules/@vitest/snapshot",
+      "node_modules/@vitest/spy",
+      "node_modules/@vitest/utils",
+      "node_modules/assertion-error",
+      "node_modules/chai",
+      "node_modules/convert-source-map",
+      "node_modules/detect-libc",
+      "node_modules/es-module-lexer",
+      "node_modules/estree-walker",
+      "node_modules/expect-type",
+      "node_modules/fast-sha256",
+      "node_modules/fdir",
+      "node_modules/json-schema-to-ts",
+      "node_modules/lightningcss",
+      "node_modules/lightningcss-linux-arm64-gnu",
+      "node_modules/magic-string",
+      "node_modules/nanoid",
+      "node_modules/obug",
+      "node_modules/openai",
+      "node_modules/partial-json",
+      "node_modules/pathe",
+      "node_modules/picocolors",
+      "node_modules/picomatch",
+      "node_modules/postcss",
+      "node_modules/rolldown",
+      "node_modules/siginfo",
+      "node_modules/source-map-js",
+      "node_modules/stackback",
+      "node_modules/standardwebhooks",
+      "node_modules/std-env",
+      "node_modules/tinybench",
+      "node_modules/tinyexec",
+      "node_modules/tinyglobby",
+      "node_modules/tinyrainbow",
+      "node_modules/ts-algebra",
+      "node_modules/typebox",
+      "node_modules/vite",
+      "node_modules/vitest",
+      "node_modules/why-is-node-running"
+    ]
+  },
+  "exclusions": [],
+  "scope": "offline-model-only"
+}
