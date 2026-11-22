@@ -1,0 +1,111 @@
+import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
+
+type Receipt = { commit: string; file: string; heading: string };
+type NativeTest = { file: string; test: string; receipt?: string };
+type Manifest = {
+	kind: "manifest"; schema: 1; lane: string; pin: string; base: string;
+	files: Record<string, string>; receipts: Record<string, Receipt>; nativeTests: Record<string, NativeTest>;
+};
+type Case = {
+	kind: "case"; id: string; file: string; name: string; first: number; last: number;
+	nameLine?: number; original: string | null; variants?: string[]; restricted?: Record<string, string[]>;
+};
+type Assertion = {
+	kind: "assertion"; id: string; case: string; line: number; expect: string;
+	status: "mapped" | "partial" | "candidate" | "unmatched";
+	native?: { test: string; anchor: string }; note?: string;
+};
+type Probe = { kind: "gap" | "supplemental"; id: string; note: string; native?: string; related?: string };
+type Row = Manifest | Case | Assertion | Probe;
+
+const pin = "faac585884ae2c013a6b1400f3e9e77f10b34bac";
+const [oracle, mirror] = process.argv.slice(2);
+if (!oracle) throw Error("Usage: bun run docs/upstream-v1.6.0/assertions/validate.ts <oracle-dir> [pinned-git-mirror]");
+const git = (cwd: string, ...args: string[]) => execFileSync("git", args, { cwd });
+const root = git(import.meta.dir, "rev-parse", "--show-toplevel").toString().trim();
+const hash = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
+const sha = /^[0-9a-f]{40}$/;
+const expectLine = /^\s*expect\(/;
+const testLine = /^\s*it(?:\(|\.each\()/;
+function requireCheck(ok: unknown, message: string): asserts ok {
+	if (!ok) throw Error(message);
+}
+
+let total = 0;
+const globalIds = new Set<string>();
+const maps = readdirSync(import.meta.dir).filter(name => name.endsWith(".jsonl")).sort();
+requireCheck(maps.length > 0, "no assertion ledgers");
+for (const name of maps) {
+	const [manifest, ...rows] = readFileSync(join(import.meta.dir, name), "utf8").trimEnd().split("\n").map(line => JSON.parse(line) as Row);
+	requireCheck(manifest?.kind === "manifest" && manifest.schema === 1 && manifest.pin === pin && sha.test(manifest.base), `${name}: manifest`);
+	git(root, "cat-file", "-e", `${manifest.base}^{commit}`);
+	const sources = new Map<string, string[]>();
+	for (const [file, digest] of Object.entries(manifest.files)) {
+		const bytes = readFileSync(join(oracle, file));
+		requireCheck(hash(bytes) === digest, `${file}: Oracle bytes differ`);
+		if (mirror) requireCheck(bytes.equals(git(mirror, "show", `${pin}:${file}`)), `${file}: pinned git bytes differ`);
+		sources.set(file, bytes.toString().split("\n"));
+	}
+	for (const [id, receipt] of Object.entries(manifest.receipts)) {
+		requireCheck(sha.test(receipt.commit), `${name}:${id}: receipt commit`);
+		const doc = git(root, "show", `${receipt.commit}:${receipt.file}`).toString().split("\n");
+		requireCheck(doc.some(line => line.replace(/^#+ /, "") === receipt.heading), `${name}:${id}: receipt heading absent`);
+	}
+	const nativeBodies = new Map<string, string>();
+	for (const [id, test] of Object.entries(manifest.nativeTests)) {
+		const topLevel = test.test.split("/")[0];
+		requireCheck(/^Test\w+$/.test(topLevel) && test.file.endsWith("_test.go"), `${name}:${id}: invalid native test`);
+		const body = readFileSync(join(root, test.file), "utf8");
+		requireCheck(body.includes(`func ${topLevel}(`), `${name}:${id}: native test absent`);
+		if (test.receipt !== undefined) requireCheck(manifest.receipts[test.receipt], `${name}:${id}: unknown native receipt`);
+		nativeBodies.set(id, body);
+	}
+	const cases = new Map<string, { test: Case; lines: Set<number> }>();
+	const seenLocators = new Set<string>();
+	const status = { mapped: 0, partial: 0, candidate: 0, unmatched: 0 };
+	for (const row of rows) {
+		requireCheck("id" in row && typeof row.id === "string" && !globalIds.has(row.id), `${name}: duplicate or missing ID`);
+		globalIds.add(row.id);
+		if (row.kind === "case") {
+			const lines = sources.get(row.file);
+			requireCheck(lines && Number.isInteger(row.first) && Number.isInteger(row.last) && row.first >= 1 && row.first < row.last && row.last <= lines.length, `${row.id}: invalid source span`);
+			const declaration = row.nameLine ?? row.first;
+			requireCheck(declaration >= row.first && declaration <= row.last && testLine.test(lines[row.first - 1]) && lines[declaration - 1].includes(`"${row.name}"`), `${row.id}: source test declaration differs`);
+			requireCheck(!lines.slice(row.first, row.last).some(line => testLine.test(line)), `${row.id}: span contains another case`);
+			requireCheck(row.original === null || manifest.receipts[row.original], `${row.id}: unknown original receipt`);
+			const expected = new Set<number>();
+			for (let line = row.first; line <= row.last; line++) if (expectLine.test(lines[line - 1])) expected.add(line);
+			requireCheck(expected.size > 0, `${row.id}: no assertion sites`);
+			if (row.variants) requireCheck(row.variants.length > 1 && row.variants.length === new Set(row.variants).size, `${row.id}: invalid variants`);
+			for (const [line, variants] of Object.entries(row.restricted ?? {})) {
+				requireCheck(expected.has(Number(line)) && variants.length > 0 && variants.every(v => row.variants?.includes(v)), `${row.id}: invalid variant restriction`);
+			}
+			cases.set(row.id, { test: row, lines: expected });
+		} else if (row.kind === "assertion") {
+			const entry = cases.get(row.case);
+			requireCheck(row.id === `${row.case}#L${row.line}` && entry?.lines.delete(row.line), `${row.id}: unexpected or duplicate assertion`);
+			const locator = `${entry.test.file}:${row.line}`;
+			requireCheck(!seenLocators.has(locator) && sources.get(entry.test.file)?.[row.line - 1].trim() === row.expect, `${row.id}: duplicate or stale source locator`);
+			seenLocators.add(locator);
+			requireCheck(Object.hasOwn(status, row.status), `${row.id}: unknown status`);
+			if (row.status === "unmatched") requireCheck(!row.native, `${row.id}: unmatched row claims native evidence`);
+			else {
+				requireCheck(row.native?.anchor && nativeBodies.get(row.native.test)?.includes(row.native.anchor), `${row.id}: native assertion anchor absent`);
+				if (row.status === "mapped" || row.status === "partial") requireCheck(manifest.nativeTests[row.native.test].receipt, `${row.id}: missing native run receipt`);
+				if (row.status !== "mapped") requireCheck(row.note, `${row.id}: specify the evidence gap`);
+			}
+			status[row.status]++;
+			total++;
+		} else {
+			requireCheck((row.kind === "gap" || row.kind === "supplemental") && row.note, `${row.id}: invalid row`);
+			if (row.native) requireCheck(nativeBodies.has(row.native), `${row.id}: unknown native probe`);
+			if (row.related) requireCheck(cases.has(row.related), `${row.id}: unknown related case`);
+		}
+	}
+	for (const [id, entry] of cases) requireCheck(entry.lines.size === 0, `${id}: unrecorded assertion sites ${[...entry.lines]}`);
+	console.log(`${name}: ${cases.size} declarations, ${Object.values(status).reduce((sum, count) => sum + count, 0)} assertion sites`, status);
+}
+console.log(`Validated ${total} scoped source assertion locators${mirror ? " against pinned git bytes" : " against Oracle files"}. No tests executed.`);
