@@ -369,3 +369,17 @@ Six unchanged selected declaration originals passed. Native system entries and Q
 The [catalogue receipt](dependencies/provider-catalog-assets.md) compares all 43 selected provider JSON files, the schema-v6 manifest and the generated model file against the verified pi-ai archive. All matched, and the native regeneration manifest matches the archived member. A valid JSON edit and a substituted filename with the same count both failed the verifier. This reproduces retained data, not historical module loads or a new model regeneration.
 
 Round 9 focused integrated tests passed twice, and vet, Staticcheck v0.8.2 and the offline catalogue receipt passed. No broad acceptance or profiling was run.
+
+### Exact Durable signal lifecycle and restart comparisons
+
+The remaining cases cover public result codes, including delivery to a still-live abort-marked task; two ordered sleeps with `b` delivered before `a`; exact refusal to reuse an expired key; and a crash-shaped SQLite seed whose wake and restart count survive the same checkpoint but clear on progress. These are coverage of unchanged production. Together with the earlier signal suite they map all 54 scoped signal assertion sites. The full 21-case Oracle file previously passed unchanged on the same pin.
+
+### Exact Codex prompt, effort, and cap requests
+
+Four unchanged selected originals passed. The native probes compare complete developer/user inputs, absent `instructions`, historical effort ordering from the actual first SSE response, token cap and null-versus-absent fields, and the three cached low/high/high turns. Four discriminating compiled mutations failed. All 79 sites in the current Codex ledger slice now map. Unseeded Codex and other providers are outside that count.
+
+### Observed QuickJS compiler input
+
+The [WASM load receipt](dependencies/quickjs-wasm-load.md) reproduced one pinned inline Oracle test compiling the exact 637,405-byte QuickJS-WASI asset, also embedded by the native package. A valid extra custom section preserved behavioral success but failed the separate digest check. This is one current Oracle compile, not a native load trace or worker/remote acceptance.
+
+The Round 10 signal, Codex and QuickJS checkpoint passed focused integrated Go tests twice, vet, Staticcheck v0.8.2 and offline receipt reproduction. The Codemode journal lane was not included in this checkpoint. Broad acceptance and profiling were not run.
