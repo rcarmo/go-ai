@@ -1,0 +1,273 @@
+{
+  "format": 1,
+  "pin": "faac585884ae2c013a6b1400f3e9e77f10b34bac",
+  "evidenceBase": "2184e6164e220f1c874cd0230a8f4d2399e026bd",
+  "node": "v26.13.0",
+  "vitest": "4.1.12",
+  "selection": {
+    "file": "packages/ai/test/qwen-token-plan-models.test.ts",
+    "selector": "^Qwen Token Plan models (exposes exactly the documented Individual text models( on the China endpoint)?|exposes all text models on qwen-token-plan(-cn)?|omits image models from qwen-token-plan(-cn)?|omits retired models on qwen-token-plan(-cn|-individual|-individual-cn)?)$",
+    "caseNames": [
+      "Qwen Token Plan models exposes exactly the documented Individual text models",
+      "Qwen Token Plan models exposes exactly the documented Individual text models on the China endpoint",
+      "Qwen Token Plan models exposes all text models on qwen-token-plan",
+      "Qwen Token Plan models exposes all text models on qwen-token-plan-cn",
+      "Qwen Token Plan models omits image models from qwen-token-plan",
+      "Qwen Token Plan models omits image models from qwen-token-plan-cn",
+      "Qwen Token Plan models omits retired models on qwen-token-plan",
+      "Qwen Token Plan models omits retired models on qwen-token-plan-cn",
+      "Qwen Token Plan models omits retired models on qwen-token-plan-individual",
+      "Qwen Token Plan models omits retired models on qwen-token-plan-individual-cn"
+    ],
+    "filteredOut": [
+      "Qwen Token Plan models prefers the per-plan key on qwen-token-plan and falls back to the shared one",
+      "Qwen Token Plan models prefers the per-plan key on qwen-token-plan-cn and falls back to the shared one",
+      "Qwen Token Plan models prefers the per-plan key on qwen-token-plan-individual and falls back to the shared one",
+      "Qwen Token Plan models prefers the per-plan key on qwen-token-plan-individual-cn and falls back to the shared one",
+      "Qwen Token Plan models keeps a per-plan key away from the other plan",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan'/'deepseek-v4-pro'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan'/'glm-5'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan'/'glm-5.1'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan'/'glm-5.2'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan'/'kimi-k2.5'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan'/'kimi-k2.6'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan'/'kimi-k2.7-code'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan'/'qwen3.6-flash'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan'/'qwen3.6-plus'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan'/'qwen3.7-max'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan'/'qwen3.7-plus'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan'/'qwen3.8-flash'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan'/'qwen3.8-max'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan-cn'/'deepseek-v4-pro'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan-cn'/'glm-5'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan-cn'/'glm-5.1'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan-cn'/'glm-5.2'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan-cn'/'kimi-k2.5'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan-cn'/'kimi-k2.6'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan-cn'/'kimi-k2.7-code'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan-cn'/'qwen3.6-flash'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan-cn'/'qwen3.6-plus'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan-cn'/'qwen3.7-max'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan-cn'/'qwen3.7-plus'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan-cn'/'qwen3.8-flash'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan-cn'/'qwen3.8-max'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan-individual'/'deepseek-v4-flash-0731'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan-individual'/'deepseek-v4-pro'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan-individual'/'deepseek-v4-pro-0813'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan-individual'/'deepseek-v4.1-flash'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan-individual'/'deepseek-v4.1-flash-1017'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan-individual'/'glm-5.2'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan-individual'/'glm-5.3'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan-individual'/'qwen3.6-flash'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan-individual'/'qwen3.7-max'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan-individual'/'qwen3.7-plus'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan-individual'/'qwen3.8-flash'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan-individual'/'qwen3.8-max'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan-individual'/'qwen4-max-preview'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan-individual-cn'/'deepseek-v4-flash-0731'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan-individual-cn'/'deepseek-v4-pro'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan-individual-cn'/'deepseek-v4-pro-0813'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan-individual-cn'/'deepseek-v4.1-flash'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan-individual-cn'/'deepseek-v4.1-flash-1017'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan-individual-cn'/'glm-5.2'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan-individual-cn'/'glm-5.3'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan-individual-cn'/'qwen3.6-flash'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan-individual-cn'/'qwen3.7-max'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan-individual-cn'/'qwen3.7-plus'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan-individual-cn'/'qwen3.8-flash'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan-individual-cn'/'qwen3.8-max'",
+      "Qwen Token Plan models sends Qwen thinking fields for 'qwen-token-plan-individual-cn'/'qwen4-max-preview'",
+      "Qwen Token Plan models exposes Qwen reasoning_effort levels for 'qwen-token-plan'/'deepseek-v4-pro'",
+      "Qwen Token Plan models exposes Qwen reasoning_effort levels for 'qwen-token-plan'/'glm-5'",
+      "Qwen Token Plan models exposes Qwen reasoning_effort levels for 'qwen-token-plan'/'glm-5.1'",
+      "Qwen Token Plan models exposes Qwen reasoning_effort levels for 'qwen-token-plan'/'glm-5.2'",
+      "Qwen Token Plan models exposes Qwen reasoning_effort levels for 'qwen-token-plan-cn'/'deepseek-v4-pro'",
+      "Qwen Token Plan models exposes Qwen reasoning_effort levels for 'qwen-token-plan-cn'/'glm-5'",
+      "Qwen Token Plan models exposes Qwen reasoning_effort levels for 'qwen-token-plan-cn'/'glm-5.1'",
+      "Qwen Token Plan models exposes Qwen reasoning_effort levels for 'qwen-token-plan-cn'/'glm-5.2'",
+      "Qwen Token Plan models exposes Qwen reasoning_effort levels for 'qwen-token-plan-individual'/'deepseek-v4-flash-0731'",
+      "Qwen Token Plan models exposes Qwen reasoning_effort levels for 'qwen-token-plan-individual'/'deepseek-v4-pro'",
+      "Qwen Token Plan models exposes Qwen reasoning_effort levels for 'qwen-token-plan-individual'/'deepseek-v4-pro-0813'",
+      "Qwen Token Plan models exposes Qwen reasoning_effort levels for 'qwen-token-plan-individual'/'glm-5.2'",
+      "Qwen Token Plan models exposes Qwen reasoning_effort levels for 'qwen-token-plan-individual'/'glm-5.3'",
+      "Qwen Token Plan models exposes Qwen reasoning_effort levels for 'qwen-token-plan-individual-cn'/'deepseek-v4-flash-0731'",
+      "Qwen Token Plan models exposes Qwen reasoning_effort levels for 'qwen-token-plan-individual-cn'/'deepseek-v4-pro'",
+      "Qwen Token Plan models exposes Qwen reasoning_effort levels for 'qwen-token-plan-individual-cn'/'deepseek-v4-pro-0813'",
+      "Qwen Token Plan models exposes Qwen reasoning_effort levels for 'qwen-token-plan-individual-cn'/'glm-5.2'",
+      "Qwen Token Plan models exposes Qwen reasoning_effort levels for 'qwen-token-plan-individual-cn'/'glm-5.3'",
+      "Qwen Token Plan models exposes glm-5.3 reasoning_effort levels for qwen-token-plan-individual",
+      "Qwen Token Plan models exposes qwen3.8 reasoning_effort levels for 'qwen-token-plan'/'qwen3.8-flash'",
+      "Qwen Token Plan models exposes qwen3.8 reasoning_effort levels for 'qwen-token-plan'/'qwen3.8-max'",
+      "Qwen Token Plan models exposes qwen3.8 reasoning_effort levels for 'qwen-token-plan-cn'/'qwen3.8-flash'",
+      "Qwen Token Plan models exposes qwen3.8 reasoning_effort levels for 'qwen-token-plan-cn'/'qwen3.8-max'",
+      "Qwen Token Plan models exposes qwen3.8 reasoning_effort levels for 'qwen-token-plan-individual'/'qwen3.8-flash'",
+      "Qwen Token Plan models exposes qwen3.8 reasoning_effort levels for 'qwen-token-plan-individual'/'qwen3.8-max'",
+      "Qwen Token Plan models exposes qwen3.8 reasoning_effort levels for 'qwen-token-plan-individual-cn'/'qwen3.8-flash'",
+      "Qwen Token Plan models exposes qwen3.8 reasoning_effort levels for 'qwen-token-plan-individual-cn'/'qwen3.8-max'",
+      "Qwen Token Plan models sends Qwen reasoning_effort for 'qwen-token-plan'/'deepseek-v4-pro'",
+      "Qwen Token Plan models sends Qwen reasoning_effort for 'qwen-token-plan'/'glm-5'",
+      "Qwen Token Plan models sends Qwen reasoning_effort for 'qwen-token-plan'/'glm-5.1'",
+      "Qwen Token Plan models sends Qwen reasoning_effort for 'qwen-token-plan'/'glm-5.2'",
+      "Qwen Token Plan models sends Qwen reasoning_effort for 'qwen-token-plan-cn'/'deepseek-v4-pro'",
+      "Qwen Token Plan models sends Qwen reasoning_effort for 'qwen-token-plan-cn'/'glm-5'",
+      "Qwen Token Plan models sends Qwen reasoning_effort for 'qwen-token-plan-cn'/'glm-5.1'",
+      "Qwen Token Plan models sends Qwen reasoning_effort for 'qwen-token-plan-cn'/'glm-5.2'",
+      "Qwen Token Plan models sends Qwen reasoning_effort for 'qwen-token-plan-individual'/'deepseek-v4-flash-0731'",
+      "Qwen Token Plan models sends Qwen reasoning_effort for 'qwen-token-plan-individual'/'deepseek-v4-pro'",
+      "Qwen Token Plan models sends Qwen reasoning_effort for 'qwen-token-plan-individual'/'deepseek-v4-pro-0813'",
+      "Qwen Token Plan models sends Qwen reasoning_effort for 'qwen-token-plan-individual'/'glm-5.2'",
+      "Qwen Token Plan models sends Qwen reasoning_effort for 'qwen-token-plan-individual'/'glm-5.3'",
+      "Qwen Token Plan models sends Qwen reasoning_effort for 'qwen-token-plan-individual-cn'/'deepseek-v4-flash-0731'",
+      "Qwen Token Plan models sends Qwen reasoning_effort for 'qwen-token-plan-individual-cn'/'deepseek-v4-pro'",
+      "Qwen Token Plan models sends Qwen reasoning_effort for 'qwen-token-plan-individual-cn'/'deepseek-v4-pro-0813'",
+      "Qwen Token Plan models sends Qwen reasoning_effort for 'qwen-token-plan-individual-cn'/'glm-5.2'",
+      "Qwen Token Plan models sends Qwen reasoning_effort for 'qwen-token-plan-individual-cn'/'glm-5.3'",
+      "Qwen Token Plan models sends qwen3.8 xhigh reasoning_effort for 'qwen-token-plan'/'qwen3.8-flash'",
+      "Qwen Token Plan models sends qwen3.8 xhigh reasoning_effort for 'qwen-token-plan'/'qwen3.8-max'",
+      "Qwen Token Plan models sends qwen3.8 xhigh reasoning_effort for 'qwen-token-plan-cn'/'qwen3.8-flash'",
+      "Qwen Token Plan models sends qwen3.8 xhigh reasoning_effort for 'qwen-token-plan-cn'/'qwen3.8-max'",
+      "Qwen Token Plan models sends qwen3.8 xhigh reasoning_effort for 'qwen-token-plan-individual'/'qwen3.8-flash'",
+      "Qwen Token Plan models sends qwen3.8 xhigh reasoning_effort for 'qwen-token-plan-individual'/'qwen3.8-max'",
+      "Qwen Token Plan models sends qwen3.8 xhigh reasoning_effort for 'qwen-token-plan-individual-cn'/'qwen3.8-flash'",
+      "Qwen Token Plan models sends qwen3.8 xhigh reasoning_effort for 'qwen-token-plan-individual-cn'/'qwen3.8-max'"
+    ]
+  },
+  "result": {
+    "passed": 10,
+    "failed": 0,
+    "selectedSkipped": 0
+  },
+  "sourceDigests": [
+    {
+      "file": "packages/ai/test/qwen-token-plan-models.test.ts",
+      "sha256": "a13858ba688f5da854b48d4ca9f625cb60a0fa4480f07a42cfcc1094894148fe"
+    },
+    {
+      "file": "packages/ai/vitest.config.ts",
+      "sha256": "628ade6e9960f0378ef8ddfd1c06f3a12cf375199725f3f6b41de0c8cf5c0313"
+    },
+    {
+      "file": "packages/ai/src/compat.ts",
+      "sha256": "fe077a90f918a69fa6595cf9a7b4571e28e78b57fd52ccde498c5151838569be"
+    },
+    {
+      "file": "packages/ai/src/providers/qwen-token-plan.models.ts",
+      "sha256": "b4e39c74da7e0bdd7c1612ba075effa29adf15567a057d2ee1ec5a4ba8bbf618"
+    },
+    {
+      "file": "packages/ai/src/providers/qwen-token-plan-cn.models.ts",
+      "sha256": "a6f7a1bbcee0445c7e78cb172a8a54c2a471c8f50e2b5d867948dac20cd4e888"
+    },
+    {
+      "file": "packages/ai/src/providers/qwen-token-plan-individual.models.ts",
+      "sha256": "505af8799095bc96553be725083a5f6c79211a0bf481463580cc895847eb80fb"
+    },
+    {
+      "file": "packages/ai/src/providers/qwen-token-plan-individual-cn.models.ts",
+      "sha256": "983fd4875f83dfbb917c31659260d9c3bc705f6c54cac3fefeb0f1a27f6e8f12"
+    }
+  ],
+  "assets": {
+    "archive": "earendil-works-pi-ai-1.6.0.tgz",
+    "archiveSha256": "d68312ec574bc959cb7fee26da4f4876d067aed9bbbe76e876359e60d2294747",
+    "fileCount": 44,
+    "manifestSha256": "cc46553f3f008788e667600a873d3d83a4df8fe46c67b06c65b16fd828450e8b",
+    "qwenProviderDigests": [
+      {
+        "member": "package/dist/providers/data/qwen-token-plan-cn.json",
+        "sha256": "e0baa915644eea7b2c59c525a1660465e55bea51577ff9cc2e0863ad46b70328"
+      },
+      {
+        "member": "package/dist/providers/data/qwen-token-plan-individual-cn.json",
+        "sha256": "dd23bb588bb8a7d5c03865eb037a0f95bb47448811f820c50a4022f86867b809"
+      },
+      {
+        "member": "package/dist/providers/data/qwen-token-plan-individual.json",
+        "sha256": "dbfa5f80b40db0907795d573bff41c69183480d3938fbd3dd50c9f76bcfe0c0e"
+      },
+      {
+        "member": "package/dist/providers/data/qwen-token-plan.json",
+        "sha256": "600e61f7dfad9833ea1c2c31018d2bd544297ad3158b96953c8a70f9ed6ec693"
+      }
+    ]
+  },
+  "control": {
+    "change": "reintroduce retired deepseek-v4-flash in scratch qwen-token-plan.json",
+    "failed": [
+      "Qwen Token Plan models omits retired models on qwen-token-plan"
+    ],
+    "passed": [
+      "Qwen Token Plan models exposes exactly the documented Individual text models",
+      "Qwen Token Plan models exposes exactly the documented Individual text models on the China endpoint",
+      "Qwen Token Plan models exposes all text models on qwen-token-plan",
+      "Qwen Token Plan models exposes all text models on qwen-token-plan-cn",
+      "Qwen Token Plan models omits image models from qwen-token-plan",
+      "Qwen Token Plan models omits image models from qwen-token-plan-cn",
+      "Qwen Token Plan models omits retired models on qwen-token-plan-cn",
+      "Qwen Token Plan models omits retired models on qwen-token-plan-individual",
+      "Qwen Token Plan models omits retired models on qwen-token-plan-individual-cn"
+    ]
+  },
+  "copiedDependencies": {
+    "roots": [
+      "npm:node_modules/vitest",
+      "npm:node_modules/partial-json",
+      "npm:node_modules/openai"
+    ],
+    "host": {
+      "os": "linux",
+      "cpu": "arm64",
+      "libc": "glibc"
+    },
+    "placements": [
+      "node_modules/@jridgewell/sourcemap-codec",
+      "node_modules/@oxc-project/types",
+      "node_modules/@rolldown/binding-linux-arm64-gnu",
+      "node_modules/@rolldown/pluginutils",
+      "node_modules/@standard-schema/spec",
+      "node_modules/@types/chai",
+      "node_modules/@types/deep-eql",
+      "node_modules/@types/estree",
+      "node_modules/@vitest/expect",
+      "node_modules/@vitest/mocker",
+      "node_modules/@vitest/pretty-format",
+      "node_modules/@vitest/runner",
+      "node_modules/@vitest/snapshot",
+      "node_modules/@vitest/spy",
+      "node_modules/@vitest/utils",
+      "node_modules/assertion-error",
+      "node_modules/chai",
+      "node_modules/convert-source-map",
+      "node_modules/detect-libc",
+      "node_modules/es-module-lexer",
+      "node_modules/estree-walker",
+      "node_modules/expect-type",
+      "node_modules/fdir",
+      "node_modules/lightningcss",
+      "node_modules/lightningcss-linux-arm64-gnu",
+      "node_modules/magic-string",
+      "node_modules/nanoid",
+      "node_modules/obug",
+      "node_modules/openai",
+      "node_modules/partial-json",
+      "node_modules/pathe",
+      "node_modules/picocolors",
+      "node_modules/picomatch",
+      "node_modules/postcss",
+      "node_modules/rolldown",
+      "node_modules/siginfo",
+      "node_modules/source-map-js",
+      "node_modules/stackback",
+      "node_modules/std-env",
+      "node_modules/tinybench",
+      "node_modules/tinyexec",
+      "node_modules/tinyglobby",
+      "node_modules/tinyrainbow",
+      "node_modules/vite",
+      "node_modules/vitest",
+      "node_modules/why-is-node-running"
+    ]
+  },
+  "exclusions": [],
+  "scope": "offline-model-only"
+}

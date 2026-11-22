@@ -1,55 +1,67 @@
 package goai_test
 
 import (
+	"slices"
 	"testing"
 
 	goai "github.com/rcarmo/go-ai"
 )
 
+// Source: pi v1.6.0 packages/ai/test/qwen-token-plan-models.test.ts:143,151,188,195,287.
 func TestQwenTokenPlanModelsExposeTextAndOmitImageModels(t *testing.T) {
 	goai.RegisterBuiltinModels()
-	textModels := []string{"MiniMax-M2.5", "deepseek-v3.2", "deepseek-v4-flash", "deepseek-v4-flash-0731", "deepseek-v4-pro", "glm-5", "glm-5.1", "glm-5.2", "kimi-k2.5", "kimi-k2.6", "kimi-k2.7-code", "qwen3.6-flash", "qwen3.6-plus", "qwen3.7-max", "qwen3.7-plus", "qwen3.8-max"}
-	individualModels := []string{"deepseek-v4-flash-0731", "deepseek-v4-pro", "deepseek-v4-pro-0813", "glm-5.2", "qwen3.6-flash", "qwen3.7-max", "qwen3.7-plus", "qwen3.8-flash", "qwen3.8-max"}
+	team := []string{"MiniMax-M2.5", "deepseek-v4-pro", "glm-5", "glm-5.1", "glm-5.2", "kimi-k2.5", "kimi-k2.6", "kimi-k2.7-code", "qwen3.6-flash", "qwen3.6-plus", "qwen3.7-max", "qwen3.7-plus", "qwen3.8-flash", "qwen3.8-max"}
+	individual := []string{"deepseek-v4-flash-0731", "deepseek-v4-pro", "deepseek-v4-pro-0813", "deepseek-v4.1-flash", "deepseek-v4.1-flash-1017", "glm-5.2", "glm-5.3", "qwen3.6-flash", "qwen3.7-max", "qwen3.7-plus", "qwen3.8-flash", "qwen3.8-max", "qwen4-max-preview"}
+	slices.Sort(individual)
 	imageModels := []string{"qwen-image-2.0", "qwen-image-2.0-pro", "wan2.7-image", "wan2.7-image-pro"}
-	for _, provider := range []goai.Provider{goai.ProviderQwenTokenPlan, goai.ProviderQwenTokenPlanCN} {
-		ids := map[string]bool{}
-		for _, model := range goai.ListModels(provider) {
-			ids[model.ID] = true
-			if model.Api != goai.ApiOpenAICompletions || model.Provider != provider {
-				t.Fatalf("unexpected %s model metadata: %#v", provider, model)
+	retired := []string{"qwen3.8-max-preview", "deepseek-v3.2", "deepseek-v4-flash"}
+	for _, tc := range []struct {
+		provider      goai.Provider
+		individualURL string
+	}{
+		{goai.ProviderQwenTokenPlan, ""},
+		{goai.ProviderQwenTokenPlanCN, ""},
+		{goai.ProviderQwenTokenPlanIndividual, "https://token-plan.maas.qwencloudapi.com/compatible-mode/v1"},
+		{"qwen-token-plan-individual-cn", "https://token-plan.maas.qianwenaiapi.com/compatible-mode/v1"},
+	} {
+		t.Run(string(tc.provider), func(t *testing.T) {
+			models := goai.ListModels(tc.provider)
+			ids := make([]string, 0, len(models))
+			for _, model := range models {
+				ids = append(ids, model.ID)
+				// Preserve the existing supplemental catalog metadata checks. The
+				// Individual URLs come from the exact v1.6.0 archive records.
+				if model.Api != goai.ApiOpenAICompletions || model.Provider != tc.provider || tc.individualURL != "" && model.BaseURL != tc.individualURL {
+					t.Fatalf("unexpected %s model route: %s %s %s", tc.provider, model.ID, model.Api, model.BaseURL)
+				}
 			}
-		}
-		for _, id := range textModels {
-			if !ids[id] {
-				t.Fatalf("%s should include %s", provider, id)
+			if tc.individualURL != "" {
+				slices.Sort(ids)
+				if !slices.Equal(ids, individual) {
+					t.Fatalf("%s model IDs = %v; want exact %v", tc.provider, ids, individual)
+				}
+			} else {
+				for _, id := range team {
+					if !slices.Contains(ids, id) {
+						t.Errorf("%s should include %s", tc.provider, id)
+					}
+				}
+				// Existing supplemental check: the dated successor is still registered.
+				if !slices.Contains(ids, "deepseek-v4-flash-0731") {
+					t.Errorf("%s should include the dated Flash model", tc.provider)
+				}
 			}
-		}
-		for _, id := range imageModels {
-			if ids[id] {
-				t.Fatalf("%s should omit image model %s", provider, id)
+			for _, id := range imageModels {
+				if slices.Contains(ids, id) {
+					t.Errorf("%s should omit image model %s", tc.provider, id)
+				}
 			}
-		}
-	}
-
-	individualIDs := map[string]bool{}
-	for _, model := range goai.ListModels(goai.ProviderQwenTokenPlanIndividual) {
-		individualIDs[model.ID] = true
-		if model.Api != goai.ApiOpenAICompletions || model.Provider != goai.ProviderQwenTokenPlanIndividual || model.BaseURL != "https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1" {
-			t.Fatalf("unexpected qwen-token-plan-individual model metadata: %#v", model)
-		}
-	}
-	if len(individualIDs) != len(individualModels) {
-		t.Fatalf("qwen-token-plan-individual models=%v, want exactly %v", individualIDs, individualModels)
-	}
-	for _, id := range individualModels {
-		if !individualIDs[id] {
-			t.Fatalf("qwen-token-plan-individual should include %s", id)
-		}
-	}
-	for _, id := range append(imageModels, "qwen3.8-max-preview") {
-		if individualIDs[id] {
-			t.Fatalf("qwen-token-plan-individual should omit %s", id)
-		}
+			for _, id := range retired {
+				if slices.Contains(ids, id) {
+					t.Errorf("%s should omit retired model %s", tc.provider, id)
+				}
+			}
+		})
 	}
 }
 
