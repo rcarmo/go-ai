@@ -7,16 +7,25 @@ import (
 	goai "github.com/rcarmo/go-ai"
 )
 
-// Stream-owned state survives missing-continuation retries. Per-attempt slot
-// indices are rebuilt, but unresolved tool calls must still prevent completion.
-type codexWebSocketOutput struct {
-	partial      *goai.Message
-	startEmitted bool
-	unfinished   map[int]bool
+// Stream-owned state survives missing-continuation retries and SSE fallback.
+// Per-attempt slot indices are rebuilt, but unresolved tool calls prevent completion.
+type codexStreamOutput struct {
+	partial    *goai.Message
+	unfinished map[int]bool
+}
+
+func newCodexStreamOutput(model *goai.Model, opts *goai.StreamOptions) *codexStreamOutput {
+	return &codexStreamOutput{
+		partial: &goai.Message{
+			Role: goai.RoleAssistant, Api: model.Api, Provider: model.Provider, Model: model.ID, Usage: &goai.Usage{},
+			StopReason: goai.StopReasonPending, ProviderThinkingLevel: codexConfigurationUpdateEffort(model, opts),
+		},
+		unfinished: map[int]bool{},
+	}
 }
 
 type codexPreparedRequest struct {
-	output    *codexWebSocketOutput
+	output    *codexStreamOutput
 	bodyJSON  []byte
 	requestID string
 	envelope  map[string]interface{}

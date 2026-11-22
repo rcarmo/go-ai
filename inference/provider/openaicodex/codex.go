@@ -45,10 +45,20 @@ func streamCodexSimple(ctx context.Context, model *goai.Model, convCtx *goai.Con
 
 func streamCodex(ctx context.Context, model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions) <-chan goai.Event {
 	ch := make(chan goai.Event, 32)
-	send := goai.NewAssistantEventSender(ch)
+	emit := goai.NewAssistantEventSender(ch)
 
 	go func() {
 		defer close(ch)
+		startEmitted := false
+		send := func(event goai.Event) {
+			if _, ok := event.(*goai.StartEvent); ok {
+				if startEmitted {
+					return
+				}
+				startEmitted = true
+			}
+			emit(event)
+		}
 		goai.GetLogger().Debug("stream start", "api", "openai-codex-responses", "provider", model.Provider, "model", model.ID)
 
 		apiKey := goai.ResolveAPIKey(model, opts)
@@ -83,7 +93,14 @@ func streamCodex(ctx context.Context, model *goai.Model, convCtx *goai.Context, 
 				retriedConnectionLimit := false
 				retriedMissingContinuation := false
 				for {
-					err := streamViaWebSocket(ctx, model, convCtx, opts, apiKey, send, prepared)
+					// Fallback depends on this attempt, not an earlier StartEvent.
+					websocketStarted := false
+					err := streamViaWebSocket(ctx, model, convCtx, opts, apiKey, func(event goai.Event) {
+						if _, ok := event.(*goai.StartEvent); ok {
+							websocketStarted = true
+						}
+						send(event)
+					}, prepared)
 					if err == nil {
 						return
 					}
@@ -105,7 +122,7 @@ func streamCodex(ctx context.Context, model *goai.Model, convCtx *goai.Context, 
 						retriedMissingContinuation = true
 						continue
 					}
-					connectionLimit := isWebSocketConnectionLimitReachedError(err)
+					connectionLimit := !websocketStarted && isWebSocketConnectionLimitReachedError(err)
 					if connectionLimit && !retriedConnectionLimit {
 						retriedConnectionLimit = true
 						continue
@@ -114,7 +131,7 @@ func streamCodex(ctx context.Context, model *goai.Model, convCtx *goai.Context, 
 						send(codexStreamErrorEvent(err))
 						return
 					}
-					if prepared.output != nil && prepared.output.startEmitted {
+					if websocketStarted {
 						partial := prepared.output.partial
 						recordCodexStartedTransportFailure(opts, partial, len(prepared.bodyJSON), err)
 						send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err})
@@ -850,21 +867,10 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 
 	// Process responses
 	if request.output == nil {
-		request.output = &codexWebSocketOutput{partial: &goai.Message{Role: goai.RoleAssistant, Api: model.Api, Provider: model.Provider, Model: model.ID, Usage: &goai.Usage{}, StopReason: goai.StopReasonPending}, unfinished: map[int]bool{}}
+		request.output = newCodexStreamOutput(model, opts)
 	}
 	output := request.output
 	partial := output.partial
-	partial.ProviderThinkingLevel = codexConfigurationUpdateEffort(model, opts)
-	originalSend := send
-	send = func(event goai.Event) {
-		if _, ok := event.(*goai.StartEvent); ok {
-			if output.startEmitted {
-				return
-			}
-			output.startEmitted = true
-		}
-		originalSend(event)
-	}
 	started := false
 	sawCompletion := false
 	transportFailure := func(err error) { recordCodexStartedTransportFailure(opts, partial, len(bodyJSON), err) }
@@ -1298,6 +1304,19 @@ func streamViaSSE(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 		return
 	}
 	toolView := request.tools
+	output := request.output
+	if output != nil {
+		output.partial.Diagnostics = append(output.partial.Diagnostics, diagnostics...)
+	}
+	fail := func(reason goai.StopReason, err error) {
+		var partial *goai.Message
+		if output != nil {
+			partial = output.partial
+			partial.StopReason = reason
+			partial.ErrorMessage = err.Error()
+		}
+		send(&goai.ErrorEvent{Reason: reason, Error: partial, Err: err})
+	}
 	bodyJSON := request.bodyJSON
 	url := resolveCodexURL(model.BaseURL)
 	goai.GetLogger().Debug("HTTP request", "url", url, "provider", model.Provider, "model", model.ID)
@@ -1308,12 +1327,12 @@ func streamViaSSE(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 	}
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(reqBody))
 	if err != nil {
-		send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
+		fail(goai.StopReasonError, err)
 		return
 	}
 	accountID, err := extractCodexAccountID(apiKey)
 	if err != nil {
-		send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("extract codex account id: %w", err)})
+		fail(goai.StopReasonError, fmt.Errorf("extract codex account id: %w", err))
 		return
 	}
 	sessionID := codexCacheSessionID(opts)
@@ -1337,9 +1356,9 @@ func streamViaSSE(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 	resp, err := goai.DoProviderRequestWithRetry(ctx, client, req, retryCfg)
 	if err != nil {
 		if ctx.Err() != nil {
-			send(&goai.ErrorEvent{Reason: goai.StopReasonAborted, Err: ctx.Err()})
+			fail(goai.StopReasonAborted, ctx.Err())
 		} else {
-			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
+			fail(goai.StopReasonError, err)
 		}
 		return
 	}
@@ -1350,12 +1369,15 @@ func streamViaSSE(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 	if resp.StatusCode != 200 {
 		goai.GetLogger().Warn("HTTP error response", "status", resp.StatusCode, "provider", model.Provider, "model", model.ID)
 		bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(bodyBytes))})
+		fail(goai.StopReasonError, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(bodyBytes)))
 		return
 	}
 
-	// Reuse same SSE processing as OpenAI Responses
-	processCodexSSEWithOptions(ctx, resp.Body, model, opts, send, diagnostics, toolView)
+	if output == nil {
+		output = newCodexStreamOutput(model, opts)
+		output.partial.Diagnostics = diagnostics
+	}
+	processCodexSSEWithOutput(ctx, resp.Body, model, opts, send, toolView, output)
 }
 
 // processCodexSSE mirrors the OpenAI Responses-style event processing used by pi-ai.
@@ -1367,11 +1389,14 @@ func processCodexSSE(body io.Reader, model *goai.Model, send func(goai.Event), d
 	processCodexSSEWithOptions(context.Background(), body, model, nil, send, diagnostics, toolView)
 }
 func processCodexSSEWithOptions(ctx context.Context, body io.Reader, model *goai.Model, opts *goai.StreamOptions, send func(goai.Event), diagnostics []goai.AssistantMessageDiagnostic, toolView codexToolView) {
+	output := newCodexStreamOutput(model, opts)
+	output.partial.Diagnostics = diagnostics
+	processCodexSSEWithOutput(ctx, body, model, opts, send, toolView, output)
+}
+
+func processCodexSSEWithOutput(ctx context.Context, body io.Reader, model *goai.Model, opts *goai.StreamOptions, send func(goai.Event), toolView codexToolView, output *codexStreamOutput) {
 	terminalResponseSeen := false
-	partial := &goai.Message{
-		Role: goai.RoleAssistant, Api: model.Api, Provider: model.Provider, Model: model.ID, Usage: &goai.Usage{}, Diagnostics: diagnostics, StopReason: goai.StopReasonPending,
-		ProviderThinkingLevel: codexConfigurationUpdateEffort(model, opts),
-	}
+	partial := output.partial
 	send(&goai.StartEvent{Partial: partial})
 
 	type activeItem struct {
@@ -1382,7 +1407,7 @@ func processCodexSSEWithOptions(ctx context.Context, body io.Reader, model *goai
 	}
 	var current *activeItem
 	var slots responsestream.Slots[activeItem]
-	unfinished := map[int]bool{}
+	unfinished := output.unfinished
 	var reasoning responsestream.ReasoningIndex
 	createSlot := func(encodedItem json.RawMessage, outputIndex *int) (*activeItem, error) {
 		var created *activeItem

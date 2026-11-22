@@ -21,7 +21,12 @@ func TestCodexStartedMissingContinuationRecoveryMain(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if !strings.EqualFold(r.Header.Get("Upgrade"), "websocket") {
 					sse.Add(1)
-					http.Error(w, "unexpected SSE", 400)
+					if mode == "retry_transport" {
+						http.Error(w, "SSE replay rejected", 400)
+					} else {
+						t.Error("unexpected SSE")
+						http.Error(w, "unexpected SSE", 400)
+					}
 					return
 				}
 				attempt := attempts.Add(1)
@@ -157,7 +162,11 @@ func TestCodexStartedMissingContinuationRecoveryMain(t *testing.T) {
 			if mode == "partial_tool" || mode == "twice" || mode == "retry_transport" || mode == "cancel_retry" {
 				wantDone, wantErrors = 0, 1
 			}
-			if starts != 1 || done != wantDone || failures != wantErrors || attempts.Load() != 2 || payloads != 1 || sse.Load() != 0 {
+			wantFallback := 0
+			if mode == "retry_transport" {
+				wantFallback = 1 // The fresh attempt has not started; its failure permits SSE.
+			}
+			if starts != 1 || done != wantDone || failures != wantErrors || attempts.Load() != 2 || payloads != 1 || sse.Load() != int32(wantFallback) {
 				t.Fatal("started recovery replay/start boundary", starts, done, failures, attempts.Load(), payloads, sse.Load())
 			}
 			if final == nil {
@@ -213,11 +222,14 @@ func TestCodexStartedMissingContinuationRecoveryMain(t *testing.T) {
 			wantNetwork := 0
 			if mode == "retry_transport" {
 				wantNetwork = 1
-				if len(final.Diagnostics) != 1 || final.Diagnostics[0].Details["eventsEmitted"] != true {
-					t.Fatal("late retry transport diagnostics lost", final)
+				if failure.Err.Error() != "HTTP 400: SSE replay rejected\n" || final.ErrorMessage != failure.Err.Error() || final.StopReason != goai.StopReasonError {
+					t.Fatal("SSE terminal failure lost replay output or stop details", failure, final)
+				}
+				if len(final.Diagnostics) != 1 || final.Diagnostics[0].Details["eventsEmitted"] != false || final.Diagnostics[0].Details["phase"] != "before_message_stream_start" || final.Diagnostics[0].Details["fallbackTransport"] != "sse" {
+					t.Fatal("fresh retry transport diagnostics lost", final)
 				}
 			}
-			if stats == nil || stats.WebSocketFailures != wantNetwork || stats.SSEFallbacks != 0 {
+			if stats == nil || stats.WebSocketFailures != wantNetwork || stats.SSEFallbacks != wantFallback {
 				t.Fatal("semantic retry counted as fallback/network", stats)
 			}
 		})
