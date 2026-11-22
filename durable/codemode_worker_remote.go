@@ -256,14 +256,25 @@ func (r *CodemodeWorkerRemote) Execute(ctx context.Context, code string, start C
 				}
 				var args JSON
 				if message.Target == "global" {
-					var values []any
+					var value any = []any{}
 					if message.Args != nil {
-						err = decodeWorkerJSON([]byte(*message.Args), limits, limits.MaxRecordBytes, &values)
+						wire := []byte(*message.Args)
+						if global := codemodeCustomGlobal(start, message.Name); global != nil && !global.Spread {
+							err = decodeWorkerJSON(wire, limits, limits.MaxRecordBytes, &value)
+							// Keep the established null/omitted representation for
+							// previously admitted calls; it is part of replay identity.
+							if value == nil {
+								value = []any{}
+							}
+						} else {
+							var values []any
+							err = decodeWorkerJSON(wire, limits, limits.MaxRecordBytes, &values)
+							if values != nil {
+								value = values
+							}
+						}
 					}
-					if values == nil {
-						values = []any{}
-					}
-					args = JSON{"args": values}
+					args = JSON{"args": value}
 				} else if message.Args != nil {
 					err = decodeWorkerJSON([]byte(*message.Args), limits, limits.MaxRecordBytes, &args)
 				}
