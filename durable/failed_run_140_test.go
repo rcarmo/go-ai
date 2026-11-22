@@ -158,9 +158,11 @@ func TestFailedRun140InboxPolicies(t *testing.T) {
 	}
 }
 
-func TestFailedRun140BoundedWithdrawalRecovery(t *testing.T) {
-	limits := DefaultLimits()
-	limits.MaxWrites = 16
+// Supplemental to harness-failed-run-inbox.test.ts and generation.ts endFailedRun.
+// Canonical withdrawal is part of the same end-run commit. The legacy bounded
+// recovery fixture expected a completing task before queue settlement; that is
+// not the canonical runtime's recovery boundary.
+func TestSourceV160FailedRunWithdrawsQueueAtomicallyAcrossReopen(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		ref, options, calls, entered, release := failedRunProvider140(t)
 		options.Settings = &HarnessSettings{AfterFailedRun: "withdraw"}
@@ -171,98 +173,111 @@ func TestFailedRun140BoundedWithdrawalRecovery(t *testing.T) {
 			t.Fatal(err)
 		}
 		awaitTaskSignal(t, entered)
-		queued := []ID{}
-		for n := 0; n < 20; n++ {
-			sub, err := c.Submit(bg, Input{Content: fmt.Sprint("queued ", n)})
+		queued := make([]ID, 0, 20)
+		for n := 0; n < cap(queued); n++ {
+			sub, err := c.Submit(bg, Input{Content: fmt.Sprint("queued ", n), WhenBusy: "followUp"})
 			if err != nil {
 				t.Fatal(err)
 			}
+			statusFailed140(t, sub, "queued", "")
 			queued = append(queued, sub.ID())
 		}
 		write, err := c.Submit(bg, Input{Type: "write", Content: "write"})
 		if err != nil {
 			t.Fatal(err)
 		}
-		// Freeze dispatch after the real provider effect has started, then observe
-		// its adopted held decision. No model effect is mocked by a helper finish.
-		h.scheduler.enabled.Store(false)
-		held := make(chan struct{}, 1)
-		_, observer, err := h.session.SubscribeCommits(bg)
+		statusFailed140(t, write, "queued", "")
+		last := queued[len(queued)-1]
+		commits := make(chan []SubmissionRecord, 1)
+		_, observer, err := h.SubscribeCommits(bg)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err = observer.Start(func(_ context.Context, frame PublicationFrame) error {
-			for _, w := range frame.Publication.Tables {
-				if w.Task != nil && w.Task.Status == "completing" && taskHasDecidedOutcome(*w.Task) {
-					select {
-					case held <- struct{}{}:
-					default:
-					}
+		defer observer.Stop()
+		if err = observer.Start(func(ctx context.Context, frame PublicationFrame) error {
+			var settlements []SubmissionRecord
+			for _, change := range frame.Publication.Tables {
+				if sub := change.Submission; sub != nil && sub.ID >= first.ID() && sub.ID <= last {
+					settlements = append(settlements, publicSubmission(*sub))
+				}
+			}
+			if len(settlements) != 0 {
+				select {
+				case commits <- settlements:
+				case <-ctx.Done():
+					return ctx.Err()
 				}
 			}
 			return nil
 		}); err != nil {
 			t.Fatal(err)
 		}
-		close(release)
-		awaitTaskSignal(t, held)
-		observer.Stop()
-		h.scheduler.sealed.Store(true)
-		state, err := h.Snapshot(bg)
-		if err != nil {
-			t.Fatal(err)
+		releaseTaskGate(release)
+		if got := waitSubmission(t, first).Record; got.Status != "unanswered" || got.Reason != "model_error" || got.Entry == 0 || got.Answer != 0 {
+			t.Fatalf("failed run's placed input: %+v", got)
 		}
-		for _, task := range state.Tasks {
-			var cp generationCheckpoint
-			if err := fromObject(task.Checkpoint, &cp, h.session.limits); err != nil {
-				t.Fatal(err)
+		select {
+		case records := <-commits:
+			if len(records) != 1+len(queued) || records[0].ID != first.ID() || records[0].Status != "unanswered" || records[0].Reason != "model_error" {
+				t.Fatalf("run failure and withdrawal did not publish together: %+v", records)
 			}
-			if cp.Submission == first.ID() {
-				if _, err := h.AbortTask(bg, task.ID); err != nil {
-					t.Fatal(err)
+			// The pinned inbox walks from its last item to its first.
+			for i, record := range records[1:] {
+				want := queued[len(queued)-1-i]
+				if record.ID != want || record.Status != "unanswered" || record.Reason != "run_failed" || record.Entry != 0 || record.Answer != 0 {
+					t.Fatalf("withdrawn input %d: %+v, want unplaced %d/run_failed", i, record, want)
 				}
 			}
+		case <-time.After(3 * time.Second):
+			t.Fatal("no withdrawal commit published")
 		}
-		fresh, err := c.Submit(bg, Input{Content: "post-decision"})
-		if err != nil {
-			t.Fatal(err)
+		observer.Stop()
+		idleFailed140(t, h)
+		statusFailed140(t, write, "queued", "")
+		if got := calls.Load(); got != 1 {
+			t.Fatalf("provider calls before reopen = %d; want 1", got)
 		}
 		if err = h.Close(bg); err != nil {
 			t.Fatal(err)
 		}
-		// Pinning wins over a new host setting; small commit limits cannot be raised
-		// to hide an oversized queue cleanup. Fresh input lies above the pinned cut.
+
+		// A new policy neither replays the failed run nor reclaims withdrawn
+		// inputs. Only a new submission can bring the preserved write into a run.
 		options.Settings = &HarnessSettings{AfterFailedRun: "continue"}
-		reopened := b.reopen()
-		h2 := openHarness(t, reopened, options)
-		first2, err := h2.Submission(bg, first.ID())
-		if err != nil {
-			t.Fatal(err)
-		}
-		waitSubmission(t, first2)
-		statusFailed140(t, first2, "unanswered", "model_error") // cancellation cannot replace the decided failure
-		for _, id := range queued {
+		h2 := openHarness(t, b.reopen(), options)
+		for _, id := range append([]ID{first.ID()}, queued...) {
 			sub, err := h2.Submission(bg, id)
-			if err != nil {
-				t.Fatal(err)
+			if err != nil || sub == nil {
+				t.Fatalf("reopen submission %d: %v", id, err)
 			}
-			statusFailed140(t, sub, "unanswered", "run_failed")
-		}
-		fresh2, err := h2.Submission(bg, fresh.ID())
-		if err != nil {
-			t.Fatal(err)
-		}
-		waitSubmission(t, fresh2)
-		idleFailed140(t, h2)
-		if calls.Load() != 2 {
-			t.Fatal("replayed failure or withdrew fresh input", calls.Load())
+			reason := "run_failed"
+			if id == first.ID() {
+				reason = "model_error"
+			}
+			statusFailed140(t, sub, "unanswered", reason)
 		}
 		write2, err := h2.Submission(bg, write.ID())
+		if err != nil || write2 == nil {
+			t.Fatalf("reopen write: %v", err)
+		}
+		statusFailed140(t, write2, "queued", "")
+		c2, err := h2.Conversation(bg, c.ID())
+		if err != nil || c2 == nil {
+			t.Fatalf("reopen conversation: %v", err)
+		}
+		fresh, err := c2.Submit(bg, Input{Content: "post-decision"})
 		if err != nil {
 			t.Fatal(err)
 		}
+		if got := waitSubmission(t, fresh).Record; got.Status != "done" || got.Answer == 0 {
+			t.Fatalf("fresh input: %+v", got)
+		}
+		idleFailed140(t, h2)
 		statusFailed140(t, write2, "done", "")
-	}, limits)
+		if got := calls.Load(); got != 2 {
+			t.Fatalf("provider calls including fresh input = %d; want 2", got)
+		}
+	})
 }
 
 func TestFailedRun140NoModelLeavesWritesQueued(t *testing.T) {
