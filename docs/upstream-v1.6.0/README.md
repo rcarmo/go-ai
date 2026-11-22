@@ -383,3 +383,23 @@ Four unchanged selected originals passed. The native probes compare complete dev
 The [WASM load receipt](dependencies/quickjs-wasm-load.md) reproduced one pinned inline Oracle test compiling the exact 637,405-byte QuickJS-WASI asset, also embedded by the native package. A valid extra custom section preserved behavioral success but failed the separate digest check. This is one current Oracle compile, not a native load trace or worker/remote acceptance.
 
 The Round 10 signal, Codex and QuickJS checkpoint passed focused integrated Go tests twice, vet, Staticcheck v0.8.2 and offline receipt reproduction. The Codemode journal lane was not included in this checkpoint. Broad acceptance and profiling were not run.
+
+### Tool approval gates before execution
+
+All nine unchanged `harness-tool-gates.test.ts` originals passed. The canonical tool task now saves the `call` sleep and slot status before recording execution intent, then runs the current ordered `beforeTool` chain on wake. Invalid waits go through `afterTool` and settle without running the tool. Registry change and reopen wake only gate sleeps, not an `execute` park. The process-local revision is taken from the phase's actual registry snapshot; adopting a sleep after that snapshot was replaced makes the gate runnable again. A deadline already reached still expires its keys. The legacy pre-v4 adapter refuses the sleep rather than executing past the gate.
+
+The compiled baseline executed an unapproved call and accepted an empty sleep. After adding sleeps, three registry/open cases still failed to wake. Stamping the current registry at commit instead of the captured phase snapshot reproduced the stale-gate failure. The focused native test verifies the second sleep's fresh key, three gate passes, and exactly one tool result. No real shell command is executed by the test.
+
+### Codemode journal readback across SQLite reopen
+
+Three unchanged originals passed: journaled globals, undefined globals, and an already decided outcome. The native run distinguishes omitted non-spread arguments from `null` in persisted identity and retains compact result JSON without reordering properties or normalizing number spelling. Exact `[1,2]` and `[true,true]` receipts survive close/reopen without repeated effects. A separately gated `AfterTool` leaves an outcome committed but unpublished; restoring it publishes exactly `first` without starting QuickJS twice. Wrong presence, null result, formatting, forged spread, changed outcome, and rerun controls failed as intended. Omitted arguments in the official worker adapter remain open.
+
+### Google Vertex key placement and option resolution
+
+All nine unchanged `google-vertex-api-key-resolution.test.ts` constructor cases passed and have offline native transport probes. The pinned SDK places Vertex API keys in `x-goog-api-key`, not in the URL. The native path now matches that wire behavior, falls through from whitespace-only options and preserves explicit ADC markers and caller headers. Wrong query placement, blank-option precedence and header replacement each failed controls. Gemini Developer API behavior is unchanged. The original's SDK constructor records are distinct from the Go transport surface; ephemeral-token and live credential/platform behavior remains open.
+
+### File-level parity inventory
+
+The [pinned test-file inventory](test-inventory/README.md) reproduced 1,736 scoped Git paths, including 214 active added or modified suites. At its recorded baseline, five of those 214 had a ledger slice, and 209 had no ledger rows. The first primary queue is 21 AI and 16 Durable suites; some have earlier receipts that still need reconciliation. These are file counts at the recorded baseline, not claims about suite execution, semantic status, or a parity percentage.
+
+The integrated gate, journal and Vertex checks passed twice, along with vet, Staticcheck v0.8.2 and offline inventory reproduction. Broad acceptance and profiling were not run.
