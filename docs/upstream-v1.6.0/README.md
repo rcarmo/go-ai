@@ -403,3 +403,25 @@ All nine unchanged `google-vertex-api-key-resolution.test.ts` constructor cases 
 The [pinned test-file inventory](test-inventory/README.md) reproduced 1,736 scoped Git paths, including 214 active added or modified suites. At its recorded baseline, five of those 214 had a ledger slice, and 209 had no ledger rows. The first primary queue is 21 AI and 16 Durable suites; some have earlier receipts that still need reconciliation. These are file counts at the recorded baseline, not claims about suite execution, semantic status, or a parity percentage.
 
 The integrated gate, journal and Vertex checks passed twice, along with vet, Staticcheck v0.8.2 and offline inventory reproduction. Broad acceptance and profiling were not run.
+
+### Parked scopes age their retained context
+
+All 25 unchanged `harness-idle-scopes.test.ts` originals passed. A translated parked-scope case showed that native context retention still treated parked work as active. The idle index now tracks context activity separately from idle-wait targets. Committed sleeping, waiting and completing work lets context age, while runnable descendants still keep the scope busy. The parked task still blocks `WaitForIdle`. The compiled baseline retained a busy range after the sleep receipt. The exact native range checks and the 200-step randomized recompute passed. Reverting the context/index changes reproduced the existing seven legacy fixture and wrapper-authority failures outside this packet; they remain open.
+
+### Directory listing under concurrent replacement
+
+The unchanged directory-race original passed and its offline [receipt](test-inventory/env-node-list-race.json) reproduced. A native rename is placed between enumeration and the reclaimed sidecar's `lstat`, without a timer. The baseline returned `not_found` for the whole listing; the Go environment now omits only the vanished enumerated entry. A missing directory and cancellation during entry inspection still propagate as errors.
+
+### Responses strict tools and session affinity
+
+All 42 unchanged `openai-responses-compat.test.ts` originals passed on integration. Ten have exact new transport mappings: four Cloudflare/Copilot strict variants, required `additional_tools`, Copilot reasoning omission, and four affinity cases. Generated affinity now uses `session-id`; retention `none` suppresses generated headers while explicit overrides and Azure behavior are preserved. Four native affinity cases reproduced baseline wire divergences. Five faulty request variants were detected. Azure `prompt_cache_key` under `none` and the remaining untranslated originals are not closed by this packet.
+
+### Codemode worker argument presence
+
+Six unchanged named cases across worker, inline and remote passed. The committed public worker translation distinguishes omitted and explicit `null` non-spread arguments on new starts; bare-null or omitted spread arguments remain invalid. SQLite compares replay identity under both persisted modes while host capability changes. Old starts retain their old projection. A separate byte-verified published-worker probe observed exact `[true,true]` twice. Four discriminating controls failed as expected. The full three-backend result remains distinct from the adapter tests.
+
+### Primary changed-suite receipt reconciliation
+
+The [primary queue](test-inventory/primary-queue-reconciled.md) reconciles the 37 files without ledger rows at the inventory baseline: 15 with prior selected-source receipts, one new exact original receipt and 21 with no receipt in the audited records. Three conditional areas were withheld, not excluded. This is historical evidence, not the current total of mapped tests.
+
+Focused integrated Go tests passed twice, as did vet, Staticcheck v0.8.2 and offline receipt reproduction. No broad acceptance or profiling ran.
