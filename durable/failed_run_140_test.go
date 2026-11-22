@@ -3,10 +3,11 @@ package durable
 import (
 	"context"
 	"fmt"
-	goai "github.com/rcarmo/go-ai"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	goai "github.com/rcarmo/go-ai"
 )
 
 func failedRunProvider140(t *testing.T) (ModelRef, Options, *atomic.Int64, <-chan struct{}, chan struct{}) {
@@ -29,7 +30,7 @@ func failedRunProvider140(t *testing.T) (ModelRef, Options, *atomic.Int64, <-cha
 				}
 			}()
 		} else {
-			ch <- terminal("recovered")
+			ch <- terminal("second answer")
 			close(ch)
 		}
 		return ch
@@ -73,8 +74,12 @@ func TestFailedRun140InboxPolicies(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
+				statusFailed140(t, write, "queued", "")
 				close(release)
 				failed := waitSubmission(t, first)
+				if failed.Record.Status != "unanswered" || failed.Record.Reason != "model_error" {
+					t.Fatalf("failed input settlement: %+v", failed.Record)
+				}
 				idleFailed140(t, h)
 				statusFailed140(t, first, "unanswered", "model_error")
 				state, err := h.Snapshot(bg)
@@ -84,13 +89,22 @@ func TestFailedRun140InboxPolicies(t *testing.T) {
 				mainRequireRunFailure(t, state, c.ID(), failed.Task.ID, first.ID(), failed.Record.Entry, "model_error", "Model response ended with stop reason error", policy == "" || policy == "keep")
 				switch policy {
 				case "continue":
-					statusFailed140(t, queued, "done", "")
+					settled := waitSubmission(t, queued).Record
+					if settled.Status != "done" || settled.Type != "input" || settled.Answer == 0 {
+						t.Fatalf("continued input settlement: %+v", settled)
+					}
+					answer, found, err := h.Entry(bg, settled.Answer)
+					if err != nil || !found || len(answer.Model) != 1 || len(answer.Model[0].Content) != 1 || answer.Model[0].Content[0].Text != "second answer" {
+						t.Fatalf("continued answer: %+v, found %t, err %v", answer, found, err)
+					}
 					statusFailed140(t, write, "done", "")
 					if calls.Load() != 2 {
 						t.Fatal(calls.Load())
 					}
 				case "withdraw":
-					statusFailed140(t, queued, "unanswered", "run_failed")
+					if settled := waitSubmission(t, queued).Record; settled.Status != "unanswered" || settled.Reason != "run_failed" || settled.Entry != 0 || settled.Answer != 0 {
+						t.Fatalf("withdrawn input settlement: %+v", settled)
+					}
 					statusFailed140(t, write, "queued", "")
 					if calls.Load() != 1 {
 						t.Fatal(calls.Load())
@@ -111,7 +125,12 @@ func TestFailedRun140InboxPolicies(t *testing.T) {
 					if err != nil {
 						t.Fatal("held queue is not active busy work", err)
 					}
-					waitSubmission(t, fresh)
+					if settled := waitSubmission(t, fresh).Record; settled.Status != "done" {
+						t.Fatalf("fresh input settlement: %+v", settled)
+					}
+					if settled := waitSubmission(t, queued).Record; settled.Status != "done" {
+						t.Fatalf("kept input settlement: %+v", settled)
+					}
 					idleFailed140(t, h)
 					statusFailed140(t, queued, "done", "")
 					statusFailed140(t, write, "done", "")
@@ -369,6 +388,63 @@ func TestFailedRun140WithdrawalJoinsOwnedHosts(t *testing.T) {
 		idleFailed140(t, h)
 		if calls.Load() != 1 {
 			t.Fatal("withdrawn input dispatched", calls.Load())
+		}
+	})
+}
+
+// Canonical queued inputs have no task to own children. Attach the join witness
+// to the actual failing generation, while its provider attempt is still live.
+func TestSourceV160FailedRunWithdrawsBeforeOwnedHostReturns(t *testing.T) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+		ref, options, calls, providerEntered, releaseProvider := failedRunProvider140(t)
+		options.Settings = &HarnessSettings{AfterFailedRun: "withdraw"}
+		h := openHarness(t, b.store, options)
+		c := root(t, h, ref)
+		first, err := c.Submit(bg, Input{Content: "first"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		awaitTaskSignal(t, providerEntered)
+		queued, err := c.Submit(bg, Input{Content: "queued", WhenBusy: "followUp"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		inspection, err := h.InspectTasks(bg)
+		if err != nil || len(inspection.Tasks) != 1 || inspection.Tasks[0].Record.Kind != "pi.generation" {
+			t.Fatalf("one active generation and no queued generation: %+v, err %v", inspection, err)
+		}
+		owner := inspection.Tasks[0].Record.ID
+		started, cancelled, returned := make(chan struct{}), make(chan struct{}), make(chan struct{})
+		cleanupTaskGates(t, returned)
+		def := taskDefinition(t, "task.failed-canonical-owned", func(ctx context.Context, _ TaskRecord, _ *TaskRuntime) error {
+			close(started)
+			<-ctx.Done()
+			close(cancelled)
+			<-returned
+			return ctx.Err()
+		})
+		if _, err = h.options.Registry.RegisterTask(def); err != nil {
+			t.Fatal(err)
+		}
+		child := createPublicTask(t, h, def, nil, TaskOptions{Ownership: TaskOwnership{Kind: "task", Task: owner}})
+		awaitTaskSignal(t, started)
+		releaseTaskGate(releaseProvider)
+		awaitTaskSignal(t, cancelled)
+		if settled := waitSubmission(t, first).Record; settled.Status != "unanswered" || settled.Reason != "model_error" {
+			t.Fatalf("failing run input: %+v", settled)
+		}
+		if settled := waitSubmission(t, queued).Record; settled.Status != "unanswered" || settled.Reason != "run_failed" || settled.Entry != 0 || settled.Answer != 0 {
+			t.Fatalf("withdrawn input: %+v", settled)
+		}
+		held, found, err := h.Task(bg, owner)
+		if err != nil || !found || held.State.Status != "completing" || held.State.Outcome == nil || held.State.Outcome.Status != "failed" {
+			t.Fatalf("owner must stay completing until actual child return: %+v, found %t, err %v", held, found, err)
+		}
+		releaseTaskGate(returned)
+		childResult := waitPublicTask(t, h, child)
+		ownerResult := waitPublicTask(t, h, owner)
+		if childResult.State.Outcome.Status != "aborted" || ownerResult.State.Outcome.Status != "failed" || calls.Load() != 1 {
+			t.Fatalf("joined outcomes: child %+v owner %+v provider calls %d", childResult, ownerResult, calls.Load())
 		}
 	})
 }
