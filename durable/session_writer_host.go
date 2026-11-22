@@ -16,8 +16,8 @@ func (s *Session) newSessionWriterFromSession() *sessionWriter {
 		failure:          s.writerFailure,
 		fail:             s.writerFail,
 		report:           s.writerReport,
-		// The source macrotask/continuation bridge remains an open D04 contract.
-		// Serial parts alone do not establish its caller-continuation ordering.
+		// Go callers that need the source continuation boundary register it
+		// explicitly on the part; an arbitrary goroutine hop is not a fence.
 		hop: func() {},
 	})
 }

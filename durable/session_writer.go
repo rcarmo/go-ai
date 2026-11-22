@@ -18,6 +18,7 @@ type sessionWriterSpec struct {
 	keys    []string
 	ctx     context.Context
 	publish func(*commitReceipt) *writerPublishFailure // nil receipt for held part
+	after   func(commitReceipt) error
 	// discard runs before the part stops being observable to gated readers,
 	// with the failure that discarded it. Hosts use it for bookkeeping that must
 	// be ordered ahead of any later line entrant.
@@ -254,6 +255,11 @@ func (w *sessionWriter) publish(parts []*sessionWriterPart, receipts map[int]com
 			err = &SessionFailed{Cause: cause}
 		}
 		w.settle(p, err)
+		if err == nil && receipt != nil && p.spec.after != nil {
+			if err := p.spec.after(*receipt); err != nil {
+				w.host.fail(err, p.spec.index, nil)
+			}
+		}
 	}
 	if rejected != nil || stop != nil {
 		var own []uint64

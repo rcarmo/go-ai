@@ -706,3 +706,163 @@ func TestSourceConversationConstructorAdmitsBlindCreatesDuringWriterFlight(t *te
 		t.Fatal("blind creations lost source grouping", got)
 	}
 }
+
+// Source v1.6.0 session-group-commit.test.ts:698, :770 and :796.
+// Go registers the caller's continuation explicitly rather than relying on a
+// Promise microtask. Grouping and publication witnesses are both public.
+func TestSourceV160SessionGroupedPublicationContinuation(t *testing.T) {
+	for _, mode := range []string{"visibility", "backend-read", "explicit-failure"} {
+		t.Run(mode, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(bg, 5*time.Second)
+			defer cancel()
+			native, err := newTestSQLite(t)
+			if err != nil {
+				t.Fatal(err)
+			}
+			seedRootConversation(t, native)
+			cause := errors.New("failed between publications")
+			store := &continuationTestStore{Storage: native, entered: make(chan struct{}), release: make(chan struct{}), calls: make(chan int, 8)}
+			if mode == "backend-read" {
+				store.readError = cause
+			}
+			s, err := OpenSession(store)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer s.Close(bg)
+			var once sync.Once
+			unblock := func() { once.Do(func() { close(store.release) }) }
+			defer unblock()
+			published := make(chan string, 8)
+			observation, err := s.ObserveCommits(CommitObserver{Advance: func(_ context.Context, p CommitPublication) error {
+				for i := range p.Changes.Len() {
+					change, _ := p.Changes.Index(i)
+					if immutableViewMember(t, change, "type").String() == "entry" {
+						published <- immutableViewMember(t, immutableViewMember(t, change, "value"), "kind").String()
+					}
+				}
+				return nil
+			}, End: func(WatchEnd) error { return nil }})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer observation.Detach()
+			turnCount := make(chan int, 1)
+			results := make([]chan error, 3)
+			for i, kind := range []string{"lead", "one", "two"} {
+				ran := make(chan struct{})
+				results[i] = make(chan error, 1)
+				go func() {
+					change := func(tx *Tx) (any, error) {
+						entry, err := tx.AppendEntry(1, JSON{"kind": kind})
+						close(ran)
+						return entry, err
+					}
+					var err error
+					if i == 1 {
+						_, err = s.CommitWithContinuation(ctx, change, func(turn *PublicationTurn) error {
+							turnCount <- len(published)
+							switch mode {
+							case "backend-read":
+								_, _, err := turn.Task(999)
+								if !errors.Is(err, cause) {
+									t.Errorf("task read = %v; want the injected cause", err)
+								}
+							case "explicit-failure":
+								return cause
+							}
+							return nil
+						})
+					} else {
+						_, err = s.Commit(ctx, change)
+					}
+					results[i] <- err
+				}()
+				select {
+				case <-ran:
+				case <-ctx.Done():
+					t.Fatal("callback admission", ctx.Err())
+				}
+				if i == 0 {
+					select {
+					case <-store.entered:
+					case <-ctx.Done():
+						t.Fatal("held first call", ctx.Err())
+					}
+				}
+			}
+			// Enter the public line after both callbacks to witness handoff of
+			// their admitted parts, without waiting on either storage result.
+			behind := make(chan struct{})
+			go func() { _ = s.ReadOnLine(ctx, func(*ReadLine) error { close(behind); return nil }) }()
+			select {
+			case <-behind:
+			case <-ctx.Done():
+				t.Fatal("admission barrier", ctx.Err())
+			}
+			unblock()
+			for i, done := range results {
+				select {
+				case err := <-done:
+					if i < 2 || mode == "visibility" {
+						if err != nil {
+							t.Fatalf("part %d: %v", i, err)
+						}
+					} else {
+						var fail *SessionFailed
+						if !errors.As(err, &fail) || fail.Cause != cause {
+							t.Fatalf("last part = %v; want SessionFailed with exact cause", err)
+						}
+					}
+				case <-ctx.Done():
+					t.Fatalf("part %d did not settle: %v", i, ctx.Err())
+				}
+			}
+			if len(store.calls) != 2 || <-store.calls != 1 || <-store.calls != 2 {
+				t.Fatal("want one held call followed by one call storing two parts")
+			}
+			if len(turnCount) != 1 || <-turnCount != 2 {
+				t.Fatal("second continuation must see exactly two publications")
+			}
+			want := []string{"lead", "one"}
+			if mode == "visibility" {
+				want = append(want, "two")
+			}
+			var kinds []string
+			for len(published) > 0 {
+				kinds = append(kinds, <-published)
+			}
+			if !reflect.DeepEqual(kinds, want) {
+				t.Fatalf("published kinds = %v; want %v", kinds, want)
+			}
+			if mode == "backend-read" && store.reads.Load() != 1 {
+				t.Fatalf("storage task reads = %d; want 1", store.reads.Load())
+			}
+		})
+	}
+}
+
+type continuationTestStore struct {
+	Storage
+	entered, release chan struct{}
+	calls            chan int
+	numCalls, reads  atomic.Int32
+	readError        error
+}
+
+func (s *continuationTestStore) Commit(ctx context.Context, batches [][]StorageWrite, receive func(int, uint64)) (CommitResult, error) {
+	s.calls <- len(batches)
+	if s.numCalls.Add(1) == 1 {
+		close(s.entered)
+		<-s.release
+	}
+	return s.Storage.Commit(ctx, batches, receive)
+}
+
+func (s *continuationTestStore) Task(ctx context.Context, id ID) (TaskRecord, bool, error) {
+	if id == 999 {
+		s.reads.Add(1)
+		return TaskRecord{}, false, s.readError
+	}
+	return s.Storage.Task(ctx, id)
+}

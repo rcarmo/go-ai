@@ -108,6 +108,7 @@ func (s *Session) admitPreparedPublication(p *preparedSessionPublication, index 
 		batch: &batch,
 		keys:  keys,
 		ctx:   p.ctx,
+		after: s.writerContinuation(p.ctx, index),
 		discard: func(failure error) {
 			// Roll back provisional authority before the writer opens its gate.
 			// This is memory bookkeeping, not a new #tail job: a reader may be
