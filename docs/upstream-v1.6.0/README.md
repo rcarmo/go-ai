@@ -499,3 +499,17 @@ The three unchanged namespaced-global cases passed again. Native tests ran twice
 All 27 unchanged OpenAI Completions prompt-cache cases passed offline. The native adapter now honours OpenAI no-session and OpenRouter session-ID formats while preserving cache field, retention, opt-out and explicit-header behaviour. Three wire cases failed before the change. The catalogue generator now preserves explicit format overrides; the lead verified unchanged generated chat, image and classifier outputs.
 
 The [Fireworks loopback receipt](test-inventory/fireworks-loopback.md) reproduces ten unchanged Messages cases. Native Fireworks and OpenRouter now emit the expected affinity headers; storage, tool payload and generated catalogue data are unchanged. These ten cases and the earlier three catalogue cases leave 12 Fireworks cases open. Integrated focused Go tests and the Anthropic package passed twice; vet and Staticcheck v0.8.2 passed.
+
+### Guarded conversation owners and historical ownership fixtures
+
+Conversation creation and forks keep staged owner records authoritative. For a committed owner, delegated Storage now supplies the task record through the Session guard, even when the validation image already contains it. All three new public probes failed before the change: the backend was skipped for a hit, an authoritative miss, and a failure. Each now performs one lookup; a read error becomes the Session's exact first failure and admits no creation. The immutable v1.6.0 transaction source pins the lookup order. These are supplemental adapter probes.
+
+The three previously red ownership groups now pass with unchanged ownership enforcement. Canonical SQLite uses a complete terminal task receipt, the no-execution legacy case uses the historical SQLite frame format and verifies reopen, and paused inspection expects the source's `ready` migration flag only after dependencies drain. Suppressing that flag broke all four legacy generation variants. The two selected unchanged task-document originals passed.
+
+### Portable guest journal replay and complete Fireworks oracle
+
+The unchanged undefined-result original passed again. The published portable guest ran the exact script across a real SQLite close and reopen. The native result was `[true,true]` with no error, and two guest starts produced exactly two global effects. The fault control converted the first omitted reply to `null` and produced `[false,true]`. Other worker-hosted journal cases and the separately hosted Node worker topology remain open.
+
+The [remaining Fireworks receipt](test-inventory/fireworks-remaining.md) covers 12 unchanged originals. Across the three disjoint receipts, all 25 Fireworks originals passed offline. Eleven of the latest 12 cases have full native checks; the dummy-key case still lacks a Go public equivalent for the source's exact environment-key list. Custom Messages affinity formats and live-provider behavior remain open.
+
+The OpenAI Completions prompt-cache ledger adds 60 mapped sites across 27 executed original variants. It records native HTTP values and presence checks separately from the source SDK mock. The integrated focused Go tests passed twice with the live portable guest; vet and Staticcheck v0.8.2 passed. A total of 1,115 scoped assertion locators validate against pinned bytes.
