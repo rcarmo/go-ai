@@ -1,0 +1,98 @@
+{
+  "format": 1,
+  "pin": "faac585884ae2c013a6b1400f3e9e77f10b34bac",
+  "evidenceBase": "c188d0d208b7cfafbb5618b55ccdba4a7aa46722",
+  "node": "v26.13.0",
+  "vitest": "4.1.12",
+  "selectedOriginal": {
+    "test": "packages/ai/test/openai-responses-mid-convo-effort.test.ts",
+    "sha256": "8e249b7ea5bd70ad866fb9e901bed35ae33b1dc3b159afb66e23eac5183c0820",
+    "selector": "keeps reasoning.effort constant and only appends input when the level changes",
+    "fullName": "OpenAI Responses configuration_update keeps reasoning.effort constant and only appends input when the level changes",
+    "passed": 1
+  },
+  "archive": {
+    "url": "https://registry.npmjs.org/openai/-/openai-7.59.0.tgz",
+    "integrity": "sha512-wPYKJkLPFEdNJ2tThSg4jE1Ptsv4X3u8g8LIvu0Qz/UIhsKeCzl73rl48PtQsDVrJL/ku0liXOsbyd2TsRsPJw==",
+    "sha256": "7f1deacae8d17efc9c02622b032851c7e28e148b62b1da7747eb8b426ea4dba9",
+    "member": "package/index.mjs"
+  },
+  "loaded": {
+    "entry": "node_modules/openai/index.mjs",
+    "format": "module",
+    "bytes": 787,
+    "sha256": "17cdb2c28d43e69bad6688cbefcf206674d15efaff37481923eef2991a239e11"
+  },
+  "control": {
+    "change": "append-one-LF-to-copied-SDK-entry",
+    "selectedOriginalPassed": 1,
+    "loaded": {
+      "entry": "node_modules/openai/index.mjs",
+      "format": "module",
+      "bytes": 788,
+      "sha256": "ad5b148dc1ef409d8cb0ef2dd992142281f665d04c031b2f34236a9e0a358277"
+    },
+    "result": "archive-digest-rejected"
+  },
+  "copiedDependencies": {
+    "roots": [
+      "npm:node_modules/vitest",
+      "npm:node_modules/openai",
+      "npm:node_modules/partial-json"
+    ],
+    "host": {
+      "os": "linux",
+      "cpu": "arm64",
+      "libc": "glibc"
+    },
+    "placements": [
+      "node_modules/@jridgewell/sourcemap-codec",
+      "node_modules/@oxc-project/types",
+      "node_modules/@rolldown/binding-linux-arm64-gnu",
+      "node_modules/@rolldown/pluginutils",
+      "node_modules/@standard-schema/spec",
+      "node_modules/@types/chai",
+      "node_modules/@types/deep-eql",
+      "node_modules/@types/estree",
+      "node_modules/@vitest/expect",
+      "node_modules/@vitest/mocker",
+      "node_modules/@vitest/pretty-format",
+      "node_modules/@vitest/runner",
+      "node_modules/@vitest/snapshot",
+      "node_modules/@vitest/spy",
+      "node_modules/@vitest/utils",
+      "node_modules/assertion-error",
+      "node_modules/chai",
+      "node_modules/convert-source-map",
+      "node_modules/detect-libc",
+      "node_modules/es-module-lexer",
+      "node_modules/estree-walker",
+      "node_modules/expect-type",
+      "node_modules/fdir",
+      "node_modules/lightningcss",
+      "node_modules/lightningcss-linux-arm64-gnu",
+      "node_modules/magic-string",
+      "node_modules/nanoid",
+      "node_modules/obug",
+      "node_modules/openai",
+      "node_modules/partial-json",
+      "node_modules/pathe",
+      "node_modules/picocolors",
+      "node_modules/picomatch",
+      "node_modules/postcss",
+      "node_modules/rolldown",
+      "node_modules/siginfo",
+      "node_modules/source-map-js",
+      "node_modules/stackback",
+      "node_modules/std-env",
+      "node_modules/tinybench",
+      "node_modules/tinyexec",
+      "node_modules/tinyglobby",
+      "node_modules/tinyrainbow",
+      "node_modules/vite",
+      "node_modules/vitest",
+      "node_modules/why-is-node-running"
+    ]
+  },
+  "scope": "new-focused-run-only"
+}

@@ -4,7 +4,7 @@ import { registerHooks } from "node:module";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-const entry = "node_modules/@google/genai/dist/node/index.mjs";
+const entry = process.env.SDK_LOAD_ENTRY ?? "node_modules/@google/genai/dist/node/index.mjs";
 const target = pathToFileURL(join(process.env.SDK_LOAD_ROOT, entry)).href;
 registerHooks({
 	load(url, context, next) {
