@@ -471,3 +471,13 @@ All 22 unchanged `harness-context.test.ts` originals passed. The supplemental de
 Four selected recursive coercion originals passed. Native tool validation checks eight exact parse outcomes and twenty repeated conversion and input-preservation cases. Standalone coercion, compiled-instance reuse and JS schema-object cycles remain open.
 
 The [Fireworks model receipt](test-inventory/fireworks-models.md) reproduces three unchanged cases against the verified release catalogue. It checks the DeepSeek Messages route, GLM Fast alignment and Kimi's exact compatibility and `max` request. The 22 unselected Fireworks cases remain open. Focused integrated Go tests, vet and Staticcheck v0.8.2 passed.
+
+### Live portable Codemode guest
+
+All three unchanged namespaced-global originals passed (worker, inline and remote). The native test starts the published portable guest through `RemoteCodemodeSandbox` and checks exact terminal output and all callback arguments, including the nested `null` and the empty spread array. It ran twice against the verified v1.6.0 package and QuickJS WASI 3.6.2. Two controls independently broke the return value and callback arguments. This covers the portable guest path; equivalent native inline execution and journal replay through this guest remain open.
+
+### Durable idle and owned-host fixtures; Qwen plans
+
+Six stale Durable fixture groups now pass with valid task inputs and outcomes. The owned-host fixture asserts that the actual child ID stays in the idle wait target set after queued input withdrawal. The delegated context wrapper regression was closed separately by the scoped scan change. `TestFailedRun140BoundedWithdrawalRecovery` remains red: the canonical end-run transaction attempts atomic withdrawal of 20 inputs against `MaxWrites=16`, reports `invalid write count`, and publishes a terminal failure instead of the expected held decision. The pinned source withdraws the queue in the end-run transaction; a bounded recovery design must reconcile that atomic boundary with the native write limit.
+
+The [Qwen receipt](test-inventory/qwen-token-plan-models.md) reproduces ten selected unchanged catalogue cases against all four verified plan assets. Native tests compare exact plan membership and reject same-count ID substitutions. The other 110 Qwen cases were outside this selection. Integrated focused Go tests, vet and Staticcheck passed. The cache-retention ledger adds 50 sites (33 mapped, 17 partial); 1,045 total scoped locators validate against pinned bytes.
