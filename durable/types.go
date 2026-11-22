@@ -385,9 +385,12 @@ type Document struct {
 // DocumentRevision is an immutable full base or same-version decoded delta.
 // Legacy records with no Kind are bases; retained revisions allow exact point reads.
 type DocumentRevision struct {
-	Seq     uint64 `json:"seq"`
-	Version uint64 `json:"version"`
-	Value   JSON   `json:"value,omitempty"`
+	// A local synthetic base for a public Storage projection carries its
+	// already-materialized delta count, not fabricated storage revisions.
+	prefixDeltas uint64
+	Seq          uint64 `json:"seq"`
+	Version      uint64 `json:"version"`
+	Value        JSON   `json:"value,omitempty"`
 	// Kind empty is a legacy full base. Delta revisions have Ops, no Value.
 	Kind string      `json:"kind,omitempty"`
 	Ops  []Operation `json:"ops,omitempty"`

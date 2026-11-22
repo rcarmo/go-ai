@@ -402,12 +402,16 @@ type toolParkTestStorage struct {
 	Storage
 	parked  chan ID
 	waiting chan TaskRecord
+	onTool  func(TaskRecord)
 }
 
 func (s *toolParkTestStorage) Commit(ctx context.Context, batches [][]StorageWrite, receive func(int, uint64)) (CommitResult, error) {
 	return s.Storage.Commit(ctx, batches, func(index int, seq uint64) {
 		for _, write := range batches[index] {
 			if record, ok := recordValue[TaskRecord](write.Value); write.Type == "task" && ok && record.Kind == "pi.tool" {
+				if s.onTool != nil {
+					s.onTool(record)
+				}
 				if record.State.Status == "sleeping" {
 					s.parked <- record.ID
 				}

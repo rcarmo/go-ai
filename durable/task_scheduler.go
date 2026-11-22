@@ -186,6 +186,9 @@ func (s *taskScheduler) runnable(state Snapshot, task Task) bool {
 	if taskAborted(task) && !privateBuiltinTask(task, "pi.tool") {
 		return len(s.ownedLive(state, task.ID)) == 0
 	}
+	if s.recoveredToolWaitsForParkedChildren(state, task) {
+		return false
+	}
 	if task.Status == "sleeping" && task.Execution != nil && task.Execution.Native != nil {
 		if !nativeSleepDue(task.Execution.Native, s.h.session.now()) {
 			return false

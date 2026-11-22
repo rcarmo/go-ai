@@ -116,7 +116,7 @@ func materializeDocument(s Snapshot, id ID, at DocumentPoint, l Limits) (Documen
 		return Document{}, false, reject("document is missing a required base")
 	}
 	r := revisions[base]
-	d.Version, d.Value, d.DeltasSinceBase = r.Version, r.Value, 0
+	d.Version, d.Value, d.DeltasSinceBase = r.Version, r.Value, r.prefixDeltas
 	for i := base + 1; i < end; i++ {
 		tail := revisions[i]
 		if tail.Kind != "delta" || tail.Version != d.Version {

@@ -534,3 +534,161 @@ func v160ToolResultText(result MessageReceipt) string {
 	}
 	return text.String()
 }
+
+// Source: harness-park-children.test.ts, a running replay-unsafe caller does
+// not retain its parked child across process loss.
+func TestSourceV160ParkedChildAbandonedOnCallerRestart(t *testing.T) {
+	const witnessEnv = "GOAI_TEST_PARKED_CHILD_CRASH_DIR"
+	dir := os.Getenv(witnessEnv)
+	crashing := dir != ""
+	ctx, cancel := context.WithTimeout(bg, 15*time.Second)
+	defer cancel()
+	var ids struct{ Conversation, Submission, Parent, Child ID }
+	if !crashing {
+		dir = t.TempDir()
+		cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestSourceV160ParkedChildAbandonedOnCallerRestart$")
+		cmd.Env = append(os.Environ(), witnessEnv+"="+dir)
+		output, err := cmd.CombinedOutput()
+		exit, ok := err.(*exec.ExitError)
+		if ctx.Err() != nil || !ok || exit.ProcessState.Sys().(syscall.WaitStatus).Signal() != syscall.SIGKILL {
+			t.Fatalf("unsafe caller did not crash: %v\n%s", err, output)
+		}
+		raw, err := os.ReadFile(filepath.Join(dir, "addresses.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(raw, &ids); err != nil {
+			t.Fatal(err)
+		}
+	}
+	store, err := OpenSQLite(filepath.Join(dir, "store.sqlite"), SQLiteOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close(bg)
+	order := make(chan string, 8)
+	observed := &toolParkTestStorage{Storage: store, parked: make(chan ID, 2), onTool: func(record TaskRecord) {
+		if !crashing && record.ID == ids.Child && record.State.Status == "terminal" {
+			order <- "child-terminal"
+		}
+		if !crashing && record.ID == ids.Parent && record.State.Status == "running" {
+			order <- "caller-running"
+		}
+	}}
+	token := testSignalAnswer(t)
+	key, err := token.Key("done")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var requests, callerStarts, childStarts atomic.Int32
+	ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
+		count := requests.Add(1)
+		out := make(chan goai.Event, 1)
+		if crashing && count == 1 {
+			out <- toolAnswer("c1", "unsafe", JSON{})
+		} else {
+			out <- terminal("done")
+		}
+		close(out)
+		return out
+	})
+	options.Registry = NewRegistry()
+	started := make(chan ID, 1)
+	diagnostics := make(chan []ToolDiagnostic, 4)
+	research := ToolRegistration{Definition: goai.Tool{Name: "research", Parameters: json.RawMessage(`{"type":"object","properties":{"topic":{"type":"string"}},"required":["topic"]}`)}, Implementation: "test.restart.research", Version: 1, Execute: func(context.Context, any, *ToolAPI) (ToolResult, error) {
+		childStarts.Add(1)
+		return ToolResult{Park: &ToolPark{Sleep: &ToolSleep{Signals: []SignalKey{key}}}}, nil
+	}}
+	unsafe := ToolRegistration{Definition: goai.Tool{Name: "unsafe", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "test.restart.unsafe", Version: 1, Execute: func(run context.Context, _ any, api *ToolAPI) (ToolResult, error) {
+		callerStarts.Add(1)
+		child, err := api.StartTool(run, "a", "research", JSON{"topic": "x"})
+		if err != nil {
+			return ToolResult{}, err
+		}
+		started <- child.ID()
+		<-run.Done()
+		return ToolResult{}, run.Err()
+	}}
+	if err := options.Registry.Install(&Extension{Name: "restart-tools", Tools: []ToolRegistration{research, unsafe}, ToolHooks: ToolHooks{
+		AfterTool: func(_ context.Context, call goai.ToolCall, result ToolResult, _ *HookAPI) (*ToolResult, error) {
+			if call.Name == "research" {
+				diagnostics <- result.Diagnostics
+			}
+			return nil, nil
+		},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	h := openHarness(t, observed, options)
+	if err := h.Resume(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if crashing {
+		c := root(t, h, ref)
+		sub, err := c.Submit(ctx, Input{Type: "input", Content: "go"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case ids.Child = <-started:
+		case <-ctx.Done():
+			t.Fatal("unsafe caller did not issue its child", ctx.Err())
+		}
+		select {
+		case parked := <-observed.parked:
+			if parked != ids.Child {
+				t.Fatalf("parked task=%d; want %d", parked, ids.Child)
+			}
+		case <-ctx.Done():
+			t.Fatal("child did not park", ctx.Err())
+		}
+		child, found, err := h.Task(ctx, ids.Child)
+		if err != nil || !found || child.Owner == 0 || child.State.Status != "sleeping" {
+			t.Fatalf("pre-crash child=%+v, %v", child, err)
+		}
+		parent, found, err := h.Task(ctx, child.Owner)
+		if err != nil || !found || parent.State.Status != "running" || taskCheckpointMap(parent.State.Checkpoint)["phase"] != "execute" {
+			t.Fatalf("pre-crash caller=%+v, %v", parent, err)
+		}
+		ids.Conversation, ids.Submission, ids.Parent = c.ID(), sub.ID(), child.Owner
+		raw, err := json.Marshal(ids)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "addresses.json"), raw, 0600); err != nil {
+			t.Fatal(err)
+		}
+		if err := syscall.Kill(os.Getpid(), syscall.SIGKILL); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
+	sub, err := h.Submission(ctx, ids.Submission)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result, err := sub.Wait(ctx); err != nil || result.Record.Status != "done" {
+		t.Fatalf("submission after restart=%+v, %v", result.Record, err)
+	}
+	child, err := h.WaitForTask(ctx, ids.Child)
+	if err != nil || child.Owner != ids.Parent || child.AbortReason != "restart" || child.State.Outcome == nil || child.State.Outcome.Status != "aborted" {
+		t.Fatalf("child outcome=%+v, %v", child, err)
+	}
+	// Supplemental scheduler witness: the caller's restart cannot overtake
+	// the child's independently confirmed cancellation and overwrite its reason.
+	if len(order) != 2 || <-order != "child-terminal" || <-order != "caller-running" {
+		t.Fatal("the caller resumed before its parked child ended")
+	}
+	const expected = "Tool research was parked: its caller ended with a restart"
+	if len(diagnostics) != 1 {
+		t.Fatalf("nested hook reports=%d; want one", len(diagnostics))
+	}
+	if d := <-diagnostics; len(d) != 1 || d[0].Message != expected {
+		t.Fatalf("diagnostics=%+v; want %q", d, expected)
+	}
+	live, found, err := h.SnapshotDefinition(ctx, LiveDoc(), ids.Conversation, nil)
+	_, hasNested := live.Get("nestedTools")
+	if err != nil || !found || hasNested || requests.Load() != 1 || callerStarts.Load() != 0 || childStarts.Load() != 0 {
+		t.Fatalf("after restart live=%v, %v; requests=%d caller starts=%d child starts=%d", live.Copy(), err, requests.Load(), callerStarts.Load(), childStarts.Load())
+	}
+}

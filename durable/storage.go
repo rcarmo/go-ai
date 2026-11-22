@@ -612,9 +612,10 @@ func prepareRecord(s Snapshot, r commitRecord, l Limits, final, explicit, contig
 			n.Documents[id] = v
 			revisions := append([]DocumentRevision(nil), n.DocumentRevisions[id]...)
 			if len(revisions) == 0 {
-				// Legacy latest-only bases were materialised without a tail table.
+				// A public Storage projection can see the current value and its
+				// count without access to the individual revisions behind it.
 				old := s.Documents[id]
-				revisions = append(revisions, DocumentRevision{Seq: old.CreatedAt, Version: old.Version, Value: old.Value})
+				revisions = append(revisions, DocumentRevision{Seq: s.Seq, Version: old.Version, Value: old.Value, prefixDeltas: old.DeltasSinceBase})
 			}
 			n.DocumentRevisions[id] = append(revisions, DocumentRevision{Seq: r.Seq, Version: v.Version, Kind: "delta", Ops: delta.Ops})
 		case "put-document":
@@ -1016,7 +1017,7 @@ func validateState(candidate *Snapshot, l Limits, final bool, prior Snapshot, wr
 				if _, e := encodeBounded(revision.Value, l, l.MaxDocumentBytes); e != nil {
 					return e
 				}
-				value, version, count = revision.Value, revision.Version, 0
+				value, version, count = revision.Value, revision.Version, revision.prefixDeltas
 			}
 			if e := addRevision(index, revision); e != nil {
 				return e
