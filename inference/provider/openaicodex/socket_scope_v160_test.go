@@ -36,14 +36,20 @@ type codexScopeClose struct {
 // Assert at the transport boundary: a missing cache entry alone does not
 // establish that the peer received a close, or even that the socket closed.
 func TestSourceV160CodexSocketScope(t *testing.T) {
-	for _, mode := range []string{"account", "one-shot", "scoped-close-reset", "active-close", "age-cap"} {
+	for _, mode := range []string{"account", "one-shot", "scoped-close-reset", "active-close", "age-cap", "idle-expiry"} {
 		t.Run(mode, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+			limit := 10 * time.Second
+			if mode == "age-cap" {
+				limit = 2 * time.Second
+			}
+			ctx, cancel := context.WithTimeout(t.Context(), limit)
 			defer cancel()
 			var connections, requests, fetches atomic.Int32
 			dials := make(chan codexScopeDial, 16)
 			sends := make(chan codexScopeSend, 16)
 			closed := make(chan codexScopeClose, 16)
+			firstPeerClosed := make(chan struct{})
+			replacementUsed := make(chan struct{})
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.Header.Get("Upgrade") != "websocket" {
 					fetches.Add(1)
@@ -62,6 +68,9 @@ func TestSourceV160CodexSocketScope(t *testing.T) {
 					_, data, err := conn.Read(ctx)
 					if err != nil {
 						closed <- codexScopeClose{connection: id, err: err}
+						if id == 1 {
+							close(firstPeerClosed)
+						}
 						return
 					}
 					var body map[string]json.RawMessage
@@ -71,6 +80,9 @@ func TestSourceV160CodexSocketScope(t *testing.T) {
 					}
 					sends <- codexScopeSend{connection: id, body: body}
 					n := requests.Add(1)
+					if mode == "age-cap" && id != 1 && n == 2 {
+						close(replacementUsed)
+					}
 					frame := fmt.Sprintf(`{"type":"response.completed","response":{"id":"resp_%d","status":"completed","usage":{"input_tokens":5,"output_tokens":3,"total_tokens":8}}}`, n)
 					if mode == "active-close" && n == 1 {
 						frame = `{"type":"response.created","response":{"id":"in_flight"}}`
@@ -78,6 +90,16 @@ func TestSourceV160CodexSocketScope(t *testing.T) {
 					if err := conn.Write(ctx, websocket.MessageText, []byte(frame)); err != nil {
 						t.Error(err)
 						return
+					}
+					if mode == "age-cap" && id == 1 {
+						// The old peer won't read and acknowledge the close until
+						// a request has reached its replacement socket.
+						select {
+						case <-replacementUsed:
+						case <-ctx.Done():
+							t.Error("replacement did not send before the old close acknowledgment")
+							return
+						}
 					}
 				}
 			}))
@@ -88,10 +110,10 @@ func TestSourceV160CodexSocketScope(t *testing.T) {
 			defer CloseOpenAICodexWebSocketSessions(target)
 			defer CloseOpenAICodexWebSocketSessions(other)
 			model := &goai.Model{ID: "gpt-5.1-codex", Provider: goai.ProviderOpenAICodex, Api: goai.ApiOpenAICodexResponses, BaseURL: server.URL, Reasoning: true}
-			var ageMessages []goai.Message
+			var replayMessages []goai.Message
 			run := func(session, account string, oneShot bool) codexScopeSend {
 				t.Helper()
-				input := &goai.Context{Messages: ageMessages}
+				input := &goai.Context{Messages: replayMessages}
 				opts := &goai.StreamOptions{APIKey: accountJWT(account), SessionID: session, Transport: goai.TransportWebSocketCached}
 				if oneShot {
 					input.SystemPrompt = "You are a helpful assistant."
@@ -106,8 +128,8 @@ func TestSourceV160CodexSocketScope(t *testing.T) {
 						t.Fatalf("Codex request: %v", ev.Err)
 					case *goai.DoneEvent:
 						done++
-						if mode == "age-cap" {
-							ageMessages = append(ageMessages, *ev.Message)
+						if replayMessages != nil {
+							replayMessages = append(replayMessages, *ev.Message)
 						}
 					}
 				}
@@ -135,11 +157,11 @@ func TestSourceV160CodexSocketScope(t *testing.T) {
 				}
 				return out
 			}
-			assertDebugClose := func(id int32, err error) {
+			assertCloseReason := func(id int32, err error, reason string) {
 				t.Helper()
 				var close coderws.CloseError
-				if !errors.As(err, &close) || close.Code != websocket.StatusNormalClosure || close.Reason != "debug_close" {
-					t.Errorf("session close peer %d = %v; want close 1000 debug_close", id, err)
+				if !errors.As(err, &close) || close.Code != websocket.StatusNormalClosure || close.Reason != reason {
+					t.Errorf("session close peer %d = %v; want close 1000 %s", id, err, reason)
 				}
 			}
 			switch mode {
@@ -185,8 +207,8 @@ func TestSourceV160CodexSocketScope(t *testing.T) {
 				before := GetOpenAICodexWebSocketDebugStats(target)
 				CloseOpenAICodexWebSocketSessions(target)
 				peers := readCloses(2)
-				assertDebugClose(a.connection, peers[a.connection])
-				assertDebugClose(b.connection, peers[b.connection])
+				assertCloseReason(a.connection, peers[a.connection], "debug_close")
+				assertCloseReason(b.connection, peers[b.connection], "debug_close")
 				if after := GetOpenAICodexWebSocketDebugStats(target); before == nil || !reflect.DeepEqual(before, after) {
 					t.Errorf("close changed debug stats: before %+v after %+v", before, after)
 				}
@@ -200,34 +222,55 @@ func TestSourceV160CodexSocketScope(t *testing.T) {
 				if fresh := run(target, "account-a", false); fresh.connection == a.connection || fresh.body["previous_response_id"] != nil {
 					t.Errorf("closed session reused old socket or continuation: %+v", fresh)
 				}
-			case "age-cap": // ai.codex.ws-age-cap
+			case "age-cap", "idle-expiry": // Exact age original; supplemental wire expiry for both.
 				const account = "account-a"
-				ageMessages = []goai.Message{
+				replayMessages = []goai.Message{
 					{Role: goai.RoleSystem, Content: []goai.ContentBlock{{Type: "text", Text: "You are a helpful assistant."}}},
 					goai.UserMessage("Say hello"),
 				}
 				first := run(target, account, false)
-				// The first public call has released the entry. Move only its
-				// creation stamp, as the oracle jumps the wall clock without
-				// firing the separate idle-expiry timer.
+				// The first call has released its lease. Control only the age
+				// stamp or timer generation, without waiting real minutes.
 				key := codexWebSocketSessionKey{sessionID: target, accountID: account, wsURL: resolveCodexWSURL(server.URL)}
 				codexWebSocketSessionsMu.Lock()
 				entry := codexWebSocketSessions[key]
-				if entry != nil {
+				if entry == nil || entry.idleTimer == nil || entry.cancelRead == nil {
+					codexWebSocketSessionsMu.Unlock()
+					t.Fatal("missing released cached socket, timer or reader")
+				}
+				timer := entry.idleTimer
+				if mode == "age-cap" {
 					entry.createdAt = entry.createdAt.Add(-46 * time.Minute)
+				} else {
+					timer.Stop()
+				}
+				cancelRead := entry.cancelRead
+				entry.cancelRead = func() {
+					cancelRead()
+					// Let the peer observe the cancellation if it is performed
+					// first. This exposes the cancellation/close race without
+					// guessing which goroutine runs first.
+					select {
+					case <-firstPeerClosed:
+					case <-ctx.Done():
+						t.Error("reader cancellation did not reach the peer")
+					}
 				}
 				codexWebSocketSessionsMu.Unlock()
-				if entry == nil {
-					t.Fatal("missing initially cached socket")
+				reason := "connection_age_limit"
+				if mode == "idle-expiry" {
+					reason = "idle_timeout"
+					expireCodexWebSocketSession(key, entry, timer)
 				}
-				ageMessages = append(ageMessages, goai.UserMessage("Now finish"))
+				replayMessages = append(replayMessages, goai.UserMessage("Now finish"))
 				second := run(target, account, false)
 				if connections.Load() != 2 || first.connection != 1 || second.connection != 2 {
-					t.Errorf("aged connections and sends = %d, [%d %d]; want 2, [1 2]", connections.Load(), first.connection, second.connection)
+					t.Errorf("eviction connections and sends = %d, [%d %d]; want 2, [1 2]", connections.Load(), first.connection, second.connection)
 				}
 				if stats := GetOpenAICodexWebSocketDebugStats(target); stats == nil || stats.ConnectionsCreated != 2 || stats.ConnectionsReused != 0 {
-					t.Errorf("age cap stats = %+v; want two created, zero reused", stats)
+					t.Errorf("eviction stats = %+v; want two created, zero reused", stats)
 				}
+				assertCloseReason(first.connection, readCloses(1)[first.connection], reason)
 			case "active-close": // Supplemental: public cleanup while a cached reader owns a lease.
 				opts := &goai.StreamOptions{APIKey: accountJWT("account-a"), SessionID: target, Transport: goai.TransportWebSocketCached}
 				var events []string
@@ -247,7 +290,7 @@ func TestSourceV160CodexSocketScope(t *testing.T) {
 				if !reflect.DeepEqual(events, []string{"start", "error"}) {
 					t.Errorf("active close events = %v; want start then a terminal error", events)
 				}
-				assertDebugClose(1, readCloses(1)[1])
+				assertCloseReason(1, readCloses(1)[1], "debug_close")
 			}
 			if fetches.Load() != 0 {
 				t.Errorf("SSE requests = %d; want zero", fetches.Load())

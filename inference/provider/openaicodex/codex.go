@@ -565,7 +565,7 @@ func codexWebSocketSessionExpired(entry *codexWebSocketSessionEntry, now time.Ti
 
 func acquireCodexWebSocketSession(ctx context.Context, wsURL string, headers http.Header, sessionID string, retryCfg goai.RetryConfig, model *goai.Model) (*websocket.Conn, *codexWebSocketSessionEntry, bool, error) {
 	key := codexWebSocketSessionKey{sessionID: sessionID, accountID: headers.Get("ChatGPT-Account-Id"), wsURL: wsURL}
-	var expired *websocket.Conn
+	var expired *codexWebSocketSessionEntry
 	codexWebSocketSessionsMu.Lock()
 	if cached := codexWebSocketSessions[key]; cached != nil {
 		if cached.idleTimer != nil {
@@ -584,12 +584,14 @@ func acquireCodexWebSocketSession(ctx context.Context, wsURL string, headers htt
 			return cached.conn, cached, true, nil
 		}
 		delete(codexWebSocketSessions, key)
-		stopCodexSocketReader(cached)
-		expired = cached.conn
+		if beginCodexGracefulClose(cached) {
+			expired = cached
+		}
 	}
 	codexWebSocketSessionsMu.Unlock()
 	if expired != nil {
-		_ = expired.Close(websocket.StatusNormalClosure, "connection_age_limit")
+		// A fresh dial need not wait for the retired peer to acknowledge.
+		go finishCodexGracefulClose(expired, "connection_age_limit")
 	}
 	conn, err := dialCodexWebSocket(ctx, wsURL, headers, retryCfg, model)
 	if err != nil {
@@ -690,16 +692,14 @@ func scheduleCodexWebSocketIdleClose(sessionID string, entry *codexWebSocketSess
 
 func expireCodexWebSocketSession(key codexWebSocketSessionKey, entry *codexWebSocketSessionEntry, timer *time.Timer) {
 	codexWebSocketSessionsMu.Lock()
-	var conn *websocket.Conn
+	retired := false
 	if codexWebSocketSessions[key] == entry && !entry.busy && entry.idleTimer == timer {
 		delete(codexWebSocketSessions, key)
-		entry.idleTimer = nil
-		stopCodexSocketReader(entry)
-		conn = entry.conn
+		retired = beginCodexGracefulClose(entry)
 	}
 	codexWebSocketSessionsMu.Unlock()
-	if conn != nil {
-		_ = conn.Close(websocket.StatusNormalClosure, "idle_timeout")
+	if retired {
+		finishCodexGracefulClose(entry, "idle_timeout")
 	}
 }
 
