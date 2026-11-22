@@ -108,7 +108,7 @@ func (r *TaskRuntime) runParallelCodemode(ctx context.Context, vm CodemodeExecut
 			}
 			if event.Call != nil && event.Drain == nil && event.Result == nil {
 				call := *event.Call
-				if observed >= l.MaxPage || call.ID != observed+1 || !call.Global && !allowed[call.Name] || call.Global && !codemodeGlobalAllowed(start, call.Name) {
+				if observed >= l.MaxPage || call.ID != observed+1 || !call.Global && !allowed[call.Name] || call.Global && !codemodeGlobalAllowed(start, call) {
 					return divergence("parallel sandbox call authority mismatch")
 				}
 				call.Arguments, err = ownCodemodeArguments(call, l)

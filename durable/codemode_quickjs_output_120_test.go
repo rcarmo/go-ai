@@ -13,7 +13,7 @@ func TestCodemode120QuickJSTextConsoleReturnAndBudget(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer sandbox.Close(bg)
-	for _, tc := range []struct{ code, want string }{{`text("one");console.log("middle");text("two");console.warn("last");return {n:1};`, "==> text 1/3 <==\none\n==> text 2/3 <==\ntwo\n==> text 3/3 <==\n{\n  \"n\": 1\n}\n<console_output>\nmiddle\nlast\n</console_output>"}, {`return "hello";`, "hello"}, {`return {z:9007199254740992,a:1e21,html:"<>&",unicode:"😀"};`, "{\n  \"z\": 9007199254740992,\n  \"a\": 1e+21,\n  \"html\": \"<>&\",\n  \"unicode\": \"😀\"\n}"}, {`return null;`, "null"}, {`console.log("only");`, "<console_output>\nonly\n</console_output>"}} {
+	for _, tc := range []struct{ code, want string }{{`text("one");console.log("middle");text("two");console.warn("last");return {n:1};`, "==> text 1/3 <==\none\n==> text 2/3 <==\ntwo\n==> text 3/3 <==\n{\"n\":1}\n<console_output>\nmiddle\nlast\n</console_output>"}, {`return "hello";`, "hello"}, {`return {z:9007199254740992,a:1e21,html:"<>&",unicode:"😀"};`, "{\"z\":9007199254740992,\"a\":1e+21,\"html\":\"<>&\",\"unicode\":\"😀\"}"}, {`return null;`, "null"}, {`console.log("only");`, "<console_output>\nonly\n</console_output>"}} {
 		ctx, cancel := context.WithTimeout(bg, 3*time.Second)
 		vm, err := sandbox.Start(ctx, tc.code, CodemodeStart{StartedAt: 1000, Seed: 42})
 		if err != nil {

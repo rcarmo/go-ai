@@ -78,12 +78,14 @@ type CodemodeEvent struct {
 }
 type CodemodeCall struct {
 	argumentsDecoded   bool
-	StreamingArguments bool     `json:"streamingArguments,omitempty"`
-	UTF16Arguments     []string `json:"utf16Arguments,omitempty"`
-	Global             bool     `json:"global,omitempty"`
-	ID                 int      `json:"id"`
-	Name               string   `json:"name"`
-	Arguments          JSON     `json:"arguments"`
+	StreamingArguments bool `json:"streamingArguments,omitempty"`
+	// UndefinedArgument tags an omitted argument to a non-spread global.
+	UndefinedArgument bool     `json:"undefinedArgument,omitempty"`
+	UTF16Arguments    []string `json:"utf16Arguments,omitempty"`
+	Global            bool     `json:"global,omitempty"`
+	ID                int      `json:"id"`
+	Name              string   `json:"name"`
+	Arguments         JSON     `json:"arguments"`
 }
 type CodemodeResult struct {
 	WallMs         int64               `json:"wallMs"`
@@ -520,7 +522,7 @@ func (r *TaskRuntime) runCodemode(ctx context.Context, key, source string, sandb
 			return CodemodeResult{}, reject("codemode serial call budget exhausted")
 		}
 		call := *event.Call
-		if call.ID != index+1 || (!call.Global && !allowed[call.Name]) || (call.Global && !codemodeGlobalAllowed(run.Start, call.Name)) {
+		if call.ID != index+1 || (!call.Global && !allowed[call.Name]) || (call.Global && !codemodeGlobalAllowed(run.Start, call)) {
 			return CodemodeResult{}, reject("sandbox call ID/authority mismatch")
 		}
 		call.Arguments, err = ownCodemodeArguments(call, l)

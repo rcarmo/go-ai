@@ -130,22 +130,12 @@ func (s *QuickJSSandbox) Start(ctx context.Context, code string, start CodemodeS
 				return nil, errors.New("parallel codemode calls unsupported")
 			}
 			defer execution.pending.Store(false)
-			var arguments JSON
-			if global {
-				var values any
-				if err := decodeQuickJSValue(args, &values); err != nil {
-					return nil, err
-				}
-				arguments = JSON{"args": values}
-			} else {
-				var err error
-				arguments, err = decodeQuickJSToolArguments(args)
-				if err != nil {
-					return nil, err
-				}
+			arguments, undefined, err := decodeQuickJSCallArguments(args, global)
+			if err != nil {
+				return nil, err
 			}
 			id := execution.sequence.Add(1)
-			call := CodemodeCall{StreamingArguments: !global, ID: int(id), Global: global, Name: name, Arguments: arguments}
+			call := CodemodeCall{StreamingArguments: !global, UndefinedArgument: undefined, ID: int(id), Global: global, Name: name, Arguments: arguments}
 			// Keep admission identity separate from caller-visible event maps.
 			expectedArgs, err := ownCodemodeArguments(call, DefaultLimits())
 			if err != nil {
@@ -192,21 +182,11 @@ func (s *QuickJSSandbox) Start(ctx context.Context, code string, start CodemodeS
 	}
 	if start.ParallelCalls {
 		opts.PrepareCall = func(ctx context.Context, id int, global bool, name string, args json.RawMessage) (func(context.Context) (json.RawMessage, error), error) {
-			var arguments JSON
-			if global {
-				var value any
-				if err := decodeQuickJSValue(args, &value); err != nil {
-					return nil, err
-				}
-				arguments = JSON{"args": value}
-			} else {
-				var err error
-				arguments, err = decodeQuickJSToolArguments(args)
-				if err != nil {
-					return nil, err
-				}
+			arguments, undefined, err := decodeQuickJSCallArguments(args, global)
+			if err != nil {
+				return nil, err
 			}
-			call := CodemodeCall{StreamingArguments: !global, ID: id, Global: global, Name: name, Arguments: arguments}
+			call := CodemodeCall{StreamingArguments: !global, UndefinedArgument: undefined, ID: id, Global: global, Name: name, Arguments: arguments}
 			owned, err := ownCodemodeArguments(call, DefaultLimits())
 			if err != nil {
 				return nil, err
@@ -388,6 +368,21 @@ func (e *quickjsExecution) Deliver(ctx context.Context, delivery CodemodeDeliver
 	}
 }
 func (e *quickjsExecution) Close() error { e.cancel(); <-e.done; return nil }
+
+func decodeQuickJSCallArguments(raw []byte, global bool) (JSON, bool, error) {
+	if !global {
+		arguments, err := decodeQuickJSToolArguments(raw)
+		return arguments, false, err
+	}
+	if raw == nil {
+		return JSON{}, true, nil
+	}
+	var value any
+	if err := decodeQuickJSValue(raw, &value); err != nil {
+		return nil, false, err
+	}
+	return JSON{"args": value}, false, nil
+}
 
 func decodeQuickJSValue(raw []byte, value any) error {
 	decoder := json.NewDecoder(bytes.NewReader(raw))

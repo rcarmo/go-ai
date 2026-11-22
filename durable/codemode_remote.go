@@ -274,7 +274,7 @@ func (e *remoteCodemodeExecution) admitEvent(event CodemodeEvent, start Codemode
 		}
 		allowed := false
 		if call.Global {
-			allowed = codemodeGlobalAllowed(start, call.Name)
+			allowed = codemodeGlobalAllowed(start, call)
 		} else {
 			for _, tool := range start.Tools {
 				if tool.Name == call.Name {

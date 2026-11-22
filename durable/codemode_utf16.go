@@ -26,7 +26,14 @@ func decodeQuickJSToolArguments(raw []byte) (JSON, error) {
 	}
 	return copyScopedToolArguments(JSON(object), true, l)
 }
+func validCodemodeArgumentPresence(call CodemodeCall) bool {
+	return !call.UndefinedArgument || call.Global && !call.StreamingArguments && call.Arguments != nil && len(call.Arguments) == 0
+}
+
 func ownCodemodeArguments(call CodemodeCall, l Limits) (JSON, error) {
+	if !validCodemodeArgumentPresence(call) {
+		return nil, reject("invalid codemode argument presence")
+	}
 	if call.Global && call.StreamingArguments {
 		return nil, reject("typed tool arguments on global call")
 	}
@@ -35,13 +42,17 @@ func ownCodemodeArguments(call CodemodeCall, l Limits) (JSON, error) {
 func codemodeArgumentModeCompatible(a, b CodemodeCall) bool {
 	// Old ordinary-JSON journals predate the encoding marker. Preserve their
 	// admission mode on replay; encoding metadata is not a new call identity.
-	return a.StreamingArguments == b.StreamingArguments || !containsUTF16(reflect.ValueOf(a.Arguments)) && !containsUTF16(reflect.ValueOf(b.Arguments))
+	return a.UndefinedArgument == b.UndefinedArgument &&
+		(a.StreamingArguments == b.StreamingArguments || !containsUTF16(reflect.ValueOf(a.Arguments)) && !containsUTF16(reflect.ValueOf(b.Arguments)))
 }
 
 // MarshalJSON uses the native Go protocol carrier, including for remote pipes.
 // The bounded encoder handles this exact library type without invoking it.
 func (call CodemodeCall) MarshalJSON() ([]byte, error) {
 	l := DefaultLimits()
+	if !validCodemodeArgumentPresence(call) {
+		return nil, reject("invalid codemode argument presence")
+	}
 	if call.Global && call.StreamingArguments {
 		return nil, reject("typed tool arguments on global call")
 	}
@@ -58,6 +69,9 @@ func (call *CodemodeCall) UnmarshalJSON(raw []byte) error {
 		return err
 	}
 	next := CodemodeCall(decoded)
+	if !validCodemodeArgumentPresence(next) {
+		return reject("invalid codemode argument presence")
+	}
 	if next.Global && next.StreamingArguments {
 		return reject("typed tool arguments on global call")
 	}

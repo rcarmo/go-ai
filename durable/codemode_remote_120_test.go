@@ -65,8 +65,22 @@ func TestCodemode120RemoteCloseDuringDrainJoins(t *testing.T) {
 }
 
 func TestCodemode120RemoteRejectsForgedEventsAndDeliveries(t *testing.T) {
-	start := CodemodeStart{Tools: []CodemodeToolDescription{{Name: "leaf"}}}
-	for _, call := range []CodemodeCall{{ID: 2, Name: "leaf", Arguments: JSON{}}, {ID: 1, Name: "private", Arguments: JSON{}}, {ID: 1, Name: "leaf", Arguments: nil}} {
+	start := CodemodeStart{
+		Tools: []CodemodeToolDescription{{Name: "leaf"}},
+		Globals: []CodemodeGlobalDescription{
+			{Name: "host.spread", Version: 1, Spread: true},
+			{Name: "host.single", Version: 1},
+		},
+	}
+	for _, call := range []CodemodeCall{
+		{ID: 2, Name: "leaf", Arguments: JSON{}},
+		{ID: 1, Name: "private", Arguments: JSON{}},
+		{ID: 1, Name: "leaf", Arguments: nil},
+		{ID: 1, Name: "leaf", UndefinedArgument: true, Arguments: JSON{}},
+		{ID: 1, Name: "host.spread", Global: true, UndefinedArgument: true, Arguments: JSON{}},
+		{ID: 1, Name: "host.single", Global: true, UndefinedArgument: true, Arguments: JSON{"args": nil}},
+		{ID: 1, Name: "searchTools", Global: true, UndefinedArgument: true, Arguments: JSON{}},
+	} {
 		e := &remoteCodemodeExecution{}
 		if err := e.admitEvent(CodemodeEvent{Call: &call}, start); err == nil {
 			t.Fatal("forged call accepted", call)

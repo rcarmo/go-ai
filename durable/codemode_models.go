@@ -1,7 +1,12 @@
 package durable
 
-func codemodeGlobalAllowed(start CodemodeStart, name string) bool {
-	return codemodeCustomGlobal(start, name) != nil || codemodeDiscoveryName(name) || start.PaidModels && (name == "models.classify" || name == "models.generateImages" || codemodeModelCatalogName(name))
+func codemodeGlobalAllowed(start CodemodeStart, call CodemodeCall) bool {
+	name := call.Name
+	global := codemodeCustomGlobal(start, name)
+	if call.UndefinedArgument {
+		return global != nil && !global.Spread
+	}
+	return global != nil || codemodeDiscoveryName(name) || start.PaidModels && (name == "models.classify" || name == "models.generateImages" || codemodeModelCatalogName(name))
 }
 func codemodePaidArguments(call CodemodeCall) (string, JSON, error) {
 	args, _ := call.Arguments["args"].([]any)

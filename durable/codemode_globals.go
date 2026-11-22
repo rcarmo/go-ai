@@ -6,9 +6,9 @@ import (
 	"strings"
 )
 
-// CodemodeUndefined represents a JavaScript undefined result from a custom
-// global. A nil result remains JSON null. It is valid only as the whole result,
-// not as a nested JSON value.
+// CodemodeUndefined represents an omitted argument or a JavaScript undefined
+// result from a custom global. A nil value remains JSON null. The sentinel is
+// valid only for the whole argument or result, not as a nested JSON value.
 const CodemodeUndefined codemodeUndefined = 0
 
 type codemodeUndefined uint8
@@ -112,6 +112,9 @@ func (r *TaskRuntime) callCodemodeGlobal(ctx context.Context, start CodemodeStar
 	arguments, copyErr := copyObject(call.Arguments, r.harness.session.limits)
 	if copyErr != nil {
 		return nil, copyErr
+	}
+	if call.UndefinedArgument {
+		return callback.Execute(ctx, CodemodeUndefined)
 	}
 	return callback.Execute(ctx, arguments["args"])
 }

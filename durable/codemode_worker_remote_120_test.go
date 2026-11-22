@@ -127,7 +127,7 @@ func TestCodemode120WorkerRemoteBatchesParallelDrainsAndTerminal(t *testing.T) {
 		t.Fatal(event, err)
 	}
 	result := event.Result
-	if !strings.Contains(result.Output, "==> text 1/3 <==\nbefore") || !strings.Contains(result.Output, "==> text 2/3 <==\nafter") || !strings.Contains(result.Output, "==> text 3/3 <==\n{\n  \"ok\": true\n}") || !equalJSONValue(result.Value, JSON{"ok": true}) || !equalJSONValue(result.StoreWrites, JSON{"saved": true}) || len(result.StoreDeletes) != 1 || result.StoreDeletes[0] != "removed" {
+	if !strings.Contains(result.Output, "==> text 1/3 <==\nbefore") || !strings.Contains(result.Output, "==> text 2/3 <==\nafter") || !strings.Contains(result.Output, "==> text 3/3 <==\n{\"ok\":true}") || !equalJSONValue(result.Value, JSON{"ok": true}) || !equalJSONValue(result.StoreWrites, JSON{"saved": true}) || len(result.StoreDeletes) != 1 || result.StoreDeletes[0] != "removed" {
 		t.Fatal(result)
 	}
 }

@@ -24,13 +24,13 @@ func formatQuickJSText(result quickjs.Result) (string, error) {
 			}
 			items = append(items, quickjs.OutputItem{Type: "text", Text: text})
 		} else {
-			// Indent the guest's JSON directly: decoding into maps/floats would
-			// change insertion order, numeric spelling and precision.
-			var pretty bytes.Buffer
-			if err := json.Indent(&pretty, result.Value, "", "  "); err != nil {
+			// Match the source's compact JSON without a Go map/float round trip,
+			// which could change property order, number spelling or precision.
+			var compact bytes.Buffer
+			if err := json.Compact(&compact, result.Value); err != nil {
 				return "", err
 			}
-			items = append(items, quickjs.OutputItem{Type: "text", Text: pretty.String()})
+			items = append(items, quickjs.OutputItem{Type: "text", Text: compact.String()})
 		}
 	}
 	if !result.OK && result.Error != nil {

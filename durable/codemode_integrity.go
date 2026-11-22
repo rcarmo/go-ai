@@ -53,7 +53,7 @@ func validateCodemodeDocuments(s Snapshot, doc Document, l Limits) error {
 		tools[tool.Name] = true
 	}
 	for i, call := range journal.Issued {
-		if call.ID != i+1 || (!call.Global && !tools[call.Name]) || (call.Global && !codemodeGlobalAllowed(run.Start, call.Name)) || call.Arguments == nil {
+		if call.ID != i+1 || (!call.Global && !tools[call.Name]) || (call.Global && !codemodeGlobalAllowed(run.Start, call)) || call.Arguments == nil || !validCodemodeArgumentPresence(call) {
 			return reject("invalid codemode issued sequence/authority")
 		}
 	}
