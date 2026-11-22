@@ -31,15 +31,16 @@ type Tx struct {
 	creationError          error     // creation callback failure poisons only this transaction
 	// Bound only by Harness task commits or invocation admission. Callers never
 	// supply executable authority by copying a raw task record.
-	taskConversation   ID
-	progressTask       ID // process-local invocation whose state can reset restarts
-	byTask             ID
-	taskStops          []taskStop
-	taskAdoptState     *Snapshot   // immutable confirmed storage view, private to adoption
-	taskRollback       func(error) // trusted bounded bookkeeping BEFORE Session.leave
-	taskTerminals      map[ID]bool // private builtin withdrawal cleanup; no legacy rewrite
-	taskTraceRoots     map[ID]bool // normalized root directives, applied only after adoption
-	externalTaskCommit bool        // public host transaction, not a scheduler/adapter pass
+	taskConversation    ID
+	progressTask        ID // process-local invocation whose state can reset restarts
+	byTask              ID
+	taskStops           []taskStop
+	taskAdoptState      *Snapshot   // immutable confirmed storage view, private to adoption
+	toolGatePublication *uint64     // phase selection that decided this gate sleep
+	taskRollback        func(error) // trusted bounded bookkeeping BEFORE Session.leave
+	taskTerminals       map[ID]bool // private builtin withdrawal cleanup; no legacy rewrite
+	taskTraceRoots      map[ID]bool // normalized root directives, applied only after adoption
+	externalTaskCommit  bool        // public host transaction, not a scheduler/adapter pass
 	// Immediate parents of successfully staged high-level forks. This fence is
 	// broader than copy source IDs: new current-policy parent docs also reject.
 	forkParents       map[ID]bool

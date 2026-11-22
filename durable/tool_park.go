@@ -29,6 +29,21 @@ type ToolWait struct {
 	HasCheckpoint bool
 }
 
+// Only a pre-execution call sleeper is eligible for a registry wake. A tool
+// parked by Execute still needs its own deadline, signal or task results.
+func parkedAtToolGate(task Task) bool {
+	return task.Kind == "pi.tool" && task.Status == "sleeping" && task.Execution != nil && task.Execution.Native != nil &&
+		taskCheckpointMap(task.Execution.Native.State.Checkpoint)["phase"] == "call"
+}
+
+func (s *taskScheduler) gateWakeDue(task Task) bool {
+	if !parkedAtToolGate(task) {
+		return false
+	}
+	stamp, known := s.gatePublication[task.ID]
+	return !known || stamp != s.h.options.Registry.publication.Load()
+}
+
 type toolResume struct {
 	wake       *WakeReason
 	checkpoint any

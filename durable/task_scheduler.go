@@ -23,8 +23,9 @@ type taskScheduler struct {
 	active          sync.Map    // *TaskRuntime -> struct{}; off-line close cancellation registry
 	wakeSleeping    map[ID]Task // immutable published records; exact native reads only
 	wakeSleepingSeq uint64
-	idleIndex       *idleIndex  // published metadata, Session-line owned
-	abandoned       map[ID]bool // live restart-disposable tasks captured once at Open
+	gatePublication map[ID]uint64 // process-local decision stamp, absent for a recovered sleep
+	idleIndex       *idleIndex    // published metadata, Session-line owned
+	abandoned       map[ID]bool   // live restart-disposable tasks captured once at Open
 	failed          map[ID]*TaskDefinition
 	failures        map[ID]error
 	retryAfter      map[ID]uint64 // failed host admission requires a newer external epoch
@@ -190,7 +191,7 @@ func (s *taskScheduler) runnable(state Snapshot, task Task) bool {
 		return false
 	}
 	if task.Status == "sleeping" && task.Execution != nil && task.Execution.Native != nil {
-		if !nativeSleepDue(task.Execution.Native, s.h.session.now()) {
+		if !s.gateWakeDue(task) && !nativeSleepDue(task.Execution.Native, s.h.session.now()) {
 			return false
 		}
 	} else if until, sleeping := taskSleepDeadline(task); sleeping && until > s.h.session.now() {
@@ -1349,6 +1350,14 @@ func (s *taskScheduler) adopt(seq uint64, tx *Tx) {
 	// Mark cancellation is dispatched off-line, never inline.
 	for _, write := range tx.writes {
 		if write.Task != nil {
+			if !parkedAtToolGate(*write.Task) {
+				delete(s.gatePublication, write.Task.ID)
+			} else if tx.byTask == write.Task.ID && tx.toolGatePublication != nil {
+				if s.gatePublication == nil {
+					s.gatePublication = make(map[ID]uint64)
+				}
+				s.gatePublication[write.Task.ID] = *tx.toolGatePublication
+			}
 			if updateSleeping {
 				// Read the final adopted record, not an intermediate write or a
 				// caller-owned checkpoint. Repeated writes to one ID are harmless.

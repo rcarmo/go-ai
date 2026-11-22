@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode/utf8"
 )
@@ -77,6 +78,7 @@ type registeredTool struct {
 }
 type Registry struct {
 	mu                   sync.RWMutex
+	publication          atomic.Uint64
 	tools                map[string]registeredTool
 	toolOrder            []string
 	tasks                map[string]*TaskDefinition
@@ -1429,6 +1431,12 @@ func (h *Harness) executeTool(task Task, runtime *TaskRuntime) (finalErr error) 
 				continue
 			}
 			if decision.Block != "" {
+				code = "blocked"
+				break
+			}
+			if decision.Sleep != nil {
+				// A pre-v4 call must not bypass a gate that requests a sleep.
+				// Only the canonical call phase can persist and recheck the gate.
 				code = "blocked"
 				break
 			}

@@ -86,9 +86,17 @@ type CompactionDecision struct {
 	Summary *string
 }
 
+// ToolGateSleep suspends before the tool's execution intent is recorded.
+// On wake the call is validated again and beforeTool runs from the first hook.
+type ToolGateSleep struct {
+	Until   *int64
+	Signals []SignalKey
+}
+
 type BeforeToolResult struct {
 	Arguments any
 	Block     string
+	Sleep     *ToolGateSleep
 }
 
 func callBeforeRequest(ctx context.Context, hook func(context.Context, []MessageReceipt, *HookAPI) ([]MessageReceipt, error), messages []MessageReceipt, r *TaskRuntime) (result []MessageReceipt, err error) {

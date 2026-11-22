@@ -207,6 +207,7 @@ type TaskRegistrySnapshot struct {
 	pins        map[string]registeredTool
 	limits      Limits
 	selection   *Registry // immutable captured registration data for phase agents
+	publication uint64    // registry revision captured with this selection
 }
 
 func (s TaskRegistrySnapshot) Task(kind string) *TaskDefinition { return s.definitions[kind] }
@@ -219,6 +220,7 @@ func (s TaskRegistrySnapshot) Tools() ([]goai.Tool, error) {
 }
 
 func (r *Registry) taskListenersLocked() []func() {
+	r.publication.Add(1)
 	wake := make([]func(), 0, len(r.listeners))
 	for _, notify := range r.listeners {
 		wake = append(wake, notify)
@@ -326,6 +328,7 @@ func (r *Registry) taskSnapshot(l Limits) (TaskRegistrySnapshot, error) {
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	result.publication = r.publication.Load()
 	for name, definition := range r.effectiveTasksLocked() {
 		result.definitions[name] = definition
 	}

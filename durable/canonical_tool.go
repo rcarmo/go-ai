@@ -200,6 +200,25 @@ func canonicalToolCallPhase(ctx context.Context, task TaskRecord, r *TaskRuntime
 			if decision.Block != "" {
 				return rejectCall(canonicalToolError("blocked", "Tool call blocked: "+decision.Block))
 			}
+			if sleep := decision.Sleep; sleep != nil {
+				snapshot, err := r.Registry()
+				if err != nil {
+					return err
+				}
+				err = r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
+					tx.toolGatePublication = &snapshot.publication
+					if err := canonicalToolSlotUpdate(tx, r.taskID, r.conversation, func(slot JSON) {
+						slot["status"] = "sleeping"
+					}); err != nil {
+						return nil, err
+					}
+					return &TaskState{Status: "sleeping", Checkpoint: JSON{"phase": "call"}, Until: sleep.Until, Signals: sleep.Signals}, nil
+				})
+				if err == nil || ctx.Err() != nil || r.harness.closing.Load() || r.harness.session.failure() != nil {
+					return err
+				}
+				return rejectCall(canonicalToolError("invalid_park", fmt.Sprintf("Tool call %s cannot wait at its gates: %v", call.ID, err)))
+			}
 			if decision.Arguments != nil {
 				args = decision.Arguments
 			}
