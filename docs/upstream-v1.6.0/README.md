@@ -307,3 +307,25 @@ The two unchanged read-idle cases and the cached connection age case passed. The
 The pinned `draft2020-12/unevaluatedItems` slice passed all 142 unchanged cases: 71 exact validity checks and 71 source error-agreement cases. The byte-identical fixture maps all 71 validity values through public `CheckJSONSchemaValue`; 27 failed on the compiled baseline. Evaluated indexes are scoped to an array instance and combine successful branches, `contains` matches, and reference annotations. Three mutations distinguished failed-branch leakage, dropped dynamic-reference annotations and dropped `contains` matches. The separate native diagnostic tests assert three paths; they do not map the source's independent error agreement.
 
 Round 6 focused Go tests for Durable, Schema and Codex passed twice, along with selected validation and strict-schema tests in `./tests`, `go vet`, and Staticcheck v0.8.2. No broad acceptance suite or profiling was run.
+
+### Restored Durable recovery receipts
+
+`harness-tools-recovery.test.ts:229` passed unchanged. The native reopen fixture now checks canonical terminal tool receipts and their linked transcript entries, rather than a private checkpoint that canonical storage no longer retains after terminalization. It checks `done`, exact cwd sequence, the result error flag and interrupted text. Clear cwd, revoked callers, removal from the model's offer, and deferred replacement are native controls. Unchanged production passed; disabling safe replay made the retained cwd case run just once.
+
+The queued descendant fixture initially admitted a model-visible write into an idle legacy fixture, causing an inbox boundary to place the input before cancellation. A data-only passive write keeps the input queued. The corrected witness verifies zero placement before the child joins and `unanswered/aborted` with no entry or answer afterwards. This also passes unchanged production. Two separate older failed-run fixtures still reproduce `deterministic handler/commit barrier timed out` and `task owner missing` on the Round 7 baseline; they were not counted as passing.
+
+### Codex lifetime rejection before output
+
+The unchanged code-only rejection original (`openai-codex-stream.test.ts:1966`) passed. Public Go streaming reconnects once over a fresh socket, resends identical `response.create` bytes without a continuation ID, and produces one start and successful completion with exact usage and zero SSE requests. This is coverage only. Inverting the reconnect guard instead made one dial, one send, and an unwanted SSE request.
+
+### Codemode worker global argument envelopes
+
+The declared `spread` flag controls argument decoding on the Go worker adapter. Spread globals still accept only arrays; a native negative control checks that a malformed scalar never reaches the host. Non-spread globals can now send a single JSON value. The compiled probe used to reject the pinned string with `cannot unmarshal string`. Removing the array restriction or selecting the wrong declaration failed the controls. Undefined and bare-null legacy replay identity are unchanged.
+
+The unchanged namespaced-global and undefined originals passed across the worker, inline and remote backends on integration. The lead's published v1.6.0 QuickJS worker bridge also returned the exact `[ ["list", "first"], "a", false ]` source result. The committed test fixes the worker protocol events and checks exact native calls and replies; it does not rerun that full published bridge from the Go suite.
+
+### Google GenAI loaded member
+
+The [loaded-input receipt](dependencies/google-sdk-load.md) proves Node returned the exact 1,198,102-byte provider archive member for one unchanged pinned Oracle case. A changed member still passed the behavioral case, but the separate provenance check rejected the digest. Both outcomes reproduced offline. Historical loads, OpenAI and transitive inputs remain open.
+
+Round 7 focused integrated Go tests passed twice, along with vet and Staticcheck v0.8.2. No broad acceptance or profiling was run.
