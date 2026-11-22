@@ -23,7 +23,10 @@ func (s *SQLiteStorage) Commit(ctx context.Context, batches [][]StorageWrite, re
 	if !s.upstreamSchema {
 		return s.storeCore.Commit(ctx, batches, receive)
 	}
-	return s.storeCore.commitPublic(ctx, batches, receive, func() (func() error, error) { return s.beginUpstreamPublicGroup(batches) })
+	return s.storeCore.commitPublic(ctx, batches, receive, &commitGroupBackend{
+		begin:  func() (func() error, error) { return s.beginUpstreamPublicGroup(batches) },
+		settle: s.settleUpstreamPublicGroup,
+	})
 }
 
 func (s *SQLiteStorage) beginUpstreamPublicGroup(batches [][]StorageWrite) (func() error, error) {
@@ -55,7 +58,27 @@ func (s *SQLiteStorage) rollbackUpstream(cause error) error {
 	return &confirmedSQLiteAbort{cause: cause}
 }
 
+func (s *SQLiteStorage) settleUpstreamPublicGroup(frames []storageFrame, base Snapshot, refused *Batch) (refusal error, failure error) {
+	failure = s.appendUpstreamSeriesWithCheck(frames, func() error {
+		if refused == nil || !batchHasDocumentCopy(refused.Writes) {
+			return nil
+		}
+		if err := s.checkRefusedCopyStructure(base, *refused, s.ordinal+uint64(len(frames))); err != nil {
+			refusal = err
+			return nil
+		}
+		var lookupErr error
+		refusal, lookupErr = s.checkRefusedCopySources(refused.Writes)
+		return lookupErr
+	})
+	return refusal, failure
+}
+
 func (s *SQLiteStorage) appendUpstreamSeries(frames []storageFrame) error {
+	return s.appendUpstreamSeriesWithCheck(frames, nil)
+}
+
+func (s *SQLiteStorage) appendUpstreamSeriesWithCheck(frames []storageFrame, check func() error) error {
 	preflight := s.upstreamPublicTx
 	s.upstreamPublicTx = false
 	if !preflight {
@@ -63,13 +86,22 @@ func (s *SQLiteStorage) appendUpstreamSeries(frames []storageFrame) error {
 			return &confirmedSQLiteAbort{cause: err}
 		}
 	}
-	if err := s.storeUpstreamSeries(frames, preflight); err != nil {
-		return s.rollbackUpstream(err)
+	if len(frames) != 0 {
+		if err := s.storeUpstreamSeries(frames, preflight); err != nil {
+			return s.rollbackUpstream(err)
+		}
+	}
+	if check != nil {
+		if err := check(); err != nil {
+			return s.rollbackUpstream(err)
+		}
 	}
 	if err := s.execUpstream("COMMIT"); err != nil {
 		return err
 	}
-	s.upstreamHighWater = frames[len(frames)-1].high
+	if len(frames) != 0 {
+		s.upstreamHighWater = frames[len(frames)-1].high
+	}
 	return nil
 }
 

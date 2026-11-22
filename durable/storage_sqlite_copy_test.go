@@ -15,16 +15,20 @@ type sqliteCopyReadFault struct {
 	err       error
 	entry     ID
 	sawPrefix bool
+	queries   int
 }
 
 func (f *sqliteCopyReadFault) QueryContext(ctx context.Context, text string, args ...any) (*sql.Rows, error) {
 	if strings.Contains(text, `SELECT record FROM "documents" WHERE id = ?`) {
+		f.queries++
 		var count int
 		if err := f.sqliteConnection.QueryRowContext(ctx, `SELECT count(*) FROM entries WHERE id=?`, f.entry).Scan(&count); err != nil {
 			return nil, err
 		}
 		f.sawPrefix = count == 1
-		return nil, f.err
+		if f.err != nil {
+			return nil, f.err
+		}
 	}
 	return f.sqliteConnection.QueryContext(ctx, text, args...)
 }
@@ -123,5 +127,71 @@ func TestSourceV152SQLiteCopiesFlushedDeltaAtExactPoint(t *testing.T) {
 		if err != nil || !ok || got.CreatedAt != want.seq || got.Version != 1 || got.DeltasSinceBase != 0 || !equalJSONValue(got.Value, JSON{"n": want.number}) {
 			t.Fatal(got, ok, err, want)
 		}
+	}
+}
+
+// The v1.6 SQLite checkBatch checks structure, flushes the prefix, then
+// materializes the source in SQL. Absence is not a substitute for a failed read.
+func TestSourceV160SQLiteCopyRefusalOrdering(t *testing.T) {
+	for _, scenario := range []string{"missing", "query-fails", "duplicate-id", "occupied-address"} {
+		t.Run(scenario, func(t *testing.T) {
+			s, err := OpenSQLite(filepath.Join(t.TempDir(), "store.sqlite"), SQLiteOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer s.Close(bg)
+			seedRootConversation(t, s)
+			entry, source, target := mint(t, s), mint(t, s), mint(t, s)
+			copy := StorageWrite{Type: "document.copy", Record: &DocumentCreate{ID: target, Kind: "copy", Scope: DocumentCreateScope{Kind: "conversation", ConversationID: 1}, History: "rewindable", Fork: "asOf"}, Source: &DocumentCopySource{ID: source, At: CurrentDocumentPoint()}}
+			batches := [][]StorageWrite{{{Type: "entry", Value: Entry{ID: entry, Conversation: 1, Kind: "note"}}}, {copy}}
+			if scenario == "duplicate-id" {
+				batches[1] = append(batches[1], StorageWrite{Type: "entry", Value: Entry{ID: target, Conversation: 1, Kind: "duplicate"}})
+			}
+			if scenario == "occupied-address" {
+				existing := *copy.Record
+				existing.ID = mint(t, s)
+				batches[0] = append(batches[0], StorageWrite{Type: "document.create", Record: &existing, Content: &DocumentContent{Kind: "base", Version: 1, Value: JSON{}}})
+			}
+			raw := s.db
+			fault := &sqliteCopyReadFault{sqliteConnection: raw, entry: entry}
+			if scenario != "missing" {
+				fault.err = storageRequest("injected copy source query failure")
+			}
+			s.db = fault
+			var receipts []publicSQLiteReceipt
+			result, err := s.Commit(bg, batches, func(part int, seq uint64) { receipts = append(receipts, publicSQLiteReceipt{part, seq}) })
+			s.db = raw
+			message := "Document copy " + idText(target) + " was rejected"
+			if scenario == "query-fails" {
+				if err == nil || err.Error() != message || errors.Unwrap(err) != fault.err || result.Stored != 0 || result.Refused != nil || len(receipts) != 0 || fault.queries != 1 || !fault.sawPrefix {
+					t.Fatalf("SQL failure: result=%+v err=%v receipts=%v queries=%d prefix=%v", result, err, receipts, fault.queries, fault.sawPrefix)
+				}
+			} else {
+				if err != nil || result.Stored != 1 || result.Refused == nil || !reflect.DeepEqual(receipts, []publicSQLiteReceipt{{0, 2}}) {
+					t.Fatalf("refused batch: result=%+v err=%v receipts=%v", result, err, receipts)
+				}
+				refusal := result.Refused.AsError()
+				if scenario == "missing" {
+					cause := errors.Unwrap(refusal)
+					if refusal.Error() != message || cause == nil || cause.Error() != "Fork source document "+idText(source)+" cannot be read" || fault.queries != 1 || !fault.sawPrefix {
+						t.Fatalf("missing source: %v cause=%v queries=%d prefix=%v", refusal, cause, fault.queries, fault.sawPrefix)
+					}
+				} else {
+					want := "durable: rejected: ID " + idText(target) + " is written more than once"
+					if scenario == "occupied-address" {
+						want = "durable: rejected: Document address already has a current incarnation"
+					}
+					if fault.queries != 0 || refusal.Error() != want {
+						t.Fatalf("structural refusal: %v queries=%d; want %q", refusal, fault.queries, want)
+					}
+				}
+			}
+			if _, ok, err := s.Entry(bg, entry); err != nil || ok != (scenario != "query-fails") {
+				t.Fatalf("read committed prefix: found=%v err=%v", ok, err)
+			}
+			if _, ok, err := s.DocumentAt(bg, target, CurrentDocumentPoint()); err != nil || ok {
+				t.Fatalf("refused target visible: found=%v err=%v", ok, err)
+			}
+		})
 	}
 }

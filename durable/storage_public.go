@@ -32,7 +32,7 @@ func (c *storeCore) Commit(ctx context.Context, batches [][]StorageWrite, receiv
 	return c.commitPublic(ctx, batches, receive, nil)
 }
 
-func (c *storeCore) commitPublic(ctx context.Context, batches [][]StorageWrite, receive func(int, uint64), begin func() (func() error, error)) (CommitResult, error) {
+func (c *storeCore) commitPublic(ctx context.Context, batches [][]StorageWrite, receive func(int, uint64), backend *commitGroupBackend) (CommitResult, error) {
 	var sink func(commitReceipt) error
 	if receive != nil {
 		sink = func(receipt commitReceipt) error {
@@ -42,7 +42,7 @@ func (c *storeCore) commitPublic(ctx context.Context, batches [][]StorageWrite, 
 	}
 	result, err := c.commitResolvedParts(ctx, len(batches), func(base Snapshot, index int) (Batch, error) {
 		return publicBatch(base, batches[index], c.limits)
-	}, sink, false, nil, begin)
+	}, sink, false, nil, backend)
 	if err != nil {
 		return CommitResult{Stored: result.stored}, err
 	}

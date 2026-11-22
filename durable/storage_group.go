@@ -187,11 +187,19 @@ func (c *storeCore) commitPartsAt(ctx context.Context, batches []Batch, receive 
 	return c.commitResolvedParts(ctx, len(batches), func(_ Snapshot, index int) (Batch, error) { return batches[index], nil }, receive, owned, expectedSeq, nil)
 }
 
+// commitGroupBackend settles a staged public group before the core publishes
+// its accepted prefix. A backend may distinguish logical and I/O failures
+// that an in-memory refusal alone could not observe.
+type commitGroupBackend struct {
+	begin  func() (func() error, error)
+	settle func([]storageFrame, Snapshot, *Batch) (refusal error, failure error)
+}
+
 // commitResolvedParts is commitPartsAt with a per-batch resolver evaluated while
 // the core line is held, so a caller-supplied command union can consult the
 // running base image (for example to fill a document address from the stored
 // incarnation a change applies to). The resolver must not reenter storage.
-func (c *storeCore) commitResolvedParts(ctx context.Context, count int, resolve func(Snapshot, int) (Batch, error), receive func(commitReceipt) error, owned bool, expectedSeq *uint64, begin func() (func() error, error)) (result commitGroupResult, err error) {
+func (c *storeCore) commitResolvedParts(ctx context.Context, count int, resolve func(Snapshot, int) (Batch, error), receive func(commitReceipt) error, owned bool, expectedSeq *uint64, backend *commitGroupBackend) (result commitGroupResult, err error) {
 	if err := c.enter(ctx); err != nil {
 		return commitGroupResult{}, err
 	}
@@ -210,8 +218,8 @@ func (c *storeCore) commitResolvedParts(ctx context.Context, count int, resolve 
 		result.refused = &commitRefusal{reject("invalid batch count")}
 		return result, nil
 	}
-	if begin != nil {
-		finish, beginErr := begin()
+	if backend != nil {
+		finish, beginErr := backend.begin()
 		if beginErr != nil {
 			return commitGroupResult{}, c.settlementError(beginErr)
 		}
@@ -225,12 +233,14 @@ func (c *storeCore) commitResolvedParts(ctx context.Context, count int, resolve 
 	if count == 0 {
 		return result, nil
 	}
-	atomicGroup := c.appendFrames != nil && count > 1
+	atomicGroup := backend != nil || c.appendFrames != nil && count > 1
 	base, ordinal := c.state, c.ordinal
 	var frames []storageFrame
+	var refusedBatch *Batch
 	var bytes int
 	for index := 0; index < count; index++ {
 		batch, err := resolve(base, index)
+		resolved := err == nil
 		var frame storageFrame
 		var next Snapshot
 		if err == nil {
@@ -241,6 +251,9 @@ func (c *storeCore) commitResolvedParts(ctx context.Context, count int, resolve 
 		}
 		if err != nil {
 			result.refused = &commitRefusal{err}
+			if resolved && backend != nil {
+				refusedBatch = &batch
+			}
 			break
 		}
 		bytes += len(frame.payload)
@@ -261,9 +274,20 @@ func (c *storeCore) commitResolvedParts(ctx context.Context, count int, resolve 
 		result.stored++
 		result.lastSeq = next.Seq
 	}
+	if backend != nil {
+		refusal, failure := backend.settle(frames, base, refusedBatch)
+		if failure != nil {
+			return commitGroupResult{}, c.settlementError(failure)
+		}
+		if refusal != nil {
+			result.refused = &commitRefusal{refusal}
+		}
+	}
 	if atomicGroup && len(frames) != 0 {
-		if err := c.appendFrames(frames); err != nil {
-			return commitGroupResult{}, c.settlementError(err)
+		if backend == nil {
+			if err := c.appendFrames(frames); err != nil {
+				return commitGroupResult{}, c.settlementError(err)
+			}
 		}
 		c.state, c.ordinal = base, ordinal
 		if receive != nil {
