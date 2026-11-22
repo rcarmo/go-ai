@@ -1,6 +1,7 @@
 package openaicodex
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -355,5 +356,96 @@ func TestSourceV160CodexStartedLimitReconnect(t *testing.T) {
 				t.Fatal("first socket did not close")
 			}
 		})
+	}
+}
+
+// ai.codex.ws-pre-output-limit-reconnect: a code-only lifetime rejection
+// consumes one internal reconnect without emitting a logical stream start.
+func TestSourceV160CodexPreOutputLimitReconnect(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+	defer cancel()
+	var connections, sends, fetches atomic.Int32
+	type request struct {
+		connection int32
+		body       []byte
+	}
+	requests := make(chan request, 3)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Upgrade") != "websocket" {
+			fetches.Add(1)
+			http.Error(w, "unexpected SSE request", http.StatusBadRequest)
+			return
+		}
+		conn, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		defer conn.CloseNow()
+		id := connections.Add(1)
+		for {
+			_, data, err := conn.Read(ctx)
+			if err != nil {
+				return
+			}
+			if sends.Add(1) > 2 {
+				t.Error("unexpected extra WebSocket request")
+				return
+			}
+			requests <- request{connection: id, body: data}
+			frame := `{"type":"response.completed","response":{"id":"resp_1","status":"completed","usage":{"input_tokens":5,"output_tokens":3,"total_tokens":8}}}`
+			if id == 1 {
+				frame = `{"type":"error","error":{"code":"websocket_connection_limit_reached"}}`
+			}
+			if err := conn.Write(ctx, websocket.MessageText, []byte(frame)); err != nil {
+				t.Error(err)
+				return
+			}
+		}
+	}))
+	defer server.Close()
+	model := &goai.Model{ID: "gpt-5.1-codex", Provider: goai.ProviderOpenAICodex, Api: goai.ApiOpenAICodexResponses, BaseURL: server.URL, Reasoning: true}
+	var providerTypes []string
+	opts := &goai.StreamOptions{
+		APIKey: payloadJWT,
+		OnProviderStreamEvent: func(event any, _ *goai.Model) error {
+			kind, _ := event.(map[string]any)["type"].(string)
+			providerTypes = append(providerTypes, kind)
+			return nil
+		},
+	}
+	var events []string
+	var result *goai.Message
+	for ev := range goai.Stream(ctx, model, &goai.Context{}, opts) {
+		switch e := ev.(type) {
+		case *goai.StartEvent:
+			events = append(events, "start")
+		case *goai.DoneEvent:
+			events = append(events, "done")
+			result = e.Message
+		case *goai.ErrorEvent:
+			events = append(events, string(e.Reason))
+			t.Errorf("leaked terminal event from the rejected attempt: %v", e.Err)
+		}
+	}
+	if connections.Load() != 2 || sends.Load() != 2 || fetches.Load() != 0 {
+		t.Fatalf("connections, sends, SSE = %d, %d, %d; want 2, 2, 0", connections.Load(), sends.Load(), fetches.Load())
+	}
+	if !reflect.DeepEqual(events, []string{"start", "done"}) || !reflect.DeepEqual(providerTypes, []string{"error", "response.completed"}) {
+		t.Errorf("logical events %v, provider events %v; want one logical start and completion across both attempts", events, providerTypes)
+	}
+	if result == nil || result.StopReason != goai.StopReasonStop || result.ResponseID != "resp_1" || result.Usage == nil || result.Usage.Input != 5 || result.Usage.Output != 3 || result.Usage.TotalTokens != 8 || len(result.Content) != 0 || len(result.Diagnostics) != 0 {
+		t.Errorf("result = %+v; want successful resp_1, empty content, exact usage and no fallback diagnostic", result)
+	}
+	first, second := <-requests, <-requests
+	if first.connection != 1 || second.connection != 2 || !bytes.Equal(first.body, second.body) {
+		t.Errorf("requests = %d: %s, %d: %s; want identical payloads on fresh sockets [1 2]", first.connection, first.body, second.connection, second.body)
+	}
+	var body map[string]json.RawMessage
+	if err := json.Unmarshal(second.body, &body); err != nil {
+		t.Fatal(err)
+	}
+	if string(body["type"]) != `"response.create"` || string(body["model"]) != `"gpt-5.1-codex"` || body["previous_response_id"] != nil {
+		t.Errorf("unexpected replay envelope: %s", second.body)
 	}
 }
