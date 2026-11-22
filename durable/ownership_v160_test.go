@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 // harness-ownership.test.ts:582. The spawner stages a conversation and its
@@ -47,4 +48,82 @@ func TestSourceV160ConversationCreationRejectsEndingOwner(t *testing.T) {
 			t.Fatalf("refused commit leaked: conversations=%d tasks=%d phases=%d err=%v", len(state.Conversations), len(state.Tasks), childRuns.Load(), err)
 		}
 	})
+}
+
+type conversationOwnerStorage struct {
+	Storage
+	owner   ID
+	mode    string
+	failure error
+	armed   atomic.Bool
+	reads   atomic.Int64
+}
+
+func (s *conversationOwnerStorage) Task(ctx context.Context, id ID) (TaskRecord, bool, error) {
+	if id == s.owner && s.armed.Load() {
+		s.reads.Add(1)
+		switch s.mode {
+		case "not-found":
+			return TaskRecord{}, false, nil
+		case "failed":
+			return TaskRecord{}, false, s.failure
+		}
+	}
+	return s.Storage.Task(ctx, id)
+}
+
+// Supplemental to transaction.ts's conversation creation and #currentTask.
+// The delegated owner lookup runs against the backend even when the validation
+// image already has a task row. A miss or read error must not admit a create.
+func TestSourceV160ConversationCreationConsultsDelegatedOwner(t *testing.T) {
+	for _, mode := range []string{"found", "not-found", "failed"} {
+		t.Run(mode, func(t *testing.T) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+				owner := mint(t, b.store)
+				record := foundationTask(owner, nil)
+				apply(t, b.store, Write{Op: "put-task", Task: &record})
+				adapter := &conversationOwnerStorage{Storage: b.store, mode: mode, owner: owner, failure: errors.New("owner backend read failed")}
+				s, err := OpenSession(adapter)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer s.Close(bg)
+				var created Conversation
+				_, err = s.Commit(bg, func(tx *Tx) (any, error) {
+					adapter.armed.Store(true)
+					defer adapter.armed.Store(false)
+					var createErr error
+					created, createErr = tx.CreateConversation(JSON{"ownership": JSON{"kind": "task", "taskId": owner}})
+					return nil, createErr
+				})
+				switch mode {
+				case "found":
+					if err != nil || created.ID == 0 || created.Owner != owner || created.OwnerConversation != 1 {
+						t.Fatalf("created %+v, err %v; want task %d in conversation 1", created, err, owner)
+					}
+					if got, found, err := s.Conversation(bg, created.ID); err != nil || !found || got != created {
+						t.Fatalf("published %+v, found %t, err %v; want %+v", got, found, err, created)
+					}
+				case "not-found":
+					var reject *StorageRejected
+					if !errors.As(err, &reject) || reject.Reason != fmt.Sprintf("Conversation owner task %d does not exist", owner) || created != (Conversation{}) {
+						t.Fatalf("missing owner: created %+v, err %v", created, err)
+					}
+				case "failed":
+					if !errors.Is(err, adapter.failure) || created != (Conversation{}) {
+						t.Fatalf("backend failure: created %+v, err %v", created, err)
+					}
+					ctx, cancel := context.WithTimeout(bg, 3*time.Second)
+					defer cancel()
+					end, err := s.Closed(ctx)
+					if err != nil || end.Reason != "failed" || end.Failure.AsError() != adapter.failure {
+						t.Fatalf("closed: %+v, err %v", end, err)
+					}
+				}
+				if n := adapter.reads.Load(); n != 1 {
+					t.Fatalf("delegated owner lookups = %d; want one", n)
+				}
+			})
+		})
+	}
 }

@@ -74,7 +74,17 @@ func (t *Tx) allocateConversationRecord(options JSON) (Conversation, error) {
 			if err := t.touchKeys(taskKey(owner)); err != nil {
 				return Conversation{}, err
 			}
-			task, found = t.state.Tasks[owner]
+			if owner != 0 && t.session != nil && t.session.delegatedStorage {
+				// The Storage adapter owns committed task lookups. The image is
+				// still used for validation when the transaction is assembled.
+				record, exists, err := t.readColdTask(owner)
+				if err != nil {
+					return Conversation{}, err
+				}
+				task.Conversation, found = record.Conversation, exists
+			} else {
+				task, found = t.state.Tasks[owner]
+			}
 		}
 		if !found {
 			text := fmt.Sprint(ownerValue)
