@@ -4,7 +4,9 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"fmt"
 	"io"
+	"math"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -385,14 +387,13 @@ func TestSourceV160ResponsesCompatibilityWire(t *testing.T) {
 // redirects every HTTPS dial to its trusted local server.
 func TestSourceV160ResponsesRemainingDefaultsWire(t *testing.T) {
 	goai.RegisterBuiltinModels()
-	t.Setenv("NO_PROXY", "*")
 	type receipt struct {
 		body               map[string]json.RawMessage
 		header             http.Header
 		host, path, method string
 	}
 	wireRequests := make(chan receipt, 2)
-	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	redirectResponsesSourceTLS(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var body map[string]json.RawMessage
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			t.Error(err)
@@ -406,18 +407,6 @@ func TestSourceV160ResponsesRemainingDefaultsWire(t *testing.T) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		_, _ = io.WriteString(w, "data: [DONE]\n\n")
 	}))
-	defer server.Close()
-	transport := server.Client().Transport.(*http.Transport).Clone()
-	tlsDialer := tls.Dialer{Config: transport.TLSClientConfig.Clone()}
-	transport.DialTLSContext = func(ctx context.Context, network, _ string) (net.Conn, error) {
-		return tlsDialer.DialContext(ctx, network, server.Listener.Addr().String())
-	}
-	previousTransport := http.DefaultTransport
-	http.DefaultTransport = transport
-	defer func() {
-		http.DefaultTransport = previousTransport
-		transport.CloseIdleConnections()
-	}()
 
 	type fixture struct {
 		mode, id string
@@ -529,6 +518,108 @@ func TestSourceV160ResponsesRemainingDefaultsWire(t *testing.T) {
 			case "cap-opt-out":
 				if _, present := body["max_output_tokens"]; present {
 					t.Errorf("max_output_tokens = %s; want absent for cap opt-out", body["max_output_tokens"])
+				}
+			}
+		})
+	}
+}
+
+func redirectResponsesSourceTLS(t *testing.T, handler http.Handler) {
+	t.Helper()
+	t.Setenv("NO_PROXY", "*")
+	server := httptest.NewTLSServer(handler)
+	t.Cleanup(server.Close)
+	transport := server.Client().Transport.(*http.Transport).Clone()
+	tlsDialer := tls.Dialer{Config: transport.TLSClientConfig.Clone()}
+	transport.DialTLSContext = func(ctx context.Context, network, _ string) (net.Conn, error) {
+		return tlsDialer.DialContext(ctx, network, server.Listener.Addr().String())
+	}
+	previousTransport := http.DefaultTransport
+	http.DefaultTransport = transport
+	t.Cleanup(func() {
+		http.DefaultTransport = previousTransport
+		transport.CloseIdleConnections()
+	})
+}
+
+// The five originals start at packages/ai/test/openai-responses-compat.test.ts:491.
+// Supplemental cases distinguish returned-tier priority from request fallback.
+func TestSourceV160ResponsesServiceTierCostWire(t *testing.T) {
+	goai.RegisterBuiltinModels()
+	for _, tc := range []struct {
+		name, id, requested, returned string
+		multiplier                    float64
+	}{
+		{"source/5.4-priority", "gpt-5.4", "priority", "priority", 2},
+		{"source/5.5-priority", "gpt-5.5", "priority", "priority", 2.5},
+		{"source/5.5-flex", "gpt-5.5", "flex", "flex", 0.5},
+		{"source/luna-priority-returned-fast", "gpt-6-luna", "priority", "fast", 2},
+		{"source/luna-fast", "gpt-6-luna", "fast", "fast", 2},
+		{"supplemental/returned-overrides-requested", "gpt-5.5", "priority", "flex", 0.5},
+		{"supplemental/omitted-uses-requested", "gpt-5.5", "priority", "", 2.5},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			model := goai.GetModel(goai.ProviderOpenAI, tc.id)
+			if model == nil || model.Api != goai.ApiOpenAIResponses {
+				t.Fatal("missing pinned Responses model")
+			}
+			endpoint, err := url.Parse(model.BaseURL)
+			if err != nil || endpoint.Scheme != "https" || endpoint.Host == "" {
+				t.Fatal("expected HTTPS fixture endpoint")
+			}
+			const tokens = 100_000
+			tierField := ""
+			if tc.returned != "" {
+				tierField = fmt.Sprintf(`,"service_tier":%q`, tc.returned)
+			}
+			frame := fmt.Sprintf(`{"type":"response.completed","response":{"status":"completed"%s,"usage":{"input_tokens":%d,"output_tokens":%d,"total_tokens":%d,"input_tokens_details":{"cached_tokens":0}}}}`, tierField, tokens, tokens, 2*tokens)
+			var requests atomic.Int32
+			redirectResponsesSourceTLS(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requests.Add(1)
+				if r.Method != http.MethodPost || r.Host != endpoint.Host || r.URL.Path != strings.TrimRight(endpoint.Path, "/")+"/responses" {
+					t.Errorf("request endpoint = %s %s%s; want original Responses endpoint", r.Method, r.Host, r.URL.Path)
+				}
+				var body struct {
+					Model string `json:"model"`
+					Tier  string `json:"service_tier"`
+				}
+				if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Model != tc.id || body.Tier != tc.requested {
+					t.Errorf("request model/tier = %+v, %v; want %s/%s", body, err, tc.id, tc.requested)
+				}
+				w.Header().Set("Content-Type", "text/event-stream")
+				_, _ = fmt.Fprintf(w, "data: %s\n\n", frame)
+			}))
+			ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+			defer cancel()
+			var messages []*goai.Message
+			for event := range goai.Stream(ctx, model, &goai.Context{SystemPrompt: "sys", Messages: []goai.Message{goai.UserMessage("hi")}}, &goai.StreamOptions{APIKey: "sk-test-key", ServiceTier: tc.requested}) {
+				switch e := event.(type) {
+				case *goai.DoneEvent:
+					messages = append(messages, e.Message)
+				case *goai.ErrorEvent:
+					t.Errorf("unexpected Responses terminal error: %v", e.Err)
+				}
+			}
+			if requests.Load() != 1 || len(messages) != 1 || messages[0] == nil || messages[0].StopReason != goai.StopReasonStop || messages[0].Usage == nil {
+				t.Fatalf("terminal responses = %+v, wire requests = %d; want one successful usage receipt", messages, requests.Load())
+			}
+			usage := messages[0].Usage
+			if usage.Input != tokens || usage.Output != tokens || usage.TotalTokens != 2*tokens || usage.CacheRead != 0 || usage.CacheWrite != 0 || usage.Cost.CacheRead != 0 || usage.Cost.CacheWrite != 0 {
+				t.Errorf("usage = %+v; want exact token counts and zero cache usage/cost", usage)
+			}
+			const tokenScale = tokens / 1_000_000.0
+			// Vitest toBeCloseTo(want, 12) uses this strict bound.
+			const tolerance = 0.5e-12
+			for _, cost := range []struct {
+				name      string
+				got, want float64
+			}{
+				{"input", usage.Cost.Input, model.Cost.Input * tc.multiplier * tokenScale},
+				{"output", usage.Cost.Output, model.Cost.Output * tc.multiplier * tokenScale},
+				{"total", usage.Cost.Total, (model.Cost.Input + model.Cost.Output) * tc.multiplier * tokenScale},
+			} {
+				if !(math.Abs(cost.got-cost.want) < tolerance) {
+					t.Errorf("%s cost %.16g, want %.16g (12-decimal source comparison)", cost.name, cost.got, cost.want)
 				}
 			}
 		})
