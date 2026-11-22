@@ -56,7 +56,7 @@ func mainAbortFailureOwner(t *testing.T, h *Harness, c *ConversationHandle, sub 
 		t.Fatalf("actual run inputs: got %v; want [%d]", run["inputs"], sub.ID())
 	}
 	cp := generationObject(task.State.Checkpoint)
-	if task.Version != 2 || task.Input == nil || !equalJSONValue(task.Input.Value, JSON{}) || cp["phase"] != "request" || generationObject(cp["model"])["modelId"] == nil || submissionEntryID(cp["attempt"]) != 1 {
+	if task.Version != 3 || task.Input == nil || !equalJSONValue(task.Input.Value, JSON{}) || cp["phase"] != "request" || generationObject(cp["model"])["modelId"] == nil || submissionEntryID(cp["attempt"]) != 1 {
 		t.Fatal("request ownership/checkpoint mismatch", task)
 	}
 	return task, first

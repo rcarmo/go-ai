@@ -199,3 +199,9 @@ Eight selected SQLite originals passed. The public native tests reproduced both 
 The three remaining `harness-hook-tasks.test.ts` recovery assertions now have native coverage. The after-tools test kills a host at the hook before it stores a task, then verifies that the next host asks again and commits the child and wait. A third host resumes that exact wait and answers after the child receives its signal, without asking again. The two yield tests use public SQLite task records to drive a restart limit and a scheduler fault. Both preserve the committed answer and leave no live run or run failure.
 
 All 12 unchanged source cases passed. The native recovery tests passed twice alongside the existing hook decision and after-run recovery cases, vet and Staticcheck. Removing the two answered-yield guards changed the public settlements to `unanswered` with `restart_limit` and `faulted` respectively. This packet adds coverage to the production behavior already implemented; it does not change it.
+
+### Fresh generation record fixtures
+
+The pinned `GenerationTask` definition writes version 3 and preserves older checkpoints during migration. Seventeen assertions in thirteen historical native test files now expect version 3 only for newly created generations, including the exact records observed through public commit publication. Imported records, custom versioned tasks, and the other generation comparisons are unchanged.
+
+Before the update, the representative tests failed on the stored version 3. The complete focused batch for the changed expectations passed twice (19.613s), including reset, boundary admission and publication, model error and no-model transitions, abort, polling, and the request record sent to a large local model. Vet and Staticcheck passed. This is fixture reconciliation, not a repo-wide sweep.

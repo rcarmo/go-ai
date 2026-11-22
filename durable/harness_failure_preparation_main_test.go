@@ -41,7 +41,7 @@ func mainRequirePreparationNoModelState(t *testing.T, h *Harness, c *Conversatio
 	if err != nil {
 		t.Fatal(err)
 	}
-	if task.Kind != "pi.generation" || task.Version != 2 || task.Input == nil || !task.Input.Present || !equalJSONValue(task.Input.Value, JSON{}) || task.State.Status != "terminal" || task.State.Checkpoint != nil || task.State.Outcome == nil || task.State.Outcome.Status != "failed" || task.State.Outcome.Error == nil || task.State.Outcome.Error.Message != detail {
+	if task.Kind != "pi.generation" || task.Version != 3 || task.Input == nil || !task.Input.Present || !equalJSONValue(task.Input.Value, JSON{}) || task.State.Status != "terminal" || task.State.Checkpoint != nil || task.State.Outcome == nil || task.State.Outcome.Status != "failed" || task.State.Outcome.Error == nil || task.State.Outcome.Error.Message != detail {
 		t.Fatal("no-model task outcome", task)
 	}
 	state, err := h.Snapshot(bg)
@@ -354,14 +354,14 @@ func mainRequirePreparationStart(t *testing.T, h *Harness, c *ConversationHandle
 	run := generationObject(liveValue["run"])
 	owner := submissionEntryID(run["taskId"])
 	next, found, err := h.Task(bg, owner)
-	if err != nil || !found || next.Kind != "pi.generation" || next.Version != 2 || next.Owner != 0 || next.Conversation != c.ID() || next.State.Status != "running" || !equalJSONValue(next.State.Checkpoint, JSON{"phase": "prepare", "attempt": 1}) || next.Input == nil || !next.Input.Present || !equalJSONValue(next.Input.Value, JSON{}) {
+	if err != nil || !found || next.Kind != "pi.generation" || next.Version != 3 || next.Owner != 0 || next.Conversation != c.ID() || next.State.Status != "running" || !equalJSONValue(next.State.Checkpoint, JSON{"phase": "prepare", "attempt": 1}) || next.Input == nil || !next.Input.Present || !equalJSONValue(next.Input.Value, JSON{}) {
 		t.Fatal("successor must own canonical prepare before model resolution", next, err)
 	}
 	if source.Seq != publication.Seq {
 		t.Fatal("source/native deciding sequence differs", source.Seq, publication.Seq)
 	}
 	created := mainPreparationPublishedRecord(t, source, "task", owner)
-	if immutableViewMember(t, created, "kind").String() != "pi.generation" || immutableViewMember(t, created, "version").Number().String() != "2" || !equalJSONValue(immutableViewMember(t, created, "input").Copy(), JSON{}) || !equalJSONValue(immutableViewMember(t, created, "state").Copy(), JSON{"status": "pending", "checkpoint": JSON{"phase": "prepare", "attempt": 1}}) {
+	if immutableViewMember(t, created, "kind").String() != "pi.generation" || immutableViewMember(t, created, "version").Number().String() != "3" || !equalJSONValue(immutableViewMember(t, created, "input").Copy(), JSON{}) || !equalJSONValue(immutableViewMember(t, created, "state").Copy(), JSON{"status": "pending", "checkpoint": JSON{"phase": "prepare", "attempt": 1}}) {
 		t.Fatal("exact fresh successor in deciding source publication", created.Copy())
 	}
 	entries, seen := map[ID]ID{}, map[ID]bool{}
@@ -688,7 +688,7 @@ func TestMainRunFailureNoModelAttachedSteersAndRemainingSuccessor(t *testing.T) 
 					live := mainEligibilityDoc(t, state, c.ID(), "pi.live").Value
 					owner := submissionEntryID(generationObject(live["run"])["taskId"])
 					next, found, err := h.Task(bg, owner)
-					if err != nil || !found || owner == failed.Task.ID || next.Kind != "pi.generation" || next.Version != 2 || next.Owner != 0 || next.State.Status != "running" || taskCheckpointMap(next.State.Checkpoint)["phase"] != "request" {
+					if err != nil || !found || owner == failed.Task.ID || next.Kind != "pi.generation" || next.Version != 3 || next.Owner != 0 || next.State.Status != "running" || taskCheckpointMap(next.State.Checkpoint)["phase"] != "request" {
 						t.Fatal("missing actual canonical successor", next, err)
 					}
 					inputIDs := []any{}

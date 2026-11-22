@@ -93,7 +93,7 @@ func TestMainBoundaryOwnedInvocationIdleChildAdmission(t *testing.T) {
 		cp := taskCheckpointMap(record.State.Checkpoint)
 		phase, _ := cp["phase"].(string)
 
-		if generationID == 0 || generationID == callerID || generation.Kind != "pi.generation" || generation.Conversation != childID || !equalJSONValue(run, wantRun) || record.Owner != 0 || record.Version != 2 || submissionEntryID(cp["attempt"]) != 1 || (phase != "prepare" && phase != "request") {
+		if generationID == 0 || generationID == callerID || generation.Kind != "pi.generation" || generation.Conversation != childID || !equalJSONValue(run, wantRun) || record.Owner != 0 || record.Version != 3 || submissionEntryID(cp["attempt"]) != 1 || (phase != "prepare" && phase != "request") {
 			t.Fatal("bound admission must publish the child's distinct live run, not the caller's generation", run, generation, cp)
 		}
 		awaitTaskSignal(t, entered)

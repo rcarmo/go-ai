@@ -114,7 +114,7 @@ func TestMainContinueToolHandoffOrderedInputs(t *testing.T) {
 						record := func(id ID) TaskRecord {
 							t.Helper()
 							r, found, err := h.Task(bg, id)
-							if err != nil || !found || r.Kind != "pi.generation" || r.Version != 2 {
+							if err != nil || !found || r.Kind != "pi.generation" || r.Version != 3 {
 								t.Fatal("canonical generation missing", r, err)
 							}
 							return r

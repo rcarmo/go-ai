@@ -223,7 +223,7 @@ func TestMainBoundaryFirstIncludesPassiveWrite(t *testing.T) {
 				}
 				record, found, err := h.Task(bg, owner)
 				checkpoint := generationObject(record.State.Checkpoint)
-				if err != nil || !found || record.Version != 2 || record.Input == nil || !equalJSONValue(record.Input.Value, JSON{}) || checkpoint["phase"] != "request" || submissionEntryID(checkpoint["attempt"]) != 1 {
+				if err != nil || !found || record.Version != 3 || record.Input == nil || !equalJSONValue(record.Input.Value, JSON{}) || checkpoint["phase"] != "request" || submissionEntryID(checkpoint["attempt"]) != 1 {
 					t.Fatal("B must have a canonical request; its public placement stays B, not W", record, bStatus, err)
 				}
 

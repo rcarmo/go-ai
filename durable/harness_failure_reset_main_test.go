@@ -106,7 +106,7 @@ func TestMainRunFailurePostToolsResetRetainsOnlyImmediateSuccessor(t *testing.T)
 			}
 			run := generationObject(live["run"])
 			task, ok, err := h.Task(bg, submissionEntryID(run["taskId"]))
-			if err != nil || !ok || task.Kind != "pi.generation" || task.Version != 2 || task.Owner != 0 || task.Conversation != c.ID() || task.State.Status == "terminal" {
+			if err != nil || !ok || task.Kind != "pi.generation" || task.Version != 3 || task.Owner != 0 || task.Conversation != c.ID() || task.State.Status == "terminal" {
 				t.Fatalf("%s has no actual active generation: %v", name, live)
 			}
 			cp := taskCheckpointMap(task.State.Checkpoint)

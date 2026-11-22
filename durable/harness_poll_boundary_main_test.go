@@ -91,7 +91,7 @@ func mainPollBoundarySetup(t *testing.T, store Storage, limit uint64, delay int6
 	}
 	record, found, err := f.h.Task(bg, f.task)
 	cp := taskCheckpointMap(record.State.Checkpoint)
-	if err != nil || !found || record.Kind != "pi.generation" || record.Version != 2 || cp["phase"] != "poll" || generationObject(cp["handle"])["id"] != "job" || submissionEntryID(cp["pollAt"]) != ID(1000+delay) || record.State.Until == nil || *record.State.Until != 1000+delay {
+	if err != nil || !found || record.Kind != "pi.generation" || record.Version != 3 || cp["phase"] != "poll" || generationObject(cp["handle"])["id"] != "job" || submissionEntryID(cp["pollAt"]) != ID(1000+delay) || record.State.Until == nil || *record.State.Until != 1000+delay {
 		t.Fatal("public poll fixture", record, err)
 	}
 	if record.State.Status != "sleeping" {

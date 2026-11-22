@@ -59,7 +59,7 @@ func TestMainBoundaryLifetimeBeforeModelResolution(t *testing.T) {
 				status := publicSubmission(before.Submissions[sub.ID()])
 				first := status.Entry
 				task, exists, err := h.Task(bg, owner)
-				if err != nil || owner == 0 || !exists || task.Kind != "pi.generation" || task.Version != 2 || task.Conversation != c.ID() || task.State.Status != "running" || status.Status != "placed" || first == 0 || status.Answer != 0 {
+				if err != nil || owner == 0 || !exists || task.Kind != "pi.generation" || task.Version != 3 || task.Conversation != c.ID() || task.State.Status != "running" || status.Status != "placed" || first == 0 || status.Answer != 0 {
 					t.Fatal("idle admission must already own a real placed run before resolution", task, status, live)
 				}
 				wantRun, err := dtoObject(JSON{"taskId": owner, "inputs": []any{sub.ID()}, "first": first, "turns": 0}, h.session.limits)

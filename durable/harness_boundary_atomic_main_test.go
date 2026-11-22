@@ -199,7 +199,7 @@ func TestMainBoundaryAtomicSuccessorPublication(t *testing.T) {
 					t.Fatal(err)
 				}
 				aTask, found, err := h.Task(bg, aTaskID)
-				if err != nil || !found || aTask.Kind != "pi.generation" || aTask.Version != 2 || aTask.State.Status != "terminal" || aTask.State.Checkpoint != nil || aTask.State.Outcome == nil || aTask.Input == nil || !aTask.Input.Present || !equalJSONValue(aTask.Input.Value, JSON{}) || ended.Record.Entry != aStatus.Entry {
+				if err != nil || !found || aTask.Kind != "pi.generation" || aTask.Version != 3 || aTask.State.Status != "terminal" || aTask.State.Checkpoint != nil || aTask.State.Outcome == nil || aTask.Input == nil || !aTask.Input.Present || !equalJSONValue(aTask.Input.Value, JSON{}) || ended.Record.Entry != aStatus.Entry {
 					t.Fatal("A terminal canonical task and original placement", aTask, ended.Record, err)
 				}
 				if source.Seq != publication.Seq {
@@ -355,7 +355,7 @@ func TestMainBoundaryAtomicSuccessorPublication(t *testing.T) {
 						// Read the exact public publication record, not a normalized
 						// private task checkpoint or a later request-preparation image.
 						task := sourceTasks[owner]
-						if task == nil || immutableViewMember(t, task, "kind").String() != "pi.generation" || immutableViewMember(t, task, "version").Number().String() != "2" || immutableViewMember(t, task, "conversationId").Number().String() != fmt.Sprint(c.ID()) || !equalJSONValue(immutableViewMember(t, task, "input").Copy(), JSON{}) || !equalJSONValue(immutableViewMember(t, task, "state").Copy(), JSON{"status": "pending", "checkpoint": JSON{"phase": "prepare", "attempt": 1}}) {
+						if task == nil || immutableViewMember(t, task, "kind").String() != "pi.generation" || immutableViewMember(t, task, "version").Number().String() != "3" || immutableViewMember(t, task, "conversationId").Number().String() != fmt.Sprint(c.ID()) || !equalJSONValue(immutableViewMember(t, task, "input").Copy(), JSON{}) || !equalJSONValue(immutableViewMember(t, task, "state").Copy(), JSON{"status": "pending", "checkpoint": JSON{"phase": "prepare", "attempt": 1}}) {
 							t.Errorf("%s: same-batch B must be a fresh source generation: %v", lane, task)
 						}
 					}

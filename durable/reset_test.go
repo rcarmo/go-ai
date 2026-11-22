@@ -94,7 +94,7 @@ func TestResetIdleAndPostToolsStartsFollowUpInNewContext(t *testing.T) {
 			t.Fatal("actual tool-call assistant attribution missing", history.Items)
 		}
 		record, found, err := h.Task(bg, oldGeneration)
-		if err != nil || !found || record.Kind != "pi.generation" || record.Version != 2 || record.State.Outcome == nil || record.State.Outcome.Status != "completed" || record.State.Outcome.Result == nil || submissionEntryID(generationObject(record.State.Outcome.Result.Value)["entryId"]) != oldAssistant {
+		if err != nil || !found || record.Kind != "pi.generation" || record.Version != 3 || record.State.Outcome == nil || record.State.Outcome.Status != "completed" || record.State.Outcome.Result == nil || submissionEntryID(generationObject(record.State.Outcome.Result.Value)["entryId"]) != oldAssistant {
 			t.Fatal("post-tools reset changed completed generation", record, err)
 		}
 		resetCount := 0

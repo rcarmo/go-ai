@@ -607,7 +607,7 @@ func TestM1bLargeLocalModelAuthorizationHTTP(t *testing.T) {
 	}
 	request := watchReceive(t, requests)
 	cp := taskCheckpointMap(request.State.Checkpoint)
-	if request.Kind != "pi.generation" || request.Version != 2 || cp["phase"] != "request" || !equalJSONValue(cp["model"], JSON{"provider": "openai", "modelId": "durable-test"}) || !equalJSONValue(cp["streamOptions"], JSON{"temperature": 0.25}) {
+	if request.Kind != "pi.generation" || request.Version != 3 || cp["phase"] != "request" || !equalJSONValue(cp["model"], JSON{"provider": "openai", "modelId": "durable-test"}) || !equalJSONValue(cp["streamOptions"], JSON{"temperature": 0.25}) {
 		t.Fatal("canonical request must retain compact reference/options only", request, cp)
 	}
 	encoded, e := encodeBounded(cp, h.session.limits, 2048)

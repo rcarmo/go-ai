@@ -77,7 +77,7 @@ func TestMainInterruptedPollRetryEdges(t *testing.T) {
 				watchReceive(t, fetching)
 				task, found, err := f.h.Task(bg, taskID)
 				cp := taskCheckpointMap(task.State.Checkpoint)
-				if err != nil || !found || task.Version != 2 || cp["phase"] != "poll" || task.State.Status != "running" || submissionEntryID(cp["pollAt"]) != 1010 || generationObject(cp["handle"])["id"] != "job" {
+				if err != nil || !found || task.Version != 3 || cp["phase"] != "poll" || task.State.Status != "running" || submissionEntryID(cp["pollAt"]) != 1010 || generationObject(cp["handle"])["id"] != "job" {
 					t.Fatal("fixture did not crash during the actual public poll fetch", task, cp, err)
 				}
 				store := f.crash()
