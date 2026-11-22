@@ -60,6 +60,30 @@ func releaseCodexSocketLease(entry *codexWebSocketSessionEntry) {
 	}
 }
 
+// Caller holds the registry lock and detaches this entry from the registry.
+// Drop the lease without cancelling the read until the close handshake ends.
+func beginCodexGracefulClose(entry *codexWebSocketSessionEntry) bool {
+	if entry.gracefulClosing {
+		return false
+	}
+	entry.gracefulClosing = true
+	releaseCodexSocketLease(entry)
+	if entry.idleTimer != nil {
+		entry.idleTimer.Stop()
+		entry.idleTimer = nil
+	}
+	return true
+}
+
+func finishCodexGracefulClose(entry *codexWebSocketSessionEntry, reason string) {
+	if entry.conn != nil {
+		_ = entry.conn.Close(websocket.StatusNormalClosure, reason)
+	}
+	if entry.cancelRead != nil {
+		entry.cancelRead()
+	}
+}
+
 func stopCodexSocketReader(entry *codexWebSocketSessionEntry) {
 	entry.readClosed = true
 	releaseCodexSocketLease(entry)

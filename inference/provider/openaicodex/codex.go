@@ -332,18 +332,18 @@ const (
 type codexWebSocketSessionKey struct{ sessionID, accountID, wsURL string }
 
 type codexWebSocketSessionEntry struct {
-	lease        *codexSocketLease
-	readClosed   bool
-	cancelRead   context.CancelFunc
-	readDone     chan struct{}
-	busy         bool // guarded by codexWebSocketSessionsMu
-	debugClosing bool // guarded by codexWebSocketSessionsMu; Close owns shutdown
-	key          codexWebSocketSessionKey
-	conn         *websocket.Conn
-	continuation *codexWebSocketContinuation
-	idleTimer    *time.Timer
-	createdAt    time.Time
-	mu           sync.Mutex
+	lease           *codexSocketLease
+	readClosed      bool
+	cancelRead      context.CancelFunc
+	readDone        chan struct{}
+	busy            bool // guarded by codexWebSocketSessionsMu
+	gracefulClosing bool // guarded by codexWebSocketSessionsMu
+	key             codexWebSocketSessionKey
+	conn            *websocket.Conn
+	continuation    *codexWebSocketContinuation
+	idleTimer       *time.Timer
+	createdAt       time.Time
+	mu              sync.Mutex
 }
 
 // OpenAICodexWebSocketDebugStats exposes lightweight instrumentation for
@@ -408,25 +408,28 @@ func CloseOpenAICodexWebSocketSessions(sessionID string) {
 			if entry == nil {
 				continue
 			}
-			entry.debugClosing = true
-			releaseCodexSocketLease(entry)
-			if entry.idleTimer != nil {
-				entry.idleTimer.Stop()
-				entry.idleTimer = nil
+			if beginCodexGracefulClose(entry) {
+				entries = append(entries, entry)
 			}
-			entries = append(entries, entry)
 		}
 	}
 	codexWebSocketSessionsMu.Unlock()
 	for _, entry := range entries {
-		if entry.conn != nil {
-			// Cancelling the in-flight Read closes the transport and can
-			// prevent the peer from receiving the normal close frame.
-			_ = entry.conn.Close(websocket.StatusNormalClosure, "debug_close")
-		}
-		if entry.cancelRead != nil {
-			entry.cancelRead()
-		}
+		finishCodexGracefulClose(entry, "debug_close")
+	}
+}
+
+func retireCodexIdleSocket(entry *codexWebSocketSessionEntry) {
+	codexWebSocketSessionsMu.Lock()
+	if codexWebSocketSessions[entry.key] == entry {
+		delete(codexWebSocketSessions, entry.key)
+	}
+	close := beginCodexGracefulClose(entry)
+	codexWebSocketSessionsMu.Unlock()
+	if close {
+		// The transport bounds its close handshake. The peer need not
+		// acknowledge it before an SSE fallback or terminal event.
+		go finishCodexGracefulClose(entry, "idle_timeout")
 	}
 }
 
@@ -622,7 +625,7 @@ func removeCodexWebSocketSession(sessionID string, entry *codexWebSocketSessionE
 	key := entry.key
 	var conn *websocket.Conn
 	codexWebSocketSessionsMu.Lock()
-	if entry.debugClosing {
+	if entry.gracefulClosing {
 		codexWebSocketSessionsMu.Unlock()
 		return
 	}
@@ -649,7 +652,7 @@ func scheduleCodexWebSocketIdleClose(sessionID string, entry *codexWebSocketSess
 	}
 	key := entry.key
 	codexWebSocketSessionsMu.Lock()
-	if entry.debugClosing {
+	if entry.gracefulClosing {
 		codexWebSocketSessionsMu.Unlock()
 		return
 	}
@@ -839,6 +842,15 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 	// Socket reuse is independent of continuation mode. Match upstream’s raw
 	// option guard: omitted transport defaults to auto for dialing only.
 	useCachedContext := useCachedSession && (opts.Transport == goai.TransportAuto || opts.Transport == goai.TransportWebSocketCached)
+	var idleTimeout time.Duration
+	var idleErr error
+	if opts != nil && opts.TimeoutMs != nil && *opts.TimeoutMs > 0 {
+		idleMs := int64(*opts.TimeoutMs)
+		idleTimeout = time.Duration(min(idleMs, math.MaxInt64/int64(time.Millisecond))) * time.Millisecond
+		idleErr = fmt.Errorf("WebSocket idle timeout after %dms", idleMs)
+	}
+	reader := entry
+	idleClosing := false
 	if entry != nil {
 		codexWebSocketSessionsMu.Lock()
 		lease = entry.lease
@@ -856,7 +868,24 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 			}
 		}()
 	} else {
-		defer conn.CloseNow()
+		if idleTimeout > 0 {
+			// As with cached sockets, wait on a lease instead of cancelling
+			// Conn.Read on idle. That cancellation would drop the close frame.
+			lease = newCodexSocketLease()
+			reader = &codexWebSocketSessionEntry{conn: conn, lease: lease}
+			startCodexSocketReader(reader)
+		}
+		defer func() {
+			if idleClosing {
+				return
+			}
+			if reader != nil {
+				codexWebSocketSessionsMu.Lock()
+				stopCodexSocketReader(reader)
+				codexWebSocketSessionsMu.Unlock()
+			}
+			conn.CloseNow()
+		}()
 	}
 
 	bodyJSON := request.bodyJSON
@@ -974,20 +1003,17 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 		return &codexProtocolError{message: "Invalid Codex stream event: " + goai.FormatThrownValue(err), payload: string(payload), cause: err, partial: partial}
 	}
 
-	var idleTimeout time.Duration
-	var idleErr error
-	if opts != nil && opts.TimeoutMs != nil && *opts.TimeoutMs > 0 {
-		idleMs := int64(*opts.TimeoutMs)
-		idleTimeout = time.Duration(min(idleMs, math.MaxInt64/int64(time.Millisecond))) * time.Millisecond
-		idleErr = fmt.Errorf("WebSocket idle timeout after %dms", idleMs)
-	}
-
 readLoop:
 	for {
 		data, err := readCodexSocketWithIdleTimeout(ctx, conn, lease, idleTimeout, idleErr)
 		if err != nil {
-			if useCachedSession && entry != nil && opts != nil {
+			if err == idleErr {
+				retireCodexIdleSocket(reader)
+				idleClosing = true
+			} else if entry != nil {
 				removeCodexWebSocketSession(cacheSessionID, entry)
+			}
+			if entry != nil {
 				entry.continuation = nil
 			}
 			if ctx.Err() != nil {

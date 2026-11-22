@@ -13,6 +13,7 @@ import (
 	"testing/synctest"
 	"time"
 
+	coderws "github.com/coder/websocket"
 	goai "github.com/rcarmo/go-ai"
 	"github.com/rcarmo/go-ai/transports/websocket"
 )
@@ -249,6 +250,126 @@ func TestSourceV160CodexConnectTimeout(t *testing.T) {
 				} else if diag := diagnostics[0]; diag.Type != "provider_transport_failure" || diag.Error.Message != wantError || diag.Details["eventsEmitted"] != false || diag.Details["fallbackTransport"] != "sse" || diag.Details["phase"] != "before_message_stream_start" {
 					t.Errorf("connect timeout diagnostic = %s, %q, %v; want pre-start timeout and SSE fallback", diag.Type, diag.Error.Message, diag.Details)
 				}
+			}
+		})
+	}
+}
+
+// Supplemental wire contract from the pinned parseWebSocket timeout catch.
+// The peer withholds its close acknowledgment until the stream has settled:
+// the close handshake must not delay either SSE fallback or terminal events.
+func TestCodexIdleTimeoutWire(t *testing.T) {
+	for _, mode := range []string{"cached-fallback", "one-shot-terminal", "abort-before-idle", "abort-after-idle"} {
+		t.Run(mode, func(t *testing.T) {
+			bounds, stop := context.WithTimeout(t.Context(), 2*time.Second)
+			defer stop()
+			ctx, cancel := context.WithCancel(bounds)
+			defer cancel()
+			streamSettled := make(chan struct{})
+			wireClose := make(chan error, 1)
+			var sends, fallbacks atomic.Int32
+			started := mode == "one-shot-terminal" || mode == "abort-before-idle"
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Header.Get("Upgrade") != "websocket" {
+					fallbacks.Add(1)
+					if mode == "abort-after-idle" {
+						// The idle attempt has already selected fallback. A later
+						// caller abort must not cancel its pending close frame.
+						cancel()
+						return
+					}
+					w.Header().Set("Content-Type", "text/event-stream")
+					for _, frame := range sourceCodexRecoveryFrames("resp_sse", "msg_sse", "Hello") {
+						_, _ = fmt.Fprintf(w, "data: %s\n\n", frame)
+					}
+					return
+				}
+				conn, err := websocket.Accept(w, r, nil)
+				if err != nil {
+					t.Error(err)
+					return
+				}
+				defer conn.CloseNow()
+				if _, _, err := conn.Read(bounds); err != nil {
+					t.Errorf("read initial request: %v", err)
+					return
+				}
+				sends.Add(1)
+				if started {
+					if err := conn.Write(bounds, websocket.MessageText, []byte(`{"type":"response.created","response":{"id":"in_flight"}}`)); err != nil {
+						t.Error(err)
+						return
+					}
+				}
+				select {
+				case <-streamSettled:
+					_, _, err := conn.Read(bounds)
+					wireClose <- err
+				case <-bounds.Done():
+				}
+			}))
+			defer server.Close()
+			idleMs := 50
+			if mode == "abort-before-idle" {
+				idleMs = 300_000
+			}
+			opts := &goai.StreamOptions{APIKey: payloadJWT, Transport: goai.TransportAuto, TimeoutMs: &idleMs}
+			if !started {
+				opts.SessionID = t.Name()
+				defer ResetOpenAICodexWebSocketDebugStats(opts.SessionID)
+				defer CloseOpenAICodexWebSocketSessions(opts.SessionID)
+			}
+			model := &goai.Model{ID: "gpt-5.1-codex", Provider: goai.ProviderOpenAICodex, Api: goai.ApiOpenAICodexResponses, BaseURL: server.URL, Reasoning: true}
+			var events []string
+			var failure *goai.ErrorEvent
+			for ev := range goai.Stream(ctx, model, &goai.Context{}, opts) {
+				switch e := ev.(type) {
+				case *goai.StartEvent:
+					events = append(events, "start")
+					if mode == "abort-before-idle" {
+						cancel()
+					}
+				case *goai.DoneEvent:
+					events = append(events, "done")
+				case *goai.ErrorEvent:
+					events = append(events, string(e.Reason))
+					failure = e
+				}
+			}
+			close(streamSettled)
+			wantEvents, wantFallbacks := []string{"start", "done"}, int32(1)
+			switch mode {
+			case "one-shot-terminal":
+				wantEvents, wantFallbacks = []string{"start", "error"}, 0
+				if failure == nil || failure.Err == nil || failure.Err.Error() != "WebSocket idle timeout after 50ms" {
+					t.Errorf("terminal idle error = %+v; want exact timeout", failure)
+				}
+			case "abort-before-idle":
+				wantEvents, wantFallbacks = []string{"start", "aborted"}, 0
+			case "abort-after-idle":
+				wantEvents = []string{"aborted"}
+			}
+			if mode == "abort-before-idle" || mode == "abort-after-idle" {
+				if failure == nil || !errors.Is(failure.Err, context.Canceled) {
+					t.Errorf("caller cancellation = %+v; want context.Canceled", failure)
+				}
+			}
+			if !reflect.DeepEqual(events, wantEvents) || sends.Load() != 1 || fallbacks.Load() != wantFallbacks {
+				t.Errorf("events/sends/fallbacks = %v/%d/%d; want %v/1/%d", events, sends.Load(), fallbacks.Load(), wantEvents, wantFallbacks)
+			}
+			select {
+			case err := <-wireClose:
+				var close coderws.CloseError
+				idleClose := errors.As(err, &close) && close.Code == websocket.StatusNormalClosure && close.Reason == "idle_timeout"
+				if mode == "abort-before-idle" {
+					if err == nil || idleClose {
+						t.Errorf("peer close = %v; caller cancellation must not send idle_timeout", err)
+					}
+				} else if !idleClose {
+					t.Errorf("peer close = %v; want close 1000 idle_timeout", err)
+				}
+			case <-bounds.Done():
+				t.Error("peer close was not delivered independently of stream settlement")
 			}
 		})
 	}

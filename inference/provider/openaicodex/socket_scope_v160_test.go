@@ -36,7 +36,7 @@ type codexScopeClose struct {
 // Assert at the transport boundary: a missing cache entry alone does not
 // establish that the peer received a close, or even that the socket closed.
 func TestSourceV160CodexSocketScope(t *testing.T) {
-	for _, mode := range []string{"account", "one-shot", "scoped-close-reset", "active-close"} {
+	for _, mode := range []string{"account", "one-shot", "scoped-close-reset", "active-close", "age-cap"} {
 		t.Run(mode, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 			defer cancel()
@@ -88,9 +88,10 @@ func TestSourceV160CodexSocketScope(t *testing.T) {
 			defer CloseOpenAICodexWebSocketSessions(target)
 			defer CloseOpenAICodexWebSocketSessions(other)
 			model := &goai.Model{ID: "gpt-5.1-codex", Provider: goai.ProviderOpenAICodex, Api: goai.ApiOpenAICodexResponses, BaseURL: server.URL, Reasoning: true}
+			var ageMessages []goai.Message
 			run := func(session, account string, oneShot bool) codexScopeSend {
 				t.Helper()
-				input := &goai.Context{}
+				input := &goai.Context{Messages: ageMessages}
 				opts := &goai.StreamOptions{APIKey: accountJWT(account), SessionID: session, Transport: goai.TransportWebSocketCached}
 				if oneShot {
 					input.SystemPrompt = "You are a helpful assistant."
@@ -105,6 +106,9 @@ func TestSourceV160CodexSocketScope(t *testing.T) {
 						t.Fatalf("Codex request: %v", ev.Err)
 					case *goai.DoneEvent:
 						done++
+						if mode == "age-cap" {
+							ageMessages = append(ageMessages, *ev.Message)
+						}
 					}
 				}
 				if done != 1 {
@@ -195,6 +199,34 @@ func TestSourceV160CodexSocketScope(t *testing.T) {
 				}
 				if fresh := run(target, "account-a", false); fresh.connection == a.connection || fresh.body["previous_response_id"] != nil {
 					t.Errorf("closed session reused old socket or continuation: %+v", fresh)
+				}
+			case "age-cap": // ai.codex.ws-age-cap
+				const account = "account-a"
+				ageMessages = []goai.Message{
+					{Role: goai.RoleSystem, Content: []goai.ContentBlock{{Type: "text", Text: "You are a helpful assistant."}}},
+					goai.UserMessage("Say hello"),
+				}
+				first := run(target, account, false)
+				// The first public call has released the entry. Move only its
+				// creation stamp, as the oracle jumps the wall clock without
+				// firing the separate idle-expiry timer.
+				key := codexWebSocketSessionKey{sessionID: target, accountID: account, wsURL: resolveCodexWSURL(server.URL)}
+				codexWebSocketSessionsMu.Lock()
+				entry := codexWebSocketSessions[key]
+				if entry != nil {
+					entry.createdAt = entry.createdAt.Add(-46 * time.Minute)
+				}
+				codexWebSocketSessionsMu.Unlock()
+				if entry == nil {
+					t.Fatal("missing initially cached socket")
+				}
+				ageMessages = append(ageMessages, goai.UserMessage("Now finish"))
+				second := run(target, account, false)
+				if connections.Load() != 2 || first.connection != 1 || second.connection != 2 {
+					t.Errorf("aged connections and sends = %d, [%d %d]; want 2, [1 2]", connections.Load(), first.connection, second.connection)
+				}
+				if stats := GetOpenAICodexWebSocketDebugStats(target); stats == nil || stats.ConnectionsCreated != 2 || stats.ConnectionsReused != 0 {
+					t.Errorf("age cap stats = %+v; want two created, zero reused", stats)
 				}
 			case "active-close": // Supplemental: public cleanup while a cached reader owns a lease.
 				opts := &goai.StreamOptions{APIKey: accountJWT("account-a"), SessionID: target, Transport: goai.TransportWebSocketCached}
