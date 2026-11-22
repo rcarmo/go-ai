@@ -209,3 +209,54 @@ func TestFilesystemLineReaderCancellationRetainsOffset(t *testing.T) {
 		t.Fatal("cancel skipped line", line, err)
 	}
 }
+
+// The context check at each FileInfo call is the boundary between enumeration
+// and lstat. Use it to place a real rename there without a goroutine or delay.
+type listRenameContext struct {
+	context.Context
+	onReclaim func() error
+	checks    int
+	err       error
+}
+
+func (c *listRenameContext) Err() error {
+	c.checks++
+	if c.checks == 3 && c.onReclaim != nil {
+		c.err = c.onReclaim()
+		c.onReclaim = nil
+	}
+	return c.Context.Err()
+}
+
+func TestSourceV160ListDirSkipsRemovedEnumeratedEntry(t *testing.T) {
+	dir := t.TempDir()
+	reclaim := filepath.Join(dir, "doc-2.jsonl.reclaim")
+	target := filepath.Join(dir, "doc-2.jsonl")
+	for name, value := range map[string]string{"doc-1.jsonl": "kept\n", "doc-2.jsonl.reclaim": "replacement\n"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(value), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ctx := &listRenameContext{Context: context.Background(), onReclaim: func() error { return os.Rename(reclaim, target) }}
+	env := LocalEnv(dir)
+	entries, err := env.ListDir(ctx, ".")
+	if ctx.onReclaim != nil || ctx.err != nil {
+		t.Fatalf("enumeration race was not exercised: %v", ctx.err)
+	}
+	var names []string
+	for _, entry := range entries {
+		names = append(names, entry.Name)
+	}
+	if err != nil || !reflect.DeepEqual(names, []string{"doc-1.jsonl"}) {
+		t.Fatalf("raced listing = %q, %v; want just doc-1.jsonl", names, err)
+	}
+	if _, err := env.ListDir(ctx, "missing"); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("missing directory error was suppressed: %v", err)
+	}
+	cancelled, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	interrupt := &listRenameContext{Context: cancelled, onReclaim: func() error { cancel(); return nil }}
+	if _, err := env.ListDir(interrupt, "."); !errors.Is(err, context.Canceled) || interrupt.onReclaim != nil {
+		t.Fatalf("entry cancellation was suppressed: %v", err)
+	}
+}

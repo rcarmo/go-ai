@@ -304,6 +304,9 @@ func (e *Env) ListDir(ctx context.Context, path string) ([]durable.FileInfo, err
 	items := make([]durable.FileInfo, 0, len(entries))
 	for _, entry := range entries {
 		item, err := e.FileInfo(ctx, filepath.Join(absolute, entry.Name()))
+		if errors.Is(err, os.ErrNotExist) {
+			continue // A concurrent rename or removal can win after ReadDir.
+		}
 		if err != nil {
 			return nil, err
 		}
