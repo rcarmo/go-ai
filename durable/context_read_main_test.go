@@ -228,27 +228,29 @@ func TestMainContextReadInstallationFences(t *testing.T) {
 }
 
 type mainContextProjection struct {
-	nativeStorage
+	Storage
 	text    string
 	failure error
 	reads   int
 }
 
-func (a *mainContextProjection) Snapshot(ctx context.Context) (Snapshot, error) {
+func (a *mainContextProjection) ScanEntries(ctx context.Context, query EntryQuery, size int, cursor Cursor) (Page[Entry], error) {
+	if query.Conversation == 0 {
+		return a.Storage.ScanEntries(ctx, query, size, cursor)
+	}
 	a.reads++
 	if a.failure != nil {
-		return Snapshot{}, a.failure
+		return Page[Entry]{}, a.failure
 	}
-	state, err := testStorageProjection(a.nativeStorage).Snapshot(ctx)
+	page, err := a.Storage.ScanEntries(ctx, query, size, cursor)
 	if err == nil {
-		for id, entry := range state.Entries {
+		for _, entry := range page.Items {
 			if len(entry.Model) > 0 {
 				entry.Model[0].Content[0].Text = a.text
-				state.Entries[id] = entry
 			}
 		}
 	}
-	return state, err
+	return page, err
 }
 
 func TestMainContextReadWrapperAuthority(t *testing.T) {
@@ -258,8 +260,10 @@ func TestMainContextReadWrapperAuthority(t *testing.T) {
 		id := mint(t, b.store)
 		entry := contextEntry(id, root, goai.RoleUser, "raw")
 		apply(t, b.store, Write{Op: "append-entry", Entry: &entry})
-		adapter := &mainContextProjection{nativeStorage: b.store.(nativeStorage), text: "first projection"}
+		adapter := &mainContextProjection{Storage: b.store, text: "first projection"}
 		h := openHarness(t, adapter, Options{})
+		// Opening builds the validation image. Count only the public reads below.
+		h.session.taskBookkeeping(func() { adapter.reads = 0 })
 		c, err := h.Conversation(bg, root)
 		if err != nil {
 			t.Fatal(err)
@@ -286,8 +290,8 @@ func TestMainContextReadWrapperAuthority(t *testing.T) {
 			}
 		}
 		h.session.taskBookkeeping(func() {
-			if len(h.session.contextRanges) != 0 || adapter.reads < 5 {
-				t.Fatal("wrapper used native cache", adapter.reads)
+			if got := len(h.session.contextRanges); got != 0 || adapter.reads != 5 {
+				t.Fatalf("native cache entries = %d, delegated reads = %d; want 0 and 5", got, adapter.reads)
 			}
 		})
 	})
@@ -485,6 +489,46 @@ func TestMainContextReadEmptyAndInvalidBounds(t *testing.T) {
 		}
 		if s.failure() != nil {
 			t.Fatal("request rejection failed session")
+		}
+	})
+}
+
+type pagedContextStorage struct {
+	Storage
+	queries []EntryQuery
+}
+
+func (s *pagedContextStorage) ScanEntries(ctx context.Context, q EntryQuery, size int, cursor Cursor) (Page[Entry], error) {
+	if q.MaxEntryID != 0 && q.Conversation != 0 {
+		s.queries = append(s.queries, q)
+		size = 1
+	}
+	return s.Storage.ScanEntries(ctx, q, size, cursor)
+}
+
+func TestSourceV160DelegatedContextPinnedPages(t *testing.T) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+		first, second, later := mint(t, b.store), mint(t, b.store), mint(t, b.store)
+		for index, id := range []ID{first, second, later} {
+			entry := contextEntry(id, 1, goai.RoleUser, []string{"first", "second", "later"}[index])
+			apply(t, b.store, Write{Op: "append-entry", Entry: &entry})
+		}
+		adapter := &pagedContextStorage{Storage: b.store}
+		h := openHarness(t, adapter, Options{})
+		root, err := h.Conversation(bg, 1)
+		if err != nil || root == nil {
+			t.Fatalf("root = %v, err %v", root, err)
+		}
+		view, err := root.ContextView(bg, second)
+		if err != nil || len(view.Entries) != 2 || len(view.Messages) != 2 {
+			t.Fatalf("view entries=%d messages=%d err=%v", len(view.Entries), len(view.Messages), err)
+		}
+		if view.Entries[0].ID != first || view.Entries[1].ID != second || view.Messages[0].Content[0].Text != "first" || view.Messages[1].Content[0].Text != "second" {
+			t.Fatal("history order or message projection changed", view)
+		}
+		q := EntryQuery{Conversation: 1, MaxEntryID: second, Order: Descending}
+		if !reflect.DeepEqual(adapter.queries, []EntryQuery{q, q}) {
+			t.Fatalf("delegated paging changed: got %+v, want two %+v", adapter.queries, q)
 		}
 	})
 }

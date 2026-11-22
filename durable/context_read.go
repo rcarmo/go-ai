@@ -87,6 +87,14 @@ func (s *Session) contextView(ctx context.Context, conversation, at ID, capture 
 	if err := s.enter(ctx); err != nil {
 		return ContextView{}, err
 	}
+	if s.delegatedStorage {
+		for _, key := range []string{conversationKey(conversation), appendKey(conversation)} {
+			if err := s.touch(ctx, key); err != nil {
+				s.leave()
+				return ContextView{}, err
+			}
+		}
+	}
 	state, native, err := s.taskSnapshotView(ctx)
 	if err == nil && capture != nil {
 		err = capture(state)
@@ -95,9 +103,11 @@ func (s *Session) contextView(ctx context.Context, conversation, at ID, capture 
 		s.leave()
 		return ContextView{}, err
 	}
+	if s.delegatedStorage {
+		defer s.leave()
+		return s.readDelegatedContext(ctx, state, conversation, at)
+	}
 	if !native {
-		// A wrapper owns its Snapshot projection, even at an unchanged sequence.
-		// Keep its existing serial read boundary and never retain native witnesses.
 		defer s.leave()
 		view, _, err := deriveContextRange(state, conversation, at, nil, s.limits)
 		if err != nil {
@@ -108,4 +118,30 @@ func (s *Session) contextView(ctx context.Context, conversation, at ID, capture 
 	read := s.captureContextRead(state, conversation, at)
 	s.leave()
 	return s.completeContextRead(ctx, read)
+}
+
+// Use the admitted image to pin the cutoff, then read visible history from
+// the owning backend. A delegated backend can supply a different projection
+// at the same commit sequence, so these results must not enter the cache.
+func (s *Session) readDelegatedContext(ctx context.Context, state Snapshot, conversation, at ID) (ContextView, error) {
+	tail, err := contextTail(state, conversation, at)
+	if err != nil || tail == 0 {
+		return ContextView{}, err
+	}
+	query := EntryQuery{Conversation: conversation, MaxEntryID: tail, Order: Descending}
+	var history []Entry
+	var cursor Cursor
+	store := s.guardedStorage()
+	for {
+		page, err := store.ScanEntries(ctx, query, s.limits.MaxPage, cursor)
+		if err != nil {
+			return ContextView{}, err
+		}
+		history = append(history, page.Items...)
+		if len(page.Next) == 0 {
+			break
+		}
+		cursor = page.Next
+	}
+	return deriveContextHistory(history, s.limits)
 }
