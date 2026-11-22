@@ -917,11 +917,15 @@ func testV160ParkedToolKeepsNestedChildren(t *testing.T, reopen bool) {
 		Execute: func(run context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 			wakes <- api.Wake
 			var handles []*NestedToolHandle
-			for _, topic := range []string{"a", "b"} {
-				if reopen && topic == "b" {
+			for _, key := range []string{"a", "b"} {
+				if reopen && key == "b" {
 					break
 				}
-				h, err := api.StartTool(run, topic, "research", JSON{"topic": topic})
+				topic := key
+				if reopen {
+					topic = "x"
+				}
+				h, err := api.StartTool(run, key, "research", JSON{"topic": topic})
 				if err != nil {
 					return ToolResult{}, err
 				}
@@ -1020,7 +1024,11 @@ func testV160ParkedToolKeepsNestedChildren(t *testing.T, reopen bool) {
 			t.Fatalf("remaining children = %v", next.State.On)
 		}
 	}
-	if got, err := h.Signal(ctx, ids[0], token, "done", JSON{"text": "ay"}); err != nil || got != SignalDelivered {
+	text := "ay"
+	if reopen {
+		text = "kept"
+	}
+	if got, err := h.Signal(ctx, ids[0], token, "done", JSON{"text": text}); err != nil || got != SignalDelivered {
 		t.Fatalf("signal a = %q, %v", got, err)
 	}
 	if got, err := sub.Wait(ctx); err != nil || got.Record.Status != "done" {
@@ -1028,7 +1036,7 @@ func testV160ParkedToolKeepsNestedChildren(t *testing.T, reopen bool) {
 	}
 	want := "a: ay + b: bee"
 	if reopen {
-		want = "a: ay"
+		want = "x: kept"
 	}
 	result := v160ToolResult(t, ctx, c, "c1")
 	if result.IsError || v160ToolResultText(result) != want {

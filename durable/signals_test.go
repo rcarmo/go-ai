@@ -8,6 +8,7 @@ import (
 	goai "github.com/rcarmo/go-ai"
 	"math"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -940,6 +941,17 @@ func (s *signalCommitRecorder) requireNotified(t *testing.T, waiter ID, expected
 		}
 		if len(settled) != len(expected) || len(taskWrites) != 1 {
 			t.Fatalf("settling batch: %d submissions, %d waiter writes", len(settled), len(taskWrites))
+		}
+		if len(expected) == 2 {
+			var keys []string
+			for key := range taskWrites[0].Memos {
+				keys = append(keys, key)
+			}
+			slices.Sort(keys)
+			want := []string{"pi.signal.pi.submission-settled/one", "pi.signal.pi.submission-settled/two"}
+			if !slices.Equal(keys, want) {
+				t.Fatalf("paired settlement memo keys = %v; want %v", keys, want)
+			}
 		}
 		for id, key := range expected {
 			memo := taskWrites[0].Memos[signalMemoName(SubmissionSettled.Name(), key)]
