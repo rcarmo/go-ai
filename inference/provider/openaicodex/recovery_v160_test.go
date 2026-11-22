@@ -128,7 +128,16 @@ func TestSourceV160CodexMissingCachedContinuation(t *testing.T) {
 			if transport == "sse" {
 				wantText, wantFetches = "Hello", 1
 			}
-			if !reflect.DeepEqual(events, []string{"start", "done"}) || second == nil || second.StopReason != goai.StopReasonStop || goai.ContentText(second.Content) != wantText {
+			var firstText *string
+			if second != nil {
+				for _, block := range second.Content {
+					if block.Type == "text" {
+						firstText = &block.Text
+						break
+					}
+				}
+			}
+			if !reflect.DeepEqual(events, []string{"start", "done"}) || second == nil || second.StopReason != goai.StopReasonStop || firstText == nil || *firstText != wantText {
 				t.Errorf("second turn: events %v, message %+v; want one start and successful %q", events, second, wantText)
 			}
 			if connections.Load() != 2 || requests.Load() != 3 || fetches.Load() != wantFetches {
