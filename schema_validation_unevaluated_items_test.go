@@ -14,24 +14,32 @@ func TestSourceV160SchemaUnevaluatedItems(t *testing.T) {
 	checkV160SchemaAnnotationFixture(t, "unevaluated-items-2020-12-v160.json", 29, 71)
 }
 
-func checkV160SchemaAnnotationFixture(t *testing.T, file string, wantGroups, wantCases int) {
+type v160SchemaAnnotationGroup struct {
+	Description string
+	Schema      map[string]any
+	Tests       []struct {
+		Description string
+		Data        any
+		Valid       bool
+	}
+}
+
+func readV160SchemaAnnotationFixture(t *testing.T, file string) []v160SchemaAnnotationGroup {
 	t.Helper()
 	fixture, err := os.ReadFile("tests/testdata/upstream-main/" + file)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var groups []struct {
-		Description string
-		Schema      map[string]any
-		Tests       []struct {
-			Description string
-			Data        any
-			Valid       bool
-		}
-	}
+	var groups []v160SchemaAnnotationGroup
 	if err := json.Unmarshal(fixture, &groups); err != nil {
 		t.Fatal(err)
 	}
+	return groups
+}
+
+func checkV160SchemaAnnotationFixture(t *testing.T, file string, wantGroups, wantCases int) {
+	t.Helper()
+	groups := readV160SchemaAnnotationFixture(t, file)
 	if len(groups) != wantGroups {
 		t.Fatalf("got %d source groups, want %d", len(groups), wantGroups)
 	}
