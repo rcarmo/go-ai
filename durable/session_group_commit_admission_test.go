@@ -1037,7 +1037,7 @@ func (a *coldSubmissionStorage) SubmissionByRequest(ctx context.Context, convers
 // Supplemental public Storage witness for session/transaction.ts committed
 // submission reads. A delegated read image can lack either cold key.
 func TestSourceV160SessionColdSubmissionReads(t *testing.T) {
-	for _, scope := range []string{"session", "transaction"} {
+	for _, scope := range []string{"session", "transaction", "line"} {
 		for _, by := range []string{"id", "request"} {
 			for _, fault := range []bool{false, true} {
 				t.Run(fmt.Sprintf("%s/%s/fault=%t", scope, by, fault), func(t *testing.T) {
@@ -1063,7 +1063,7 @@ func TestSourceV160SessionColdSubmissionReads(t *testing.T) {
 						} else {
 							record, found, err = s.SubmissionByRequest(bg, a.witness.Conversation, a.witness.RequestID)
 						}
-					} else {
+					} else if scope == "transaction" {
 						_, err = s.Commit(bg, func(tx *Tx) (any, error) {
 							var readErr error
 							if by == "id" {
@@ -1072,6 +1072,16 @@ func TestSourceV160SessionColdSubmissionReads(t *testing.T) {
 								record, found, readErr = tx.SubmissionByRequest(a.witness.Conversation, a.witness.RequestID)
 							}
 							return nil, readErr
+						})
+					} else {
+						err = s.ReadOnLine(bg, func(read *ReadLine) error {
+							var readErr error
+							if by == "id" {
+								record, found, readErr = read.Submission(a.witness.ID)
+							} else {
+								record, found, readErr = read.SubmissionByRequest(a.witness.Conversation, a.witness.RequestID)
+							}
+							return readErr
 						})
 					}
 					if fault {

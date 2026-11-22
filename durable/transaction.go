@@ -18,6 +18,7 @@ type Tx struct {
 	submissionChanges      []transactionSubmissionChange
 	taskCandidates         map[ID]TaskRecord // internal source replacement candidates
 	coldTaskReads          map[ID]*Task      // nil is a scoped negative backend read
+	coldConversationReads  map[ID]*Conversation
 	taskCandidateOrder     []ID
 	sourceTaskReplacements map[ID]bool // trusted internal canonical setter authority
 	ctx                    context.Context
@@ -97,7 +98,7 @@ func (t *Tx) touchKeys(keys ...string) error {
 	if image.Seq != t.state.Seq {
 		image.HighWater = max(image.HighWater, t.state.HighWater)
 		t.state = image
-		t.coldTaskReads = nil
+		t.coldTaskReads, t.coldConversationReads = nil, nil
 		t.stagedState, t.stagedWrites, t.publicationState = nil, nil, nil
 	}
 	return nil

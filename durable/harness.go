@@ -300,12 +300,9 @@ func (h *Harness) Conversation(ctx context.Context, id ID) (*ConversationHandle,
 	if h.closing.Load() {
 		return nil, h.closedError()
 	}
-	s, e := h.session.Snapshot(ctx)
-	if e != nil {
-		return nil, e
-	}
-	if _, ok := s.Conversations[id]; !ok {
-		return nil, nil
+	_, found, err := h.session.Conversation(ctx, id)
+	if err != nil || !found {
+		return nil, err
 	}
 	return &ConversationHandle{h: h, id: id}, nil
 }

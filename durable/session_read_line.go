@@ -62,12 +62,37 @@ func (r *ReadLine) Entry(ids ...ID) (StoredEntry, bool, error) {
 	return lookupStoredEntry(r.tx.state, r.tx.limits, ids)
 }
 
+// Conversation reads a committed conversation after any earlier publication
+// affecting its ID.
+func (r *ReadLine) Conversation(id ID) (Conversation, bool, error) {
+	if err := r.check(); err != nil {
+		return Conversation{}, false, err
+	}
+	return r.tx.Conversation(id)
+}
+
 // Task reads a committed task after any earlier publication affecting its ID.
 func (r *ReadLine) Task(id ID) (TaskRecord, bool, error) {
 	if err := r.check(); err != nil {
 		return TaskRecord{}, false, err
 	}
 	return r.tx.Task(id)
+}
+
+// Submission reads a committed submission after its publication gate.
+func (r *ReadLine) Submission(id ID) (SubmissionRecord, bool, error) {
+	if err := r.check(); err != nil {
+		return SubmissionRecord{}, false, err
+	}
+	return r.tx.Submission(id)
+}
+
+// SubmissionByRequest reads the committed record at a scoped deduplication key.
+func (r *ReadLine) SubmissionByRequest(conversation ID, request string) (SubmissionRecord, bool, error) {
+	if err := r.check(); err != nil {
+		return SubmissionRecord{}, false, err
+	}
+	return r.tx.SubmissionByRequest(conversation, request)
 }
 
 func (r *ReadLine) ScanEntries(q EntryQuery, limit int, cursor Cursor) (Page[Entry], error) {

@@ -445,3 +445,9 @@ The selected unchanged completion-order, fork store and text-layout cases passed
 The exact six-source [fetch-option receipt](test-inventory/fetch-option.md) reproduced offline, and [native adapters](test-inventory/fetch-option-native.md) exercise all six source groups via the public request-local transport. OpenAI, Azure, Mistral, Codex SSE and pi-messages retain ambient defaults when no override is supplied, and a request-local override does not affect WebSocket dialing or global clients. Native OpenAI and direct-HTTP grouped controls failed before the fix. The Google ambient request test has no separate native Undici dispatcher field.
 
 The integrated focused Go tests passed twice, vet and Staticcheck v0.8.2 passed, and the offline fetch receipt reproduced. No broad acceptance or profiling ran.
+
+### Scoped conversation and submission reads
+
+On a conversation projection miss, Session and transaction reads consult delegated Storage through the failure guard. `Harness.Conversation` now uses the scoped read instead of a full snapshot. `ReadLine` exposes the same conversation and submission lookups. Its transaction-local memo holds both hits and misses and clears on a newly adopted image.
+
+These are supplemental public boundary probes for `transaction.ts` and `harness.ts`. Eight compiled hit/failure branches failed before the change. The exact backend failure survives Session termination; bypassing the conversation memo increases the transaction's backend reads from one to two. A separate probe verifies that the next read scope fetches its own miss.

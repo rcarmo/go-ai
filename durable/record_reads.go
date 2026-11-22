@@ -208,6 +208,9 @@ func (s *Session) Conversation(ctx context.Context, id ID) (record Conversation,
 		return
 	}
 	record, found = state.Conversations[id]
+	if !found && s.delegatedStorage {
+		return s.guardedStorage().Conversation(ctx, id)
+	}
 	return
 }
 func (s *Session) Entry(ctx context.Context, ids ...ID) (record StoredEntry, found bool, err error) {
@@ -256,9 +259,37 @@ func (t *Tx) Conversation(id ID) (Conversation, bool, error) {
 	if err := checkReadIDs(id); err != nil {
 		return Conversation{}, false, err
 	}
+	if t.session != nil && !t.session.hasNativeReadImage() {
+		return t.readColdConversation(id)
+	}
 	record, found := t.state.Conversations[id]
+	if !found && t.session != nil && t.session.delegatedStorage {
+		return t.readColdConversation(id)
+	}
 	return record, found, nil
 }
+
+func (t *Tx) readColdConversation(id ID) (Conversation, bool, error) {
+	value, cached := t.coldConversationReads[id]
+	if !cached {
+		record, found, err := t.session.guardedStorage().Conversation(t.ctx, id)
+		if err != nil {
+			return Conversation{}, false, err
+		}
+		if found {
+			value = &record
+		}
+		if t.coldConversationReads == nil {
+			t.coldConversationReads = make(map[ID]*Conversation)
+		}
+		t.coldConversationReads[id] = value
+	}
+	if value == nil {
+		return Conversation{}, false, nil
+	}
+	return *value, true, nil
+}
+
 func (t *Tx) Entry(id ID) (Entry, bool, error) {
 	if err := t.enterTableRead("entry", entryKey(id)); err != nil {
 		return Entry{}, false, err
