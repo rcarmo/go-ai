@@ -448,3 +448,39 @@ func TestSourceV160FailedRunWithdrawsBeforeOwnedHostReturns(t *testing.T) {
 		}
 	})
 }
+
+// Source harness-failed-run-inbox.test.ts:56. Unlike the combined policy
+// fixture, there is no queued input that could start a second run here.
+func TestSourceV160FailedRunWriteOnlyBoundary(t *testing.T) {
+	for _, policy := range []string{"continue", "withdraw"} {
+		t.Run(policy, func(t *testing.T) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+				ref, options, calls, entered, release := failedRunProvider140(t)
+				options.Settings = &HarnessSettings{AfterFailedRun: policy}
+				h := openHarness(t, b.store, options)
+				root := root(t, h, ref)
+				first, err := root.Submit(bg, Input{Content: "first"})
+				if err != nil {
+					t.Fatal(err)
+				}
+				awaitTaskSignal(t, entered)
+				write, err := root.Submit(bg, Input{Type: "write", Entry: &Entry{Kind: "test.note", Model: []MessageReceipt{{Role: goai.RoleUser, Content: []goai.ContentBlock{{Type: "text", Text: "a note the model sees"}}, Timestamp: 1}}}})
+				if err != nil {
+					t.Fatal(err)
+				}
+				statusFailed140(t, write, "queued", "")
+				releaseTaskGate(release)
+				waitSubmission(t, first)
+				idleFailed140(t, h)
+				want := "queued"
+				if policy == "continue" {
+					want = "done"
+				}
+				statusFailed140(t, write, want, "")
+				if calls.Load() != 1 {
+					t.Fatalf("write-only boundary created another run: %d provider calls", calls.Load())
+				}
+			})
+		})
+	}
+}
