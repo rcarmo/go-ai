@@ -451,3 +451,11 @@ The integrated focused Go tests passed twice, vet and Staticcheck v0.8.2 passed,
 On a conversation projection miss, Session and transaction reads consult delegated Storage through the failure guard. `Harness.Conversation` now uses the scoped read instead of a full snapshot. `ReadLine` exposes the same conversation and submission lookups. Its transaction-local memo holds both hits and misses and clears on a newly adopted image.
 
 These are supplemental public boundary probes for `transaction.ts` and `harness.ts`. Eight compiled hit/failure branches failed before the change. The exact backend failure survives Session termination; bypassing the conversation memo increases the transaction's backend reads from one to two. A separate probe verifies that the next read scope fetches its own miss.
+
+### Thinking levels, diagnostics and Together models
+
+The 15 unchanged `max-thinking.test.ts` cases and 58 unchanged `supports-xhigh.test.ts` cases passed. Native tests verify ordered levels, explicit disabled entries, catalogue metadata and eight Codex max-effort payloads captured before transport. No production change was needed for these cases.
+
+The Schema tests verify the exact first diagnostic for two `unevaluatedProperties` groups. The paired check/error ledger rows remain partial: the native API returns a first diagnostic, while the pinned explainer emits an ordered list. In the dynamic-reference probe, the source emits `/bar` and `/baz` when the native validator reports only `baz`; both accept the same `bar` when `baz` is absent.
+
+The [Together model receipt](test-inventory/together-models.md) reproduces two unchanged originals offline. The native comparisons use the published Kimi K3 limit of `1048576` and distinguish absent developer-role metadata from explicit `false`. The separate dummy-key case remains open in this receipt.
