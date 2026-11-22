@@ -7,7 +7,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	goai "github.com/rcarmo/go-ai"
 )
@@ -100,8 +102,8 @@ func TestOpenAIResponsesCompatSessionAffinityFormats(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			captured := captureResponsesRequest(t, tc.model, &goai.StreamOptions{SessionID: "session-123"})
-			if got := captured.Header.Get("session_id"); got != tc.wantSession {
-				t.Fatalf("session_id=%q, want %q; headers=%#v", got, tc.wantSession, captured.Header)
+			if got := captured.Header.Get("session-id"); got != tc.wantSession {
+				t.Fatalf("session-id=%q, want %q; headers=%#v", got, tc.wantSession, captured.Header)
 			}
 			if got := captured.Header.Get("x-client-request-id"); got != tc.wantClient {
 				t.Fatalf("x-client-request-id=%q, want %q; headers=%#v", got, tc.wantClient, captured.Header)
@@ -116,11 +118,13 @@ func TestOpenAIResponsesCompatSessionAffinityFormats(t *testing.T) {
 	}
 }
 
-func TestOpenAIResponsesCacheRetentionNonePreservesGeneratedAffinityHeaders(t *testing.T) {
+func TestOpenAIResponsesCacheRetentionNoneOmitsGeneratedAffinityHeaders(t *testing.T) {
 	model := &goai.Model{ID: "gpt-test", Provider: goai.ProviderOpenAI, Api: goai.ApiOpenAIResponses}
 	captured := captureResponsesRequest(t, model, &goai.StreamOptions{SessionID: "session-123", CacheRetention: goai.CacheRetentionNone})
-	if captured.Header.Get("session_id") != "session-123" || captured.Header.Get("x-client-request-id") != "session-123" || captured.Header.Get("x-session-id") != "" {
-		t.Fatalf("affinity must not depend on prompt-cache retention: %#v", captured.Header)
+	for _, name := range []string{"session-id", "session_id", "x-client-request-id", "x-session-id"} {
+		if len(captured.Header.Values(name)) != 0 {
+			t.Fatalf("none retention generated %s: %#v", name, captured.Header)
+		}
 	}
 	if _, ok := captured.Body["prompt_cache_key"]; ok {
 		t.Fatalf("prompt_cache_key should be omitted when cacheRetention none: %#v", captured.Body)
@@ -132,12 +136,12 @@ func TestOpenAIResponsesExplicitHeadersOverrideGeneratedAffinityHeaders(t *testi
 	captured := captureResponsesRequest(t, model, &goai.StreamOptions{
 		SessionID: "session-123",
 		Headers: map[string]string{
-			"session_id":          "override-session",
+			"session-id":          "override-session",
 			"x-client-request-id": "override-request",
 		},
 	})
-	if got := captured.Header.Get("session_id"); got != "override-session" {
-		t.Fatalf("session_id=%q, want override-session", got)
+	if got := captured.Header.Get("session-id"); got != "override-session" {
+		t.Fatalf("session-id=%q, want override-session", got)
 	}
 	if got := captured.Header.Get("x-client-request-id"); got != "override-request" {
 		t.Fatalf("x-client-request-id=%q, want override-request", got)
@@ -228,3 +232,147 @@ func TestXAIResponsesAlwaysRequestsEncryptedReasoningInclude(t *testing.T) {
 }
 
 func boolPtr(v bool) *bool { return &v }
+
+// The pinned compatibility file observes payloads even if a bare [DONE]
+// sentinel terminates without a response.completed event.
+func TestSourceV160ResponsesCompatibilityWire(t *testing.T) {
+	goai.RegisterBuiltinModels()
+	for _, tc := range []struct {
+		provider goai.Provider
+		id, mode string
+	}{
+		{goai.ProviderCloudflareAIGateway, "gpt-5.6-sol", "strict"},
+		{goai.ProviderGitHubCopilot, "gpt-5.3-codex", "strict"},
+		{goai.ProviderGitHubCopilot, "mai-code-2", "strict"},
+		{goai.ProviderGitHubCopilot, "grok-4.7", "strict"},
+		{goai.ProviderOpenAI, "gpt-5.6-luna", "required"},
+		{goai.ProviderGitHubCopilot, "gpt-6-sol", "omit-reasoning"},
+		{goai.ProviderOpenAI, "gpt-5.4", "affinity-official"},
+		{goai.ProviderOpenAI, "gpt-5.4", "affinity-proxy"},
+		{goai.ProviderOpenAI, "gpt-5.4", "affinity-none"},
+		{goai.ProviderOpenAI, "gpt-5.4", "affinity-override"},
+	} {
+		t.Run(tc.mode+"/"+string(tc.provider)+"/"+tc.id, func(t *testing.T) {
+			catalog := goai.GetModel(tc.provider, tc.id)
+			if catalog == nil || catalog.Api != goai.ApiOpenAIResponses {
+				t.Fatal("missing pinned Responses model")
+			}
+			model := *catalog
+			var requests atomic.Int32
+			type receipt struct {
+				body   map[string]json.RawMessage
+				header http.Header
+			}
+			received := make(chan receipt, 1)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if requests.Add(1) != 1 {
+					t.Error("unexpected additional Responses request")
+					http.Error(w, "unexpected request", http.StatusBadRequest)
+					return
+				}
+				if r.Method != http.MethodPost || r.URL.Path != "/responses" {
+					t.Errorf("Responses method and path = %s %s; want POST /responses", r.Method, r.URL.Path)
+				}
+				var body map[string]json.RawMessage
+				if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+					t.Error(err)
+					return
+				}
+				received <- receipt{body: body, header: r.Header.Clone()}
+				w.Header().Set("Content-Type", "text/event-stream")
+				_, _ = io.WriteString(w, "data: [DONE]\n\n")
+			}))
+			defer server.Close()
+			model.BaseURL = server.URL
+			input := &goai.Context{Messages: []goai.Message{goai.UserMessage("Use a tool.")}}
+			opts := &goai.StreamOptions{APIKey: "sk-test-key"}
+			switch tc.mode {
+			case "strict":
+				if model.ResponsesCompat == nil || model.ResponsesCompat.SupportsStrictMode == nil || !*model.ResponsesCompat.SupportsStrictMode {
+					t.Error("public model does not advertise strict support")
+				}
+				input.Tools = []goai.Tool{
+					{Name: "ordinary", Description: "An ordinary tool", Parameters: json.RawMessage(`{"type":"object","properties":{"path":{"type":"string"},"offset":{"type":"number"}},"required":["path"]}`)},
+					{Name: "constrained", Description: "A constrained tool", Parameters: json.RawMessage(`{"type":"object","properties":{"value":{"type":"string"}},"required":["value"]}`), ConstrainedSampling: &goai.ToolConstrainedSampling{Type: "json_schema", Strict: "prefer"}},
+				}
+			case "required":
+				input.Messages[0] = goai.UserMessage("Do not call ping. Respond with text instead.")
+				input.Tools = []goai.Tool{{Name: "ping", Description: "Ping", Parameters: json.RawMessage(`{"type":"object","properties":{"value":{"type":"string"}},"required":["value"]}`)}}
+				opts.ToolChoice = goai.ToolChoiceRequired
+			case "omit-reasoning":
+				input.SystemPrompt = "sys"
+				input.Messages[0] = goai.UserMessage("hi")
+			default:
+				input.SystemPrompt = "sys"
+				input.Messages[0] = goai.UserMessage("hi")
+				opts.SessionID = "session-123"
+				switch tc.mode {
+				case "affinity-proxy":
+					model.Provider = goai.Provider("opencode")
+				case "affinity-none":
+					opts.CacheRetention = goai.CacheRetentionNone
+				case "affinity-override":
+					opts.Headers = map[string]string{"session-id": "override-session", "x-client-request-id": "override-request"}
+				}
+			}
+			ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+			defer cancel()
+			var terminalErr error
+			for event := range goai.Stream(ctx, &model, input, opts) {
+				if e, ok := event.(*goai.ErrorEvent); ok {
+					terminalErr = e.Err
+				}
+			}
+			if requests.Load() != 1 {
+				t.Fatalf("Responses request count = %d; want 1 (terminal error: %v)", requests.Load(), terminalErr)
+			}
+			var captured receipt
+			select {
+			case captured = <-received:
+			case <-ctx.Done():
+				t.Fatal("missing decoded Responses body")
+			}
+			body := captured.body
+			switch tc.mode {
+			case "strict":
+				var tools []map[string]json.RawMessage
+				if err := json.Unmarshal(body["tools"], &tools); err != nil || len(tools) != 2 {
+					t.Fatalf("Responses tools = %s; want two ordered declarations", body["tools"])
+				}
+				if string(tools[0]["name"]) != `"ordinary"` || string(tools[0]["strict"]) != "false" || string(tools[1]["name"]) != `"constrained"` || string(tools[1]["strict"]) != "true" {
+					t.Errorf("Responses tools = %s; want ordinary strict:false and constrained strict:true", body["tools"])
+				}
+				// Supplemental: leaving strict off must not make offset required.
+				var ordinary struct{ Required []string }
+				if err := json.Unmarshal(tools[0]["parameters"], &ordinary); err != nil || len(ordinary.Required) != 1 || ordinary.Required[0] != "path" {
+					t.Errorf("ordinary parameters = %s; want only path required", tools[0]["parameters"])
+				}
+			case "required":
+				var items []struct {
+					Type  string
+					Tools []struct{ Name string }
+				}
+				if err := json.Unmarshal(body["input"], &items); err != nil || string(body["tool_choice"]) != `"required"` || len(items) != 2 || items[0].Type != "additional_tools" || len(items[0].Tools) != 1 || items[0].Tools[0].Name != "ping" {
+					t.Errorf("tool choice = %s, input = %s; want required and exactly two items beginning with additional_tools/ping", body["tool_choice"], body["input"])
+				}
+			case "omit-reasoning":
+				if _, present := body["reasoning"]; present {
+					t.Errorf("Copilot reasoning = %s; want omitted", body["reasoning"])
+				}
+			default:
+				wantSession, wantRequest := "session-123", "session-123"
+				if tc.mode == "affinity-none" {
+					wantSession, wantRequest = "", ""
+				} else if tc.mode == "affinity-override" {
+					wantSession, wantRequest = "override-session", "override-request"
+				}
+				for key, want := range map[string]string{"session-id": wantSession, "x-client-request-id": wantRequest, "session_id": ""} {
+					got := captured.header.Values(key)
+					if (want == "" && len(got) != 0) || (want != "" && (len(got) != 1 || got[0] != want)) {
+						t.Errorf("Responses header %s = %v; want %q (empty means absent)", key, got, want)
+					}
+				}
+			}
+		})
+	}
+}

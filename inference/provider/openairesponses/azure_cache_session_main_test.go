@@ -17,7 +17,7 @@ func TestResponsesAzureCacheSessionAPIBoundaryMain(t *testing.T) {
 					t.Run(fmt.Sprintf("%s/%s/explicit-%v/%s", api, retention, explicit, mode), func(t *testing.T) {
 						model := &goai.Model{ID: "gpt-test", Api: api, Provider: goai.ProviderOpenAI, ResponsesCompat: &goai.OpenAIResponsesCompat{SupportsExplicitPromptCacheMode: &explicit}}
 						opts := &goai.StreamOptions{APIKey: "test-key", SessionID: "session", CacheRetention: retention}
-						keys := []string{"session_id", "x-client-request-id", "x-ms-client-request-id"}
+						keys := []string{"session-id", "session_id", "x-client-request-id", "x-ms-client-request-id"}
 						if mode != "default" {
 							model.Headers = map[string]string{}
 							for _, key := range keys {
@@ -42,7 +42,7 @@ func TestResponsesAzureCacheSessionAPIBoundaryMain(t *testing.T) {
 							if mode != "default" {
 								want, present = "model-ID", true
 							}
-							if api == goai.ApiOpenAIResponses && key != "x-ms-client-request-id" {
+							if api == goai.ApiOpenAIResponses && retention != goai.CacheRetentionNone && (key == "session-id" || key == "x-client-request-id") {
 								want, present = "session", true
 							}
 							if mode == "caller" {

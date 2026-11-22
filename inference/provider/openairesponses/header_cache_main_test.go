@@ -18,10 +18,10 @@ func TestResponsesHeaderCacheAndStructuredChoiceWireMain(t *testing.T) {
 					choice := map[string]any{"type": "function", "name": "lookup"}
 					opts := &goai.StreamOptions{APIKey: "test", SessionID: "logical-session", CacheRetention: retention, ToolChoice: goai.ToolChoiceAuto, SamplingParams: map[string]any{"tool_choice": choice}}
 					if mode == "override" {
-						opts.Headers = map[string]string{"session_id": "caller-session", "x-session-id": "caller-router", "x-client-request-id": "caller-request", "X-Extra": "caller", "X-Initiator": "", "Openai-Intent": "caller-intent"}
+						opts.Headers = map[string]string{"session-id": "caller-session", "session_id": "caller-legacy", "x-session-id": "caller-router", "x-client-request-id": "caller-request", "X-Extra": "caller", "X-Initiator": "", "Openai-Intent": "caller-intent"}
 					}
 					if mode == "suppress" {
-						opts.SuppressHeaders = []string{"session_id", "x-session-id", "x-client-request-id", "X-Initiator", "Openai-Intent"}
+						opts.SuppressHeaders = []string{"session-id", "session_id", "x-session-id", "x-client-request-id", "X-Initiator", "Openai-Intent"}
 					}
 					conv := &goai.Context{Messages: []goai.Message{goai.UserMessage("hi")}, Tools: []goai.Tool{deferredTool("lookup")}}
 					beforeModel, _ := json.Marshal(model)
@@ -42,11 +42,20 @@ func TestResponsesHeaderCacheAndStructuredChoiceWireMain(t *testing.T) {
 							}
 						}
 					} else {
-						if provider == goai.ProviderOpenRouter {
-							if headers.Get("x-session-id") != "logical-session" || headers.Get("session_id") != "" || headers.Get("x-client-request-id") != "" {
+						if len(headers.Values("session_id")) != 0 {
+							t.Fatal("generated legacy session header", headers)
+						}
+						if retention == goai.CacheRetentionNone {
+							for _, name := range []string{"session-id", "x-client-request-id", "x-session-id"} {
+								if len(headers.Values(name)) != 0 {
+									t.Fatal("none retention generated affinity", name, headers)
+								}
+							}
+						} else if provider == goai.ProviderOpenRouter {
+							if headers.Get("x-session-id") != "logical-session" || headers.Get("session-id") != "" || headers.Get("x-client-request-id") != "" {
 								t.Fatal("router affinity", headers)
 							}
-						} else if headers.Get("session_id") != "logical-session" || headers.Get("x-client-request-id") != "logical-session" {
+						} else if headers.Get("session-id") != "logical-session" || headers.Get("x-client-request-id") != "logical-session" {
 							t.Fatal("affinity lost with retention", retention, headers)
 						}
 						initiator, intent := "model-initiator", "model-intent"

@@ -81,7 +81,7 @@ func TestXAIResponsesRequestShapeMatchesUpstream(t *testing.T) {
 		defer r.Body.Close()
 		gotPath = r.URL.Path
 		gotAuth = r.Header.Get("Authorization")
-		gotSessionID = r.Header.Get("session_id")
+		gotSessionID = r.Header.Get("session-id")
 		gotClientRequestID = r.Header.Get("x-client-request-id")
 		raw, err := io.ReadAll(r.Body)
 		if err != nil {
@@ -111,7 +111,7 @@ func TestXAIResponsesRequestShapeMatchesUpstream(t *testing.T) {
 		t.Fatalf("Authorization=%q, want bearer token", gotAuth)
 	}
 	if gotSessionID != "pi-session-123" || gotClientRequestID != "pi-session-123" {
-		t.Fatalf("session headers session_id=%q x-client-request-id=%q", gotSessionID, gotClientRequestID)
+		t.Fatalf("session headers session-id=%q x-client-request-id=%q", gotSessionID, gotClientRequestID)
 	}
 	if body["model"] != "grok-4.5" || body["store"] != false || body["stream"] != true || body["prompt_cache_key"] != "pi-session-123" {
 		t.Fatalf("unexpected xAI request body core fields: %#v", body)

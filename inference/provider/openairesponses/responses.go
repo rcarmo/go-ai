@@ -124,14 +124,16 @@ func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 		req.Header.Set("Content-Type", "application/json")
 		applyResponsesAuthHeaders(req, model, apiKey)
 		req.Header.Set("Accept", "text/event-stream")
-		if model.Api != goai.ApiAzureOpenAIResponses && opts != nil && opts.SessionID != "" {
+		// Retention none suppresses generated affinity, not caller headers.
+		if model.Api != goai.ApiAzureOpenAIResponses && opts != nil && opts.SessionID != "" &&
+			goai.ResolveCacheRetention(opts.CacheRetention, opts.Env) != goai.CacheRetentionNone {
 			compat := getResponsesCompat(model)
 			switch compat.sessionAffinityFormat {
 			case "openrouter":
 				req.Header.Set("x-session-id", opts.SessionID)
 			default:
 				if compat.sessionAffinityFormat == "openai" {
-					req.Header.Set("session_id", opts.SessionID)
+					req.Header.Set("session-id", opts.SessionID)
 				}
 				req.Header.Set("x-client-request-id", opts.SessionID)
 			}
