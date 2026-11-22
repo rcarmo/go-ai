@@ -524,6 +524,7 @@ func dialCodexWebSocket(ctx context.Context, wsURL string, headers http.Header, 
 			dialCtx, cancel = context.WithTimeout(ctx, retryCfg.ConnectTimeout)
 		}
 		conn, _, wsErr = websocket.Dial(dialCtx, wsURL, &websocket.DialOptions{HTTPHeader: headers})
+		dialTimedOut := dialCtx.Err() == context.DeadlineExceeded
 		cancel()
 		if wsErr == nil {
 			conn.SetReadLimit(codexWebSocketMessageLimit)
@@ -531,6 +532,11 @@ func dialCodexWebSocket(ctx context.Context, wsURL string, headers http.Header, 
 		}
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
+		}
+		// The connect deadline ends this WebSocket attempt, independent of
+		// the retry budget for the subsequent SSE request.
+		if dialTimedOut {
+			return nil, fmt.Errorf("WebSocket connect timeout after %dms", retryCfg.ConnectTimeout.Milliseconds())
 		}
 		if attempt >= retryCfg.MaxRetries {
 			return nil, fmt.Errorf("WebSocket dial: %w", wsErr)

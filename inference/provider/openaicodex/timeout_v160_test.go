@@ -143,3 +143,104 @@ func TestCodexSocketIdleDeadline(t *testing.T) {
 		}
 	})
 }
+
+// ai.codex.ws-connect-timeout (default retry policy). The other branches
+// check an available retry budget and distinguish parent cancellation.
+func TestSourceV160CodexConnectTimeout(t *testing.T) {
+	for _, mode := range []string{"default", "retry-budget", "caller-cancel"} {
+		t.Run(mode, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+			defer cancel()
+			var dials, fetches atomic.Int32
+			entered := make(chan struct{})
+			upgradeCanceled := make(chan struct{})
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Header.Get("Upgrade") == "websocket" {
+					first := dials.Add(1) == 1
+					if first {
+						close(entered)
+					}
+					// Deliberately never send an upgrade response. Verify that
+					// the client cancels this pending handshake at the peer.
+					<-r.Context().Done()
+					if first {
+						close(upgradeCanceled)
+					}
+					return
+				}
+				fetches.Add(1)
+				w.Header().Set("Content-Type", "text/event-stream")
+				for _, frame := range sourceCodexRecoveryFrames("resp_sse", "msg_sse", "Hello") {
+					_, _ = fmt.Fprintf(w, "data: %s\n\n", frame)
+				}
+			}))
+			defer server.Close()
+			connectMs, requestMs := 50, 300_000
+			opts := &goai.StreamOptions{APIKey: payloadJWT, SessionID: t.Name(), Transport: goai.TransportAuto, WebSocketConnectTimeoutMs: &connectMs, TimeoutMs: &requestMs}
+			defer ResetOpenAICodexWebSocketDebugStats(opts.SessionID)
+			defer CloseOpenAICodexWebSocketSessions(opts.SessionID)
+			if mode == "retry-budget" {
+				cfg := goai.DefaultRetryConfig()
+				cfg.MaxRetries, cfg.InitialDelay, cfg.MaxDelay, cfg.JitterFraction = 1, time.Millisecond, time.Millisecond, 0
+				opts.RetryConfig = &cfg
+			}
+			if mode == "caller-cancel" {
+				connectMs = 300_000
+				go func() {
+					select {
+					case <-entered:
+						cancel()
+					case <-ctx.Done():
+					}
+				}()
+			}
+			model := &goai.Model{ID: "gpt-5.1-codex", Provider: goai.ProviderOpenAICodex, Api: goai.ApiOpenAICodexResponses, BaseURL: server.URL, Reasoning: true}
+			input := &goai.Context{SystemPrompt: "You are a helpful assistant.", Messages: []goai.Message{goai.UserMessage("Say hello")}}
+			var events []string
+			var result *goai.Message
+			var failure *goai.ErrorEvent
+			for ev := range goai.Stream(ctx, model, input, opts) {
+				switch e := ev.(type) {
+				case *goai.StartEvent:
+					events = append(events, "start")
+				case *goai.DoneEvent:
+					events = append(events, "done")
+					result = e.Message
+				case *goai.ErrorEvent:
+					events = append(events, string(e.Reason))
+					failure = e
+				}
+			}
+			select {
+			case <-upgradeCanceled:
+			case <-time.After(time.Second):
+				t.Error("pending upgrade did not cancel at the peer")
+			}
+			stats := GetOpenAICodexWebSocketDebugStats(opts.SessionID)
+			if mode == "caller-cancel" {
+				if !reflect.DeepEqual(events, []string{"aborted"}) || failure == nil || !errors.Is(failure.Err, context.Canceled) || dials.Load() != 1 || fetches.Load() != 0 || stats != nil {
+					t.Errorf("caller-cancel: events %v, failure %+v, dials %d, SSE %d, stats %+v; want caller cancellation only", events, failure, dials.Load(), fetches.Load(), stats)
+				}
+				return
+			}
+			const wantError = "WebSocket connect timeout after 50ms"
+			if dials.Load() != 1 || fetches.Load() != 1 {
+				t.Errorf("dials and SSE requests = %d, %d; want 1, 1", dials.Load(), fetches.Load())
+			}
+			if !reflect.DeepEqual(events, []string{"start", "done"}) || result == nil || goai.ContentText(result.Content) != "Hello" {
+				t.Errorf("connect timeout: events %v, failure %+v; want successful Hello with one start", events, failure)
+			}
+			if stats == nil || stats.WebSocketFailures != 1 || stats.SSEFallbacks != 1 || !stats.WebSocketFallbackActive || stats.LastWebSocketError != wantError {
+				t.Errorf("connect timeout stats = %+v; want one failure and fallback, active latch and exact %q", stats, wantError)
+			}
+			if result != nil {
+				diagnostics := result.Diagnostics
+				if len(diagnostics) != 1 {
+					t.Errorf("connect timeout diagnostics count = %d; want one", len(diagnostics))
+				} else if diag := diagnostics[0]; diag.Type != "provider_transport_failure" || diag.Error.Message != wantError || diag.Details["eventsEmitted"] != false || diag.Details["fallbackTransport"] != "sse" || diag.Details["phase"] != "before_message_stream_start" {
+					t.Errorf("connect timeout diagnostic = %s, %q, %v; want pre-start timeout and SSE fallback", diag.Type, diag.Error.Message, diag.Details)
+				}
+			}
+		})
+	}
+}
