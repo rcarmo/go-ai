@@ -107,6 +107,8 @@ type OpenAICompletionsCompat struct {
 
 	// Whether to send session affinity headers for prompt caching.
 	SendSessionAffinityHeaders *bool `json:"sendSessionAffinityHeaders,omitempty"`
+	// SessionAffinityFormat selects "openai", "openai-nosession", or "openrouter".
+	SessionAffinityFormat string `json:"sessionAffinityFormat,omitempty"`
 
 	// Provider-specific deferred tool serialization mode. "kimi" replays newly-added
 	// deferred tools in a post-tool-result system message and omits them from the
@@ -319,6 +321,9 @@ func DetectCompatForModel(model *Model) OpenAICompletionsCompat {
 	if o.SendSessionAffinityHeaders != nil {
 		c.SendSessionAffinityHeaders = o.SendSessionAffinityHeaders
 	}
+	if o.SessionAffinityFormat != "" {
+		c.SessionAffinityFormat = o.SessionAffinityFormat
+	}
 	if o.DeferredToolsMode != "" {
 		c.DeferredToolsMode = o.DeferredToolsMode
 	}
@@ -434,9 +439,14 @@ func detectCompat(provider Provider, modelID string, baseURL string) OpenAICompl
 		c.SupportsLongCacheRetention = &t
 	}
 
-	// cacheControlFormat
-	if isOpenRouter && strings.HasPrefix(modelID, "anthropic/") {
-		c.CacheControlFormat = "anthropic"
+	// OpenRouter opts into its own affinity header format by default.
+	c.SessionAffinityFormat = "openai"
+	if isOpenRouter {
+		c.SendSessionAffinityHeaders = &t
+		c.SessionAffinityFormat = "openrouter"
+		if strings.HasPrefix(modelID, "anthropic/") {
+			c.CacheControlFormat = "anthropic"
+		}
 	}
 	if isBaseten {
 		c.ChatTemplateArgs = map[string]ChatTemplateKwargValue{"enable_thinking": {Var: "thinking.enabled"}}

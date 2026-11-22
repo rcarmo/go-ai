@@ -145,9 +145,15 @@ func streamOpenAI(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 			cacheRetentionForHeaders = goai.ResolveCacheRetention(opts.CacheRetention, opts.Env)
 		}
 		if compat.SendSessionAffinityHeaders != nil && *compat.SendSessionAffinityHeaders && opts != nil && opts.SessionID != "" && cacheRetentionForHeaders != goai.CacheRetentionNone {
-			req.Header.Set("session_id", opts.SessionID)
-			req.Header.Set("x-client-request-id", opts.SessionID)
-			req.Header.Set("x-session-affinity", opts.SessionID)
+			if compat.SessionAffinityFormat == "openrouter" {
+				req.Header.Set("x-session-id", opts.SessionID)
+			} else {
+				if compat.SessionAffinityFormat == "openai" {
+					req.Header.Set("session_id", opts.SessionID)
+				}
+				req.Header.Set("x-client-request-id", opts.SessionID)
+				req.Header.Set("x-session-affinity", opts.SessionID)
+			}
 		}
 
 		// Dynamic Copilot headers

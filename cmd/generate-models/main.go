@@ -672,6 +672,7 @@ func writeCompat(b *strings.Builder, api string, c compatEntry) {
 		writeBoolField(b, "SupportsOpenAIGrammarTools", c.SupportsOpenAIGrammarTools)
 		writeStringField(b, "CacheControlFormat", c.CacheControlFormat)
 		writeBoolField(b, "SendSessionAffinityHeaders", c.SendSessionAffinityHeaders)
+		writeStringField(b, "SessionAffinityFormat", c.SessionAffinityFormat)
 		writeStringField(b, "DeferredToolsMode", c.DeferredToolsMode)
 		writeBoolField(b, "SupportsLongCacheRetention", c.SupportsLongCacheRetention)
 		writeBoolField(b, "SupportsTemperature", c.SupportsTemperature)
