@@ -487,3 +487,15 @@ The [Qwen receipt](test-inventory/qwen-token-plan-models.md) reproduces ten sele
 All four unchanged `harness-failed-run-inbox.test.ts` cases passed again against the byte-verified v1.6.0 source. The canonical generation ends the run and withdraws its queued inputs in the same transaction. The older Go test expected a legacy intermediate held decision, which the canonical source does not publish.
 
 The replacement Go probe checks one publication: the placed input settles with `model_error`, then all 20 queued inputs settle in reverse inbox order with `run_failed` and no entry or answer. The queued write survives and is placed only when a new input runs after SQLite reopen. Provider calls are exactly one before reopen and two after the fresh input. Disabling withdrawal changes the publication to one settlement and fails the probe. The existing small-budget atomicity and document retirement probes passed without changing `MaxWrites`. Oversized canonical commits remain a native resource-limit difference; the Oracle does not exercise the Go-specific limit.
+
+### Ending owner rejection
+
+The unchanged `harness-ownership.test.ts:582` case passed. The native translation stages a conversation and its first task while ending the owner. It reproduced a `faulted` outcome with an extra `durable: rejected:` prefix. Final owner admission now persists the exact source message and remains distinguishable as a no-write rejection to Go callers. The refused transaction publishes neither child and starts no child phase. The pre-fix overlay reproduced the prefix mismatch; focused ownership checks passed twice. The three other ownership groups that failed the wider selector also failed against the unchanged baseline and remain open.
+
+### Inline QuickJS and provider affinity
+
+The three unchanged namespaced-global cases passed again. Native tests ran twice through both bundled inline QuickJS and the verified published portable guest, matching the full result and callback values. The independently hosted upstream Node worker topology and guest-hosted journal replay remain open.
+
+All 27 unchanged OpenAI Completions prompt-cache cases passed offline. The native adapter now honours OpenAI no-session and OpenRouter session-ID formats while preserving cache field, retention, opt-out and explicit-header behaviour. Three wire cases failed before the change. The catalogue generator now preserves explicit format overrides; the lead verified unchanged generated chat, image and classifier outputs.
+
+The [Fireworks loopback receipt](test-inventory/fireworks-loopback.md) reproduces ten unchanged Messages cases. Native Fireworks and OpenRouter now emit the expected affinity headers; storage, tool payload and generated catalogue data are unchanged. These ten cases and the earlier three catalogue cases leave 12 Fireworks cases open. Integrated focused Go tests and the Anthropic package passed twice; vet and Staticcheck v0.8.2 passed.
