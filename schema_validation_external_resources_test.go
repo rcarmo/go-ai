@@ -141,3 +141,67 @@ func TestSchemaExternalReferenceRegistration(t *testing.T) {
 		})
 	}
 }
+
+// Groups 13–17 require external resources. The other draft 2020-12 groups
+// run through the ordinary check in TestSourceV160DynamicReferences.
+func TestSourceV160SchemaExternalDynamicReferences(t *testing.T) {
+	const fixture = "tests/testdata/upstream-main/dynamic-ref-2020-12-v160"
+	const base = "http://localhost:1234/draft2020-12/"
+	fixtureBytes, err := os.ReadFile(fixture + ".json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var groups []struct {
+		Description string
+		Schema      map[string]any
+		Tests       []struct {
+			Description string
+			Data        any
+			Valid       bool
+		}
+	}
+	if err := json.Unmarshal(fixtureBytes, &groups); err != nil {
+		t.Fatal(err)
+	}
+	if len(groups) != 21 {
+		t.Fatalf("pinned fixture contains %d groups, want 21", len(groups))
+	}
+	for index, expected := range []struct {
+		name     string
+		resource string
+		issues   []string // Exact native issue per fixture case; empty for acceptance.
+	}{
+		{"strict-tree schema, guards against misspelled properties", "tree.json", []string{"children.0.daat: unknown field", ""}},
+		{"tests for implementation dynamic anchor and reference link", "extendible-dynamic-ref.json", []string{"elements: missing", "elements.0.a: missing", ""}},
+		{"$ref and $dynamicAnchor are independent of order - $defs first", "extendible-dynamic-ref.json", []string{"elements: missing", "elements.0.a: missing", ""}},
+		{"$ref and $dynamicAnchor are independent of order - $ref first", "extendible-dynamic-ref.json", []string{"elements: missing", "elements.0.a: missing", ""}},
+		{"$ref to $dynamicRef finds detached $dynamicAnchor", "detached-dynamicref.json", []string{"", "root: expected integer, got string"}},
+	} {
+		group := groups[13+index]
+		if group.Description != expected.name || len(group.Tests) != len(expected.issues) {
+			t.Fatalf("unexpected pinned group %d: %+v", 13+index, group)
+		}
+		document, err := os.ReadFile(fixture + "-remotes/" + expected.resource)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resources := map[string]json.RawMessage{base + expected.resource: document}
+		t.Run(group.Description, func(t *testing.T) {
+			for i, c := range group.Tests {
+				t.Run(c.Description, func(t *testing.T) {
+					err := goai.ValidateJSONSchemaValueWithResources(group.Schema, c.Data, resources)
+					if (err == nil) != c.Valid {
+						t.Fatalf("validation = %v; want valid=%t", err, c.Valid)
+					}
+					var issue string
+					if err != nil {
+						issue = err.Error()
+					}
+					if issue != expected.issues[i] {
+						t.Fatalf("validation = %q; want %q", issue, expected.issues[i])
+					}
+				})
+			}
+		})
+	}
+}
