@@ -289,6 +289,29 @@ func normalizeAnthropicBaseURL(baseURL string) string {
 	return normalized + "/v1"
 }
 
+func applySessionAffinity(headers http.Header, model *goai.Model, opts *goai.StreamOptions, env goai.ProviderEnv) {
+	if opts == nil || opts.SessionID == "" || goai.ResolveCacheRetention(opts.CacheRetention, env) == goai.CacheRetentionNone {
+		return
+	}
+	isOpenRouter := model.Provider == goai.ProviderOpenRouter || strings.Contains(model.BaseURL, "openrouter.ai")
+	send := isOpenRouter
+	if compat := model.AnthropicCompat; compat != nil && compat.SendSessionAffinityHeaders != nil {
+		send = *compat.SendSessionAffinityHeaders
+	}
+	if !send {
+		return
+	}
+	name := "X-Session-Affinity"
+	if isOpenRouter {
+		name = "X-Session-Id"
+	}
+	// A model header has precedence, including an explicitly empty value.
+	// The caller can still replace or suppress either header afterwards.
+	if _, present := headers[name]; !present {
+		headers.Set(name, opts.SessionID)
+	}
+}
+
 func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions) <-chan goai.Event {
 	ch := make(chan goai.Event, 32)
 	send := goai.NewAssistantEventSender(ch)
@@ -411,6 +434,7 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 		}
 
 		goai.ApplyDefaultHeaders(req.Header, model.Headers)
+		applySessionAffinity(req.Header, model, opts, env)
 		goai.ApplyDefaultHeaders(req.Header, goai.RequestIdentityHeaders(model, opts))
 		if opts != nil {
 			goai.ApplyHeaders(req.Header, goai.WithOpenCodeSessionHeader(model.Provider, opts.SessionID, opts.Headers))
