@@ -139,29 +139,8 @@ func TestSourceV160CodexRequestProjection(t *testing.T) {
 		{"plain", "", "high", false, 2, 0, false, false, "high", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			captured := make(chan map[string]any, 1)
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				var reader io.Reader = r.Body
-				if encoding := r.Header.Get("Content-Encoding"); encoding == "zstd" {
-					decoder, err := zstd.NewReader(reader)
-					if err != nil {
-						t.Error(err)
-						return
-					}
-					defer decoder.Close()
-					reader = decoder
-				}
-				var body map[string]any
-				if err := json.NewDecoder(reader).Decode(&body); err != nil {
-					t.Error(err)
-					return
-				}
-				captured <- body
-				w.Header().Set("Content-Type", "text/event-stream")
-				fmt.Fprint(w, "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\",\"status\":\"completed\"}}\n\n")
-			}))
-			defer server.Close()
-			model := &goai.Model{ID: "gpt-6.2", Provider: goai.ProviderOpenAICodex, Api: goai.ApiOpenAICodexResponses, Reasoning: true, BaseURL: server.URL, ContextWindow: 100000, MaxTokens: 10000,
+			url, captured := captureCodexSSEProjection(t, `{"type":"response.completed","response":{"id":"resp_1","status":"completed"}}`)
+			model := &goai.Model{ID: "gpt-6.2", Provider: goai.ProviderOpenAICodex, Api: goai.ApiOpenAICodexResponses, Reasoning: true, BaseURL: url, ContextWindow: 100000, MaxTokens: 10000,
 				ResponsesCompat: &goai.OpenAIResponsesCompat{SupportsMidConvoEffort: &tc.supportEffort, SupportsMaxOutputTokens: &tc.capAllowed},
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -230,4 +209,159 @@ func TestSourceV160CodexRequestProjection(t *testing.T) {
 			}
 		})
 	}
+}
+
+func captureCodexSSEProjection(t *testing.T, frames ...string) (string, <-chan map[string]any) {
+	t.Helper()
+	bodies := make(chan map[string]any, 4)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var reader io.Reader = r.Body
+		if r.Header.Get("Content-Encoding") == "zstd" {
+			decoder, err := zstd.NewReader(reader)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			defer decoder.Close()
+			reader = decoder
+		}
+		var body map[string]any
+		if err := json.NewDecoder(reader).Decode(&body); err != nil {
+			t.Error(err)
+			return
+		}
+		select {
+		case bodies <- body:
+		default:
+			t.Error("unexpected extra SSE request")
+			return
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		for _, frame := range frames {
+			_, _ = fmt.Fprintf(w, "data: %s\n\n", frame)
+		}
+	}))
+	t.Cleanup(server.Close)
+	return server.URL, bodies
+}
+
+// Exact pinned alternatives to the separate request-property matrix above.
+func TestSourceV160CodexRequestProjectionExact(t *testing.T) {
+	for _, mode := range []string{"developer-prompt", "request-effort", "output-token-cap"} {
+		t.Run(mode, func(t *testing.T) {
+			url, bodies := captureCodexSSEProjection(t,
+				`{"type":"response.output_item.added","item":{"type":"message","id":"msg_1","role":"assistant","status":"in_progress","content":[]}}`,
+				`{"type":"response.content_part.added","part":{"type":"output_text","text":""}}`,
+				`{"type":"response.output_text.delta","delta":"Hello"}`,
+				`{"type":"response.output_item.done","item":{"type":"message","id":"msg_1","role":"assistant","status":"completed","content":[{"type":"output_text","text":"Hello"}]}}`,
+				`{"type":"response.completed","response":{"status":"completed","incomplete_details":null,"usage":{"input_tokens":5,"output_tokens":3,"total_tokens":8,"input_tokens_details":{"cached_tokens":0}}}}`,
+			)
+			model := &goai.Model{ID: "gpt-6.2-sol", Provider: goai.ProviderOpenAICodex, Api: goai.ApiOpenAICodexResponses, Reasoning: true, BaseURL: url, ContextWindow: 400_000, MaxTokens: 128_000}
+			input := goai.Context{Messages: []goai.Message{{Role: goai.RoleUser, Content: []goai.ContentBlock{{Type: "text", Text: "Say hello"}}, Timestamp: 1}}}
+			ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+			defer cancel()
+			run := func(opts goai.StreamOptions, simple bool) (*goai.Message, map[string]any) {
+				t.Helper()
+				opts.APIKey, opts.Transport = payloadJWT, goai.TransportSSE
+				stream := goai.Stream
+				if simple {
+					stream = goai.GetApiProvider(model.Api).StreamSimple
+				}
+				var result *goai.Message
+				for ev := range stream(ctx, model, &input, &opts) {
+					switch e := ev.(type) {
+					case *goai.ErrorEvent:
+						t.Fatalf("SSE request: %v", e.Err)
+					case *goai.DoneEvent:
+						result = e.Message
+					}
+				}
+				if result == nil || result.StopReason != goai.StopReasonStop || goai.ContentText(result.Content) != "Hello" {
+					t.Fatalf("SSE result = %+v; want successful Hello", result)
+				}
+				select {
+				case body := <-bodies:
+					return result, body
+				case <-ctx.Done():
+					t.Fatal("missing SSE body")
+					return nil, nil
+				}
+			}
+			switch mode {
+			case "developer-prompt":
+				input.SystemPrompt = "Be terse."
+				_, first := run(goai.StreamOptions{}, false)
+				input.SystemPrompt = ""
+				_, second := run(goai.StreamOptions{}, false)
+				user := map[string]any{"role": "user", "content": []any{map[string]any{"type": "input_text", "text": "Say hello"}}}
+				expected := [][]any{{map[string]any{"role": "developer", "content": "Be terse."}, user}, {user}}
+				for i, body := range []map[string]any{first, second} {
+					if _, present := body["instructions"]; present {
+						t.Errorf("request %d includes instructions = %v; want absent", i+1, body["instructions"])
+					}
+					if !reflect.DeepEqual(body["input"], expected[i]) {
+						t.Errorf("request %d input = %v; want %v", i+1, body["input"], expected[i])
+					}
+				}
+			case "request-effort":
+				yes := true
+				model.ResponsesCompat = &goai.OpenAIResponsesCompat{SupportsMidConvoEffort: &yes}
+				low, high := goai.ThinkingLow, goai.ThinkingHigh
+				first, firstBody := run(goai.StreamOptions{Reasoning: &low}, false)
+				input.Messages = append(input.Messages, *first, goai.Message{Role: goai.RoleUser, Content: []goai.ContentBlock{{Type: "text", Text: "Again"}}, Timestamp: 2})
+				second, secondBody := run(goai.StreamOptions{Reasoning: &high}, false)
+				if first.ProviderThinkingLevel != "low" || second.ProviderThinkingLevel != "high" {
+					t.Errorf("response markers = %q, %q; want low then high", first.ProviderThinkingLevel, second.ProviderThinkingLevel)
+				}
+				want := [][]string{{"user", "configuration_update:low"}, {"user", "configuration_update:low", "assistant", "user", "configuration_update:high"}}
+				for i, body := range []map[string]any{firstBody, secondBody} {
+					if !reflect.DeepEqual(body["reasoning"], map[string]any{"effort": "medium", "summary": "auto"}) {
+						t.Errorf("request %d reasoning = %v; want medium auto", i+1, body["reasoning"])
+					}
+					if got := summarizeCodexProjection(t, body["input"]); !reflect.DeepEqual(got, want[i]) {
+						t.Errorf("request %d input order = %v; want %v", i+1, got, want[i])
+					}
+				}
+			case "output-token-cap":
+				cap, low := 5000, 4
+				_, first := run(goai.StreamOptions{MaxTokens: &cap}, true)
+				_, second := run(goai.StreamOptions{MaxTokens: &low}, false)
+				no := false
+				model.ResponsesCompat = &goai.OpenAIResponsesCompat{SupportsMaxOutputTokens: &no}
+				_, third := run(goai.StreamOptions{MaxTokens: &cap}, false)
+				if first["max_output_tokens"] != float64(5000) || second["max_output_tokens"] != float64(16) {
+					t.Errorf("max_output_tokens = %v, %v; want 5000 and 16", first["max_output_tokens"], second["max_output_tokens"])
+				}
+				if _, present := third["max_output_tokens"]; present {
+					t.Errorf("model opt-out includes max_output_tokens = %v; want absent", third["max_output_tokens"])
+				}
+			}
+			if len(bodies) != 0 {
+				t.Error("unexpected extra captured body")
+			}
+		})
+	}
+}
+
+func summarizeCodexProjection(t *testing.T, input any) []string {
+	t.Helper()
+	items, ok := input.([]any)
+	if !ok {
+		t.Fatalf("request input = %v; want array", input)
+	}
+	order := make([]string, 0, len(items))
+	for _, raw := range items {
+		item := raw.(map[string]any)
+		switch item["type"] {
+		case "configuration_update":
+			order = append(order, "configuration_update:"+fmt.Sprint(item["reasoning"].(map[string]any)["effort"]))
+		default:
+			if role, ok := item["role"].(string); ok {
+				order = append(order, role)
+			} else {
+				order = append(order, fmt.Sprint(item["type"]))
+			}
+		}
+	}
+	return order
 }
