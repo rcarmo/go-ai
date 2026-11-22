@@ -13,13 +13,18 @@ type Case = {
 	kind: "case"; id: string; file: string; name: string; first: number; last: number;
 	nameLine?: number; original: string | null; variants?: string[]; restricted?: Record<string, string[]>;
 };
+type FixtureCase = {
+	kind: "fixture-case"; id: string; file: string; runner: string; group: number; vector: number;
+	groupName: string; name: string; valid: boolean; original: string | null;
+};
+type FixtureGroup = { description: string; tests: { description: string; valid: boolean }[] };
 type Assertion = {
 	kind: "assertion"; id: string; case: string; line: number; expect: string;
 	status: "mapped" | "partial" | "candidate" | "unmatched";
 	native?: { test: string; anchor: string }; note?: string;
 };
 type Probe = { kind: "gap" | "supplemental"; id: string; note: string; native?: string; related?: string };
-type Row = Manifest | Case | Assertion | Probe;
+type Row = Manifest | Case | FixtureCase | Assertion | Probe;
 
 const pin = "faac585884ae2c013a6b1400f3e9e77f10b34bac";
 const [oracle, mirror] = process.argv.slice(2);
@@ -28,7 +33,9 @@ const git = (cwd: string, ...args: string[]) => execFileSync("git", args, { cwd 
 const root = git(import.meta.dir, "rev-parse", "--show-toplevel").toString().trim();
 const hash = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
 const sha = /^[0-9a-f]{40}$/;
-const expectLine = /^\s*expect\(/;
+const expectLine = /^\s*(?:await\s+)?expect\(/;
+const conformanceRunner = "packages/schema/test/conformance.test.ts";
+const conformanceChecks = [40, 45];
 const testLine = /^\s*it(?:\(|\.each\()/;
 function requireCheck(ok: unknown, message: string): asserts ok {
 	if (!ok) throw Error(message);
@@ -63,7 +70,8 @@ for (const name of maps) {
 		if (test.receipt !== undefined) requireCheck(manifest.receipts[test.receipt], `${name}:${id}: unknown native receipt`);
 		nativeBodies.set(id, body);
 	}
-	const cases = new Map<string, { test: Case; lines: Set<number> }>();
+	const cases = new Map<string, { test: Case | FixtureCase; lines: Set<number> }>();
+	const fixtures = new Map<string, FixtureGroup[]>();
 	const seenLocators = new Set<string>();
 	const status = { mapped: 0, partial: 0, candidate: 0, unmatched: 0 };
 	for (const row of rows) {
@@ -84,11 +92,25 @@ for (const name of maps) {
 				requireCheck(expected.has(Number(line)) && variants.length > 0 && variants.every(v => row.variants?.includes(v)), `${row.id}: invalid variant restriction`);
 			}
 			cases.set(row.id, { test: row, lines: expected });
+		} else if (row.kind === "fixture-case") {
+			const source = sources.get(row.file);
+			const runner = sources.get(row.runner);
+			requireCheck(source && row.runner === conformanceRunner && runner, `${row.id}: unresolved fixture or conformance runner`);
+			requireCheck(Number.isSafeInteger(row.group) && row.group >= 0 && Number.isSafeInteger(row.vector) && row.vector >= 0, `${row.id}: invalid fixture indices`);
+			if (!fixtures.has(row.file)) fixtures.set(row.file, JSON.parse(source.join("\n")) as FixtureGroup[]);
+			const group = fixtures.get(row.file)?.[row.group];
+			const vector = group?.tests[row.vector];
+			requireCheck(group && vector && group.description === row.groupName && vector.description === row.name && typeof row.valid === "boolean" && vector.valid === row.valid, `${row.id}: fixture group, case or validity differs`);
+			requireCheck(row.original === null || manifest.receipts[row.original], `${row.id}: unknown original receipt`);
+			cases.set(row.id, { test: row, lines: new Set(conformanceChecks) });
 		} else if (row.kind === "assertion") {
 			const entry = cases.get(row.case);
 			requireCheck(row.id === `${row.case}#L${row.line}` && entry?.lines.delete(row.line), `${row.id}: unexpected or duplicate assertion`);
-			const locator = `${entry.test.file}:${row.line}`;
-			requireCheck(!seenLocators.has(locator) && sources.get(entry.test.file)?.[row.line - 1].trim() === row.expect, `${row.id}: duplicate or stale source locator`);
+			const test = entry.test;
+			const fixture = test.kind === "fixture-case";
+			const locator = fixture ? `${test.file}[${test.group}].tests[${test.vector}]:${row.line}` : `${test.file}:${row.line}`;
+			const source = sources.get(fixture ? test.runner : test.file)?.[row.line - 1];
+			requireCheck(!seenLocators.has(locator) && source && expectLine.test(source) && source.trim() === row.expect, `${row.id}: duplicate or stale source locator`);
 			seenLocators.add(locator);
 			requireCheck(Object.hasOwn(status, row.status), `${row.id}: unknown status`);
 			if (row.status === "unmatched") requireCheck(!row.native, `${row.id}: unmatched row claims native evidence`);
@@ -106,6 +128,6 @@ for (const name of maps) {
 		}
 	}
 	for (const [id, entry] of cases) requireCheck(entry.lines.size === 0, `${id}: unrecorded assertion sites ${[...entry.lines]}`);
-	console.log(`${name}: ${cases.size} declarations, ${Object.values(status).reduce((sum, count) => sum + count, 0)} assertion sites`, status);
+	console.log(`${name}: ${cases.size} case records, ${Object.values(status).reduce((sum, count) => sum + count, 0)} assertion sites`, status);
 }
-console.log(`Validated ${total} scoped source assertion locators${mirror ? " against pinned git bytes" : " against Oracle files"}. No tests executed.`);
+console.log(`Validated ${total} scoped assertion locators${mirror ? " against pinned git bytes" : " against Oracle files"}. No tests executed.`);
