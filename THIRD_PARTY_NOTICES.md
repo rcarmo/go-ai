@@ -45,10 +45,11 @@ THE SOFTWARE.
 reference/anchor assertions in `tests/testdata/upstream-main/validation-resources.json`,
 `tests/testdata/upstream-main/validation-{const,enum}-fixture.json`, the remote
 reference fixtures under `tests/testdata/upstream-main/ref-remote-2020-12-v160/`
-and `tests/testdata/upstream-main/ref-remote-draft7-v160/`, and
+and `tests/testdata/upstream-main/ref-remote-draft7-v160/`,
 `tests/testdata/upstream-main/dynamic-ref-2020-12-v160.json` with its
-`dynamic-ref-2020-12-v160-remotes/` documents come from the pinned upstream JSON
-Schema Test Suite. Its copyright and the MIT
+`dynamic-ref-2020-12-v160-remotes/` documents, and
+`tests/testdata/upstream-main/unevaluated-items-2020-12-v160.json` come from the
+pinned upstream JSON Schema Test Suite. Its copyright and the MIT
 permission/disclaimer printed above apply to these fixtures:
 
 Copyright (c) 2012 Julian Berman

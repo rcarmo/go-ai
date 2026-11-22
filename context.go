@@ -468,15 +468,10 @@ func (v *toolSchemaValidator) schemaAcceptsValue(value interface{}, schema map[s
 		return false
 	}
 	for _, keyword := range []string{"allOf", "anyOf", "oneOf"} {
-		if branches, ok := schemaList(schema[keyword]); ok {
-			matches := 0
-			for _, branch := range branches {
-				if v.schemaAcceptsValue(value, branch) {
-					matches++
-				}
-			}
-			if (keyword == "allOf" && matches != len(branches)) ||
-				(keyword == "anyOf" && matches == 0) || (keyword == "oneOf" && matches != 1) {
+		if branches, ok := schema[keyword].([]interface{}); ok {
+			matches, count := v.schemaApplicatorMatches(value, branches)
+			if count > 0 && ((keyword == "allOf" && matches != count) ||
+				(keyword == "anyOf" && matches == 0) || (keyword == "oneOf" && matches != 1)) {
 				return false
 			}
 		}
@@ -520,6 +515,7 @@ func (v *toolSchemaValidator) schemaAcceptsValue(value interface{}, schema map[s
 				return false
 			}
 		}
+		return v.firstUnevaluatedItemFailure(value, schema) < 0
 	}
 	return true
 }

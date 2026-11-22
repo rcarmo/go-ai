@@ -167,6 +167,28 @@ func (v *toolSchemaValidator) acceptsRaw(value, raw interface{}) bool {
 	}
 }
 
+func validToolSchemaBranch(raw interface{}) bool {
+	switch raw.(type) {
+	case bool, map[string]interface{}:
+		return true
+	default:
+		return false
+	}
+}
+
+func (v *toolSchemaValidator) schemaApplicatorMatches(value interface{}, branches []interface{}) (matches, count int) {
+	for _, branch := range branches {
+		if !validToolSchemaBranch(branch) {
+			continue
+		}
+		count++
+		if v.acceptsRaw(value, branch) {
+			matches++
+		}
+	}
+	return matches, count
+}
+
 type toolSchemaPattern struct {
 	source string
 	schema interface{}
@@ -355,12 +377,10 @@ func (v *toolSchemaValidator) issue(value interface{}, schema map[string]interfa
 		}
 	}
 	for _, keyword := range []string{"allOf", "anyOf", "oneOf"} {
-		if branches, ok := schemaList(schema[keyword]); ok {
-			matches := 0
-			for _, branch := range branches {
-				if v.schemaAcceptsValue(value, branch) {
-					matches++
-				}
+		if branches, ok := schema[keyword].([]interface{}); ok {
+			matches, count := v.schemaApplicatorMatches(value, branches)
+			if count == 0 {
+				continue
 			}
 			if keyword == "oneOf" && matches > 1 {
 				return &toolSchemaIssue{path, "matches more than one alternative"}
@@ -371,17 +391,17 @@ func (v *toolSchemaValidator) issue(value interface{}, schema map[string]interfa
 			var best *toolSchemaIssue
 			bestDeclared := -1
 			for _, branch := range branches {
-				if v.schemaAcceptsValue(value, branch) {
+				if !validToolSchemaBranch(branch) || v.acceptsRaw(value, branch) {
 					continue
 				}
-				candidate := v.issue(value, branch, path, active)
+				candidate := v.rawIssue(value, branch, path, active)
 				if keyword == "allOf" {
 					return candidate
 				}
 				declared := 0
-				resolved := branch
-				if ref, ok := branch["$ref"].(string); ok {
-					if target, ok := v.resolvePureDataReference(ref, branch).(map[string]interface{}); ok {
+				resolved, _ := branch.(map[string]interface{})
+				if ref, ok := resolved["$ref"].(string); ok {
+					if target, ok := v.resolvePureDataReference(ref, resolved).(map[string]interface{}); ok {
 						resolved = target
 					}
 				}
@@ -410,6 +430,11 @@ func (v *toolSchemaValidator) issue(value interface{}, schema map[string]interfa
 		}
 		if issue := v.referenceIssue(value, schema, ref, dynamic, path, active); issue != nil {
 			return issue
+		}
+	}
+	if array, ok := value.([]interface{}); ok {
+		if index := v.firstUnevaluatedItemFailure(array, schema); index >= 0 {
+			return v.rawIssue(array[index], schema["unevaluatedItems"], schemaIssuePath(path, strconv.Itoa(index)), active)
 		}
 	}
 	return generic
