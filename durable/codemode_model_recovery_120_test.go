@@ -69,7 +69,7 @@ func TestCodemode120ModelToolUnsettledReopen(t *testing.T) {
 						break
 					}
 				}
-				if last.Role != goai.RoleToolResult || !strings.HasPrefix(goai.ContentText(last.Content), "Script completed\nWall time ") || !strings.HasSuffix(goai.ContentText(last.Content), "Output:\nrecovered-leaf") {
+				if last.Role != goai.RoleToolResult || !strings.HasPrefix(goai.ContentText(last.Content), "Script completed\nWall time ") || !strings.HasSuffix(goai.ContentText(last.Content), "Output:\n\nrecovered-leaf") {
 					t.Error("recovered transcript", last)
 				}
 				ch <- terminal("done")

@@ -43,7 +43,7 @@ func TestCodemode120ExtensionNamespacesCapturedForPromptAndVM(t *testing.T) {
 				ch <- &goai.DoneEvent{Reason: goai.StopReasonToolUse, Message: message}
 			} else {
 				last := input.Messages[len(input.Messages)-1]
-				if last.IsError || !strings.HasSuffix(goai.ContentText(last.Content), "Output:\nbase") {
+				if last.IsError || !strings.HasSuffix(goai.ContentText(last.Content), "Output:\n\nbase") {
 					t.Error(last)
 				}
 				ch <- terminal("done")

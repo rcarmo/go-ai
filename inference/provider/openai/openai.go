@@ -914,7 +914,7 @@ func convertMessages(model *goai.Model, convCtx *goai.Context, compat *goai.Open
 
 		case goai.RoleToolResult:
 			deferredToolNames := map[string]bool{}
-			text := extractTextContent(m.Content)
+			text := goai.ContentText(m.Content)
 			if strings.TrimSpace(text) == "" {
 				text = "(no tool output)"
 			}

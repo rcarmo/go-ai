@@ -44,7 +44,7 @@ func TestCodemode120ExtensionGlobalsCapturedAndExecuted(t *testing.T) {
 						last = message
 					}
 				}
-				if last.IsError || !strings.HasSuffix(goai.ContentText(last.Content), "Output:\ncaptured") {
+				if last.IsError || !strings.HasSuffix(goai.ContentText(last.Content), "Output:\n\ncaptured") {
 					t.Error(last)
 				}
 				ch <- terminal("done")

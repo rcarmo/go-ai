@@ -479,10 +479,12 @@ func TestSourceV160FitImagesLargeCodemodeOutput(t *testing.T) {
 	}
 	got := <-modelResult
 	const wantNote = "<harness>\n[info] Resized from 400x100 to 100x25. Multiply coordinates by 4.00 to map them to the original.\n</harness>"
-	if got.ToolCallID != "large" || got.IsError || len(got.Content) != 3 || !strings.Contains(got.Content[0].Text, "large output") || got.Content[2].Text != wantNote {
+	if got.ToolCallID != "large" || got.IsError || len(got.Content) != 4 ||
+		!strings.HasPrefix(got.Content[0].Text, "Script completed\nWall time ") || !strings.HasSuffix(got.Content[0].Text, " seconds\nOutput:\n") ||
+		!strings.Contains(got.Content[1].Text, "large output") || got.Content[3].Text != wantNote {
 		t.Fatalf("model image result: call=%q error=%v blocks=%d text=%q", got.ToolCallID, got.IsError, len(got.Content), goai.ContentText(got.Content))
 	}
-	fitDims(t, got.Content[1], 100, 25)
+	fitDims(t, got.Content[2], 100, 25)
 	page, err := c.Entries(ctx, durable.EntryQuery{}, 100, nil)
 	if err != nil {
 		t.Fatal(err)

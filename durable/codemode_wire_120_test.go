@@ -93,7 +93,7 @@ func testCodemodeRawGrammarHTTP(t *testing.T, api goai.Api, interrupted ...bool)
 							t.Error("responses raw replay", message)
 						}
 					}
-					if message["type"] == "custom_tool_call_output" && strings.HasPrefix(fmt.Sprint(message["output"]), "Script completed\nWall time ") && strings.HasSuffix(fmt.Sprint(message["output"]), "Output:\nwire-leaf") {
+					if message["type"] == "custom_tool_call_output" && strings.HasPrefix(fmt.Sprint(message["output"]), "Script completed\nWall time ") && strings.HasSuffix(fmt.Sprint(message["output"]), "Output:\n\nwire-leaf") {
 						foundResult = true
 					}
 					if calls, ok := message["tool_calls"].([]any); ok {
@@ -110,7 +110,7 @@ func testCodemodeRawGrammarHTTP(t *testing.T, api goai.Api, interrupted ...bool)
 							}
 						}
 					}
-					if message["role"] == "tool" && strings.HasPrefix(fmt.Sprint(message["content"]), "Script completed\nWall time ") && strings.HasSuffix(fmt.Sprint(message["content"]), "Output:\nwire-leaf") {
+					if message["role"] == "tool" && strings.HasPrefix(fmt.Sprint(message["content"]), "Script completed\nWall time ") && strings.HasSuffix(fmt.Sprint(message["content"]), "Output:\n\nwire-leaf") {
 						foundResult = true
 					}
 				}

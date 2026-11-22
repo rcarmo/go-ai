@@ -47,7 +47,7 @@ func TestCodemode120ExtensionModelsCannotExpandHostAuthority(t *testing.T) {
 								last = message
 							}
 						}
-						if last.IsError || !strings.HasSuffix(goai.ContentText(last.Content), "Output:\nno paid authority") {
+						if last.IsError || !strings.HasSuffix(goai.ContentText(last.Content), "Output:\n\nno paid authority") {
 							t.Error(last)
 						}
 						ch <- terminal("done")

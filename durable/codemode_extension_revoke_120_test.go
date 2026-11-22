@@ -59,7 +59,7 @@ func TestCodemode120ExtensionModelRevocationReopen(t *testing.T) {
 						last = message
 					}
 				}
-				if last.IsError || !strings.HasSuffix(goai.ContentText(last.Content), "Output:\nrevoked") {
+				if last.IsError || !strings.HasSuffix(goai.ContentText(last.Content), "Output:\n\nrevoked") {
 					t.Error("revocation transcript", last)
 				}
 				ch <- terminal("done")

@@ -100,8 +100,11 @@ func NewCodemodeExtension(sandbox CodemodeSandbox, options ...CodemodeExtensionO
 		if result.Error != "" {
 			status = "failed"
 		}
-		text := fmt.Sprintf("Script %s\nWall time %.1f seconds\nOutput:\n%s", status, float64(result.WallMs)/1000, result.Output)
-		blocks := []goai.ContentBlock{{Type: "text", Text: text}}
+		header := fmt.Sprintf("Script %s\nWall time %.1f seconds\nOutput:\n", status, float64(result.WallMs)/1000)
+		blocks := []goai.ContentBlock{{Type: "text", Text: header}}
+		if result.Output != "" {
+			blocks = append(blocks, goai.ContentBlock{Type: "text", Text: result.Output})
+		}
 		for _, image := range result.Images {
 			blocks = append(blocks, goai.ContentBlock{Type: "image", Data: image.Data, MimeType: image.MimeType})
 		}
