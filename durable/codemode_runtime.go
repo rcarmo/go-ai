@@ -29,6 +29,9 @@ type CodemodeSandboxParallel interface{ SupportsParallelCalls() bool }
 
 type CodemodeSandboxDrains interface{ SupportsDrainAcknowledgements() bool }
 
+// Only new runs persist this capability. Replay uses the stored flag.
+type codemodeWorkerArgumentPresence interface{ SupportsWorkerArgumentPresence() bool }
+
 // DefaultCodemodeInterruptBudget matches pi-codemode 1.2.0 inline execution.
 const DefaultCodemodeInterruptBudget = 100000
 
@@ -51,6 +54,10 @@ type CodemodeStart struct {
 	StartedAt             int64                       `json:"startedAt"`
 	Seed                  uint64                      `json:"seed"`
 	Tools                 []CodemodeToolDescription   `json:"tools"`
+
+	// WorkerArgumentPresence pins worker decoding of non-spread globals. An
+	// absent flag in a stored start retains the legacy worker projection.
+	WorkerArgumentPresence bool `json:"workerArgumentPresence,omitempty"`
 }
 type CodemodeExecution interface {
 	Next(context.Context) (CodemodeEvent, error)
@@ -200,6 +207,9 @@ func (r *TaskRuntime) runCodemode(ctx context.Context, key, source string, sandb
 		return CodemodeResult{}, reject("invalid codemode interrupt budget")
 	}
 	start := CodemodeStart{InterruptBudget: budget, PaidModels: paid, Namespaces: selectedNamespaces, RuntimeIdentity: identity, Deadline: now + parsed.TimeoutMs, MaxOutputTokens: parsed.MaxOutputTokens, Version: 2, StartedAt: now, Seed: uint64(binary.LittleEndian.Uint32(random[:4])), Tools: tools}
+	if worker, ok := sandbox.(codemodeWorkerArgumentPresence); ok {
+		start.WorkerArgumentPresence = worker.SupportsWorkerArgumentPresence()
+	}
 	if drains, ok := sandbox.(CodemodeSandboxDrains); ok {
 		start.DrainAcknowledgements = drains.SupportsDrainAcknowledgements()
 	}

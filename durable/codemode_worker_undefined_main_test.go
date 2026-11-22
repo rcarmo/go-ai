@@ -9,8 +9,9 @@ import (
 )
 
 // Pinned codemode runtime prelude-source.ts:477: a missing worker payload
-// resolves undefined, while the JSON text "null" resolves null. This uses the
-// actual Go remote adapter with a protocol transport, not the official worker.
+// resolves undefined, while the JSON text "null" resolves null. The worker
+// uses the same distinction for the first argument of a non-spread global.
+// The public Go adapter is exercised with exact worker protocol messages.
 func TestMainCodemodeWorkerUndefinedAndNullReply(t *testing.T) {
 	const fingerprint = "undefined-worker"
 	observed := make(chan struct{})
@@ -23,7 +24,11 @@ func TestMainCodemodeWorkerUndefinedAndNullReply(t *testing.T) {
 			replies := make(chan *CodemodeWorkerReply, 1)
 			errs := make(chan error, 1)
 			go func() {
-				reply, err := exchange(ctx, []CodemodeWorkerMessage{{Type: "call", ID: n, Target: "global", Name: name, Args: workerString120(`null`)}})
+				call := CodemodeWorkerMessage{Type: "call", ID: n, Target: "global", Name: name}
+				if n == 2 {
+					call.Args = workerString120(`null`)
+				}
+				reply, err := exchange(ctx, []CodemodeWorkerMessage{call})
 				if err != nil {
 					errs <- err
 				} else {
@@ -73,7 +78,7 @@ func TestMainCodemodeWorkerUndefinedAndNullReply(t *testing.T) {
 	})
 	ctx, cancel := context.WithTimeout(bg, 10*time.Second)
 	defer cancel()
-	vm, err := (&RemoteCodemodeSandbox{Remote: &CodemodeWorkerRemote{Transport: transport, Fingerprint: fingerprint}, Identity: fingerprint}).Start(ctx, "script", CodemodeStart{RuntimeIdentity: fingerprint, ParallelCalls: true, DrainAcknowledgements: true, Globals: []CodemodeGlobalDescription{{Name: "nothing", Version: 1}, {Name: "nullvalue", Version: 1}}})
+	vm, err := (&RemoteCodemodeSandbox{Remote: &CodemodeWorkerRemote{Transport: transport, Fingerprint: fingerprint}, Identity: fingerprint}).Start(ctx, "script", CodemodeStart{RuntimeIdentity: fingerprint, ParallelCalls: true, DrainAcknowledgements: true, WorkerArgumentPresence: true, Globals: []CodemodeGlobalDescription{{Name: "nothing", Version: 1}, {Name: "nullvalue", Version: 1}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,6 +89,14 @@ func TestMainCodemodeWorkerUndefinedAndNullReply(t *testing.T) {
 			t.Fatal(event, err)
 		}
 		call := *event.Call
+		want := `{}`
+		if id == 1 {
+			want = `{"args":null}`
+		}
+		arguments, err := json.Marshal(call.Arguments)
+		if err != nil || call.UndefinedArgument != (id == 0) || string(arguments) != want {
+			t.Fatalf("call %s: undefined=%t arguments=%s, %v; want %s", name, call.UndefinedArgument, arguments, err, want)
+		}
 		observed <- struct{}{}
 		event, err = vm.Next(ctx)
 		if err != nil || event.Drain == nil || event.Drain.Issued != id+1 {

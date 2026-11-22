@@ -27,6 +27,15 @@ type RemoteCodemodeSandbox struct {
 func (s *RemoteCodemodeSandbox) RuntimeIdentity() string           { return s.Identity }
 func (*RemoteCodemodeSandbox) SupportsParallelCalls() bool         { return true }
 func (*RemoteCodemodeSandbox) SupportsDrainAcknowledgements() bool { return true }
+
+func (s *RemoteCodemodeSandbox) SupportsWorkerArgumentPresence() bool {
+	if s == nil {
+		return false
+	}
+	worker, ok := s.Remote.(codemodeWorkerArgumentPresence)
+	return ok && worker.SupportsWorkerArgumentPresence()
+}
+
 func (s *RemoteCodemodeSandbox) Start(ctx context.Context, code string, start CodemodeStart) (CodemodeExecution, error) {
 	if ctx == nil || s == nil || s.Remote == nil || s.Identity == "" || start.RuntimeIdentity != "" && start.RuntimeIdentity != s.Identity {
 		return nil, reject("invalid remote codemode runtime")

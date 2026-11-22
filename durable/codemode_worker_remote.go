@@ -94,6 +94,10 @@ type CodemodeWorkerRemote struct {
 	Fingerprint string
 }
 
+// SupportsWorkerArgumentPresence advertises the decoder for new runs only.
+// Execute honours the recorded start flag even when called during replay.
+func (*CodemodeWorkerRemote) SupportsWorkerArgumentPresence() bool { return true }
+
 func (r *CodemodeWorkerRemote) Execute(ctx context.Context, code string, start CodemodeStart, exchange func(context.Context, CodemodeEvent) (CodemodeRemoteReply, error), receive func(context.Context) (CodemodeDelivery, error)) error {
 	if ctx == nil || r == nil || r.Transport == nil || r.Fingerprint == "" || exchange == nil || receive == nil {
 		return reject("invalid worker remote adapter")
@@ -254,37 +258,18 @@ func (r *CodemodeWorkerRemote) Execute(ctx context.Context, code string, start C
 					err = reject("invalid worker call")
 					break
 				}
-				var args JSON
-				if message.Target == "global" {
-					var value any = []any{}
-					if message.Args != nil {
-						wire := []byte(*message.Args)
-						if global := codemodeCustomGlobal(start, message.Name); global != nil && !global.Spread {
-							err = decodeWorkerJSON(wire, limits, limits.MaxRecordBytes, &value)
-							// Keep the established null/omitted representation for
-							// previously admitted calls; it is part of replay identity.
-							if value == nil {
-								value = []any{}
-							}
-						} else {
-							var values []any
-							err = decodeWorkerJSON(wire, limits, limits.MaxRecordBytes, &values)
-							if values != nil {
-								value = values
-							}
-						}
-					}
-					args = JSON{"args": value}
+				call := CodemodeCall{ID: message.ID, Name: message.Name, Global: message.Target == "global"}
+				if call.Global {
+					call.Arguments, call.UndefinedArgument, err = decodeWorkerGlobalArguments(start, message, limits)
 				} else if message.Args != nil {
-					err = decodeWorkerJSON([]byte(*message.Args), limits, limits.MaxRecordBytes, &args)
+					err = decodeWorkerJSON([]byte(*message.Args), limits, limits.MaxRecordBytes, &call.Arguments)
 				}
 				if err != nil {
 					break
 				}
-				if args == nil {
-					args = JSON{}
+				if call.Arguments == nil {
+					call.Arguments = JSON{}
 				}
-				call := CodemodeCall{ID: message.ID, Name: message.Name, Arguments: args, Global: message.Target == "global"}
 				pending = make(chan CodemodeDelivery, 1)
 				waiting[call.ID] = pending
 				callID = call.ID
@@ -454,6 +439,37 @@ func (r *CodemodeWorkerRemote) Execute(ctx context.Context, code string, start C
 
 // Reuse the bounded scanner and strict decoder without imposing its journal
 // object-root contract on worker JSON values (which may be arrays or scalars).
+func decodeWorkerGlobalArguments(start CodemodeStart, message CodemodeWorkerMessage, limits Limits) (JSON, bool, error) {
+	global := codemodeCustomGlobal(start, message.Name)
+	if global == nil || global.Spread {
+		// A spread guest always serializes its argument list, even when it is
+		// empty. null inside that list is valid, but bare null is not a list.
+		var values []any
+		if message.Args != nil {
+			if err := decodeWorkerJSON([]byte(*message.Args), limits, limits.MaxRecordBytes, &values); err != nil {
+				return nil, false, err
+			}
+		}
+		if values == nil {
+			return nil, false, reject("spread worker global arguments must be an array")
+		}
+		return JSON{"args": values}, false, nil
+	}
+	var value any
+	if message.Args == nil {
+		if start.WorkerArgumentPresence {
+			return JSON{}, true, nil
+		}
+	} else if err := decodeWorkerJSON([]byte(*message.Args), limits, limits.MaxRecordBytes, &value); err != nil {
+		return nil, false, err
+	}
+	if value == nil && !start.WorkerArgumentPresence {
+		// Keep the old omitted/null projection verbatim for pre-flag journals.
+		value = []any{}
+	}
+	return JSON{"args": value}, false, nil
+}
+
 func decodeWorkerJSON(data []byte, limits Limits, maximum int, target any) error {
 	if len(data) > maximum {
 		return reject("worker JSON exceeds limit")

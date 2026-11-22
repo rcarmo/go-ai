@@ -119,25 +119,42 @@ func TestSourceV160CodemodeWorkerGlobalArguments(t *testing.T) {
 }
 
 func TestV160CodemodeWorkerSpreadRejectsScalar(t *testing.T) {
+	for _, tc := range []struct {
+		name, want string
+		args       *string
+	}{
+		{"scalar", "json: cannot unmarshal string into Go value of type []interface {}", workerString120(`"not a list"`)},
+		{"null", "durable: rejected: spread worker global arguments must be an array", workerString120(`null`)},
+		{"omitted", "durable: rejected: spread worker global arguments must be an array", nil},
+	} {
+		for _, modern := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/presence=%t", tc.name, modern), func(t *testing.T) {
+				testV160WorkerSpreadRejected(t, modern, tc.args, tc.want)
+			})
+		}
+	}
+}
+
+func testV160WorkerSpreadRejected(t *testing.T, modern bool, args *string, want string) {
+	t.Helper()
 	const fingerprint = "namespaced-global-wire-v160"
 	transport := workerTransport120(func(ctx context.Context, _ CodemodeWorkerRequest, exchange func(context.Context, []CodemodeWorkerMessage) (*CodemodeWorkerReply, error)) error {
 		if _, err := exchange(ctx, []CodemodeWorkerMessage{{Type: "started", Fingerprint: fingerprint}}); err != nil {
 			return err
 		}
-		_, err := exchange(ctx, []CodemodeWorkerMessage{{Type: "call", ID: 1, Target: "global", Name: "models.list", Args: workerString120(`"not a list"`)}})
+		_, err := exchange(ctx, []CodemodeWorkerMessage{{Type: "call", ID: 1, Target: "global", Name: "models.list", Args: args}})
 		return err
 	})
 	ctx, cancel := context.WithTimeout(bg, 5*time.Second)
 	defer cancel()
 	remote := &CodemodeWorkerRemote{Transport: transport, Fingerprint: fingerprint}
-	start := CodemodeStart{Globals: []CodemodeGlobalDescription{{Name: "models.list", Spread: true, Version: 1}}}
+	start := CodemodeStart{WorkerArgumentPresence: modern, Globals: []CodemodeGlobalDescription{{Name: "models.list", Spread: true, Version: 1}}}
 	err := remote.Execute(ctx, v160NamespacedGlobalScript, start, func(context.Context, CodemodeEvent) (CodemodeRemoteReply, error) {
 		return CodemodeRemoteReply{}, fmt.Errorf("scalar was forwarded to the host")
 	}, func(ctx context.Context) (CodemodeDelivery, error) {
 		<-ctx.Done()
 		return CodemodeDelivery{}, ctx.Err()
 	})
-	const want = "json: cannot unmarshal string into Go value of type []interface {}"
 	if err == nil || err.Error() != want {
 		t.Fatalf("worker error = %v; want %q", err, want)
 	}
