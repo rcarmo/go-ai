@@ -1,0 +1,216 @@
+{
+  "format": 1,
+  "pin": "faac585884ae2c013a6b1400f3e9e77f10b34bac",
+  "evidenceBase": "7b90c606b0d5b99741ed7f238e97ffefb9695454",
+  "node": "v26.13.0",
+  "vitest": "4.1.12",
+  "selection": {
+    "file": "packages/ai/test/fetch-option.test.ts",
+    "selector": "whole-file",
+    "reportedCases": [
+      {
+        "name": "fetch stream option passes fetch through streamSimple to the Anthropic SDK",
+        "status": "passed"
+      },
+      {
+        "name": "fetch stream option passes fetch through streamSimple to OpenAI SDK adapters",
+        "status": "passed"
+      },
+      {
+        "name": "fetch stream option uses fetch for Mistral, Codex SSE, and pi-messages HTTP requests",
+        "status": "passed"
+      },
+      {
+        "name": "fetch stream option passes fetch through streamSimple to the Google GenAI SDK adapters",
+        "status": "passed"
+      },
+      {
+        "name": "fetch stream option keeps the global dispatcher for Google adapters when no fetch is given",
+        "status": "passed"
+      },
+      {
+        "name": "fetch stream option uses fetch for image generation",
+        "status": "passed"
+      }
+    ]
+  },
+  "result": {
+    "passed": 6,
+    "failed": 0,
+    "skipped": 0,
+    "todo": 0
+  },
+  "sourceDigests": [
+    {
+      "file": "packages/ai/test/fetch-option.test.ts",
+      "sha256": "3dccef1cbc1a84d1299a6b2aae290e04f782b0df28bf31d85c9325146b1bd578"
+    },
+    {
+      "file": "packages/ai/vitest.config.ts",
+      "sha256": "628ade6e9960f0378ef8ddfd1c06f3a12cf375199725f3f6b41de0c8cf5c0313"
+    },
+    {
+      "file": "packages/ai/src/api/anthropic-messages.ts",
+      "sha256": "58c170051620e047c9cccdec056b4b401432ae689571b7e3e245e93e4e3e61ae"
+    },
+    {
+      "file": "packages/ai/src/api/azure-openai-responses.ts",
+      "sha256": "93bfd254148dec2beb1fbc0f2475d20de8db9c8d2b28fef9945642e25abf1894"
+    },
+    {
+      "file": "packages/ai/src/api/google-generative-ai.ts",
+      "sha256": "588d88a8d5dad06910f30a0991a22edd2745be48e8ad1d7cb407fbc4f17b21fa"
+    },
+    {
+      "file": "packages/ai/src/api/google-vertex.ts",
+      "sha256": "16c19d34eaa1627f16378c478873c955d01ad111bcb4fa7ca1c9f5948e0a7bee"
+    },
+    {
+      "file": "packages/ai/src/api/mistral-conversations.ts",
+      "sha256": "8f2cab80faa00f4297d74257cdf212de1a7adea4c042eee1274db94aa8dca398"
+    },
+    {
+      "file": "packages/ai/src/api/openai-codex-responses.ts",
+      "sha256": "9bece9a0de6cbbf40cd1b59c466f959c4b15a4cc40d3189aabbb7cd5ef138363"
+    },
+    {
+      "file": "packages/ai/src/api/openai-completions.ts",
+      "sha256": "0a45961174b9be7018bb013f674c24209ee16860d65aa60aad8909c2433b35da"
+    },
+    {
+      "file": "packages/ai/src/api/openai-responses.ts",
+      "sha256": "f939947bea5a20aa6e29b48f6e0b69a04951f870301a226c3d74a4130ed08626"
+    },
+    {
+      "file": "packages/ai/src/api/openrouter-images.ts",
+      "sha256": "a4cb43836cde90d865bb22948f2ebedcc27f577cab13c3047b5f1982e54f0c87"
+    },
+    {
+      "file": "packages/ai/src/api/pi-messages.ts",
+      "sha256": "d521d2227b622fc624a75124c56c730c07a8d33a42b2f920a5dedc5a47ce9907"
+    }
+  ],
+  "copiedDependencies": {
+    "roots": [
+      "npm:node_modules/vitest",
+      "npm:node_modules/openai",
+      "npm:node_modules/partial-json",
+      "npm:node_modules/zod",
+      "npm:node_modules/@anthropic-ai/sdk",
+      "npm:node_modules/@google/genai"
+    ],
+    "host": {
+      "os": "linux",
+      "cpu": "arm64",
+      "libc": "glibc"
+    },
+    "placements": [
+      "node_modules/@anthropic-ai/sdk",
+      "node_modules/@babel/runtime",
+      "node_modules/@google/genai",
+      "node_modules/@jridgewell/sourcemap-codec",
+      "node_modules/@oxc-project/types",
+      "node_modules/@protobufjs/aspromise",
+      "node_modules/@protobufjs/base64",
+      "node_modules/@protobufjs/codegen",
+      "node_modules/@protobufjs/eventemitter",
+      "node_modules/@protobufjs/fetch",
+      "node_modules/@protobufjs/float",
+      "node_modules/@protobufjs/path",
+      "node_modules/@protobufjs/pool",
+      "node_modules/@protobufjs/utf8",
+      "node_modules/@rolldown/binding-linux-arm64-gnu",
+      "node_modules/@rolldown/pluginutils",
+      "node_modules/@stablelib/base64",
+      "node_modules/@standard-schema/spec",
+      "node_modules/@types/chai",
+      "node_modules/@types/deep-eql",
+      "node_modules/@types/estree",
+      "node_modules/@types/node",
+      "node_modules/@vitest/expect",
+      "node_modules/@vitest/mocker",
+      "node_modules/@vitest/pretty-format",
+      "node_modules/@vitest/runner",
+      "node_modules/@vitest/snapshot",
+      "node_modules/@vitest/spy",
+      "node_modules/@vitest/utils",
+      "node_modules/agent-base",
+      "node_modules/assertion-error",
+      "node_modules/base64-js",
+      "node_modules/bignumber.js",
+      "node_modules/buffer-equal-constant-time",
+      "node_modules/chai",
+      "node_modules/convert-source-map",
+      "node_modules/data-uri-to-buffer",
+      "node_modules/debug",
+      "node_modules/detect-libc",
+      "node_modules/ecdsa-sig-formatter",
+      "node_modules/es-module-lexer",
+      "node_modules/estree-walker",
+      "node_modules/expect-type",
+      "node_modules/extend",
+      "node_modules/fast-sha256",
+      "node_modules/fdir",
+      "node_modules/fetch-blob",
+      "node_modules/formdata-polyfill",
+      "node_modules/gaxios",
+      "node_modules/gcp-metadata",
+      "node_modules/google-auth-library",
+      "node_modules/google-logging-utils",
+      "node_modules/https-proxy-agent",
+      "node_modules/json-bigint",
+      "node_modules/json-schema-to-ts",
+      "node_modules/jwa",
+      "node_modules/jws",
+      "node_modules/lightningcss",
+      "node_modules/lightningcss-linux-arm64-gnu",
+      "node_modules/long",
+      "node_modules/magic-string",
+      "node_modules/ms",
+      "node_modules/nanoid",
+      "node_modules/node-domexception",
+      "node_modules/node-fetch",
+      "node_modules/obug",
+      "node_modules/openai",
+      "node_modules/p-retry",
+      "node_modules/p-retry/node_modules/@types/retry",
+      "node_modules/partial-json",
+      "node_modules/pathe",
+      "node_modules/picocolors",
+      "node_modules/picomatch",
+      "node_modules/postcss",
+      "node_modules/protobufjs",
+      "node_modules/retry",
+      "node_modules/rolldown",
+      "node_modules/safe-buffer",
+      "node_modules/siginfo",
+      "node_modules/source-map-js",
+      "node_modules/stackback",
+      "node_modules/standardwebhooks",
+      "node_modules/std-env",
+      "node_modules/tinybench",
+      "node_modules/tinyexec",
+      "node_modules/tinyglobby",
+      "node_modules/tinyrainbow",
+      "node_modules/ts-algebra",
+      "node_modules/undici-types",
+      "node_modules/vite",
+      "node_modules/vitest",
+      "node_modules/web-streams-polyfill",
+      "node_modules/why-is-node-running",
+      "node_modules/ws",
+      "node_modules/zod"
+    ]
+  },
+  "gates": {
+    "credentials": "none-dummy-keys-and-stub-fetch",
+    "platform": "observed-host-only",
+    "network": "no-Node-network-permission",
+    "exclusions": []
+  },
+  "priorQueue": {
+    "file": "docs/upstream-v1.6.0/test-inventory/primary-queue-reconciled.jsonl",
+    "commit": "7b90c606b0d5b99741ed7f238e97ffefb9695454"
+  },
+  "scope": "new-unchanged-offline-originals-only"
+}
