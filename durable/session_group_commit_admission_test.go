@@ -920,6 +920,9 @@ func TestSourceV160SessionColdTaskReadWinsFailure(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatal("cold task read did not reach Storage during the write", ctx.Err())
 	}
+	if _, _, err := s.Task(ctx, 999); !errors.Is(err, first) {
+		t.Fatalf("Session failure before the held write resolves = %v; want exact read cause", err)
+	}
 	unblock()
 	select {
 	case err := <-commit:
@@ -931,7 +934,10 @@ func TestSourceV160SessionColdTaskReadWinsFailure(t *testing.T) {
 		t.Fatal("write never settled", ctx.Err())
 	}
 	select {
-	case <-reading:
+	case err := <-reading:
+		if err != first {
+			t.Fatalf("read commit = %v; want exact read cause", err)
+		}
 	case <-ctx.Done():
 		t.Fatal("read never settled", ctx.Err())
 	}

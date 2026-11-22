@@ -259,3 +259,15 @@ The [dependency ledger](dependencies/README.md) records the npm lock closure fro
 An absent task in a delegated Session's projection is not an authoritative negative result. The scoped Session and transaction reads now use the backend for a cold task ID, after the relevant publication gate. `ReadLine.Task` exposes the same committed read at the line boundary. Adoption still supplies cached records.
 
 The unchanged source case at `session-group-commit.test.ts:486` passed. The public Go fixture holds a real Storage commit, makes a cold task lookup fail, then releases a different write failure. It verifies no publication and checks the original read cause through both the later call and the Session end. Before the fix the transaction returned absence. Bypassing the guarded read made the later write error win. Focused tests passed twice (1.939s), along with vet and Staticcheck.
+
+### Codex WebSocket read idle limits
+
+A WebSocket wait respects the configured idle interval, restarting it when the next frame arrives and keeping caller cancellation separate. Before any output, the provider records one failure and makes one SSE fallback. After start it reports `WebSocket idle timeout after 50ms` with no SSE for the pinned fixture. Both selected unchanged originals passed. The compiled baseline reached caller abort; disabling the deadline or doubling the interval failed the controls. Focused integrated provider tests passed twice with vet and Staticcheck. Connect-timeout dial evidence and the wire-level idle close reason remain open.
+
+### External dynamic Schema scope
+
+The external host registry already supports the pinned draft 2020-12 dynamic resource cases. Groups 13–17 add 13 exact native validity and diagnostic cases: strict tree, extendible array, both declaration orders and the detached dynamic anchor. All 26 selected unchanged originals passed. The fixture and the three external documents match the pin; ignoring outer dynamic scope wrongly accepted four values. Integrated tests passed twice. Independent native check/error agreement, draft 7 and compiler annotations remain open.
+
+### Third-party archives, tranche 1
+
+The [offline archive verifier](dependencies/archives.md) matched pinned SHA-512 for seven of nine scoped retained archives. The verified QuickJS-WASI archive contains the same WASM bytes as the native embedded asset. Neither archive presence nor byte identity alone proves native behavior or which bytes a past Oracle run loaded. OpenAI and Google GenAI archives were not present at the exact integrity keys in the checked caches. Offline regeneration matched byte for byte; tampered and empty-cache controls are recorded separately.

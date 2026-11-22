@@ -99,7 +99,16 @@ func TestSourceV160CodexIdleTimeout(t *testing.T) {
 				}
 				return
 			}
-			if !reflect.DeepEqual(events, []string{"start", "done"}) || done == nil || goai.ContentText(done.Content) != "Hello" || fetches.Load() != 1 {
+			var firstText string
+			if done != nil {
+				for _, block := range done.Content {
+					if block.Type == "text" {
+						firstText = block.Text
+						break
+					}
+				}
+			}
+			if !reflect.DeepEqual(events, []string{"start", "done"}) || firstText != "Hello" || fetches.Load() != 1 {
 				t.Errorf("before-start idle: events %v, failure %+v, SSE %d; want successful Hello with one SSE request", events, failure, fetches.Load())
 			}
 			stats := GetOpenAICodexWebSocketDebugStats(opts.SessionID)
