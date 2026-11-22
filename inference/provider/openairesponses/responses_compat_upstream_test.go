@@ -263,6 +263,9 @@ func TestSourceV160ResponsesCompatibilityWire(t *testing.T) {
 				t.Fatal("missing pinned Responses model")
 			}
 			model := *catalog
+			if tc.mode == "strict" && (model.ResponsesCompat == nil || model.ResponsesCompat.SupportsStrictMode == nil || !*model.ResponsesCompat.SupportsStrictMode) {
+				t.Fatal("pinned model does not declare strict-tool support")
+			}
 			var requests atomic.Int32
 			type receipt struct {
 				body   map[string]json.RawMessage
