@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "pin": "faac585884ae2c013a6b1400f3e9e77f10b34bac",
+  "evidenceBase": "b0fd6a8affdfb77f902a286867944b6483135d1e",
+  "node": "v26.13.0",
+  "vitest": "4.1.12",
+  "selectedOriginal": {
+    "test": "packages/ai/test/google-stop-reason-continuation.test.ts",
+    "sha256": "d13917a46c45753350398219f26c75e2f29382b9fafa2305913bbff7e86738b3",
+    "selector": "ends the turn as length instead of letting the SDK send a continuation request",
+    "fullName": "Google CONTINUATION finish reason ends the turn as length instead of letting the SDK send a continuation request",
+    "passed": 1
+  },
+  "archive": {
+    "url": "https://registry.npmjs.org/@google/genai/-/genai-2.32.0.tgz",
+    "integrity": "sha512-60c79uXpR0a47bmGqDxbXEBuQUalNmwo5mx5kqb91jIW4FoqpsLSt86DeVhRhtH5+s/16Wqxt3sXzFQn2U1OHQ==",
+    "sha256": "93ba5d4d2ec28df2b00dc925637cb4d86a118eccfd9d3dca470f2908c58ea052",
+    "member": "package/dist/node/index.mjs"
+  },
+  "loaded": {
+    "entry": "node_modules/@google/genai/dist/node/index.mjs",
+    "format": "module",
+    "bytes": 1198102,
+    "sha256": "e07e9c3fc85b5a41586b013ffb7d9cd46ece70e5131090b43b04801a73b91665"
+  },
+  "control": {
+    "change": "append-one-LF-to-copied-SDK-entry",
+    "selectedOriginalPassed": 1,
+    "loaded": {
+      "entry": "node_modules/@google/genai/dist/node/index.mjs",
+      "format": "module",
+      "bytes": 1198103,
+      "sha256": "00931b31a8f481fa787fa35c93f0a1541bb04474cf2ee2511b5e9ad81ad3ae61"
+    },
+    "result": "archive-digest-rejected"
+  },
+  "scope": "new-focused-run-only"
+}
