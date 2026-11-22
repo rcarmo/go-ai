@@ -162,6 +162,14 @@ func sqliteOptionalSeq(seq uint64) any {
 	return seq
 }
 
+// Keep the source row shape, with native image references only in storage.
+// Public entry JSON must not expose transcript chunk addresses.
+type upstreamStoredEntry Entry
+
+func (v upstreamStoredEntry) MarshalJSON() ([]byte, error) {
+	return Entry(v).marshalEntryJSON(true)
+}
+
 func upstreamJSON(value any) (string, error) {
 	var b bytes.Buffer
 	enc := json.NewEncoder(&b)
@@ -266,7 +274,7 @@ func (p *upstreamWritePatch) collect(before, after Snapshot, writes []Write, l L
 		case "append-entry":
 			id, kind, fresh = w.Entry.ID, "entry", true
 			r := after.Entries[id]
-			raw, err := upstreamJSON(r)
+			raw, err := upstreamJSON(upstreamStoredEntry(r))
 			if err != nil {
 				return err
 			}

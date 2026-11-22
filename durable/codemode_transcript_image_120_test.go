@@ -3,6 +3,7 @@ package durable
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -132,6 +133,15 @@ func TestCodemode120LargeImageTranscriptProviderAndReopen(t *testing.T) {
 		}
 		if _, err := conversationSnapshot(reopenedState, conv.ID(), h2.session.limits); err != nil {
 			t.Fatal(err)
+		}
+		for _, entry := range reopenedState.Entries {
+			if entry.Kind != toolResultEntryKind {
+				continue
+			}
+			wire, err := json.Marshal(entry)
+			if err != nil || strings.Contains(string(wire), `"imageChunks"`) {
+				t.Fatalf("public entry leaked internal image addresses or failed encoding: %v", err)
+			}
 		}
 		// The public reconnect reserves baseline demand from the shared budget.
 		reconnect, err := h2.WatchEvents(bg, conv.ID())

@@ -175,3 +175,9 @@ A supplemental QuickJS/SQLite test emits a PNG above that limit and checks the r
 Nested tool admission and execution now resolve the captured `AgentChange` through the normal agent conversion instead of decoding it as a stored `agentState`. The strict storage decoder correctly rejected the change-only `CompactionSet` field. This fix leaves the persisted format and the strict decoder unchanged.
 
 Six selected unchanged Codemode and harness-tool originals passed. Three existing native nested groups (environment, restart policy, and active parent attribution) and four Codemode image/settlement groups passed twice after the fix. Reintroducing the invalid decode only in the child executor kept both environment and tool execution at zero. The large-image public snapshot reopen assertion remains red and is separate from agent decoding.
+
+### Codemode transcript image reopen
+
+The SQLite entry row now carries private chunk references alongside its source-shaped model field. Public entry JSON still omits those addresses. After a reopen, Session finalization accepts existing retired Codemode document addresses without trying to validate the discarded run or journal payload; active records still undergo the original checks.
+
+The historical large-image reconnect test first failed on an empty image after reopen. Keeping the references exposed a second failure: the next submission was rejected while validating a retired run tombstone. With both fixes, the reconnect snapshot returns the exact bytes, stays detached, and the next provider call sees the image without rerunning the script. Focused Codemode image and journal groups, the exact entry wire test, selected historical SQLite corpus tests, and the fitting tests passed twice; vet and Staticcheck passed. This change does not reconstruct references omitted by an earlier writer.

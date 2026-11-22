@@ -105,7 +105,7 @@ func publicEntryDataJSON(entry Entry) ([]byte, bool, error) {
 	return wire, true, err
 }
 
-func publicEntryModelJSON(messages []MessageReceipt) ([]byte, error) {
+func entryModelJSON(messages []MessageReceipt, persistImages bool) ([]byte, error) {
 	wire := []byte{'['}
 	limits := maximumDurableLimits()
 	for index, receipt := range messages {
@@ -118,18 +118,22 @@ func publicEntryModelJSON(messages []MessageReceipt) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		if receipt.ContentText != nil {
+		keepChunks := persistImages && len(receipt.ImageChunks) != 0
+		if receipt.ContentText != nil || keepChunks {
 			members, err := rangeObject(value, 0)
 			if err != nil {
 				return nil, err
 			}
 			var object orderedJSON
 			for _, member := range members {
-				if member.name == "content" {
+				if member.name == "content" && receipt.ContentText != nil {
 					object.field(member.name, *receipt.ContentText)
 				} else {
 					object.raw(member.name, member.raw)
 				}
+			}
+			if keepChunks {
+				object.field("imageChunks", receipt.ImageChunks)
 			}
 			value, err = object.bytes()
 			if err != nil {

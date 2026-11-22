@@ -131,12 +131,16 @@ func (v *Conversation) UnmarshalJSON(data []byte) error {
 }
 
 func (v Entry) MarshalJSON() ([]byte, error) {
+	return v.marshalEntryJSON(false)
+}
+
+func (v Entry) marshalEntryJSON(persistImages bool) ([]byte, error) {
 	var out orderedJSON
 	out.field("id", v.ID)
 	out.field("conversationId", v.Conversation)
 	out.field("kind", v.Kind)
 	if v.Model != nil {
-		wire, err := publicEntryModelJSON(v.Model)
+		wire, err := entryModelJSON(v.Model, persistImages)
 		if err != nil {
 			return nil, err
 		}

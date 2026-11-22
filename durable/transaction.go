@@ -809,7 +809,9 @@ func (t *Tx) finalizeDocuments() error {
 		}
 	}
 	for _, doc := range candidate.Documents {
-		if doc.Kind == codemodeRunKind || doc.Kind == codemodeJournalKind {
+		// Reopened SQLite retains the address of a retired current-only
+		// document, not its former executable payload.
+		if !documentMetadataOnly(doc) && (doc.Kind == codemodeRunKind || doc.Kind == codemodeJournalKind) {
 			if err := validateCodemodeDocuments(candidate, doc, t.limits); err != nil {
 				return err
 			}
