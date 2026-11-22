@@ -205,3 +205,126 @@ func TestSourceV160SchemaExternalDynamicReferences(t *testing.T) {
 		})
 	}
 }
+
+func TestSourceV160SchemaDraft7ExternalReferences(t *testing.T) {
+	const fixture = "tests/testdata/upstream-main/ref-remote-draft7-v160/"
+	const base = "http://localhost:1234/"
+	read := func(path string) []byte {
+		t.Helper()
+		raw, err := os.ReadFile(fixture + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return raw
+	}
+	var groups []struct {
+		Description string
+		Schema      map[string]any
+		Tests       []struct {
+			Description string
+			Data        any
+			Valid       bool
+		}
+	}
+	if err := json.Unmarshal(read("refRemote.json"), &groups); err != nil {
+		t.Fatal(err)
+	}
+	const expectedInteger = "root: expected integer, got string"
+	selections := []struct {
+		name      string
+		documents []string
+		issue     string
+		cases     int
+	}{
+		{"remote ref", []string{"integer.json"}, expectedInteger, 2},
+		{"fragment within remote ref", []string{"draft7/subSchemas.json"}, expectedInteger, 2},
+		{"ref within remote ref", []string{"draft7/subSchemas.json"}, expectedInteger, 2},
+		{"base URI change", []string{"baseUriChange/folderInteger.json"}, "0.0: expected integer, got string", 2},
+		{"base URI change - change folder", []string{"baseUriChangeFolder/folderInteger.json"}, "list.0: expected integer, got string", 2},
+		{"base URI change - change folder in subschema", []string{"baseUriChangeFolderInSubschema/folderInteger.json"}, "list.0: expected integer, got string", 2},
+		{"root ref in remote ref", []string{"draft7/name.json"}, "name: expected null, got object", 3},
+		{"remote ref with ref to definitions", []string{"draft7/ref-and-definitions.json"}, "bar: expected string, got integer", 2},
+		{"Location-independent identifier in remote ref", []string{"draft7/locationIndependentIdentifier.json"}, expectedInteger, 2},
+		{"retrieved nested refs resolve relative to their URI not $id", []string{"nested/foo-ref-string.json", "nested/string.json"}, "name.foo: expected string, got integer", 2},
+		{"$ref to $ref finds location-independent $id", []string{"draft7/detached-ref.json"}, expectedInteger, 2},
+	}
+	if len(groups) != len(selections) {
+		t.Fatalf("pinned fixture contains %d groups, want %d", len(groups), len(selections))
+	}
+	for i, expected := range selections {
+		group := groups[i]
+		invalid := 0
+		for _, c := range group.Tests {
+			if !c.Valid {
+				invalid++
+			}
+		}
+		if group.Description != expected.name || len(group.Tests) != expected.cases || invalid != 1 {
+			t.Fatalf("unexpected pinned group %d: %+v", i, group)
+		}
+		resources := make(map[string]json.RawMessage, len(expected.documents))
+		for _, document := range expected.documents {
+			resources[base+document] = read("remotes/" + document)
+		}
+		t.Run(group.Description, func(t *testing.T) {
+			for _, c := range group.Tests {
+				t.Run(c.Description, func(t *testing.T) {
+					err := goai.ValidateJSONSchemaValueWithResources(group.Schema, c.Data, resources, goai.JSONSchemaReferenceDraft7)
+					if (err == nil) != c.Valid {
+						t.Fatalf("validation = %v; want valid=%t", err, c.Valid)
+					}
+					if !c.Valid && err.Error() != expected.issue {
+						t.Fatalf("validation = %q; want %q", err, expected.issue)
+					}
+				})
+			}
+		})
+	}
+}
+
+// Supplemental host-registry compositions of the pinned draft 7 ref.json
+// sibling-$ref rules and refRemote.json's location-independent identifiers.
+func TestSchemaExternalReferenceDraft7Policy(t *testing.T) {
+	const base = "https://example.invalid/retrieved/"
+	const remote = base + "remote.json"
+	schema := map[string]any{"$ref": remote}
+	check := func(t *testing.T, value any, resources map[string]json.RawMessage, want string, draft ...goai.JSONSchemaReferenceDraft) {
+		t.Helper()
+		var got string
+		if err := goai.ValidateJSONSchemaValueWithResources(schema, value, resources, draft...); err != nil {
+			got = err.Error()
+		}
+		if got != want {
+			t.Fatalf("validation = %q; want %q", got, want)
+		}
+	}
+	t.Run("reference siblings do not rebase", func(t *testing.T) {
+		resources := map[string]json.RawMessage{
+			remote:                        json.RawMessage(`{"$id":"elsewhere/","$ref":"value.json"}`),
+			base + "value.json":           json.RawMessage(`{"type":"integer"}`),
+			base + "elsewhere/value.json": json.RawMessage(`{"type":"string"}`),
+		}
+		check(t, 1, resources, "", goai.JSONSchemaReferenceDraft7)
+		check(t, "wrong base", resources, "root: expected integer, got string", goai.JSONSchemaReferenceDraft7)
+		check(t, 1, resources, "root: expected string, got integer")
+	})
+	t.Run("reference siblings do not validate", func(t *testing.T) {
+		resources := map[string]json.RawMessage{
+			remote:              json.RawMessage(`{"$ref":"value.json","type":"string"}`),
+			base + "value.json": json.RawMessage(`{"type":["integer","null"]}`),
+		}
+		check(t, 1, resources, "", goai.JSONSchemaReferenceDraft7)
+		check(t, nil, resources, "", goai.JSONSchemaReferenceDraft7)
+		check(t, true, resources, "root: expected integer or null, got boolean", goai.JSONSchemaReferenceDraft7)
+		check(t, 1, resources, "root: expected string, got integer")
+	})
+	t.Run("fragment identifier preserves the enclosing document", func(t *testing.T) {
+		resources := map[string]json.RawMessage{remote: json.RawMessage(`{
+  "type":"object",
+  "properties":{"anchor":{"$ref":"#slot"},"pointer":{"$ref":"#/definitions/text"}},
+  "definitions":{"slot":{"$id":"#slot","type":"integer"},"text":{"type":"string"}}
+}`)}
+		check(t, map[string]any{"anchor": 1, "pointer": "ok"}, resources, "", goai.JSONSchemaReferenceDraft7)
+		check(t, map[string]any{"anchor": 1, "pointer": 2}, resources, "pointer: expected string, got integer", goai.JSONSchemaReferenceDraft7)
+	})
+}

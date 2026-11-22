@@ -44,8 +44,9 @@ THE SOFTWARE.
 `tests/testdata/upstream-main/validation-regex.json` and the selected
 reference/anchor assertions in `tests/testdata/upstream-main/validation-resources.json`,
 `tests/testdata/upstream-main/validation-{const,enum}-fixture.json`, the remote
-reference fixtures under `tests/testdata/upstream-main/ref-remote-2020-12-v160/`,
-and `tests/testdata/upstream-main/dynamic-ref-2020-12-v160.json` with its
+reference fixtures under `tests/testdata/upstream-main/ref-remote-2020-12-v160/`
+and `tests/testdata/upstream-main/ref-remote-draft7-v160/`, and
+`tests/testdata/upstream-main/dynamic-ref-2020-12-v160.json` with its
 `dynamic-ref-2020-12-v160-remotes/` documents come from the pinned upstream JSON
 Schema Test Suite. Its copyright and the MIT
 permission/disclaimer printed above apply to these fixtures:

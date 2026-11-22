@@ -27,6 +27,7 @@ type toolSchemaResources struct {
 	compilerOrders map[uintptr][]string
 	literalOrders  map[uintptr][]string
 	work           *toolSchemaWork
+	draft7         bool
 }
 
 // Index only schema-bearing keywords, in the pinned resolver's order. An ID
@@ -39,9 +40,15 @@ func (v *toolSchemaValidator) resourceIndex() *toolSchemaResources {
 	if v.resources != nil {
 		return v.resources
 	}
-	r := &toolSchemaResources{bases: make(map[uintptr]string), documents: map[string]interface{}{toolSchemaDefaultBase: v.root}, anchors: make(map[string]interface{}), orders: make(map[uintptr][]string)}
+	r := &toolSchemaResources{
+		bases:     make(map[uintptr]string),
+		documents: map[string]interface{}{toolSchemaDefaultBase: v.root},
+		anchors:   make(map[string]interface{}),
+		orders:    make(map[uintptr][]string),
+		work:      v.work,
+		draft7:    v.draft7,
+	}
 	v.resources = r
-	r.work = v.work
 	if len(v.schemaRaw) != 0 {
 		r.readOrder(v.root, v.schemaRaw)
 	}
@@ -87,12 +94,22 @@ func (r *toolSchemaResources) index(raw interface{}, base string) {
 	if _, seen := r.bases[identity]; seen {
 		return
 	}
+	// In draft 7 the reference replaces the node, including any sibling ID
+	// or subschemas. A fragment-only ID names an anchor, not a document.
+	if _, ref := node["$ref"].(string); r.draft7 && ref {
+		r.bases[identity] = base
+		return
+	}
 	if id, ok := node["$id"].(string); ok {
-		uri := resolveSchemaURI(id, base)
-		base = schemaDocument(uri)
-		r.documents[base] = node
-		if len(uri) > len(base)+1 {
-			r.anchors[uri] = node
+		if r.draft7 && strings.HasPrefix(id, "#") {
+			r.anchors[schemaDocument(base)+id] = node
+		} else {
+			uri := resolveSchemaURI(id, base)
+			base = schemaDocument(uri)
+			r.documents[base] = node
+			if len(uri) > len(base)+1 {
+				r.anchors[uri] = node
+			}
 		}
 	}
 	r.bases[identity] = base
@@ -118,10 +135,10 @@ func (r *toolSchemaResources) index(raw interface{}, base string) {
 	if _, ok := node["$dynamicRef"].(string); ok {
 		r.hasDynamicRef = true
 	}
-	if anchor, ok := node["$anchor"].(string); ok {
+	if anchor, ok := node["$anchor"].(string); !r.draft7 && ok {
 		r.anchors[base+"#"+anchor] = node
 	}
-	if anchor, ok := node["$dynamicAnchor"].(string); ok {
+	if anchor, ok := node["$dynamicAnchor"].(string); !r.draft7 && ok {
 		key := base + "#" + anchor
 		r.anchors[key] = node
 		if r.dynamicAnchors == nil {

@@ -54,6 +54,7 @@ type toolSchemaWork struct{ convertCalls, indexNodes, regexChecks, literalCandid
 
 type toolSchemaValidator struct {
 	root            map[string]interface{}
+	draft7          bool
 	trackDynamic    bool
 	scope           []string
 	scopeKey        string
@@ -254,6 +255,12 @@ func (v *toolSchemaValidator) issue(value interface{}, schema map[string]interfa
 		defer v.enterSchemaResource(schema)()
 	}
 	generic := &toolSchemaIssue{path, "value does not match schema"}
+	if ref, ok := schema["$ref"].(string); v.draft7 && ok {
+		if issue := v.referenceIssue(value, schema, ref, false, path, active); issue != nil {
+			return issue
+		}
+		return generic
+	}
 	types := schemaTypes(schema["type"])
 	if len(types) > 0 && !anyMatchesJSONSchemaType(value, types) {
 		return &toolSchemaIssue{path, "expected " + strings.Join(types, " or ") + ", got " + schemaLiteralTypeName(value)}
@@ -401,29 +408,36 @@ func (v *toolSchemaValidator) issue(value interface{}, schema map[string]interfa
 		if !ok || (dynamic && !v.trackDynamic) {
 			continue
 		}
-		target, base := v.referenceTarget(ref, dynamic, schema)
-		if v.checkReferenceTarget(value, target, base) {
-			continue
-		}
-		if base != "" {
-			defer v.enterSchemaScope(base)()
-		}
-		if target == nil {
-			return &toolSchemaIssue{path, "unresolved reference " + ref}
-		}
-		if child, ok := target.(map[string]interface{}); ok {
-			key, cacheable := toolSchemaKey(child, value)
-			key.scope = v.scopeKey
-			if cacheable && !active[key] {
-				active[key] = true
-				defer delete(active, key)
-				return v.issue(value, child, path, active)
-			}
-		} else {
-			return v.rawIssue(value, target, path, active)
+		if issue := v.referenceIssue(value, schema, ref, dynamic, path, active); issue != nil {
+			return issue
 		}
 	}
 	return generic
+}
+
+func (v *toolSchemaValidator) referenceIssue(value interface{}, schema map[string]interface{}, ref string, dynamic bool, path string, active map[toolSchemaMemoKey]bool) *toolSchemaIssue {
+	target, base := v.referenceTarget(ref, dynamic, schema)
+	if v.checkReferenceTarget(value, target, base) {
+		return nil
+	}
+	if base != "" {
+		defer v.enterSchemaScope(base)()
+	}
+	if target == nil {
+		return &toolSchemaIssue{path, "unresolved reference " + ref}
+	}
+	child, ok := target.(map[string]interface{})
+	if !ok {
+		return v.rawIssue(value, target, path, active)
+	}
+	key, cacheable := toolSchemaKey(child, value)
+	key.scope = v.scopeKey
+	if !cacheable || active[key] {
+		return nil
+	}
+	active[key] = true
+	defer delete(active, key)
+	return v.issue(value, child, path, active)
 }
 
 var _ error = (*toolSchemaIssue)(nil)

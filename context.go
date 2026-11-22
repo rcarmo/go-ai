@@ -450,6 +450,11 @@ func (v *toolSchemaValidator) schemaAcceptsValue(value interface{}, schema map[s
 	if v.trackDynamic {
 		defer v.enterSchemaResource(schema)()
 	}
+	if v.draft7 {
+		if ref, ok := schema["$ref"].(string); ok {
+			return v.checkReference(value, ref, schema)
+		}
+	}
 	if value == nil {
 		return v.schemaAcceptsNull(schema)
 	}

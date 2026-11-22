@@ -13,20 +13,37 @@ type toolSchemaExternalResource struct {
 	raw    json.RawMessage
 }
 
+// JSONSchemaReferenceDraft controls how references and identifiers are resolved.
+type JSONSchemaReferenceDraft string
+
+const (
+	JSONSchemaReferenceDraft202012 JSONSchemaReferenceDraft = "2020-12"
+	JSONSchemaReferenceDraft7      JSONSchemaReferenceDraft = "7"
+)
+
 // ValidateJSONSchemaValueWithResources validates a decoded JSON value without
 // coercing it. The keys in resources are retrieval URIs; each value is a JSON
 // Schema object or boolean. Retrieval URIs must identify distinct documents
 // after URI normalization. The validation owns its registry and never fetches
 // missing documents. It does not modify the schema, value, or resources.
-func ValidateJSONSchemaValueWithResources(schema map[string]any, value any, resources map[string]json.RawMessage) error {
+// The optional reference draft applies to all documents, not just the root.
+// It defaults to draft 2020-12 and is not inferred from $schema.
+func ValidateJSONSchemaValueWithResources(schema map[string]any, value any, resources map[string]json.RawMessage, draft ...JSONSchemaReferenceDraft) error {
+	if len(draft) > 1 {
+		return fmt.Errorf("expected at most one schema reference draft")
+	}
+	if len(draft) == 1 && draft[0] != JSONSchemaReferenceDraft202012 && draft[0] != JSONSchemaReferenceDraft7 {
+		return fmt.Errorf("unsupported schema reference draft %q", draft[0])
+	}
 	v := newToolSchemaValidator(schema)
+	v.draft7 = len(draft) == 1 && draft[0] == JSONSchemaReferenceDraft7
 	r := v.resourceIndex()
 	if err := r.registerExternal(resources); err != nil {
 		return err
 	}
 	// A lazily loaded document can introduce a dynamic reference not present in
 	// the root. Track the resource stack from the start when using a registry.
-	v.trackDynamic = r.hasDynamicRef || len(r.external) > 0
+	v.trackDynamic = !v.draft7 && (r.hasDynamicRef || len(r.external) > 0)
 	accepted := v.schemaAcceptsValue(value, schema)
 	if v.patternFailure != nil {
 		return fmt.Errorf("pattern checker unavailable: %w", v.patternFailure)
