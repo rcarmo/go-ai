@@ -696,15 +696,6 @@ func (h *Harness) Resume(ctx context.Context) error {
 	return nil
 }
 
-// Submit wake seam only; no autonomous conversation dispatcher remains.
-func (h *Harness) scheduleLocked(id ID) {
-	if h.closing.Load() {
-		return
-	}
-	h.workers[id] = true
-	h.scheduler.enable()
-}
-
 // Closed waits for shutdown without initiating it. The result retains the
 // first Storage failure after invocation joins and provider cleanup finish.
 func (h *Harness) Closed(ctx context.Context) (SessionEnd, error) {

@@ -205,15 +205,17 @@ func (c *ConversationHandle) submitOnLine(ctx context.Context, input Input, bind
 	if e != nil {
 		return nil, e
 	}
-	if dedup != nil {
-		if dedup.Status != "done" && dedup.Status != "unanswered" {
-			h.scheduler.enable()
+	// A passive write or a terminal deduplication is still a progress call.
+	// Do not start a new conversation worker just to resume the scheduler.
+	if !h.closing.Load() {
+		h.scheduler.enable()
+		if dedup != nil {
+			if dedup.Status != "done" && dedup.Status != "unanswered" {
+				h.workers[c.id] = true
+			}
+		} else if input.Type == "follow-up" || input.Type == "steer" || input.Type == "continue" {
 			h.workers[c.id] = true
 		}
-		return &SubmissionHandle{h, subID}, nil
-	}
-	if input.Type == "follow-up" || input.Type == "steer" || input.Type == "continue" {
-		h.scheduleLocked(c.id)
 	}
 	return &SubmissionHandle{h, subID}, nil
 }
