@@ -37,7 +37,7 @@ func TestMainVertexAPIKeyCollectionURLs(t *testing.T) {
 			copyOpts := *opts
 			copyOpts.Env = goai.ProviderEnv{"GOOGLE_CLOUD_PROJECT": "", "GCLOUD_PROJECT": "", "GOOGLE_CLOUD_LOCATION": ""}
 			got, err := buildStreamURL(model, "vertex-test-key", &copyOpts)
-			want := tc.want + "/publishers/google/models/gemini-3-flash-preview:streamGenerateContent?alt=sse&key=vertex-test-key"
+			want := tc.want + "/publishers/google/models/gemini-3-flash-preview:streamGenerateContent?alt=sse"
 			if err != nil || got != want {
 				t.Errorf("URL=%q err=%v want=%q", got, err, want)
 			}
@@ -85,7 +85,7 @@ func TestMainVertexAPIKeyHTTPResolution(t *testing.T) {
 			}
 			received := request.Header
 			wantKey := map[string]string{"option": "option-vertex-key", "model": "model-vertex-key", "environment": "env-vertex-key"}[mode]
-			if request.URL.Path != "/v1/publishers/google/models/gemini-3-flash-preview:streamGenerateContent" || request.URL.Query().Get("key") != wantKey {
+			if request.URL.Path != "/v1/publishers/google/models/gemini-3-flash-preview:streamGenerateContent" || request.URL.Query().Has("key") || request.Header.Get("X-Goog-Api-Key") != wantKey {
 				t.Errorf("request path=%q key selection mismatch", request.URL.Path)
 			}
 			if message.StopReason != goai.StopReasonStop {

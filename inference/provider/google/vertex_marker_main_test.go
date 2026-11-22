@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"testing"
 	"time"
 
@@ -23,17 +22,26 @@ func TestMainVertexMarkerURLClassification(t *testing.T) {
 		{"multiline marker", "<a\nb>", ""}, {"blank", "   ", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			model := &goai.Model{ID: "gemini", Api: goai.ApiGoogleVertex, BaseURL: "https://proxy.example.com"}
-			got, err := buildStreamURL(model, tc.input, &goai.StreamOptions{Project: "test-project", Location: "global"})
-			if err != nil {
-				t.Fatal(err)
+			model := &goai.Model{ID: "gemini", Api: goai.ApiGoogleVertex, Provider: goai.ProviderGoogleVertex}
+			opts := &goai.StreamOptions{APIKey: tc.input, Project: "test-project", Location: "global", Env: goai.ProviderEnv{
+				"GOOGLE_CLOUD_API_KEY": "", "GOOGLE_APPLICATION_CREDENTIALS": "", "HOME": "", "APPDATA": "",
+			}}
+			resolved := resolveVertexAPIKey(model, opts)
+			key := resolved
+			if isVertexADCMarker(key) {
+				key = ""
 			}
-			parsed, err := url.Parse(got)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if parsed.Query().Get("key") != tc.key || parsed.Query().Has("key") != (tc.key != "") {
+			if key != tc.key {
 				t.Error("key classification/normalisation differs from source")
+			}
+			got, err := buildStreamURL(model, resolved, opts)
+			base := "https://aiplatform.googleapis.com/v1"
+			if tc.key == "" {
+				base += "/projects/test-project/locations/global"
+			}
+			want := base + "/publishers/google/models/gemini:streamGenerateContent?alt=sse"
+			if err != nil || got != want {
+				t.Errorf("Vertex URL = %q, %v; want %q", got, err, want)
 			}
 		})
 	}
@@ -87,7 +95,7 @@ func TestMainVertexMarkerHTTPResolution(t *testing.T) {
 			}
 			select {
 			case request := <-requests:
-				if done != 1 || request.URL.Query().Get("key") != tc.want || request.URL.Query().Has("key") == tc.adc {
+				if done != 1 || request.URL.Query().Has("key") || request.Header.Get("X-Goog-Api-Key") != tc.want || (len(request.Header.Values("X-Goog-Api-Key")) == 0) != tc.adc {
 					t.Errorf("key selection/mode differs; done=%d", done)
 				}
 				if tc.adc && request.Header.Get("Authorization") != "Bearer caller-test-token" {

@@ -32,7 +32,7 @@ func TestBuildVertexStreamURLUsesProjectAndLocationOptions(t *testing.T) {
 	}
 	// The pinned real-key client omits project/location. Keep the old
 	// project-scoped assertion as an ADC-marker URL control below.
-	want := "https://aiplatform.googleapis.com/v1/publishers/google/models/gemini-2.5-pro:streamGenerateContent?alt=sse&key=vertex-key"
+	want := "https://aiplatform.googleapis.com/v1/publishers/google/models/gemini-2.5-pro:streamGenerateContent?alt=sse"
 	if got != want {
 		t.Fatalf("unexpected Vertex URL:\n got %q\nwant %q", got, want)
 	}

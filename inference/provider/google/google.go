@@ -51,13 +51,16 @@ func streamGoogle(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 
 		goai.GetLogger().Debug("stream start", "api", "google-generative-ai", "provider", model.Provider, "model", model.ID)
 
-		apiKey := goai.ResolveAPIKey(model, opts)
-		credentialFile := ""
+		var apiKey, credentialFile string
+		var vertexKey bool
 		if model.Api == goai.ApiGoogleVertex {
-			apiKey = trimGoogleSDKSpace(apiKey)
-			if apiKey == "" || isVertexADCMarker(apiKey) {
+			apiKey = resolveVertexAPIKey(model, opts)
+			vertexKey = apiKey != "" && !isVertexADCMarker(apiKey)
+			if !vertexKey {
 				credentialFile = vertexCredentialFile(opts)
 			}
+		} else {
+			apiKey = goai.ResolveAPIKey(model, opts)
 		}
 		if apiKey == "" && credentialFile == "" {
 			//lint:ignore ST1005 upstream pi-ai exact error string starts with a capital letter.
@@ -108,6 +111,14 @@ func streamGoogle(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 		}
 		goai.ApplyDefaultHeaders(req.Header, model.Headers)
 		goai.ApplyDefaultHeaders(req.Header, goai.RequestIdentityHeaders(model, opts))
+		if vertexKey {
+			// The locked Vertex SDK authenticates with a header, not a URL
+			// query parameter, and leaves explicit headers untouched.
+			const keyHeader = "X-Goog-Api-Key"
+			if _, present := req.Header[keyHeader]; !present {
+				req.Header.Set(keyHeader, apiKey)
+			}
+		}
 		if credentialFile != "" {
 			if err := applyVertexFileAuth(ctx, req, credentialFile, opts); err != nil {
 				failure := newGoogleStreamMessage(model)
@@ -185,7 +196,7 @@ func buildStreamURL(model *goai.Model, apiKey string, opts *goai.StreamOptions) 
 			if !vertexBaseIncludesVersion(baseURL) {
 				baseURL += "/v1"
 			}
-			return fmt.Sprintf("%s/publishers/google/models/%s:streamGenerateContent?alt=sse&key=%s", baseURL, url.PathEscape(model.ID), url.QueryEscape(apiKey)), nil
+			return fmt.Sprintf("%s/publishers/google/models/%s:streamGenerateContent?alt=sse", baseURL, url.PathEscape(model.ID)), nil
 		}
 		project, location, err := resolveVertexProjectLocation(opts)
 		if err != nil {
@@ -231,6 +242,17 @@ func vertexBaseIncludesVersion(base string) bool {
 }
 
 var vertexPlaceholderKey = regexp.MustCompile(`^<[^>]+>$`)
+
+func resolveVertexAPIKey(model *goai.Model, opts *goai.StreamOptions) string {
+	// Public compatibility resolves env credentials when the option is
+	// blank after trimming. A nonblank ADC marker remains authoritative.
+	if opts != nil && opts.APIKey != "" && trimGoogleSDKSpace(opts.APIKey) == "" {
+		withoutBlankKey := *opts
+		withoutBlankKey.APIKey = ""
+		opts = &withoutBlankKey
+	}
+	return trimGoogleSDKSpace(goai.ResolveAPIKey(model, opts))
+}
 
 func isVertexADCMarker(apiKey string) bool {
 	return vertexPlaceholderKey.MatchString(apiKey) || apiKey == "gcp-vertex-credentials"

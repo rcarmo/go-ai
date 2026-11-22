@@ -113,7 +113,7 @@ func TestMainVertexKnownADCFile(t *testing.T) {
 			inference := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				inferences.Add(1)
 				if name == "real key bypass" {
-					if r.URL.Query().Get("key") != "real-test-key" || r.Header.Get("Authorization") != "" {
+					if r.URL.Query().Has("key") || r.Header.Get("X-Goog-Api-Key") != "real-test-key" || r.Header.Get("Authorization") != "" {
 						checks <- fmt.Errorf("real key default-file bypass differs")
 					}
 				} else if r.Header.Get("Authorization") != "Bearer token-"+wantID || r.Header.Get("X-Goog-User-Project") != "quota-"+wantID || r.URL.Query().Has("key") {
