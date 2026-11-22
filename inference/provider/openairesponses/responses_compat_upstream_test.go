@@ -2,10 +2,13 @@ package openairesponses
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -371,6 +374,161 @@ func TestSourceV160ResponsesCompatibilityWire(t *testing.T) {
 					if (want == "" && len(got) != 0) || (want != "" && (len(got) != 1 || got[0] != want)) {
 						t.Errorf("Responses header %s = %v; want %q (empty means absent)", key, got, want)
 					}
+				}
+			}
+		})
+	}
+}
+
+// The published URL and provider remain unmodified at request construction,
+// except for the precise proxy clones used by the source fixtures. The test
+// redirects every HTTPS dial to its trusted local server.
+func TestSourceV160ResponsesRemainingDefaultsWire(t *testing.T) {
+	goai.RegisterBuiltinModels()
+	t.Setenv("NO_PROXY", "*")
+	type receipt struct {
+		body               map[string]json.RawMessage
+		header             http.Header
+		host, path, method string
+	}
+	wireRequests := make(chan receipt, 2)
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]json.RawMessage
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Error(err)
+			return
+		}
+		select {
+		case wireRequests <- receipt{body: body, header: r.Header.Clone(), host: r.Host, path: r.URL.Path, method: r.Method}:
+		default:
+			t.Error("unexpected extra Responses request")
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = io.WriteString(w, "data: [DONE]\n\n")
+	}))
+	defer server.Close()
+	transport := server.Client().Transport.(*http.Transport).Clone()
+	tlsDialer := tls.Dialer{Config: transport.TLSClientConfig.Clone()}
+	transport.DialTLSContext = func(ctx context.Context, network, _ string) (net.Conn, error) {
+		return tlsDialer.DialContext(ctx, network, server.Listener.Addr().String())
+	}
+	previousTransport := http.DefaultTransport
+	http.DefaultTransport = transport
+	defer func() {
+		http.DefaultTransport = previousTransport
+		transport.CloseIdleConnections()
+	}()
+
+	type fixture struct {
+		mode, id string
+	}
+	fixtures := []fixture{
+		{"router-explicit", "gpt-5.4"}, {"router-detected", "gpt-5.4"},
+		{"no-session-explicit", "gpt-5.4"}, {"no-session-opencode", "gpt-5.4"}, {"no-session-opencode-proxy", "gpt-5.4"},
+		{"clamped-key", "gpt-5.4"}, {"cap-default", "gpt-5.4"}, {"cap-opt-out", "gpt-5.4"},
+	}
+	for _, id := range []string{"gpt-5.1", "gpt-5.2", "gpt-5.3-codex", "gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano", "gpt-5.5", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-6-sol", "gpt-6-luna"} {
+		fixtures = append(fixtures, fixture{"off-none", id})
+	}
+	for _, id := range []string{"gpt-5", "gpt-5-mini", "gpt-5-nano", "gpt-5-pro", "gpt-5.2-pro", "gpt-5.4-pro", "gpt-5.5-pro"} {
+		fixtures = append(fixtures, fixture{"off-unsupported", id})
+	}
+	for _, tc := range fixtures {
+		t.Run(tc.mode+"/"+tc.id, func(t *testing.T) {
+			provider := goai.ProviderOpenAI
+			if tc.mode == "no-session-opencode" {
+				provider = goai.ProviderOpenCode
+			}
+			catalog := goai.GetModel(provider, tc.id)
+			if catalog == nil || catalog.Api != goai.ApiOpenAIResponses {
+				t.Fatal("missing pinned Responses model")
+			}
+			model := *catalog
+			opts := &goai.StreamOptions{APIKey: "sk-test-key"}
+			wantRouter, wantClient := "", ""
+			cap := 1024
+			switch tc.mode {
+			case "router-explicit":
+				model.Provider, model.BaseURL = goai.Provider("proxy"), "https://proxy.example.com/v1"
+				model.ResponsesCompat = &goai.OpenAIResponsesCompat{SessionAffinityFormat: "openrouter"}
+				opts.SessionID, wantRouter = "session-proxy", "session-proxy"
+			case "router-detected":
+				model.Provider, model.BaseURL = goai.ProviderOpenRouter, "https://openrouter.ai/api/v1"
+				opts.SessionID, wantRouter = "session-openrouter", "session-openrouter"
+			case "no-session-explicit":
+				model.Provider, model.BaseURL = goai.Provider("proxy"), "https://proxy.example.com/v1"
+				model.ResponsesCompat = &goai.OpenAIResponsesCompat{SessionAffinityFormat: "openai-nosession"}
+				opts.SessionID, wantClient = "session-proxy", "session-proxy"
+			case "no-session-opencode":
+				if model.ResponsesCompat == nil || model.ResponsesCompat.SessionAffinityFormat != "openai-nosession" {
+					t.Error("built-in OpenCode model is missing pinned no-session capability")
+				}
+				opts.SessionID, wantClient = "session-opencode", "session-opencode"
+			case "no-session-opencode-proxy":
+				model.Provider, model.BaseURL = goai.ProviderOpenCode, "https://proxy.example.com/v1"
+				model.ResponsesCompat = &goai.OpenAIResponsesCompat{SessionAffinityFormat: "openai-nosession"}
+				opts.SessionID, wantClient = "session-123", "session-123"
+			case "clamped-key":
+				opts.SessionID = strings.Repeat("x", 67)
+			case "cap-default":
+				opts.MaxTokens = &cap
+			case "cap-opt-out":
+				opts.MaxTokens = &cap
+				compat := *model.ResponsesCompat
+				no := false
+				compat.SupportsMaxOutputTokens = &no
+				model.ResponsesCompat = &compat
+			}
+			endpoint, err := url.Parse(model.BaseURL)
+			if err != nil || endpoint.Scheme != "https" || endpoint.Host == "" {
+				t.Fatalf("invalid offline Responses fixture endpoint %q", model.BaseURL)
+			}
+			ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+			defer cancel()
+			var terminalErr error
+			for ev := range goai.Stream(ctx, &model, &goai.Context{SystemPrompt: "sys", Messages: []goai.Message{goai.UserMessage("hi")}}, opts) {
+				if e, ok := ev.(*goai.ErrorEvent); ok {
+					terminalErr = e.Err
+				}
+			}
+			if len(wireRequests) != 1 {
+				t.Fatalf("wire request count = %d; want one (terminal error: %v)", len(wireRequests), terminalErr)
+			}
+			captured := <-wireRequests
+			if captured.host != endpoint.Host || captured.path != strings.TrimRight(endpoint.Path, "/")+"/responses" || captured.method != http.MethodPost {
+				t.Errorf("request endpoint = %s %s%s; want POST to original Responses URL", captured.method, captured.host, captured.path)
+			}
+			body := captured.body
+			switch tc.mode {
+			case "router-explicit", "router-detected", "no-session-explicit", "no-session-opencode", "no-session-opencode-proxy":
+				for key, want := range map[string]string{"session-id": "", "session_id": "", "x-client-request-id": wantClient, "x-session-id": wantRouter} {
+					values := captured.header.Values(key)
+					if (want == "" && len(values) != 0) || (want != "" && (len(values) != 1 || values[0] != want)) {
+						t.Errorf("affinity header %s = %v; want %q (empty means absent)", key, values, want)
+					}
+				}
+				if _, present := body["session_id"]; present || string(body["prompt_cache_key"]) != `"`+opts.SessionID+`"` {
+					t.Errorf("affinity payload session_id = %s, prompt_cache_key = %s; want absent and %q", body["session_id"], body["prompt_cache_key"], opts.SessionID)
+				}
+			case "clamped-key":
+				if got := string(body["prompt_cache_key"]); got != `"`+strings.Repeat("x", 64)+`"` {
+					t.Errorf("prompt_cache_key = %s; want exactly 64 x characters", got)
+				}
+			case "off-none":
+				if got := string(body["reasoning"]); got != `{"effort":"none"}` {
+					t.Errorf("reasoning = %s; want exactly none effort", got)
+				}
+			case "off-unsupported":
+				if _, present := body["reasoning"]; present {
+					t.Errorf("reasoning = %s; want absent for unsupported off", body["reasoning"])
+				}
+			case "cap-default":
+				if string(body["max_output_tokens"]) != "1024" {
+					t.Errorf("max_output_tokens = %s; want 1024", body["max_output_tokens"])
+				}
+			case "cap-opt-out":
+				if _, present := body["max_output_tokens"]; present {
+					t.Errorf("max_output_tokens = %s; want absent for cap opt-out", body["max_output_tokens"])
 				}
 			}
 		})
