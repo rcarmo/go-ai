@@ -14,6 +14,7 @@ import (
 // across calls. The parsed schema stays live for the lifetime of these keys.
 type toolSchemaMemoKey struct {
 	schema uintptr
+	scope  string
 	value  toolSchemaValueKey
 }
 
@@ -53,6 +54,9 @@ type toolSchemaWork struct{ convertCalls, indexNodes, regexChecks, literalCandid
 
 type toolSchemaValidator struct {
 	root            map[string]interface{}
+	trackDynamic    bool
+	scope           []string
+	scopeKey        string
 	schemaRaw       []byte
 	resources       *toolSchemaResources
 	refs            map[toolSchemaRefKey]interface{}
@@ -117,7 +121,11 @@ func (v *toolSchemaValidator) convertReference(value interface{}, ref string, fr
 }
 
 func (v *toolSchemaValidator) checkReference(value interface{}, ref string, from ...map[string]interface{}) bool {
-	target := v.resolvePureDataReference(ref, from...)
+	target, base := v.referenceTarget(ref, false, from...)
+	return v.checkReferenceTarget(value, target, base)
+}
+
+func (v *toolSchemaValidator) checkReferenceTarget(value, target interface{}, base string) bool {
 	if literal, ok := target.(bool); ok {
 		return literal
 	}
@@ -125,7 +133,11 @@ func (v *toolSchemaValidator) checkReference(value interface{}, ref string, from
 	if !ok {
 		return false
 	}
+	if base != "" {
+		defer v.enterSchemaScope(base)()
+	}
 	key, cacheable := toolSchemaKey(schema, value)
+	key.scope = v.scopeKey
 	if !cacheable {
 		return false
 	}
@@ -238,6 +250,9 @@ func schemaIssuePath(parent, key string) string {
 // Select the first failing branch/required member without repeating conversion.
 // Reference-check memo entries hold booleans, never a path from another caller.
 func (v *toolSchemaValidator) issue(value interface{}, schema map[string]interface{}, path string, active map[toolSchemaMemoKey]bool) *toolSchemaIssue {
+	if v.trackDynamic {
+		defer v.enterSchemaResource(schema)()
+	}
 	generic := &toolSchemaIssue{path, "value does not match schema"}
 	types := schemaTypes(schema["type"])
 	if len(types) > 0 && !anyMatchesJSONSchemaType(value, types) {
@@ -380,13 +395,25 @@ func (v *toolSchemaValidator) issue(value interface{}, schema map[string]interfa
 			}
 		}
 	}
-	if ref, ok := schema["$ref"].(string); ok && !v.checkReference(value, ref, schema) {
-		target := v.resolvePureDataReference(ref, schema)
+	for _, keyword := range []string{"$ref", "$dynamicRef"} {
+		dynamic := keyword == "$dynamicRef"
+		ref, ok := schema[keyword].(string)
+		if !ok || (dynamic && !v.trackDynamic) {
+			continue
+		}
+		target, base := v.referenceTarget(ref, dynamic, schema)
+		if v.checkReferenceTarget(value, target, base) {
+			continue
+		}
+		if base != "" {
+			defer v.enterSchemaScope(base)()
+		}
 		if target == nil {
 			return &toolSchemaIssue{path, "unresolved reference " + ref}
 		}
 		if child, ok := target.(map[string]interface{}); ok {
 			key, cacheable := toolSchemaKey(child, value)
+			key.scope = v.scopeKey
 			if cacheable && !active[key] {
 				active[key] = true
 				defer delete(active, key)

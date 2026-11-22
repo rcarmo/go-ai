@@ -9,6 +9,9 @@ func (v *toolSchemaValidator) schemaAcceptsNull(schema map[string]interface{}) b
 	if ref, ok := schema["$ref"].(string); ok && !v.checkReference(nil, ref, schema) {
 		return false
 	}
+	if !v.checkDynamicReference(nil, schema) {
+		return false
+	}
 	if types := schemaTypes(schema["type"]); len(types) > 0 && !anyMatchesJSONSchemaType(nil, types) {
 		return false
 	}

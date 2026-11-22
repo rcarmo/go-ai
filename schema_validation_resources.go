@@ -20,6 +20,8 @@ type toolSchemaResources struct {
 	bases          map[uintptr]string
 	documents      map[string]interface{}
 	anchors        map[string]interface{}
+	dynamicAnchors map[string]interface{}
+	hasDynamicRef  bool
 	orders         map[uintptr][]string
 	compilerOrders map[uintptr][]string
 	literalOrders  map[uintptr][]string
@@ -112,10 +114,19 @@ func (r *toolSchemaResources) index(raw interface{}, base string) {
 	if r.work != nil {
 		r.work.indexNodes++
 	}
-	for _, key := range []string{"$anchor", "$dynamicAnchor"} {
-		if anchor, ok := node[key].(string); ok {
-			r.anchors[base+"#"+anchor] = node
+	if _, ok := node["$dynamicRef"].(string); ok {
+		r.hasDynamicRef = true
+	}
+	if anchor, ok := node["$anchor"].(string); ok {
+		r.anchors[base+"#"+anchor] = node
+	}
+	if anchor, ok := node["$dynamicAnchor"].(string); ok {
+		key := base + "#" + anchor
+		r.anchors[key] = node
+		if r.dynamicAnchors == nil {
+			r.dynamicAnchors = map[string]interface{}{}
 		}
+		r.dynamicAnchors[key] = node
 	}
 	for _, key := range toolSchemaSingleKeywords {
 		r.index(node[key], base)

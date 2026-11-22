@@ -197,3 +197,74 @@ func TestValidationResolvePureDataReferenceStops(t *testing.T) {
 		t.Fatalf("reference with sibling constraints was bypassed: %v", got)
 	}
 }
+
+// The fixture is byte-identical to pi v1.6.0's JSON Schema Test Suite input.
+// Only self-contained groups are translated here: the Tool API has no external
+// schema registry. We don't substitute different schemas for those groups.
+func TestSourceV160DynamicReferences(t *testing.T) {
+	data, err := os.ReadFile("tests/testdata/upstream-main/dynamic-ref-2020-12-v160.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var groups []struct {
+		Description string
+		Schema      json.RawMessage
+		Tests       []struct {
+			Description string
+			Data        any
+			Valid       bool
+		}
+	}
+	if err := json.Unmarshal(data, &groups); err != nil {
+		t.Fatal(err)
+	}
+	for _, i := range []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 18, 19, 20} {
+		group := groups[i]
+		var schema map[string]any
+		if err := json.Unmarshal(group.Schema, &schema); err != nil {
+			t.Fatal(err)
+		}
+		tool := Tool{Name: "schema", Parameters: group.Schema}
+		t.Run(group.Description, func(t *testing.T) {
+			for _, test := range group.Tests {
+				t.Run(test.Description, func(t *testing.T) {
+					if accepted := CheckJSONSchemaValue(schema, test.Data); accepted != test.Valid {
+						t.Fatalf("check=%v; want %v", accepted, test.Valid)
+					}
+					// The explicit ordinary-ref control can coerce non-strings
+					// to strings in Tool.parse; conformance above is check-only.
+					if i == 2 {
+						return
+					}
+					got, err := ValidateToolArguments(&tool, ToolCall{Name: tool.Name, Arguments: test.Data})
+					if (err == nil) != test.Valid {
+						t.Fatalf("accepted=%v; want %v (%v)", err == nil, test.Valid, err)
+					}
+					if test.Valid && !SchemaEqual(got, test.Data) {
+						t.Fatalf("result=%#v; want %#v", got, test.Data)
+					}
+				})
+			}
+		})
+	}
+}
+
+// Supplemental Tool.parse form of coerce.test.ts's root-ID regression. The
+// referenced schema is embedded as a resource, not provided via options.
+func TestSourceV160DynamicReferencePreservesRelativeCoercion(t *testing.T) {
+	tool := Tool{Name: "counter", Parameters: json.RawMessage(`{
+		"$id":"https://example.com/root.json", "$dynamicAnchor":"node", "type":"object",
+		"properties":{"count":{"$ref":"defs/n.json"},"children":{"type":"array","items":{"\u0024dynamicRef":"#node"}}},
+		"$defs":{"n":{"$id":"defs/n.json","type":"integer"}}
+	}`)}
+	args := map[string]any{"count": "2"}
+	for range 2 {
+		out, err := ValidateToolArguments(&tool, ToolCall{Name: tool.Name, Arguments: args})
+		if err != nil || !SchemaEqual(out, map[string]any{"count": 2}) || args["count"] != "2" {
+			t.Fatalf("root resource coercion = %#v, %v; input = %#v", out, err, args)
+		}
+	}
+	if _, err := ValidateToolArguments(&tool, ToolCall{Name: tool.Name, Arguments: map[string]any{"children": []any{false}}}); err == nil {
+		t.Fatal("escaped dynamic reference did not check its child")
+	}
+}
