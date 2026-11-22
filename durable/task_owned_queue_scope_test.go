@@ -6,16 +6,16 @@ import (
 	"time"
 )
 
-func seedOwnedQueue(t *testing.T, h *Harness, conversation ID, label string) (ID, ID) {
+func seedOwnedQueue(t *testing.T, h *Harness, conversation ID, label string) (ID, ID, ID) {
 	t.Helper()
-	var input, write ID
+	var input, write, generation ID
 	_, err := h.commitTasks(bg, conversation, func(tx *Tx) error {
 		var err error
 		input, err = tx.mintID()
 		if err != nil {
 			return err
 		}
-		generation, err := tx.mintID()
+		generation, err = tx.mintID()
 		if err != nil {
 			return err
 		}
@@ -48,7 +48,7 @@ func seedOwnedQueue(t *testing.T, h *Harness, conversation ID, label string) (ID
 	if err != nil {
 		t.Fatal(err)
 	}
-	return input, write
+	return input, write, generation
 }
 
 func TestTaskOwnershipPinnedQueuedInputScopePreservesWritesAndBackground(t *testing.T) {
@@ -114,8 +114,8 @@ func TestTaskOwnershipPinnedQueuedInputScopePreservesWritesAndBackground(t *test
 						t.Fatal(err)
 					}
 				}
-				ownInput, ownWrite := seedOwnedQueue(t, h, 1, "own")
-				childInput, childWrite := seedOwnedQueue(t, h, owned, "below")
+				ownInput, ownWrite, _ := seedOwnedQueue(t, h, 1, "own")
+				childInput, childWrite, childGeneration := seedOwnedQueue(t, h, owned, "below")
 				if scope != "held-failure" {
 					_, err = h.session.Commit(bg, func(tx *Tx) (any, error) {
 						task := markTask(tx.state.Tasks[owner])
@@ -142,6 +142,18 @@ func TestTaskOwnershipPinnedQueuedInputScopePreservesWritesAndBackground(t *test
 				}
 				if state.Submissions[childInput].Status != "aborted" || state.Submissions[childWrite].Status != "done" || !taskAborted(state.Tasks[child]) || taskAborted(state.Tasks[background]) {
 					t.Fatal("scope lost queue/write/background", state.Submissions, state.Tasks)
+				}
+				queuedTask, found, err := b.store.Task(bg, childGeneration)
+				if err != nil || !found || queuedTask.State.Status != "terminal" || queuedTask.State.Outcome == nil || queuedTask.State.Outcome.Status != "aborted" {
+					t.Fatalf("persisted queued generation: %+v, found %t, err %v", queuedTask, found, err)
+				}
+				handle, err := h.Submission(bg, childInput)
+				if err != nil || handle == nil {
+					t.Fatalf("withdrawn submission handle: %v, %v", handle, err)
+				}
+				settled := waitSubmission(t, handle).Record
+				if settled.Status != "unanswered" || settled.Reason != "aborted" || settled.Entry != 0 || settled.Answer != 0 {
+					t.Fatalf("withdrawn queued input: %+v", settled)
 				}
 				want := "pending"
 				if scope == "conversation" {

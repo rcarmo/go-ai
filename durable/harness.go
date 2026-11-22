@@ -1550,19 +1550,8 @@ func (h *Harness) withdrawScopedInputBatch(tx *Tx, conversation ID, cross bool, 
 					queued = false
 					break
 				}
-				task.Status = "aborted"
 				cp.Abort = true
-				cp.Phase = "terminal"
-				checkpoint, err := dtoObject(cp, tx.limits)
-				if err != nil {
-					return err
-				}
-				task.Checkpoint = checkpoint
-				if tx.taskTerminals == nil {
-					tx.taskTerminals = map[ID]bool{}
-				}
-				tx.taskTerminals[task.ID] = true
-				if err := tx.stage(Write{Op: "put-task", Task: &task}); err != nil {
+				if err := settleQueuedGenerationAbort(tx, task, cp); err != nil {
 					return err
 				}
 				break

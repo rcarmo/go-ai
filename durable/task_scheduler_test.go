@@ -1834,11 +1834,7 @@ func TestTaskSchedulerCascadeQueuedWithdrawalBudgetAtomicity(t *testing.T) {
 							return err
 						}
 						*scope.dest = id
-						status := "pending"
-						if scope.mode == "write" {
-							status = "done"
-						}
-						return tx.putSubmissionRecord(Submission{ID: id, Conversation: scope.conversation, Type: scope.mode, Status: status, Value: JSON{"content": "preserved"}})
+						return tx.putSubmissionRecord(Submission{ID: id, Conversation: scope.conversation, Type: scope.mode, Status: "pending", Value: JSON{"content": "preserved"}})
 					})
 					if err != nil {
 						t.Fatal(err)
@@ -1877,7 +1873,7 @@ func TestTaskSchedulerCascadeQueuedWithdrawalBudgetAtomicity(t *testing.T) {
 						t.Fatal("queued withdrawal atomic unit missing")
 					}
 				}
-				if after.Submissions[ownSubID].Status != "pending" || after.Submissions[writeSubID].Status != "done" || effects.Load() != 0 {
+				if after.Submissions[ownSubID].Status != "pending" || after.Submissions[writeSubID].Status != "pending" || effects.Load() != 0 {
 					t.Fatal("cascade withdrew own/write scope or invoked effects")
 				}
 			})
@@ -2309,8 +2305,10 @@ func TestTaskSchedulerQueuedWithdrawalTaskDocumentsAtomicRetirement(t *testing.T
 						if err != nil || after.Tasks[generation].Status != "aborted" || after.Submissions[subID].Status != "aborted" || !after.Documents[docID].Retired {
 							t.Fatal("queued native taskdoc not atomically retired", err)
 						}
-						if after.Tasks[generation].Execution != nil {
-							t.Fatal("withdrawal fabricated legacy execution format")
+						outcome, found, err := store.Task(bg, generation)
+						if err != nil || !found || outcome.State.Status != "terminal" || outcome.State.Outcome == nil || outcome.State.Outcome.Status != "aborted" ||
+							outcome.State.Outcome.Result != nil || outcome.State.Outcome.Error != nil || outcome.AbortRequested != (mode == "cascade") {
+							t.Fatalf("persisted queued task outcome: %+v, found %t, err %v", outcome, found, err)
 						}
 					}
 					if len(after.Entries) != 0 {

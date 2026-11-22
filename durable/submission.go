@@ -701,7 +701,7 @@ func (s *SubmissionHandle) Withdraw(ctx context.Context) error {
 			return nil, nil
 		}
 		var task Task
-		found := false
+		var queued generationCheckpoint
 		for _, t := range tx.state.Tasks {
 			if t.Kind != "pi.generation" {
 				continue
@@ -717,26 +717,14 @@ func (s *SubmissionHandle) Withdraw(ctx context.Context) error {
 				if len(h.scheduler.ownedLive(tx.state, t.ID)) > 0 {
 					return nil, reject("queued submission owns live work; abort its conversation")
 				}
-				task = t
-				cp.Phase = "terminal"
-				value, e := dtoObject(cp, h.session.limits)
-				if e != nil {
-					return nil, e
-				}
-				task.Checkpoint = value
-				task.Status = "aborted"
-				found = true
+				task, queued = t, cp
 				break
 			}
 		}
-		if !found {
+		if task.ID == 0 {
 			return nil, reject("queued task unavailable")
 		}
-		if tx.taskTerminals == nil {
-			tx.taskTerminals = map[ID]bool{}
-		}
-		tx.taskTerminals[task.ID] = true
-		if e := tx.putTaskRecord(task); e != nil {
+		if e := settleQueuedGenerationAbort(tx, task, queued); e != nil {
 			return nil, e
 		}
 		sub.Status = "aborted"
