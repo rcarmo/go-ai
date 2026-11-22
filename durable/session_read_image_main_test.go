@@ -10,7 +10,11 @@ func TestMainContextBusyUsesPublishedImage(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		batch := Batch{Writes: []Write{{Op: "put-task", Task: &Task{ID: id, Conversation: 1, Kind: "image.fixture", Status: "pending", Checkpoint: JSON{}}}}}
+		task, err := nativeTask(fixturePendingTask(id, 1, "image.fixture"), s.limits)
+		if err != nil {
+			t.Fatal(err)
+		}
+		batch := Batch{Writes: []Write{{Op: "put-task", Task: &task}}}
 		if _, err := s.core.apply(bg, batch, true); err != nil {
 			t.Fatal(err)
 		}

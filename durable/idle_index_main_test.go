@@ -42,15 +42,13 @@ func TestMainIdleIndexHeldQueue(t *testing.T) {
 			}
 			return id
 		}
-		parent, child, docID := mint(), mint(), mint()
-		// Validated legacy generation rows deliberately exercise the exact raw
-		// checkpoint contract; no phase hosts or invocation maps are fabricated.
+		parent, child, docID, childInput := mint(), mint(), mint(), mint()
+		// Keep legacy generation checkpoints so the failedRun fanout is tested.
 		p := Task{ID: parent, Conversation: 1, Kind: "pi.generation", Status: "pending", Checkpoint: JSON{"phase": "queued"}}
-		c := Task{ID: child, Conversation: 1, Owner: parent, Kind: "pi.generation", Status: "pending", Checkpoint: JSON{"phase": "queued"}}
+		c := Task{ID: child, Conversation: 1, Owner: parent, Kind: "pi.generation", Status: "pending", Checkpoint: JSON{"phase": "queued", "submission": childInput}}
+		sub := Submission{ID: childInput, Conversation: 1, Type: "follow-up", Status: "pending", Value: JSON{}}
 		d := Document{ID: docID, Scope: "conversation", Owner: 1, Kind: "pi.live", Version: 1, Value: JSON{"failedRun": true}}
-		if _, err := b.store.Apply(bg, Batch{Writes: []Write{{Op: "put-task", Task: &p}, {Op: "put-task", Task: &c}, putDocument(d)}}); err != nil {
-			t.Fatal(err)
-		}
+		apply(t, b.store, Write{Op: "put-task", Task: &p}, Write{Op: "put-task", Task: &c}, Write{Op: "put-submission", Submission: &sub}, putDocument(d))
 		h := taskTestHarness(t, b.store)
 		checkMainIdleIndex(t, h, true) // Held child is live: parent must NOT be held.
 		commit := func(f func(*Tx) error) {
@@ -59,7 +57,14 @@ func TestMainIdleIndexHeldQueue(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		commit(func(tx *Tx) error { c.Status = "done"; return tx.putTaskRecord(c) })
+		commit(func(tx *Tx) error {
+			c.Status, c.Checkpoint = "aborted", JSON{"phase": "terminal", "submission": childInput}
+			c.Execution = &TaskExecution{Tag: builtinTaskTag, Builtin: &BuiltinTaskExecution{Hold: &BuiltinTaskHold{
+				Stage: "final", Action: "generation-abort", FinalStatus: "aborted", Conversation: c.Conversation, Owner: c.Owner,
+				Submission: childInput, Outcome: TaskOutcome{Status: "aborted"},
+			}}}
+			return tx.stage(Write{Op: "put-task", Task: &c})
+		})
 		checkMainIdleIndex(t, h, false)
 		h.session.taskBookkeeping(func() {
 			if h.scheduler.idleIndex.rebuilds != 1 || len(h.scheduler.idleIndex.generations[1]) != 1 {
@@ -207,18 +212,20 @@ func TestMainIdleIndexLegacyReparent(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		p := Task{ID: a, Conversation: 1, Owner: bid, Kind: "legacy.idle", Status: "pending", Checkpoint: JSON{}}
-		q := Task{ID: bid, Conversation: 1, Kind: "legacy.idle", Status: "pending", Checkpoint: JSON{}}
-		mainWakeSourceSeed(t, b.store, p, q)
+		p := fixturePendingTask(a, 1, "legacy.idle")
+		p.Owner = bid
+		q := fixturePendingTask(bid, 1, "legacy.idle")
+		seedRootConversation(t, b.store)
+		commitIdleFixtures(t, b.store, StorageWrite{Type: "task", Value: p}, StorageWrite{Type: "task", Value: q})
 		h := taskTestHarness(t, b.store)
 		checkMainIdleIndex(t, h, true)
 		if _, err := h.Commit(bg, func(tx *Tx) (any, error) {
 			p.Owner = 0
 			q.Owner = a
-			if err := tx.putTaskRecord(p); err != nil {
+			if err := tx.setTask(p); err != nil {
 				return nil, err
 			}
-			return nil, tx.putTaskRecord(q)
+			return nil, tx.setTask(q)
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -243,10 +250,8 @@ func TestMainIdleIndexLegacyCycleFallback(t *testing.T) {
 			t.Fatal(err)
 		}
 		c := Conversation{ID: cid, Owner: id}
-		task := Task{ID: id, Conversation: cid, Kind: "legacy.idle", Status: "pending", Checkpoint: JSON{}}
-		if _, err := b.store.Apply(bg, Batch{Writes: []Write{{Op: "create-conversation", Conversation: &c}, {Op: "put-task", Task: &task}}}); err != nil {
-			t.Fatal(err)
-		}
+		task := fixturePendingTask(id, cid, "legacy.idle")
+		commitIdleFixtures(t, b.store, StorageWrite{Type: "conversation", Value: c}, StorageWrite{Type: "task", Value: task})
 		h := taskTestHarness(t, b.store)
 		h.session.taskBookkeeping(func() {
 			if _, usable := h.scheduler.indexedContextBusy(cid); usable {
@@ -315,4 +320,16 @@ func BenchmarkMainIdleIndexBuild(b *testing.B) {
 			h.scheduler.rebuildIdleIndex()
 		}
 	})
+}
+
+func fixturePendingTask(id, conversation ID, kind string) TaskRecord {
+	return TaskRecord{ID: id, Conversation: conversation, Kind: kind, Version: 1, Input: &TaskValue{Present: true}, State: TaskState{Status: "pending", Checkpoint: JSON{}}}
+}
+
+func commitIdleFixtures(t *testing.T, store Storage, writes ...StorageWrite) {
+	t.Helper()
+	result, err := store.Commit(bg, [][]StorageWrite{writes}, nil)
+	if err != nil || result.Stored != 1 || result.Refused != nil {
+		t.Fatalf("idle fixture refused: %+v, err %v", result, err)
+	}
 }

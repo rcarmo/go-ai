@@ -26,13 +26,15 @@ func TestMainContextBusyFollowsEndedOwnerChain(t *testing.T) {
 				entry, owner, owned, child, other := mint(t, b.store), mint(t, b.store), mint(t, b.store), mint(t, b.store), mint(t, b.store)
 				contribution := contextEntry(entry, 1, goai.RoleUser, "kept")
 				// An ended task still connects its owned conversation to root.
-				// These are ordinary validated legacy records, not fake hosts.
-				apply(t, b.store,
-					Write{Op: "put-task", Task: &Task{ID: owner, Conversation: 1, Kind: "context.fixture", Status: "done", Checkpoint: JSON{}}},
-					Write{Op: "create-conversation", Conversation: &Conversation{ID: owned, Owner: owner}},
-					Write{Op: "put-task", Task: &Task{ID: child, Conversation: owned, Kind: "context.fixture", Status: "pending", Checkpoint: JSON{}}},
-					Write{Op: "create-conversation", Conversation: &Conversation{ID: other}},
-					Write{Op: "append-entry", Entry: &contribution},
+				seedRootConversation(t, b.store)
+				finished := fixturePendingTask(owner, 1, "context.fixture")
+				finished.State = TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "completed", Result: &TaskValue{Present: true}}}
+				commitIdleFixtures(t, b.store,
+					StorageWrite{Type: "task", Value: finished},
+					StorageWrite{Type: "conversation", Value: Conversation{ID: owned, Owner: owner}},
+					StorageWrite{Type: "task", Value: fixturePendingTask(child, owned, "context.fixture")},
+					StorageWrite{Type: "conversation", Value: Conversation{ID: other}},
+					StorageWrite{Type: "entry", Value: contribution},
 				)
 				var clock atomic.Int64
 				clock.Store(1000)
@@ -94,15 +96,12 @@ func TestMainContextExpiryAtPublication(t *testing.T) {
 					}
 				})
 				clock.Store(2500)
+				def := taskDefinition(t, "context.fixture", taskAbort)
 				_, err := h.session.Commit(bg, func(tx *Tx) (any, error) {
 					if change == "entry-only" {
 						return nil, appendContext(tx)
 					}
-					id, err := tx.mintID()
-					if err != nil {
-						return nil, err
-					}
-					return nil, tx.putTaskRecord(Task{ID: id, Conversation: 1, Kind: "context.fixture", Status: "pending", Checkpoint: JSON{}})
+					return tx.CreateTask(def, nil, TaskOptions{Conversation: 1, Ownership: TaskOwnership{Kind: "conversation"}})
 				})
 				if err != nil {
 					t.Fatal(err)

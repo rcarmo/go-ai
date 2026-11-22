@@ -3,6 +3,7 @@ package durable
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -342,20 +343,13 @@ func TestFailedRun140WithdrawalJoinsOwnedHosts(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		state, err := h.Snapshot(bg)
-		if err != nil {
-			t.Fatal(err)
+		// Canonical queued inputs live in the inbox without task records. The
+		// active run owns the live host that must remain visible after withdrawal.
+		inspection, err := h.InspectTasks(bg)
+		if err != nil || len(inspection.Tasks) != 1 || inspection.Tasks[0].Record.Kind != "pi.generation" {
+			t.Fatalf("expected only the active generation: %+v, err %v", inspection, err)
 		}
-		var owner ID
-		for _, task := range state.Tasks {
-			var cp generationCheckpoint
-			if err := fromObject(task.Checkpoint, &cp, h.session.limits); err != nil {
-				t.Fatal(err)
-			}
-			if cp.Submission == queued.ID() {
-				owner = task.ID
-			}
-		}
+		owner := inspection.Tasks[0].Record.ID
 		started, cancelled, returned := make(chan struct{}), make(chan struct{}), make(chan struct{})
 		cleanupTaskGates(t, returned)
 		def := taskDefinition(t, "task.failed-queue-owned", func(ctx context.Context, _ TaskRecord, _ *TaskRuntime) error {
@@ -368,7 +362,7 @@ func TestFailedRun140WithdrawalJoinsOwnedHosts(t *testing.T) {
 		if _, err = h.options.Registry.RegisterTask(def); err != nil {
 			t.Fatal(err)
 		}
-		createPublicTask(t, h, def, nil, TaskOptions{Ownership: TaskOwnership{Kind: "task", Task: owner}})
+		child := createPublicTask(t, h, def, nil, TaskOptions{Ownership: TaskOwnership{Kind: "task", Task: owner}})
 		if err = h.Resume(bg); err != nil {
 			t.Fatal(err)
 		}
@@ -381,8 +375,8 @@ func TestFailedRun140WithdrawalJoinsOwnedHosts(t *testing.T) {
 		if err = h.session.readTasks(bg, func(state Snapshot) error { targets = h.scheduler.idleTargets(state, 0); return nil }); err != nil {
 			t.Fatal(err)
 		}
-		if len(targets) == 0 {
-			t.Fatal("withdrawal hid an actual owned host")
+		if !slices.Contains(targets, child) {
+			t.Fatalf("withdrawal hid owned host %d: idle targets %v", child, targets)
 		}
 		close(returned)
 		idleFailed140(t, h)
