@@ -329,3 +329,25 @@ The unchanged namespaced-global and undefined originals passed across the worker
 The [loaded-input receipt](dependencies/google-sdk-load.md) proves Node returned the exact 1,198,102-byte provider archive member for one unchanged pinned Oracle case. A changed member still passed the behavioral case, but the separate provenance check rejected the digest. Both outcomes reproduced offline. Historical loads, OpenAI and transitive inputs remain open.
 
 Round 7 focused integrated Go tests passed twice, along with vet and Staticcheck v0.8.2. No broad acceptance or profiling was run.
+
+### Delegated cold submission reads
+
+The public Session and Tx witnesses exercise both a submission ID and a request key (`session/transaction.ts`, committed submission reads). All eight compiled baseline probes reported not found without consulting Storage. A miss in a delegated read image now falls through to the corresponding guarded backend read. The witness checks exact record values, one read of the right key, and sealing with the original cause on failure. Bypassing the guard returned the cause but never failed the Session. These are supplemental probes, not new mappings of the `session-group-commit.test.ts:486` task original.
+
+### Failed-run inbox policy and join
+
+All four unchanged `harness-failed-run-inbox.test.ts` originals passed. The exact native comparisons cover the first `unanswered/model_error`, default retention and resumption, `second answer` for `continue`, a write-only boundary that places the note on `continue` but retains it on `withdraw`, and `unanswered/run_failed` without an entry or answer. An additional held-owner check attaches a live child to the active canonical generation and shows that both submissions settle while the failed outcome still waits for the actual child return. This is coverage of unchanged production. The two older raw-hold and queued-generation ownership fixtures remain open; they do not represent a newly queued canonical input.
+
+### Codex normal close on cache eviction
+
+The unchanged age and two read-idle cases passed. Supplemental wire tests age the socket before the next request or invoke the matching idle expiration callback. They now see `1000/connection_age_limit` or `1000/idle_timeout` rather than bare EOF. The next socket sends before the old peer acknowledges; exact close-reason and blocking-handshake controls failed. The original age assertion mappings remain unchanged.
+
+### Draft 2020-12 unevaluated object properties
+
+The pinned `draft2020-12/unevaluatedProperties` slice passed all 258 unchanged cases: 129 validity checks and 129 independent source error-agreement cases. The byte-identical fixture maps all 129 values through `CheckJSONSchemaValue`, six of which failed on the compiled baseline. Successful child schemas contribute keys through static and dynamic scopes, without leaking failed branches or sibling object annotations. Three mutations distinguished nested propagation, dynamic contributions and failed-branch leakage. Four native diagnostic cases are supplemental; independent error agreement remains open.
+
+### OpenAI loaded member
+
+The [loaded-input receipt](dependencies/openai-sdk-load.md) proves one focused, unchanged Oracle case loaded the exact 787-byte OpenAI 7.59.0 archive member. The expected behavior-pass/digest-fail control and the normal receipt reproduced offline. The copied closure is not a module-load list. Historical and transitive loads remain open for both SDKs.
+
+Round 8 focused Go tests passed twice in Durable, the Codex provider, the root Schema package and integration validation tests. Vet and Staticcheck v0.8.2 passed. No broad acceptance or profiling was run.
