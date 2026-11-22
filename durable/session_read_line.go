@@ -62,6 +62,14 @@ func (r *ReadLine) Entry(ids ...ID) (StoredEntry, bool, error) {
 	return lookupStoredEntry(r.tx.state, r.tx.limits, ids)
 }
 
+// Task reads a committed task after any earlier publication affecting its ID.
+func (r *ReadLine) Task(id ID) (TaskRecord, bool, error) {
+	if err := r.check(); err != nil {
+		return TaskRecord{}, false, err
+	}
+	return r.tx.Task(id)
+}
+
 func (r *ReadLine) ScanEntries(q EntryQuery, limit int, cursor Cursor) (Page[Entry], error) {
 	if err := r.check(); err != nil {
 		return Page[Entry]{}, err

@@ -62,6 +62,9 @@ func (s *Session) Task(ctx context.Context, id ID) (record TaskRecord, found boo
 	task, ok := state.Tasks[id]
 	found = ok
 	if !ok {
+		if s.delegatedStorage {
+			return s.guardedStorage().Task(ctx, id)
+		}
 		return
 	}
 	record, err = canonicalStoredTask(task, s.limits)
@@ -78,6 +81,16 @@ func (t *Tx) Task(id ID) (TaskRecord, bool, error) {
 	}
 	task, ok := t.state.Tasks[id]
 	if !ok {
+		if t.session != nil && t.session.delegatedStorage {
+			// An absent local projection is not an authoritative negative read.
+			// A delegated backend still owns uncached per-key errors and values.
+			if !t.keyedReads {
+				if err := t.session.touch(t.ctx, taskKey(id)); err != nil {
+					return TaskRecord{}, false, err
+				}
+			}
+			return t.session.guardedStorage().Task(t.ctx, id)
+		}
 		return TaskRecord{}, false, nil
 	}
 	record, err := canonicalStoredTask(task, t.limits)

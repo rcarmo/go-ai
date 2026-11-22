@@ -253,3 +253,9 @@ The host registry test now covers all 31 validity vectors across 15 groups from 
 ### Pinned npm dependency graph
 
 The [dependency ledger](dependencies/README.md) records the npm lock closure from AI, Durable, Codemode and Schema: six workspace entries including Chord and Telemetry, 305 npm placements and 546 declaration edges. Of those edges, 521 resolve and 25 have no optional-peer slot. Those absences are not test exclusions. The generator revalidates pinned inputs and six workspace archives offline; the integrated regeneration was byte-identical. Controls rejected altered input bytes and incorrect hoisting. Third-party archive bytes, native correspondence and package-external/platform evidence remain open.
+
+### Cold task reads through public Storage
+
+An absent task in a delegated Session's projection is not an authoritative negative result. The scoped Session and transaction reads now use the backend for a cold task ID, after the relevant publication gate. `ReadLine.Task` exposes the same committed read at the line boundary. Adoption still supplies cached records.
+
+The unchanged source case at `session-group-commit.test.ts:486` passed. The public Go fixture holds a real Storage commit, makes a cold task lookup fail, then releases a different write failure. It verifies no publication and checks the original read cause through both the later call and the Session end. Before the fix the transaction returned absence. Bypassing the guarded read made the later write error win. Focused tests passed twice (1.939s), along with vet and Staticcheck.

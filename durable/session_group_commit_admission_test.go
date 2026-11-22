@@ -848,6 +848,7 @@ type continuationTestStore struct {
 	calls            chan int
 	numCalls, reads  atomic.Int32
 	readError        error
+	writeError       error
 }
 
 func (s *continuationTestStore) Commit(ctx context.Context, batches [][]StorageWrite, receive func(int, uint64)) (CommitResult, error) {
@@ -855,6 +856,9 @@ func (s *continuationTestStore) Commit(ctx context.Context, batches [][]StorageW
 	if s.numCalls.Add(1) == 1 {
 		close(s.entered)
 		<-s.release
+		if s.writeError != nil {
+			return CommitResult{}, s.writeError
+		}
 	}
 	return s.Storage.Commit(ctx, batches, receive)
 }
@@ -865,4 +869,74 @@ func (s *continuationTestStore) Task(ctx context.Context, id ID) (TaskRecord, bo
 		return TaskRecord{}, false, s.readError
 	}
 	return s.Storage.Task(ctx, id)
+}
+
+// Source session-group-commit.test.ts:486: the earlier scoped Storage.task
+// failure must remain the Session cause when its in-flight write later fails.
+func TestSourceV160SessionColdTaskReadWinsFailure(t *testing.T) {
+	ctx, cancel := context.WithTimeout(bg, 5*time.Second)
+	defer cancel()
+	native, err := newTestSQLite(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	seedRootConversation(t, native)
+	first, later := errors.New("read failed"), errors.New("later write failed")
+	store := &continuationTestStore{Storage: native, entered: make(chan struct{}), release: make(chan struct{}), calls: make(chan int, 8), readError: first, writeError: later}
+	s, err := OpenSession(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close(bg)
+	var once sync.Once
+	unblock := func() { once.Do(func() { close(store.release) }) }
+	defer unblock()
+	var advances atomic.Int32
+	obs, err := s.ObserveCommits(CommitObserver{Advance: func(context.Context, CommitPublication) error { advances.Add(1); return nil }, End: func(WatchEnd) error { return nil }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer obs.Detach()
+	commit := make(chan error, 1)
+	go func() {
+		_, err := s.Commit(ctx, func(tx *Tx) (any, error) { return tx.AppendEntry(1, JSON{"kind": "will-not-publish"}) })
+		commit <- err
+	}()
+	select {
+	case <-store.entered:
+	case <-ctx.Done():
+		t.Fatal("first commit never entered Storage", ctx.Err())
+	}
+	inside, reading := make(chan error, 1), make(chan error, 1)
+	go func() {
+		_, err := s.Commit(ctx, func(tx *Tx) (any, error) { _, _, err := tx.Task(999); inside <- err; return nil, err })
+		reading <- err
+	}()
+	select {
+	case err := <-inside:
+		if err != first {
+			t.Fatalf("cold task read = %v; want exact first cause", err)
+		}
+	case <-ctx.Done():
+		t.Fatal("cold task read did not reach Storage during the write", ctx.Err())
+	}
+	unblock()
+	select {
+	case err := <-commit:
+		var failed *SessionFailed
+		if !errors.As(err, &failed) || failed.Cause != first {
+			t.Fatalf("write = %v; want SessionFailed with exact read cause", err)
+		}
+	case <-ctx.Done():
+		t.Fatal("write never settled", ctx.Err())
+	}
+	select {
+	case <-reading:
+	case <-ctx.Done():
+		t.Fatal("read never settled", ctx.Err())
+	}
+	end, err := s.Closed(ctx)
+	if err != nil || end.Reason != "failed" || end.Failure.AsError() != first || !errors.Is(end.Error, first) || advances.Load() != 0 || store.reads.Load() != 1 {
+		t.Fatalf("end = %+v, %v; publications=%d reads=%d", end, err, advances.Load(), store.reads.Load())
+	}
 }
