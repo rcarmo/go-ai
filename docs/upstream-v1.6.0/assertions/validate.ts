@@ -36,7 +36,7 @@ const sha = /^[0-9a-f]{40}$/;
 const expectLine = /^\s*(?:await\s+)?expect\(/;
 const conformanceRunner = "packages/schema/test/conformance.test.ts";
 const conformanceChecks = [40, 45];
-const testLine = /^\s*it(?:\(|\.each\()/;
+const testLine = /^\s*it(?:\(|\.each\(|\.skipIf\()/;
 function requireCheck(ok: unknown, message: string): asserts ok {
 	if (!ok) throw Error(message);
 }

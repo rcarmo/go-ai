@@ -459,3 +459,15 @@ The 15 unchanged `max-thinking.test.ts` cases and 58 unchanged `supports-xhigh.t
 The Schema tests verify the exact first diagnostic for two `unevaluatedProperties` groups. The paired check/error ledger rows remain partial: the native API returns a first diagnostic, while the pinned explainer emits an ordered list. In the dynamic-reference probe, the source emits `/bar` and `/baz` when the native validator reports only `baz`; both accept the same `bar` when `baz` is absent.
 
 The [Together model receipt](test-inventory/together-models.md) reproduces two unchanged originals offline. The native comparisons use the published Kimi K3 limit of `1048576` and distinguish absent developer-role metadata from explicit `false`. The separate dummy-key case remains open in this receipt.
+
+### Prompt cache-retention payloads and model policy
+
+All 35 byte-verified `cache-retention.test.ts` originals passed in a network-isolated namespace. Four credential guards used synthetic keys; the source payload hooks stop before sending. Native coverage uses request-local transport to capture 26 serialised payloads and checks nine model records. It distinguishes missing fields from explicit `null`, compares cache options as whole objects, and checks Anthropic TTL, OpenAI affinity and Cerebras strict field absence. The unchanged native baseline passed; all six fault controls discriminated. The focused tests passed twice after restoration. This run did not use live providers.
+
+### Bounded context, recursive coercion and Fireworks
+
+All 22 unchanged `harness-context.test.ts` originals passed. The supplemental delegated adapter probes use public `ScanEntries` at a pinned cutoff. They verify same-sequence projection changes, scoped request-error classification and exactly two ordered pages at a historical cutoff. Clearing the cutoff lets the third entry through and fails the test. The delegated scan remains serial on the Session line.
+
+Four selected recursive coercion originals passed. Native tool validation checks eight exact parse outcomes and twenty repeated conversion and input-preservation cases. Standalone coercion, compiled-instance reuse and JS schema-object cycles remain open.
+
+The [Fireworks model receipt](test-inventory/fireworks-models.md) reproduces three unchanged cases against the verified release catalogue. It checks the DeepSeek Messages route, GLM Fast alignment and Kimi's exact compatibility and `max` request. The 22 unselected Fireworks cases remain open. Focused integrated Go tests, vet and Staticcheck v0.8.2 passed.
