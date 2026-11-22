@@ -211,3 +211,15 @@ Before the update, the representative tests failed on the stored version 3. The 
 A recovered tool's execute phase no longer overtakes a parked nested child's independent restart abort. Ordinary explicit abort still supersedes that intent. A public Storage adapter can expose the materialized document and its delta count without the original revision records; the local synthetic base now carries that count so a child's post-reopen settlement can append a delta. No new fields are persisted.
 
 All ten unchanged `harness-park-children.test.ts` cases passed. The new public Harness/SQLite test kills the caller's process after its nested tool parks. On reopen it checks the settled submission, the child's exact `restart` reason and aborted outcome, the one exact afterTool diagnostic, and absence of `nestedTools`. Supplemental checks compare receipt order and verify neither tool executes again. Removing the scheduling fence loses the restart reason; discarding the projected delta count prevents settlement. The focused native batch, including parked-parent retention, explicit cancellation, adapter bootstrap and delta-history controls, passed twice (8.214s), as did vet and Staticcheck.
+
+### Codemode namespace snapshots during replay
+
+The public Harness/QuickJS/SQLite probe changes the installed extension after a discovery reply and a tool effect are confirmed. On reopen, both the journaled reply and fresh discovery retain the original namespace and ordered membership. The confirmed effect does not run again; a new call to the removed tool is denied; a still-authorised tool that moved namespaces runs once. This is supplemental composition of source start-data and replay contracts, not a one-to-one original.
+
+Seven selected unchanged originals passed: `codemode.test.ts` (finished calls, journaled globals, discovery) and `codemode-describe.test.ts` (first declaration, layout, empty namespaces, harness prompt). Changing the saved startup namespaces broke start identity. Changing only fresh discovery leaked replacement metadata and emptied the original filter. Restored native verification passed twice with vet and Staticcheck. No production change was needed for this packet.
+
+### Codex missing cached continuation over WebSocket and SSE
+
+A failed replay attempt that has not emitted its own start can fall back to SSE without emitting a second logical stream start. The public Go transport test checks stop reason and terminal text, one start and no error, socket order `[1, 1, 2]`, exact delta input, four-item full input without a continuation ID, fetch counts and debug counters.
+
+The two unchanged `recovers a missing cached websocket continuation via %s` variants passed (`websocket`, `sse`). Before the fix SSE recovery emitted `start, error` without issuing SSE. Restoring the old guard reproduced the red; allowing another start produced `start, start, done` on both transports. Focused native verification passed twice with vet and Staticcheck. Started lifetime-limit retry and broader session resources remain open.
