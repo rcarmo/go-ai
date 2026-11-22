@@ -110,6 +110,18 @@ func (t *Tx) withCanonicalTaskCandidates(state Snapshot) (Snapshot, error) {
 	return state, nil
 }
 
+// Owner admission is a transaction error, not a backend rejection. Keep its
+// source message in the task outcome while allowing Go callers to detect that
+// the transaction did not write anything.
+type taskOwnerAdmissionError struct{ rejection *StorageRejected }
+
+func (e *taskOwnerAdmissionError) Error() string { return e.rejection.Reason }
+func (e *taskOwnerAdmissionError) Unwrap() error { return e.rejection }
+
+func rejectTaskOwner(id ID, subject, reason string) error {
+	return &taskOwnerAdmissionError{rejection: &StorageRejected{Reason: fmt.Sprintf("%s %d %s", subject, id, reason)}}
+}
+
 // Source assembly validates final owners, then committed replacements, before
 // admitting any record. No canonical setter operation is exported to callers.
 func (t *Tx) finalizeCanonicalTasks() error {
@@ -130,13 +142,13 @@ func (t *Tx) finalizeCanonicalTasks() error {
 			return err
 		}
 		if !found {
-			return reject(fmt.Sprintf("%s %d does not exist", what, id))
+			return rejectTaskOwner(id, what, "does not exist")
 		}
 		if record.State.Status == "terminal" || record.State.Status == "completing" {
-			return reject(fmt.Sprintf("%s %d is %s", what, id, record.State.Status))
+			return rejectTaskOwner(id, what, "is "+record.State.Status)
 		}
 		if record.AbortRequested {
-			return reject(fmt.Sprintf("%s %d is abort-marked", what, id))
+			return rejectTaskOwner(id, what, "is abort-marked")
 		}
 		return nil
 	}
