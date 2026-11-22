@@ -43,8 +43,9 @@ THE SOFTWARE.
 `tests/testdata/upstream-main/hostname.json`, the regex assertions in
 `tests/testdata/upstream-main/validation-regex.json` and the selected
 reference/anchor assertions in `tests/testdata/upstream-main/validation-resources.json`,
-and `tests/testdata/upstream-main/validation-{const,enum}-fixture.json` come from
-the pinned upstream JSON Schema Test Suite. Its copyright and the MIT
+`tests/testdata/upstream-main/validation-{const,enum}-fixture.json`, and the remote
+reference fixtures under `tests/testdata/upstream-main/ref-remote-2020-12-v160/`
+come from the pinned upstream JSON Schema Test Suite. Its copyright and the MIT
 permission/disclaimer printed above apply to these fixtures:
 
 Copyright (c) 2012 Julian Berman

@@ -19,6 +19,7 @@ type toolSchemaRefKey struct{ base, ref string }
 type toolSchemaResources struct {
 	bases          map[uintptr]string
 	documents      map[string]interface{}
+	external       map[string]toolSchemaExternalResource
 	anchors        map[string]interface{}
 	dynamicAnchors map[string]interface{}
 	hasDynamicRef  bool
@@ -179,7 +180,10 @@ func (v *toolSchemaValidator) resolveFromBase(ref, base string) (target interfac
 	document := schemaDocument(uri)
 	root, found := r.documents[document]
 	if !found {
-		return nil, ""
+		root, found = r.loadExternal(document)
+		if !found {
+			return nil, ""
+		}
 	}
 	targetBase = document
 	fragment := ""
