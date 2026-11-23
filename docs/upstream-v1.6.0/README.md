@@ -573,3 +573,7 @@ The [Photon runtime check](dependencies/photon-runtime.md) records what the actu
 ### Submission waits preserve cancellation and close ordering
 
 All 12 unchanged upstream cases passed. Go now returns the caller's original cancellation cause without cancelling the submission itself. A wait whose first storage read overlaps shutdown returns `ErrClosed`. A separate check confirms the observer sees the exact settlement before `Wait` returns. These changes and checks cover three cases; the JavaScript `unhandledRejection` check remains upstream-only.
+
+### Codemode refuses replay when the sandbox changes or time runs out
+
+Both unchanged upstream tests passed. After SQLite reopen, the published guest did not start again or run the new `late` call when the sandbox identity changed or the saved deadline had passed. Go now gives the expected reason and still lets callers recognize the deadline error. The version-0 variant remains partial: Go rejects the attempted rewrite of a saved start at the storage boundary, before the source's replay scenario can be reproduced.
