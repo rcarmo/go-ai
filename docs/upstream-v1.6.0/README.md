@@ -637,3 +637,7 @@ The [image preparation checks](test-inventory/tools-images-preparation.md) cover
 All 30 unchanged provider tests passed in a network-isolated run. The new Go checks read the real catalogue: they distinguish an absent grammar flag from `true`, check which OpenAI models support strict schemas and grammar tools, and verify strict-tool support for the Anthropic and Copilot models in the source case. Hiding the gpt-5.4 grammar flag made the test fail. Other provider cases are not mapped by this check.
 
 The [published Node worker check](dependencies/published-worker-quickjs-load.md) ran the pinned script through the package's actual `dist/runtime/worker.js` entry. It observed the archived JavaScript and the transferred QuickJS module, and checked the exact result and callback arguments. Altering the WASM bytes left the behavior unchanged but failed the archive checks. Cloudflare and other worker builds remain outside this run.
+
+### Unevaluated array errors include every rejected item
+
+All 142 unchanged checks passed for the 71 unevaluated-array cases. Go already agreed about validity, but 24 error lists differed. The standalone explanation now lists every rejected index in order with the expected keyword and message. It leaves model-facing errors alone. Tests caught missing later items, a wrong keyword, and a missed `contains` match. Unevaluated object properties still need separate work.
