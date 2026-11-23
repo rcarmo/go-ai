@@ -677,3 +677,11 @@ Both unchanged replay-divergence cases passed. Go now reports the expected diagn
 All 49 unchanged coercion tests passed, along with the selected relative-root test. Go now exposes standalone conversion and parsing with host-registered references and structured errors after conversion. The focused native checks include all 42 diagnostics in the depth-40 case. Tool behavior is unchanged. JavaScript-specific values, reference identity, and reusable compilation remain open.
 
 All eight selected [Linux Bash cases](test-inventory/linux-bash-tools.md) passed in isolation; the prior file-tool receipt and this one cover 21 distinct originals out of 36. No Bash runtime change was needed. The Windows shell cases and the remaining original behaviors stay open.
+
+### Allocation growth, early payload capture, and JSON coercion
+
+The unchanged Responses grammar allocation test passed. The Go checks used the same input sizes and measured cumulative allocated bytes while processing and consuming the stream. Ten times as much input used about 9.9 times the bytes, below the expected limit of 25 times. A scratch-only change that copied all accumulated input after every piece grew allocation by 71.5 times and failed. This was one focused test, not release profiling.
+
+All 35 unchanged cache-retention tests passed offline. Go now checks the expected payload inside the public callback, before any network request. It requires exactly one callback and no HTTP request when the callback stops the operation. The separate HTTP-level checks remain in place. These tests cover the callback behavior and values, not JavaScript SDK class identity.
+
+All 49 unchanged coercion tests passed. The new Go comparisons cover 27 assertions about optional nulls, arrays and tuples, primitive and union conversions, and object properties. No production change was needed. The tests distinguish tuple conversion from array wrapping and reject conversions that are not in an enumeration.
