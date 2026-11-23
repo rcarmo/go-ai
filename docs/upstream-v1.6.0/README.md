@@ -581,3 +581,11 @@ Both unchanged upstream tests passed. After SQLite reopen, the published guest d
 ### llama.cpp classifier behavior
 
 All 15 unchanged classifier cases passed offline using simulated server replies. Go now distinguishes an explicit zero temperature from an omitted setting and preserves the server's error details. The tests also check the exact token limits used when deeper readouts are needed. Two prompt comparisons still differ because Go sorts map keys while JavaScript keeps their insertion order. No live server was contacted. See the [test results and remaining differences](test-inventory/llama-cpp-classify.md).
+
+### Remote Schema errors, after-run tasks, and z.ai requests
+
+All 62 unchanged draft 2020-12 remote-reference checks passed. Go's separate validation and explanation calls matched all 31 cases: 16 empty error lists and 15 exact error records. Removing the registry or erasing an error path was caught. No production change was needed. This covers remote references, not all dynamic-reference or unevaluated-property diagnostics.
+
+The unchanged `harness-after-run` and `harness-tool-hooks` files passed 47 cases together. One after-run case now has exact Go comparisons through the public task scan: one task is created with the installed version, it ends, and only the installed initializer runs. Changing the initializer to the older token failed that comparison. The other cases are not claimed as mapped by this check.
+
+All ten selected Groq and z.ai Completions cases passed unchanged upstream. Go now sends `clear_thinking: false` when z.ai thinking is enabled, and sends the mapped effort only when supported. The request checks also verify tool-stream flags, preserved reasoning on replay and effort omission when thinking is off. No live provider was contacted.
