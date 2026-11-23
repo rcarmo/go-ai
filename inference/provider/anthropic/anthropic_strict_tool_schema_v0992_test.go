@@ -61,8 +61,8 @@ func TestAnthropicStrictToolSchemaSendsFullNormalizedSchema(t *testing.T) {
 		t.Fatalf("unexpected strict schema metadata: %#v", schema)
 	}
 	required := schema["required"].([]any)
-	if strings.Join([]string{required[0].(string), required[1].(string)}, ",") != "optional,value" {
-		t.Fatalf("required=%#v, want sorted optional,value", required)
+	if strings.Join([]string{required[0].(string), required[1].(string)}, ",") != "value,optional" {
+		t.Fatalf("required=%#v, want declaration order value,optional", required)
 	}
 	optional := schema["properties"].(map[string]any)["optional"].(map[string]any)
 	if _, ok := optional["anyOf"].([]any); !ok {

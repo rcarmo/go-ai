@@ -51,7 +51,7 @@ func TestResponsesHistoricalGrammarPreflightMain(t *testing.T) {
 			for event := range streamResponses(context.Background(), model, input, &goai.StreamOptions{APIKey: "fixture"}) {
 				if e, ok := event.(*goai.ErrorEvent); ok {
 					failures++
-					if !tc.wantFailure || !strings.Contains(e.Err.Error(), "grammar") {
+					if !tc.wantFailure || !strings.Contains(strings.ToLower(e.Err.Error()), "grammar") {
 						t.Error(e.Err)
 					}
 				}

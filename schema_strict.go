@@ -1,9 +1,12 @@
 package goai
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"sort"
+	"strconv"
 )
 
 type unsupportedStrictJSONSchemaError struct{ message string }
@@ -48,15 +51,22 @@ func MakeStrictJSONSchemaWithUnsupportedKeyword(parameters json.RawMessage, isUn
 	if len(parameters) == 0 {
 		return nil, unsupportedStrictJSONSchemaError{"root schema must have type object"}
 	}
-	var value interface{}
-	if err := json.Unmarshal(parameters, &value); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(parameters))
+	value, order, err := decodeStrictSchemaJSON(decoder)
+	if err != nil {
 		return nil, err
+	}
+	if _, err := decoder.Token(); err != io.EOF {
+		if err != nil {
+			return nil, err
+		}
+		return nil, fmt.Errorf("unexpected JSON after root schema")
 	}
 	schema, ok := value.(map[string]interface{})
 	if !ok {
 		return nil, unsupportedStrictJSONSchemaError{"root schema must have type object"}
 	}
-	if err := makeJSONSchemaNodeStrict(schema, isUnsupported); err != nil {
+	if err := makeJSONSchemaNodeStrict(schema, order, isUnsupported); err != nil {
 		return nil, err
 	}
 	if schema["type"] != "object" {
@@ -96,11 +106,13 @@ func ResolveJSONSchemaStrictSamplingWithUnsupportedKeyword(tool Tool, supportsSt
 			if cfg.Strict != "require" {
 				return nil, nil
 			}
-			return nil, fmt.Errorf("tool %q requires JSON-schema constrained sampling, but %s", tool.Name, unsupported.message)
+			//lint:ignore ST1005 Match the pinned pi diagnostic punctuation.
+			return nil, fmt.Errorf("Tool %q requires JSON-schema constrained sampling, but %s.", tool.Name, unsupported.message)
 		}
 	}
 	if cfg.Strict == "require" {
-		return nil, fmt.Errorf("tool %q requires JSON-schema constrained sampling, but strict tools are unsupported", tool.Name)
+		//lint:ignore ST1005 Match the pinned pi diagnostic punctuation.
+		return nil, fmt.Errorf("Tool %q requires JSON-schema constrained sampling, but strict tools are unsupported.", tool.Name)
 	}
 	return nil, nil
 }
@@ -121,7 +133,78 @@ func JSONSchemaToolParametersWithUnsupportedKeyword(tool Tool, strict bool, isUn
 	return MakeStrictJSONSchemaWithUnsupportedKeyword(tool.Parameters, isUnsupported)
 }
 
-func makeJSONSchemaNodeStrict(schema map[string]interface{}, isUnsupported StrictSchemaUnsupportedKeyword) error {
+// strictSchemaOrder retains JSON object order without changing the map/array
+// values passed to provider-specific unsupported-keyword callbacks.
+type strictSchemaOrder struct {
+	keys     []string
+	fields   map[string]*strictSchemaOrder
+	elements []*strictSchemaOrder
+}
+
+func decodeStrictSchemaJSON(decoder *json.Decoder) (any, *strictSchemaOrder, error) {
+	token, err := decoder.Token()
+	if err != nil {
+		return nil, nil, err
+	}
+	switch token {
+	case json.Delim('{'):
+		values := map[string]any{}
+		order := &strictSchemaOrder{fields: map[string]*strictSchemaOrder{}}
+		for decoder.More() {
+			name, err := decoder.Token()
+			if err != nil {
+				return nil, nil, err
+			}
+			key := name.(string) // For an object, Decoder.Token requires a string key.
+			value, child, err := decodeStrictSchemaJSON(decoder)
+			if err != nil {
+				return nil, nil, err
+			}
+			if _, exists := values[key]; !exists {
+				order.keys = append(order.keys, key)
+			}
+			values[key], order.fields[key] = value, child
+		}
+		_, err = decoder.Token()
+		return values, order, err
+	case json.Delim('['):
+		values := []any{}
+		order := &strictSchemaOrder{}
+		for decoder.More() {
+			value, child, err := decodeStrictSchemaJSON(decoder)
+			if err != nil {
+				return nil, nil, err
+			}
+			values = append(values, value)
+			order.elements = append(order.elements, child)
+		}
+		_, err = decoder.Token()
+		return values, order, err
+	default:
+		return token, nil, nil
+	}
+}
+
+func strictJSPropertyNames(keys []string) []string {
+	// Object.keys puts canonical uint32 array indices first in numeric order;
+	// all other keys retain their declaration order.
+	index := func(key string) uint64 {
+		const notIndex = 1<<32 - 1
+		if key == "" || (key[0] == '0' && len(key) != 1) || key[0] < '0' || key[0] > '9' {
+			return notIndex
+		}
+		n, err := strconv.ParseUint(key, 10, 32)
+		if err != nil {
+			return notIndex
+		}
+		return n
+	}
+	names := append([]string{}, keys...)
+	sort.SliceStable(names, func(i, j int) bool { return index(names[i]) < index(names[j]) })
+	return names
+}
+
+func makeJSONSchemaNodeStrict(schema map[string]interface{}, order *strictSchemaOrder, isUnsupported StrictSchemaUnsupportedKeyword) error {
 	if schema == nil {
 		return unsupportedStrictJSONSchemaError{"boolean schemas are unsupported"}
 	}
@@ -143,12 +226,20 @@ func makeJSONSchemaNodeStrict(schema map[string]interface{}, isUnsupported Stric
 		}
 	}
 
+	// Bare enums and unions are valid, but a const without a type is not.
+	_, hasType := schema["type"]
+	_, hasUnion := schema["anyOf"]
+	_, hasEnum := schema["enum"]
+	if !hasType && !hasUnion && !hasEnum {
+		return unsupportedStrictJSONSchemaError{"schemas without a type are unsupported"}
+	}
+
 	if rawAnyOf, ok := schema["anyOf"]; ok {
 		variants, ok := rawAnyOf.([]interface{})
 		if !ok || len(variants) == 0 {
 			return unsupportedStrictJSONSchemaError{"anyOf must contain at least one schema"}
 		}
-		for _, rawVariant := range variants {
+		for i, rawVariant := range variants {
 			variant, ok := rawVariant.(map[string]interface{})
 			if !ok {
 				return unsupportedStrictJSONSchemaError{"boolean schemas are unsupported"}
@@ -156,7 +247,7 @@ func makeJSONSchemaNodeStrict(schema map[string]interface{}, isUnsupported Stric
 			if isStructuredSchema(variant) {
 				return unsupportedStrictJSONSchemaError{"object and array unions are unsupported"}
 			}
-			if err := makeJSONSchemaNodeStrict(variant, isUnsupported); err != nil {
+			if err := makeJSONSchemaNodeStrict(variant, order.fields["anyOf"].elements[i], isUnsupported); err != nil {
 				return err
 			}
 		}
@@ -167,7 +258,7 @@ func makeJSONSchemaNodeStrict(schema map[string]interface{}, isUnsupported Stric
 		case []interface{}:
 			return unsupportedStrictJSONSchemaError{"tuple schemas are unsupported"}
 		case map[string]interface{}:
-			if err := makeJSONSchemaNodeStrict(items, isUnsupported); err != nil {
+			if err := makeJSONSchemaNodeStrict(items, order.fields["items"], isUnsupported); err != nil {
 				return err
 			}
 		default:
@@ -204,11 +295,11 @@ func makeJSONSchemaNodeStrict(schema map[string]interface{}, isUnsupported Stric
 		}
 	}
 
-	propertyNames := make([]string, 0, len(properties))
-	for name := range properties {
-		propertyNames = append(propertyNames, name)
+	propertyNames := []string{}
+	propertyOrder := order.fields["properties"]
+	if propertyOrder != nil {
+		propertyNames = strictJSPropertyNames(propertyOrder.keys)
 	}
-	sort.Strings(propertyNames)
 	for name := range requiredSet {
 		if _, ok := properties[name]; !ok {
 			return unsupportedStrictJSONSchemaError{"required contains an unknown property"}
@@ -219,7 +310,7 @@ func makeJSONSchemaNodeStrict(schema map[string]interface{}, isUnsupported Stric
 		if !ok {
 			return unsupportedStrictJSONSchemaError{"boolean schemas are unsupported"}
 		}
-		if err := makeJSONSchemaNodeStrict(property, isUnsupported); err != nil {
+		if err := makeJSONSchemaNodeStrict(property, propertyOrder.fields[name], isUnsupported); err != nil {
 			return err
 		}
 		if !requiredSet[name] && !schemaAllowsNull(property) {

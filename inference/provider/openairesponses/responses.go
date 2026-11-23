@@ -271,7 +271,8 @@ func resolveResponsesGrammarTool(t goai.Tool, supportsGrammar bool) (*responsesG
 		syntax = "regex"
 	}
 	if strings.TrimSpace(definition) == "" {
-		return nil, fmt.Errorf("tool %q cannot use grammar constrained sampling: no supported grammar variant was provided", t.Name)
+		//lint:ignore ST1005 Match the pinned pi diagnostic casing and punctuation.
+		return nil, fmt.Errorf("Tool %q cannot use grammar constrained sampling: no supported grammar variant was provided.", t.Name)
 	}
 	inputProperty, err := inferGrammarInputProperty(t)
 	if err != nil {

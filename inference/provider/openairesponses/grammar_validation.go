@@ -41,7 +41,8 @@ func validateResponsesGrammarContext(context *goai.Context, supportsGrammar bool
 			}
 			if property, selected := properties[block.Name]; selected {
 				if _, ok := responsesGrammarInput(block, property); !ok {
-					return fmt.Errorf("grammar tool call %q requires string argument %q", block.Name, property)
+					//lint:ignore ST1005 Match the pinned pi diagnostic casing and punctuation.
+					return fmt.Errorf("Grammar tool call %q requires argument %q to be a string.", block.Name, property)
 				}
 			}
 		}

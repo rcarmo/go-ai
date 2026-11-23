@@ -84,3 +84,44 @@ func TestGrammarStreamFinalPrefixMain(t *testing.T) {
 		t.Fatal("failed reconciliation mutated input", tail, err)
 	}
 }
+
+// Source: constrained-sampling.test.ts:321-343. Go's empty delta is the
+// representation of the source helper's undefined result after a repeat close.
+func TestSourceV160GrammarStreamAppendOnly(t *testing.T) {
+	stream := GrammarToolInputStream{Property: "payload"}
+	first, err := stream.Append(`a"`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	final := "a\"\nb"
+	second, err := stream.Close(&final)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := ParseJSONValue(first+second, false)
+	if err != nil || !reflect.DeepEqual(decoded, map[string]any{"payload": final}) {
+		t.Fatalf("append-only deltas joined to %#v, err=%v", decoded, err)
+	}
+	if repeat, err := stream.Close(&final); repeat != "" || err != nil {
+		t.Fatalf("repeated close emitted %q, err=%v", repeat, err)
+	}
+	const afterClose = `grammar tool input for property "payload" changed after it was closed`
+	changed := "changed"
+	if _, err := stream.Close(&changed); err == nil || err.Error() != afterClose {
+		t.Fatalf("changed close error=%v", err)
+	}
+	if _, err := stream.Append("x"); err == nil || err.Error() != afterClose {
+		t.Fatalf("append after close error=%v", err)
+	}
+}
+
+func TestSourceV160GrammarStreamRejectsNonContinuation(t *testing.T) {
+	stream := GrammarToolInputStream{Property: "payload"}
+	if _, err := stream.Append("abc"); err != nil {
+		t.Fatal(err)
+	}
+	final := "abd"
+	if _, err := stream.Close(&final); err == nil || err.Error() != `grammar tool input for property "payload" changed non-monotonically` {
+		t.Fatalf("invalid continuation error=%v", err)
+	}
+}

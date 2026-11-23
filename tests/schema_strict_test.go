@@ -22,7 +22,7 @@ func TestMakeStrictJSONSchemaRequiresOptionalNullableProperties(t *testing.T) {
 		t.Fatalf("expected additionalProperties false, got %#v", got["additionalProperties"])
 	}
 	required := got["required"].([]interface{})
-	if strings.Join([]string{required[0].(string), required[1].(string), required[2].(string), required[3].(string)}, ",") != "metadata,nullable,offset,path" {
+	if strings.Join([]string{required[0].(string), required[1].(string), required[2].(string), required[3].(string)}, ",") != "path,offset,metadata,nullable" {
 		t.Fatalf("unexpected required list: %#v", required)
 	}
 	props := got["properties"].(map[string]interface{})

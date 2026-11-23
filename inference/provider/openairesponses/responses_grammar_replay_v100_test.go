@@ -3,6 +3,8 @@ package openairesponses
 import (
 	"context"
 	"encoding/json"
+	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -217,7 +219,7 @@ func TestResponsesGrammarMissingAndNullInputRejectedMain(t *testing.T) {
 		}}) {
 			if e, ok := event.(*goai.ErrorEvent); ok {
 				failures++
-				if e.Err == nil || !strings.Contains(e.Err.Error(), "requires string argument") {
+				if e.Err == nil || !strings.Contains(e.Err.Error(), `requires argument "input" to be a string`) {
 					t.Error(e.Err)
 				}
 			}
@@ -266,4 +268,76 @@ func TestResponsesGrammarReplayResolvesTranscriptDeclaredTools(t *testing.T) {
 	if call == nil || result == nil || call["input"] != "abc" || call["id"] != "ctc_added" || result["call_id"] != "call_added" {
 		t.Fatalf("input=%v", input)
 	}
+}
+
+// Source: constrained-sampling.test.ts:229-319. The native preflight and
+// captured request input are separate observations: invalid arguments never
+// enter OnPayload, while valid items are compared as whole JSON objects.
+func TestSourceV160ResponsesGrammarReplay(t *testing.T) {
+	tool := grammarReplayTool()
+	tool.Name, tool.Description = "sample_tool", "Sample tool"
+	tool.Parameters = json.RawMessage(`{"type":"object","properties":{"payload":{"type":"string"}},"required":["payload"],"additionalProperties":false}`)
+	model := grammarReplayModel()
+	model.ContextWindow = 128000
+	fixture := func(arguments map[string]any, api goai.Api, provider goai.Provider, modelID string) *goai.Context {
+		return &goai.Context{Tools: []goai.Tool{tool}, Messages: []goai.Message{
+			{Role: goai.RoleAssistant, Api: api, Provider: provider, Model: modelID, StopReason: goai.StopReasonToolUse,
+				Content: []goai.ContentBlock{{Type: "toolCall", ID: "call_1|ctc_1", Name: "sample_tool", Arguments: arguments}}},
+			{Role: goai.RoleToolResult, ToolCallID: "call_1|ctc_1", ToolName: "sample_tool",
+				Content: []goai.ContentBlock{{Type: "text", Text: "done"}}},
+		}}
+	}
+	for _, tc := range []struct {
+		name string
+		args map[string]any
+	}{{"missing", map[string]any{}}, {"number", map[string]any{"payload": 42}}} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := fixture(tc.args, goai.ApiOpenAIResponses, goai.ProviderOpenAI, "gpt-test")
+			var hookCalls, failures int
+			for event := range goai.Stream(t.Context(), model, ctx, &goai.StreamOptions{
+				APIKey: "fixture-key",
+				OnPayload: func(any, *goai.Model) (any, error) {
+					hookCalls++
+					return nil, context.Canceled
+				},
+			}) {
+				if e, ok := event.(*goai.ErrorEvent); ok {
+					failures++
+					if e.Err == nil || !strings.Contains(e.Err.Error(), `Grammar tool call "sample_tool" requires argument "payload" to be a string`) {
+						t.Errorf("invalid replay error: %v", e.Err)
+					}
+				}
+			}
+			if hookCalls != 0 || failures != 1 {
+				t.Fatalf("want preflight refusal; payloads=%d failures=%d", hookCalls, failures)
+			}
+		})
+	}
+	t.Run("same model", func(t *testing.T) {
+		ctx := fixture(map[string]any{"payload": "abc"}, goai.ApiOpenAIResponses, goai.ProviderOpenAI, "gpt-test")
+		_, input := captureV100ResponsesReplayRequest(t, model, ctx)
+		want := []map[string]any{
+			{"type": "custom_tool_call", "id": "ctc_1", "call_id": "call_1", "name": "sample_tool", "input": "abc"},
+			{"type": "custom_tool_call_output", "call_id": "call_1", "output": "done"},
+		}
+		for _, item := range want {
+			if !slices.ContainsFunc(input, func(got map[string]any) bool { return reflect.DeepEqual(got, item) }) {
+				t.Errorf("missing exact replay item %#v in %#v", item, input)
+			}
+		}
+	})
+	t.Run("foreign provider", func(t *testing.T) {
+		ctx := fixture(map[string]any{"payload": "abc"}, goai.ApiPiMessages, "radius", "gpt-other")
+		_, input := captureV100ResponsesReplayRequest(t, model, ctx)
+		for _, item := range input {
+			if item["type"] != "custom_tool_call" {
+				continue
+			}
+			if _, present := item["id"]; present || item["call_id"] != "call_1" || item["input"] != "abc" {
+				t.Fatalf("unexpected foreign replay item: %#v", item)
+			}
+			return
+		}
+		t.Fatalf("missing foreign custom tool call in %#v", input)
+	})
 }
