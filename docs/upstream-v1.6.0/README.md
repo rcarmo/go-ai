@@ -599,3 +599,7 @@ The Go submission test checks that a duplicate request returns the same ID witho
 ### QuickJS in the published Codemode guest
 
 The [portable guest check](dependencies/portable-quickjs-load.md) observed the exact QuickJS WASM bytes at compile and instantiation, plus three JavaScript loads. They match the verified archives. Changing the WASM bytes in scratch left the guest result unchanged but failed the digest check. This verifies the published portable subprocess, not the standalone Node worker or Cloudflare setup.
+
+### Image reads refuse oversized files before loading them
+
+Nine unchanged [image-read tests](test-inventory/tools-images.md) passed offline. Go now checks the byte limit before reading the full PNG, and matches the expected PNG, GIF and BMP errors. Bypassing the check still rejected the PNG but read several megabytes first; the new test caught that. The Go checks cover three source cases. Other image behavior and worker timing remain open.
