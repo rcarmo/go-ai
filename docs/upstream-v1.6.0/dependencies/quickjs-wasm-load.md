@@ -17,4 +17,4 @@ cmp "$ledger/quickjs-wasm-load.json" /tmp/pi-v160-quickjs-wasm-load.json
 
 The probe verifies the retained compressed archive against the exact pinned lock, stages source from Git and copies only the selected Vitest/QuickJS npm closure to disposable scratch. It serializes the two focused runs with the shared lock. The scrubbed Node environment permits WASI but does not grant Node network permission. One digest rejection on stderr is expected. No installs, retained-input writes or credentials are needed.
 
-This proves compiler input for one current Oracle inline run. The native asset comparison is byte evidence, not a native runtime trace. Other cases and backends were outside the selector, not approved exclusions. No historical loads, worker or remote semantics, or release acceptance are claimed.
+This receipt covers compiler input for one Oracle inline run. The [separate native probe](native-quickjs-wasm-load.md) records one observed `NewEngine` compile and the translated case at native runtime. Other cases and backends were outside the selector. Historical loads, worker and remote semantics, and release acceptance require separate evidence.

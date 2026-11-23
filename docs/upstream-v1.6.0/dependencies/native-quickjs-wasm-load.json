@@ -1,0 +1,44 @@
+{
+  "format": 1,
+  "pin": "faac585884ae2c013a6b1400f3e9e77f10b34bac",
+  "go": "go1.27.3",
+  "cgoEnabled": false,
+  "platform": "linux/arm64",
+  "wazero": "v1.12.0",
+  "oracle": {
+    "test": "packages/codemode/test/sandbox.test.ts",
+    "sha256": "a76f2e0f3688286fcb15de79a675cc05bae699117e5f740b12dd26dbb0090931",
+    "selector": "inline backend script execution returns the script's return value after a JSON round trip",
+    "passed": 1
+  },
+  "archive": {
+    "version": "3.6.2",
+    "member": "package/quickjs.wasm",
+    "sha256": "f1f4349f19a2d849e33ea0ae9bec2e7062b8839f4eceb17c9051ddbaa2720982"
+  },
+  "native": {
+    "test": "TestNativeQuickJSWASMLoad",
+    "source": "internal/quickjs/engine.go",
+    "sourceSha256": "d221de7415ac48012ad1636833a0e8f82700d2cd7d0d5f03b1f6508736c82490",
+    "asset": "internal/quickjs/guest/quickjs.wasm",
+    "api": "NewEngine -> wazero.Runtime.CompileModule -> Engine.Execute",
+    "baselineExecutions": 3,
+    "executions": 3,
+    "compiled": {
+      "compiles": 1,
+      "bytes": 637405,
+      "sha256": "d4c9375f2b1ca4dc95f72c8aa2982a7a9951ac8011490d79c6582df732b4bbd9"
+    },
+    "provenance": "archive-byte-match"
+  },
+  "control": {
+    "change": "append-valid-custom-section-to-overlaid-embedded-wasm",
+    "executions": 3,
+    "compiled": {
+      "compiles": 1,
+      "bytes": 637414,
+      "sha256": "13876efd80551d91285fcb5a4d55a651c1ed3c2d325d9addebbdc018ae7bc764"
+    },
+    "provenance": "archive-byte-and-digest-mismatch"
+  }
+}
