@@ -517,3 +517,11 @@ The OpenAI Completions prompt-cache ledger adds 60 mapped sites across 27 execut
 ### Responses prompt-cache keys at the original proxy URL
 
 All four unchanged `openai-responses-prompt-cache.test.ts` cases passed offline. Go already matched their behavior. The strengthened test uses the same proxy URL as upstream, captures exactly one request without opening a connection, and checks that `prompt_cache_key` is either exactly `session-123` or absent. Wrong keys, an empty key in place of omission, and a wrong endpoint each failed their fault control. This checks the serialized request; no live provider was contacted.
+
+### Codemode keeps uncommitted replies from the guest
+
+The unchanged upstream case passed. When SQLite refuses the first result's journal commit, Go runs only `first` and sends no reply to the published Codemode guest. Reopening SQLite shows that the call was issued but its result was never stored. A fault that sent the reply before committing was caught. This covers the published portable guest; it does not cover the separate Node worker transport.
+
+### Read-only Durable viewers leave SQLite unchanged
+
+All five unchanged `harness-read-only.test.ts` cases passed, including the upstream JSONL case. The Go tests confirm that a viewer can see a running task without writing or waking the scheduler. They also check six read-only refusals, a successful commit that writes nothing, and an empty store whose head stays unchanged. After a real writer crash, the next writable open recovers the same task exactly once. That crash test preserves SQLite's single-writer lock; it does not reproduce the original's overlapping writer setup. The torn-JSONL test remains upstream-only and has not been excluded.
