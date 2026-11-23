@@ -661,3 +661,9 @@ All nine unchanged cases in this slice passed offline. Go now uses `reasoning_co
 ### Portable file tools return the expected errors and diagnostics
 
 All 13 selected unchanged [file-tool cases](test-inventory/portable-file-tools.md) passed offline. Go now returns an ordinary error if no environment is configured, and text reads with no notices return an empty diagnostic list. Eleven cases already matched. A one-line error in the continuation offset broke the expected result in both implementations. The other 23 source cases, including host-specific process tests, remain open in this packet.
+
+### Completions options and usage now match all 50 cases
+
+The last 19 unchanged Completions option and usage cases passed offline. Go omits disabled thinking for Moonshot Kimi K2.7 Code, preserves it for K2.6, and omits unmapped Ant Ling effort on the direct route without changing the simple route's clamp. Earlier token and cache accounting already matched. All 50 cases in the file now have native comparisons; this does not establish SDK lifecycle or live-provider behavior.
+
+Go also now accepts and preserves the explicit JSON `false` tool-sampling declaration. Responses sends exactly the same provider tool definition for `false` and for omission, as upstream does. Durable preserves the explicit value in a typed offer without giving caller JSON any additional marshal authority. Before the fix, Go rejected the literal at decoding.
