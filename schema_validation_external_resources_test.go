@@ -25,7 +25,7 @@ func TestSourceV160SchemaExternalReferences(t *testing.T) {
 	}
 	var groups []struct {
 		Description string
-		Schema      map[string]any
+		Schema      json.RawMessage
 		Tests       []struct {
 			Description string
 			Data        any
@@ -41,24 +41,25 @@ func TestSourceV160SchemaExternalReferences(t *testing.T) {
 	selections := []struct {
 		group     string
 		documents []string
+		pointer   string // Exact invalid-case path from the pinned explainer.
 		rejection string
 		cases     int
 	}{
-		{"remote ref", []string{"integer.json"}, expectedInteger, 2},
-		{"fragment within remote ref", []string{"subSchemas.json"}, expectedInteger, 2},
-		{"anchor within remote ref", []string{"locationIndependentIdentifier.json"}, expectedInteger, 2},
-		{"ref within remote ref", []string{"subSchemas.json"}, expectedInteger, 2},
-		{"base URI change", []string{"baseUriChange/folderInteger.json"}, "0.0: expected integer, got string", 2},
-		{"base URI change - change folder", []string{"baseUriChangeFolder/folderInteger.json"}, "list.0: expected integer, got string", 2},
-		{"base URI change - change folder in subschema", []string{"baseUriChangeFolderInSubschema/folderInteger.json"}, "list.0: expected integer, got string", 2},
-		{"root ref in remote ref", []string{"name-defs.json"}, "name: expected null, got object", 3},
-		{"remote ref with ref to defs", []string{"ref-and-defs.json"}, "bar: expected string, got integer", 2},
-		{"Location-independent identifier in remote ref", []string{"locationIndependentIdentifier.json"}, expectedInteger, 2},
-		{"retrieved nested refs resolve relative to their URI not $id", []string{"nested/foo-ref-string.json", "nested/string.json"}, "name.foo: expected string, got integer", 2},
-		{"remote HTTP ref with different $id", []string{"different-id-ref-string.json"}, expectedString, 2},
-		{"remote HTTP ref with different URN $id", []string{"urn-ref-string.json"}, expectedString, 2},
-		{"remote HTTP ref with nested absolute ref", []string{"nested-absolute-ref-to-string.json"}, expectedString, 2},
-		{"$ref to $ref finds detached $anchor", []string{"detached-ref.json"}, expectedInteger, 2},
+		{"remote ref", []string{"integer.json"}, "", expectedInteger, 2},
+		{"fragment within remote ref", []string{"subSchemas.json"}, "", expectedInteger, 2},
+		{"anchor within remote ref", []string{"locationIndependentIdentifier.json"}, "", expectedInteger, 2},
+		{"ref within remote ref", []string{"subSchemas.json"}, "", expectedInteger, 2},
+		{"base URI change", []string{"baseUriChange/folderInteger.json"}, "/0/0", "0.0: expected integer, got string", 2},
+		{"base URI change - change folder", []string{"baseUriChangeFolder/folderInteger.json"}, "/list/0", "list.0: expected integer, got string", 2},
+		{"base URI change - change folder in subschema", []string{"baseUriChangeFolderInSubschema/folderInteger.json"}, "/list/0", "list.0: expected integer, got string", 2},
+		{"root ref in remote ref", []string{"name-defs.json"}, "/name", "name: expected null, got object", 3},
+		{"remote ref with ref to defs", []string{"ref-and-defs.json"}, "/bar", "bar: expected string, got integer", 2},
+		{"Location-independent identifier in remote ref", []string{"locationIndependentIdentifier.json"}, "", expectedInteger, 2},
+		{"retrieved nested refs resolve relative to their URI not $id", []string{"nested/foo-ref-string.json", "nested/string.json"}, "/name/foo", "name.foo: expected string, got integer", 2},
+		{"remote HTTP ref with different $id", []string{"different-id-ref-string.json"}, "", expectedString, 2},
+		{"remote HTTP ref with different URN $id", []string{"urn-ref-string.json"}, "", expectedString, 2},
+		{"remote HTTP ref with nested absolute ref", []string{"nested-absolute-ref-to-string.json"}, "", expectedString, 2},
+		{"$ref to $ref finds detached $anchor", []string{"detached-ref.json"}, "", expectedInteger, 2},
 	}
 	if len(groups) != len(selections) {
 		t.Fatalf("pinned fixture contains %d groups, want %d", len(groups), len(selections))
@@ -74,6 +75,10 @@ func TestSourceV160SchemaExternalReferences(t *testing.T) {
 		if group.Description != selection.group || len(group.Tests) != selection.cases || invalid != 1 {
 			t.Fatalf("unexpected pinned group %d: %+v", i, group)
 		}
+		var schema map[string]any
+		if err := json.Unmarshal(group.Schema, &schema); err != nil {
+			t.Fatal(err)
+		}
 		resources := make(map[string]json.RawMessage, len(selection.documents))
 		for _, document := range selection.documents {
 			resources[base+document] = read("remotes/" + document)
@@ -81,12 +86,30 @@ func TestSourceV160SchemaExternalReferences(t *testing.T) {
 		t.Run(group.Description, func(t *testing.T) {
 			for _, c := range group.Tests {
 				t.Run(c.Description, func(t *testing.T) {
-					err := goai.ValidateJSONSchemaValueWithResources(group.Schema, c.Data, resources)
+					err := goai.ValidateJSONSchemaValueWithResources(schema, c.Data, resources)
 					if (err == nil) != c.Valid {
 						t.Fatalf("validation = %v; want valid=%t", err, c.Valid)
 					}
 					if !c.Valid && err.Error() != selection.rejection {
 						t.Fatalf("validation = %q; want %q", err, selection.rejection)
+					}
+
+					// Run the strict explainer in a new scope with the same host
+					// documents, then compare the records captured from upstream.
+					issues, explainErr := goai.ExplainJSONSchemaValueWithResources(group.Schema, c.Data, resources)
+					if explainErr != nil {
+						t.Fatal(explainErr)
+					}
+					if (len(issues) == 0) != (err == nil) {
+						t.Fatalf("diagnostics = %+v; disagree with validation %v", issues, err)
+					}
+					want := []goai.JSONSchemaDiagnostic{}
+					if !c.Valid {
+						_, message, _ := strings.Cut(selection.rejection, ": ")
+						want = append(want, goai.JSONSchemaDiagnostic{Path: selection.pointer, Keyword: "type", Message: message})
+					}
+					if !reflect.DeepEqual(issues, want) {
+						t.Fatalf("diagnostics = %+v; want %+v", issues, want)
 					}
 				})
 			}
