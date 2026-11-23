@@ -111,7 +111,7 @@ func readTool(env durable.FileSystem, inlineImages bool, limits *ImageLimits) du
 			if err != nil {
 				return durable.ToolResult{}, err
 			}
-			result := durable.ToolResult{Content: content}
+			result := durable.ToolResult{Content: content, Diagnostics: []durable.ToolDiagnostic{}}
 			if content == "" {
 				result.Blocks = []goai.ContentBlock{}
 			}

@@ -55,21 +55,24 @@ func resolveToolEnv(ctx context.Context, fallback durable.FileSystem, api *durab
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if api == nil {
-		return fallback, nil
+	if api != nil {
+		resolved, err := api.Environment(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if resolved != nil {
+			env, ok := resolved.(durable.FileSystem)
+			if !ok {
+				return nil, errors.New("coding tools require a filesystem environment")
+			}
+			return env, nil
+		}
 	}
-	resolved, err := api.Environment(ctx)
-	if err != nil {
-		return nil, err
+	if fallback == nil {
+		//lint:ignore ST1005 Exact pinned coding-tool diagnostic.
+		return nil, errors.New("No execution environment is configured")
 	}
-	if resolved == nil {
-		return fallback, nil
-	}
-	env, ok := resolved.(durable.FileSystem)
-	if !ok {
-		return nil, errors.New("coding tools require a filesystem environment")
-	}
-	return env, nil
+	return fallback, nil
 }
 
 func (e *Env) resolve(path string) (string, error) {
