@@ -603,3 +603,7 @@ The [portable guest check](dependencies/portable-quickjs-load.md) observed the e
 ### Image reads refuse oversized files before loading them
 
 Nine unchanged [image-read tests](test-inventory/tools-images.md) passed offline. Go now checks the byte limit before reading the full PNG, and matches the expected PNG, GIF and BMP errors. Bypassing the check still rejected the PNG but read several megabytes first; the new test caught that. The Go checks cover three source cases. Other image behavior and worker timing remain open.
+
+### Closing a Codemode guest keeps its work replayable
+
+The unchanged host-cutoff test passed. Go previously published a `context canceled` tool result after the host closed a guest, so a replacement guest never ran. Now closing the guest leaves the result unset. After SQLite reopen, the replacement guest returns `done`, and the earlier echo still ran only once. The test also checks that ordinary caller cancellation stays separate. This covers one active portable guest execution, not shutdown of a worker pool.
