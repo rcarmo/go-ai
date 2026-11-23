@@ -57,7 +57,7 @@ func readTool(env durable.FileSystem, inlineImages bool, limits *ImageLimits) du
 				return durable.ToolResult{}, err
 			}
 			// No custom filesystem path is inspected with a host file operation.
-			if local, ok := env.(*Env); ok && isRasterImage(abs) {
+			if local, ok := env.(*Env); inlineImages && ok && isRasterImage(abs) {
 				var block goai.ContentBlock
 				var details durable.JSON
 				var err error
@@ -65,9 +65,7 @@ func readTool(env durable.FileSystem, inlineImages bool, limits *ImageLimits) du
 				if e != nil {
 					return durable.ToolResult{}, e
 				}
-				if !inlineImages {
-					block, details, err = local.LoadInlineImage(ctx, abs, resolved)
-				} else if limits == nil {
+				if limits == nil {
 					block, details, err = local.LoadPreparedImage(ctx, abs, resolved)
 				} else {
 					block, details, err = local.LoadPreparedImage(ctx, abs, *limits)
@@ -88,7 +86,7 @@ func readTool(env durable.FileSystem, inlineImages bool, limits *ImageLimits) du
 				return durable.ToolResult{}, err
 			}
 			if mime := detectImageMime(data); mime != "" {
-				return inlineReadResult(ctx, data, api)
+				return inlineReadResult(ctx, path, data, api)
 			}
 			text, err := unicode.UTF8BOM.NewDecoder().String(string(data))
 			if err != nil {

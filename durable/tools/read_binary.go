@@ -59,14 +59,19 @@ func readPositional(ctx context.Context, env durable.ExtendedFileSystem, abs, pa
 		}
 		var result durable.ToolResult
 		if mime != "" {
-			if before.Size > MaxImageBytes {
-				return durable.ToolResult{IsError: true, Blocks: []goai.ContentBlock{}, Diagnostics: []durable.ToolDiagnostic{{Severity: "error", Code: "unsupported_image", Message: "image exceeds input byte limit"}}}, nil
+			limits, vision, limitErr := invocationImageLimits(ctx, api)
+			if limitErr != nil {
+				return durable.ToolResult{}, limitErr
 			}
-			data, readErr := io.ReadAll(&readerSection{ctx: ctx, reader: reader, end: before.Size})
-			if readErr != nil {
-				return durable.ToolResult{}, readErr
+			if rejection := inlineImageRejection(path, mime, before.Size, limits); rejection != nil {
+				result = imageReadFailure(rejection)
+			} else {
+				data, readErr := io.ReadAll(&readerSection{ctx: ctx, reader: reader, end: before.Size})
+				if readErr != nil {
+					return durable.ToolResult{}, readErr
+				}
+				result, err = inlineReadImageResult(ctx, path, data, limits, vision)
 			}
-			result, err = inlineReadResult(ctx, data, api)
 		} else {
 			result, err = readPositionalText(ctx, reader, before.Size, path, args)
 		}

@@ -122,10 +122,34 @@ func (e *Env) LoadInlineImage(ctx context.Context, path string, limits ImageLimi
 	if before.Size() != after.Size() || !before.ModTime().Equal(after.ModTime()) {
 		return goai.ContentBlock{}, nil, errors.New("image changed during read")
 	}
-	return inlineImageBytes(ctx, data, limits)
+	return inlineImageBytesAt(ctx, path, data, limits)
 }
 
 func inlineImageBytes(ctx context.Context, data []byte, limits ImageLimits) (goai.ContentBlock, durable.JSON, error) {
+	return inlineImageBytesAt(ctx, "image", data, limits)
+}
+
+const noImageProcessor = "and no image processor is configured to shrink it"
+
+func inlineImageRejection(path, mime string, size int64, limits ImageLimits) error {
+	if mime == "image/bmp" {
+		return fmt.Errorf("%s is an image (%s) that needs converting, and no image processor is configured", path, mime)
+	}
+	// Avoid overflowing EncodedLen or allocating the image to find its size.
+	if size > int64(limits.MaxBase64/4)*3 {
+		label := fmt.Sprintf("%.1fMB", float64(size)/(1<<20))
+		if size < 1<<20 {
+			label = formatSize(int(size))
+		}
+		return fmt.Errorf("%s is an image (%s) of %s, too large to send, %s", path, mime, label, noImageProcessor)
+	}
+	if size > MaxImageBytes {
+		return errors.New("image exceeds input byte limit")
+	}
+	return nil
+}
+
+func inlineImageBytesAt(ctx context.Context, path string, data []byte, limits ImageLimits) (goai.ContentBlock, durable.JSON, error) {
 	if ctx == nil {
 		return goai.ContentBlock{}, nil, errors.New("nil image context")
 	}
@@ -133,33 +157,44 @@ func inlineImageBytes(ctx context.Context, data []byte, limits ImageLimits) (goa
 		return goai.ContentBlock{}, nil, err
 	}
 	mime := detectImageMime(data)
-	if mime == "" || mime == "image/bmp" {
+	if mime == "" {
 		return goai.ContentBlock{}, nil, errors.New("image requires an image processor")
 	}
-	if len(data) > MaxImageBytes || base64.StdEncoding.EncodedLen(len(data)) > limits.MaxBase64 {
-		return goai.ContentBlock{}, nil, errors.New("image exceeds inline byte limit; supply an image processor")
+	if err := inlineImageRejection(path, mime, int64(len(data)), limits); err != nil {
+		return goai.ContentBlock{}, nil, err
 	}
 	config, _, err := image.DecodeConfig(bytes.NewReader(data))
 	if err != nil {
 		return goai.ContentBlock{}, nil, err
 	}
-	if config.Width < 1 || config.Height < 1 || config.Width > limits.MaxWidth || config.Height > limits.MaxHeight || int64(config.Width)*int64(config.Height) > MaxImagePixels {
+	if config.Width > limits.MaxWidth || config.Height > limits.MaxHeight {
+		return goai.ContentBlock{}, nil, fmt.Errorf("%s is an image (%s) of %dx%d, larger than %dx%d, %s", path, mime, config.Width, config.Height, limits.MaxWidth, limits.MaxHeight, noImageProcessor)
+	}
+	if config.Width < 1 || config.Height < 1 || int64(config.Width)*int64(config.Height) > MaxImagePixels {
 		return goai.ContentBlock{}, nil, errors.New("image exceeds inline dimensions; supply an image processor")
 	}
 	return goai.ContentBlock{Type: "image", MimeType: mime, Data: base64.StdEncoding.EncodeToString(data)}, durable.JSON{"width": config.Width, "height": config.Height, "mimeType": mime}, nil
 }
 
-func inlineReadResult(ctx context.Context, data []byte, api *durable.ToolAPI) (durable.ToolResult, error) {
+func inlineReadResult(ctx context.Context, path string, data []byte, api *durable.ToolAPI) (durable.ToolResult, error) {
 	limits, vision, err := invocationImageLimits(ctx, api)
 	if err != nil {
 		return durable.ToolResult{}, err
 	}
-	block, details, err := inlineImageBytes(ctx, data, limits)
+	return inlineReadImageResult(ctx, path, data, limits, vision)
+}
+
+func imageReadFailure(err error) durable.ToolResult {
+	return durable.ToolResult{Blocks: []goai.ContentBlock{}, IsError: true, Diagnostics: []durable.ToolDiagnostic{{Severity: "error", Code: "unsupported_image", Message: err.Error()}}}
+}
+
+func inlineReadImageResult(ctx context.Context, path string, data []byte, limits ImageLimits, vision bool) (durable.ToolResult, error) {
+	block, details, err := inlineImageBytesAt(ctx, path, data, limits)
 	if err != nil {
 		if ctx.Err() != nil {
 			return durable.ToolResult{}, ctx.Err()
 		}
-		return durable.ToolResult{Blocks: []goai.ContentBlock{}, IsError: true, Diagnostics: []durable.ToolDiagnostic{{Severity: "error", Code: "unsupported_image", Message: err.Error()}}}, nil
+		return imageReadFailure(err), nil
 	}
 	return imageReadResult(block, details, vision), nil
 }
