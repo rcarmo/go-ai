@@ -657,3 +657,7 @@ The unchanged seeded idle-index test passed. Go's corresponding 200-step test ch
 ### Reasoning fields survive Completions replay
 
 All nine unchanged cases in this slice passed offline. Go now uses `reasoning_content` for OpenCode Go reasoning in both streamed and replayed messages. Other providers keep their original field. The request checks also cover instruction roles, Xiaomi's explicit empty reasoning field, and the catalogue settings for OpenRouter, Xiaomi and Qwen. Only the two OpenCode Go directions failed before the fix.
+
+### Portable file tools return the expected errors and diagnostics
+
+All 13 selected unchanged [file-tool cases](test-inventory/portable-file-tools.md) passed offline. Go now returns an ordinary error if no environment is configured, and text reads with no notices return an empty diagnostic list. Eleven cases already matched. A one-line error in the continuation offset broke the expected result in both implementations. The other 23 source cases, including host-specific process tests, remain open in this packet.
