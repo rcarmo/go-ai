@@ -535,3 +535,7 @@ Go now reports the ordered field errors in one tool response instead of stopping
 The [Qwen receipts](test-inventory/qwen-token-plan-remaining.md) now cover all 120 unchanged cases in that file. Go tries each plan's own environment key before the shared key for its region. The tests used synthetic keys and did not contact Qwen. The source also exposes an exact list of candidate environment keys; that list is not exposed by Go.
 
 The [native QuickJS receipt](dependencies/native-quickjs-wasm-load.md) checks the bytes passed to the Go runtime's actual WASM compiler. All 637,405 bytes matched the verified upstream QuickJS-WASI archive. Appending a harmless WASM section left script results unchanged but failed the byte check. This verifies one native inline compile, not every worker or historical load.
+
+### Conversation abort joins foreground work only
+
+The unchanged upstream case passed. When Go's public `Abort` returns, both foreground tasks have ended and both background tasks are still live. The queued input has reason `aborted`, and the queued write stays queued. The SQLite test passed without a production change. Fault controls caught both a no-op abort and a cascade that incorrectly stopped background work.
