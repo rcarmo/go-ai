@@ -513,3 +513,7 @@ The unchanged undefined-result original passed again. The published portable gue
 The [remaining Fireworks receipt](test-inventory/fireworks-remaining.md) covers 12 unchanged originals. Across the three disjoint receipts, all 25 Fireworks originals passed offline. Eleven of the latest 12 cases have full native checks; the dummy-key case still lacks a Go public equivalent for the source's exact environment-key list. Custom Messages affinity formats and live-provider behavior remain open.
 
 The OpenAI Completions prompt-cache ledger adds 60 mapped sites across 27 executed original variants. It records native HTTP values and presence checks separately from the source SDK mock. The integrated focused Go tests passed twice with the live portable guest; vet and Staticcheck v0.8.2 passed. A total of 1,115 scoped assertion locators validate against pinned bytes.
+
+### Responses prompt-cache keys at the original proxy URL
+
+All four unchanged `openai-responses-prompt-cache.test.ts` cases passed offline. Go already matched their behavior. The strengthened test uses the same proxy URL as upstream, captures exactly one request without opening a connection, and checks that `prompt_cache_key` is either exactly `session-123` or absent. Wrong keys, an empty key in place of omission, and a wrong endpoint each failed their fault control. This checks the serialized request; no live provider was contacted.
