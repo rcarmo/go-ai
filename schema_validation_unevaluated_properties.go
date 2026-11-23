@@ -13,20 +13,32 @@ type toolSchemaPropertyAnnotationVisit struct {
 }
 
 func (v *toolSchemaValidator) firstUnevaluatedPropertyFailure(object, schema map[string]interface{}, enterRoot bool) (string, bool) {
+	var first string
+	found := false
+	v.visitUnevaluatedPropertyFailures(object, schema, enterRoot, sortedSchemaKeys, func(key string, _ interface{}) bool {
+		first, found = key, true
+		return false
+	})
+	return first, found
+}
+
+// The annotation pass is shared. Only standalone explanations use the input's
+// property order and continue past the first rejected name.
+func (v *toolSchemaValidator) visitUnevaluatedPropertyFailures(object, schema map[string]interface{}, enterRoot bool, keys func(map[string]interface{}) []string, yield func(string, interface{}) bool) {
 	raw, present := schema["unevaluatedProperties"]
 	if v.draft7 || !present || raw == true || len(object) == 0 {
-		return "", false
+		return
 	}
 	annotations := toolSchemaPropertyAnnotations{names: make(map[string]bool)}
 	v.collectEvaluatedProperties(object, schema, &annotations, make(map[toolSchemaPropertyAnnotationVisit]bool), true, enterRoot)
-	if !annotations.all {
-		for _, key := range sortedSchemaKeys(object) {
-			if !annotations.names[key] && !v.acceptsRaw(object[key], raw) {
-				return key, true
-			}
+	if annotations.all {
+		return
+	}
+	for _, key := range keys(object) {
+		if !annotations.names[key] && !v.acceptsRaw(object[key], raw) && !yield(key, raw) {
+			return
 		}
 	}
-	return "", false
 }
 
 // Annotations belong to the current object instance and dynamic resource stack.

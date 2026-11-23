@@ -44,7 +44,6 @@ func (v *toolSchemaValidator) resourceIndex() *toolSchemaResources {
 		bases:     make(map[uintptr]string),
 		documents: map[string]interface{}{toolSchemaDefaultBase: v.root},
 		anchors:   make(map[string]interface{}),
-		orders:    make(map[uintptr][]string),
 		work:      v.work,
 		draft7:    v.draft7,
 	}
@@ -283,10 +282,14 @@ func (v *toolSchemaValidator) resolvePureDataReference(ref string, from ...map[s
 	return nil
 }
 
-// JSON bytes preserve object-member order that Go maps cannot represent.
-// Capture it lazily only when references need indexing; duplicate registrations
-// then follow JS Object.keys ordering (integer indices first, then insertion).
 func (r *toolSchemaResources) readOrder(root interface{}, raw []byte) {
+	r.orders = schemaJSONOrders(root, raw)
+}
+
+// Collect object keys in JS Object.keys order: integer indices first, then
+// insertion order. A decoded Go map cannot represent the latter on its own.
+func schemaJSONOrders(root interface{}, raw []byte) map[uintptr][]string {
+	orders := make(map[uintptr][]string)
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.UseNumber()
 	var walk func(interface{}) error
@@ -319,7 +322,7 @@ func (r *toolSchemaResources) readOrder(root interface{}, raw []byte) {
 				}
 			}
 			if object != nil {
-				r.orders[reflect.ValueOf(object).Pointer()] = schemaJSKeys(keys)
+				orders[reflect.ValueOf(object).Pointer()] = schemaJSKeys(keys)
 			}
 		case '[':
 			list, _ := node.([]interface{})
@@ -338,11 +341,12 @@ func (r *toolSchemaResources) readOrder(root interface{}, raw []byte) {
 		_, err = decoder.Token()
 		return err
 	}
-	// Parameters already passed json.Unmarshal; no malformed input is accepted
-	// by this ordering pass. Private map-only callers use deterministic keys.
+	// The raw input has already passed json.Unmarshal. Fall back to deterministic
+	// map order if this second pass cannot recover the original order.
 	if err := walk(root); err != nil {
-		r.orders = make(map[uintptr][]string)
+		return nil
 	}
+	return orders
 }
 
 func (r *toolSchemaResources) keys(object map[string]interface{}) []string {

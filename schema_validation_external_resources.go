@@ -47,13 +47,15 @@ func ValidateJSONSchemaValueWithResources(schema map[string]any, value any, reso
 	return issue
 }
 
-// ExplainJSONSchemaValueWithResources reports why a decoded JSON value fails
+// ExplainJSONSchemaValueWithResources reports why a JSON value fails
 // validation without coercing it. It returns an empty slice for a valid value.
-// Array-index keys sort numerically before other keys. Other property names
-// keep their order in the raw schema. Undeclared fields of a decoded instance
-// map use lexical order after its index keys. Diagnostics can omit other
-// failures at the same node. A dynamic reference can reject a value in scope
-// but yield no local diagnostic. Such failures are reported at the root.
+// Pass a decoded JSON value, or pass json.RawMessage to preserve the order of
+// its object keys. When visiting fields in instance order, array-index keys
+// sort numerically first. Other keys follow their order in the raw JSON, or
+// lexical order for a decoded Go map.
+// Diagnostics can omit other failures at the same node. A dynamic reference
+// can reject a value in scope but yield no local diagnostic. Such failures are
+// reported at the root.
 //
 // Resources and draft work as in ValidateJSONSchemaValueWithResources. A nil
 // resource map registers no host documents. Errors report an input or checker
@@ -71,6 +73,14 @@ func ExplainJSONSchemaValueWithResources(schema json.RawMessage, value any, reso
 	default:
 		return nil, fmt.Errorf("schema must be an object or a boolean")
 	}
+	valueRaw, hasRawValue := value.(json.RawMessage)
+	if hasRawValue {
+		var decoded any
+		if err := json.Unmarshal(valueRaw, &decoded); err != nil {
+			return nil, fmt.Errorf("decode value: %w", err)
+		}
+		value = decoded
+	}
 	v, err := newToolSchemaResourceValidator(root, schema, resources, draft)
 	if err != nil {
 		return nil, err
@@ -81,6 +91,9 @@ func ExplainJSONSchemaValueWithResources(schema json.RawMessage, value any, reso
 	}
 	if accepted {
 		return []JSONSchemaDiagnostic{}, nil
+	}
+	if hasRawValue {
+		v.valueOrders = schemaJSONOrders(value, valueRaw)
 	}
 	mode := diagnosticsStructured
 	if v.trackDynamic {
@@ -147,7 +160,6 @@ func (r *toolSchemaResources) loadExternal(document string) (any, bool) {
 		return nil, false
 	}
 	r.documents[document] = resource.schema // Retain retrieval URI even if $id supplies another base.
-	r.orders = make(map[uintptr][]string)
 	r.readOrder(resource.schema, resource.raw)
 	r.index(resource.schema, document)
 	r.orders = nil

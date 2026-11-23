@@ -79,6 +79,7 @@ type toolSchemaValidator struct {
 	checked         map[toolSchemaMemoKey]bool
 	checking        map[toolSchemaMemoKey]bool
 	diagnostics     map[toolSchemaDiagnosticKey]toolSchemaIssues
+	valueOrders     map[uintptr][]string
 	diagnosticCuts  uint64
 	members         map[uintptr]*toolSchemaMembers
 	// Pointer identities must not outlive their inputs: retain them through
@@ -440,7 +441,20 @@ func (v *toolSchemaValidator) appendIssues(out toolSchemaIssues, value, raw inte
 	}
 	switch value := value.(type) {
 	case map[string]interface{}:
-		if key, fails := v.firstUnevaluatedPropertyFailure(value, schema, mode != diagnosticsDetached); fails {
+		if mode.structured() {
+			v.visitUnevaluatedPropertyFailures(value, schema, mode != diagnosticsDetached, v.diagnosticObjectKeys, func(key string, raw interface{}) bool {
+				childPath := schemaIssuePath(path, key)
+				if raw == false {
+					out = append(out, JSONSchemaDiagnostic{childPath, "unevaluatedProperties", "unknown field"})
+				} else {
+					out = v.appendIssues(out, value[key], raw, childPath, active, mode)
+				}
+				return true
+			})
+			if len(out) > start {
+				return out
+			}
+		} else if key, fails := v.firstUnevaluatedPropertyFailure(value, schema, true); fails {
 			childPath := schemaIssuePath(path, key)
 			raw := schema["unevaluatedProperties"]
 			if raw == false {
@@ -475,6 +489,16 @@ func (v *toolSchemaValidator) appendIssues(out toolSchemaIssues, value, raw inte
 	return append(out, JSONSchemaDiagnostic{path, "schema", "value does not match schema"})
 }
 
+func (v *toolSchemaValidator) diagnosticObjectKeys(object map[string]interface{}) []string {
+	if len(v.valueOrders) > 0 {
+		if keys, found := v.valueOrders[reflect.ValueOf(object).Pointer()]; found {
+			return keys
+		}
+	}
+	// A decoded Go map has no insertion order.
+	return schemaJSKeys(sortedSchemaKeys(object))
+}
+
 func (v *toolSchemaValidator) appendObjectIssues(out toolSchemaIssues, object, schema map[string]interface{}, path string, active map[toolSchemaMemoKey]bool, mode toolSchemaDiagnosticMode) toolSchemaIssues {
 	initial := len(out)
 	if required, ok := schema["required"].([]interface{}); ok {
@@ -498,9 +522,7 @@ func (v *toolSchemaValidator) appendObjectIssues(out toolSchemaIssues, object, s
 			}
 		}
 	}
-	// A decoded Go map has no insertion order. Match JS's numeric-key order
-	// then use a stable lexical order for its remaining keys.
-	for _, key := range schemaJSKeys(sortedSchemaKeys(object)) {
+	for _, key := range v.diagnosticObjectKeys(object) {
 		current := object[key]
 		childPath := schemaIssuePath(path, key)
 		_, matched := members.properties[key]
