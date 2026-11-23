@@ -466,11 +466,14 @@ func buildRequestBody(model *goai.Model, convCtx *goai.Context, opts *goai.Strea
 	if model.Reasoning {
 		switch compat.ThinkingFormat {
 		case "zai":
-			typeValue := "disabled"
 			if reasoningRequested && effort != "" {
-				typeValue = "enabled"
+				req.Thinking = map[string]interface{}{"type": "enabled", "clear_thinking": false}
+				if compat.SupportsReasoningEffort != nil && *compat.SupportsReasoningEffort {
+					req.ReasoningEffort = effort
+				}
+			} else {
+				req.Thinking = map[string]interface{}{"type": "disabled"}
 			}
-			req.Thinking = map[string]interface{}{"type": typeValue}
 		case "qwen":
 			enabled := reasoningRequested && effort != ""
 			req.EnableThinking = &enabled
