@@ -3,13 +3,15 @@ import { createHash } from "node:crypto";
 
 const pin = "faac585884ae2c013a6b1400f3e9e77f10b34bac";
 const history = "b4afdddf44e059c67ccf5097e5317d913521b470";
-const nativeBase = "ed9f7139ae74a01f99f63988b7467feef2440535";
-const [mirror] = process.argv.slice(2);
-if (process.argv.length !== 3) throw Error("Usage: bun run generate.ts <pinned-git-mirror>");
+const [mirror, nativeBase = "ed9f7139ae74a01f99f63988b7467feef2440535"] = process.argv.slice(2);
+if (!mirror || process.argv.length > 4 || !/^[a-f0-9]{40}$/.test(nativeBase)) {
+	throw Error("Usage: bun run generate.ts <pinned-git-mirror> [native-ledger-commit-sha]");
+}
 function check(condition: unknown, message: string): asserts condition {
 	if (!condition) throw Error(message);
 }
 const git = (repo: string, args: string[], input?: string) => execFileSync("git", ["-C", repo, ...args], { input, maxBuffer: 64 << 20 });
+git(import.meta.dir, ["cat-file", "-e", `${nativeBase}^{commit}`]);
 for (const [tag, commit] of [["v1.5.2", history], ["v1.6.0", pin]]) {
 	check(git(mirror, ["rev-parse", `refs/tags/${tag}^{commit}`]).toString().trim() === commit, `Unexpected ${tag} pin`);
 }

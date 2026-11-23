@@ -47,3 +47,14 @@ cmp "$inventory/files.jsonl" /tmp/pi-v160-test-files.jsonl
 ```
 
 The generator reads the local Git objects and ledgers, confirms their source digests and checks the release diff. It does not run suites, count assertions by pattern, fetch dependencies or run acceptance.
+
+## Ledger coverage at another commit
+
+Pass a full native commit SHA to compare the same upstream inventory with that commit's assertion ledgers. This leaves the historical `files.jsonl` receipt intact. For example, at round 19 (`08b02b9d17d493f1863263b290b0d1a7915505c4`), 14 of the 214 changed suites have a ledger slice; the other 200 have no ledger rows. Some suites without rows already have separate execution receipts. Shared and adjacent suites still need dependency triage.
+
+```sh
+flock /tmp/go-ai/v160-focused-verify.lock bun run "$inventory/generate.ts" \
+  "$pinned_git_mirror" "$native_commit_sha" > /tmp/pi-v160-current-test-files.jsonl
+jq -c 'select(.kind == "summary") | {activeChangedSuitesByCoverage, evidenceTotals}' \
+  /tmp/pi-v160-current-test-files.jsonl
+```
