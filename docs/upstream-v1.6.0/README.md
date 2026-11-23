@@ -525,3 +525,13 @@ The unchanged upstream case passed. When SQLite refuses the first result's journ
 ### Read-only Durable viewers leave SQLite unchanged
 
 All five unchanged `harness-read-only.test.ts` cases passed, including the upstream JSONL case. The Go tests confirm that a viewer can see a running task without writing or waking the scheduler. They also check six read-only refusals, a successful commit that writes nothing, and an empty store whose head stays unchanged. After a real writer crash, the next writable open recovers the same task exactly once. That crash test preserves SQLite's single-writer lock; it does not reproduce the original's overlapping writer setup. The torn-JSONL test remains upstream-only and has not been excluded.
+
+### Tool validation lists the errors it finds
+
+Go now reports the ordered field errors in one tool response instead of stopping after the first. It also reports which tags a tagged union accepts. The depth-40 recursive test checks all 42 lines in order. The unchanged upstream runs passed: 40 validator cases, two selected coercion cases and all 13 AI validation cases. The exact model-facing error format matches the pinned test. The separate Schema API still needs structured errors with JSON Pointer paths and keyword names; not every constraint is covered by this change.
+
+### Qwen plan keys and native QuickJS inputs
+
+The [Qwen receipts](test-inventory/qwen-token-plan-remaining.md) now cover all 120 unchanged cases in that file. Go tries each plan's own environment key before the shared key for its region. The tests used synthetic keys and did not contact Qwen. The source also exposes an exact list of candidate environment keys; that list is not exposed by Go.
+
+The [native QuickJS receipt](dependencies/native-quickjs-wasm-load.md) checks the bytes passed to the Go runtime's actual WASM compiler. All 637,405 bytes matched the verified upstream QuickJS-WASI archive. Appending a harmless WASM section left script results unchanged but failed the byte check. This verifies one native inline compile, not every worker or historical load.
