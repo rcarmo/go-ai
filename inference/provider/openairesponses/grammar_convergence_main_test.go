@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"runtime"
+	"slices"
 	"strings"
 	"testing"
 
@@ -42,19 +44,19 @@ func responsesGrammarEventsMain(initial string, deltas []string, input string) s
 	return body.String()
 }
 
-func runResponsesGrammarMain(tb testing.TB, body, expected, initial string) {
-	tb.Helper()
+type responsesGrammarObservation struct {
+	json   string
+	starts []map[string]any
+	done   *goai.Message
+	err    error
+}
+
+func observeResponsesGrammarMain(body string) responsesGrammarObservation {
 	events := make(chan goai.Event, 32)
-	type result struct {
-		json   string
-		starts []map[string]any
-		done   *goai.Message
-		err    error
-	}
-	completed := make(chan result, 1)
+	completed := make(chan responsesGrammarObservation, 1)
 	go func() {
 		var delta strings.Builder
-		var r result
+		var r responsesGrammarObservation
 		for event := range events {
 			switch e := event.(type) {
 			case *goai.ToolCallStartEvent:
@@ -72,7 +74,16 @@ func runResponsesGrammarMain(tb testing.TB, body, expected, initial string) {
 	}()
 	processStreamWithOptions(strings.NewReader(body), &goai.Model{ID: "gpt-test", Api: goai.ApiOpenAIResponses, Provider: goai.ProviderOpenAI}, nil, goai.NewAssistantEventSender(events), responsesToolView{grammarToolInputProperties: map[string]string{"sample_tool": "payload"}})
 	close(events)
-	r := <-completed
+	return <-completed
+}
+
+func runResponsesGrammarMain(tb testing.TB, body, expected, initial string) {
+	tb.Helper()
+	assertResponsesGrammarMain(tb, observeResponsesGrammarMain(body), expected, initial)
+}
+
+func assertResponsesGrammarMain(tb testing.TB, r responsesGrammarObservation, expected, initial string) {
+	tb.Helper()
 	if r.err != nil || r.done == nil {
 		tb.Fatal("grammar stream failed", r.err)
 	}
@@ -112,8 +123,8 @@ func BenchmarkResponsesGrammarGrowthMain(b *testing.B) {
 	}
 }
 
-// Source: constrained-sampling.test.ts:345-443. The allocation ratio in the
-// source is a separate assertion; these cases check the exact event fixtures.
+// Source: constrained-sampling.test.ts:345–443. These check the exact event
+// fixtures; the separate allocation check below measures the same two sizes.
 func TestSourceV160ResponsesGrammarInitialAndLargeInput(t *testing.T) {
 	t.Run("initial input", func(t *testing.T) {
 		body := responsesGrammarEventsMain("a", []string{"b"}, "abc")
@@ -121,14 +132,48 @@ func TestSourceV160ResponsesGrammarInitialAndLargeInput(t *testing.T) {
 	})
 	for _, size := range []int{25_600, 256_000} {
 		t.Run(fmt.Sprint(size), func(t *testing.T) {
-			deltas := make([]string, size/32)
-			for i := range deltas {
-				chunk := fmt.Sprintf("chunk %d \"quoted\" \\ \n", i)
-				deltas[i] = chunk + strings.Repeat("x", 32-len(chunk))
-			}
-			input := strings.Join(deltas, "")
-			body := responsesGrammarEventsMain("", deltas, input)
+			body, input := pinnedResponsesGrammarFixtureV160(size)
 			runResponsesGrammarMain(t, body, input, "")
 		})
 	}
+}
+
+func pinnedResponsesGrammarFixtureV160(size int) (string, string) {
+	deltas := make([]string, size/32)
+	for i := range deltas {
+		chunk := fmt.Sprintf("chunk %d \"quoted\" \\ \n", i)
+		deltas[i] = chunk + strings.Repeat("x", 32-len(chunk))
+	}
+	input := strings.Join(deltas, "")
+	return responsesGrammarEventsMain("", deltas, input), input
+}
+
+// Source: constrained-sampling.test.ts:397. TotalAlloc, like the source's
+// allocated-byte counter, includes garbage collected during the operation.
+// Fixture construction and output assertions are outside the measured region.
+func TestSourceV160ResponsesGrammarAllocationGrowth(t *testing.T) {
+	allocated := func(size int) uint64 {
+		body, input := pinnedResponsesGrammarFixtureV160(size)
+		assertResponsesGrammarMain(t, observeResponsesGrammarMain(body), input, "")
+		var samples [3]uint64
+		for i := range samples {
+			var before, after runtime.MemStats
+			runtime.ReadMemStats(&before)
+			result := observeResponsesGrammarMain(body)
+			runtime.ReadMemStats(&after)
+			samples[i] = after.TotalAlloc - before.TotalAlloc
+			assertResponsesGrammarMain(t, result, input, "")
+		}
+		slices.Sort(samples[:])
+		return samples[1]
+	}
+	small, large := allocated(25_600), allocated(256_000)
+	if small == 0 {
+		t.Fatal("small stream allocated no bytes")
+	}
+	ratio := float64(large) / float64(small)
+	if !(ratio < 25) {
+		t.Fatalf("allocated bytes grew by %.2fx (%d -> %d); want less than 25x", ratio, small, large)
+	}
+	t.Logf("allocated bytes grew by %.2fx (%d -> %d)", ratio, small, large)
 }
