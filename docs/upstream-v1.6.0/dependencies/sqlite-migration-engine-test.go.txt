@@ -1,0 +1,127 @@
+package durable
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"reflect"
+	"slices"
+	"strings"
+	"testing"
+)
+
+// Translate the pinned sqlite-migrations.test.ts version-one sleeping-task case.
+func TestNativeSQLiteMigrationEngine(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "storage.sqlite")
+	if err := os.WriteFile(path, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	connector, err := newSQLiteConnector(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixture := sql.OpenDB(connector)
+	t.Cleanup(func() { _ = fixture.Close() })
+	exec := func(db sqliteConnection, statement string, args ...any) {
+		t.Helper()
+		if _, err := db.ExecContext(ctx, statement, args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	exec(fixture, `CREATE TABLE durable_schema (singleton INTEGER PRIMARY KEY CHECK (singleton = 1), version INTEGER NOT NULL CHECK (version >= 0)) STRICT`)
+	exec(fixture, `INSERT INTO durable_schema (singleton, version) VALUES (1, 1)`)
+	var migrations []struct {
+		Version    int
+		Statements []string
+	}
+	if err := json.Unmarshal([]byte(upstreamSQLiteSchema), &migrations); err != nil || len(migrations) < 1 || migrations[0].Version != 1 {
+		t.Fatalf("version-one fixture migration: %v", err)
+	}
+	for _, statement := range migrations[0].Statements {
+		exec(fixture, strings.ReplaceAll(statement, "pi_schema_", ""))
+	}
+	// Native OpenSQLite also adopts the task projection. Seed its owning
+	// conversation and the allocation metadata, without changing the task row.
+	exec(fixture, `INSERT INTO conversations (id, record) VALUES (1, '{"id":1}')`)
+	exec(fixture, `INSERT INTO record_ids (id, record_type) VALUES (1, 'conversation'), (5, 'task')`)
+	exec(fixture, `UPDATE durable_metadata SET next_id = '6' WHERE singleton = 1`)
+	const waiting = `{"id":5,"conversationId":1,"kind":"test.task","version":1,"input":null,"background":false,"abortRequested":false,"state":{"status":"waiting","checkpoint":{"phase":"run"},"on":[],"policy":"allSettled"}}`
+	exec(fixture, `INSERT INTO tasks (id, conversation_id, kind, status, abort_requested, background, record) VALUES (5, 1, 'test.task', 'waiting', 0, 0, ?)`, waiting)
+	const sleeping = `INSERT INTO tasks (id, conversation_id, kind, status, abort_requested, background, record) VALUES (6, 1, 'test.task', 'sleeping', 0, 0, '{}')`
+	if _, err := fixture.ExecContext(ctx, sleeping); err == nil {
+		t.Fatal("version one admitted a sleeping task")
+	}
+	if err := fixture.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	writer, err := OpenSQLite(path, SQLiteOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = writer.Close(ctx) })
+	var version int
+	if err := writer.db.QueryRowContext(ctx, `SELECT version FROM durable_schema WHERE singleton = 1`).Scan(&version); err != nil || version != 2 {
+		t.Fatalf("schema version = %d, err = %v; want version 2", version, err)
+	}
+	var status, record string
+	if err := writer.db.QueryRowContext(ctx, `SELECT status, record FROM tasks WHERE id = 5`).Scan(&status, &record); err != nil || status != "waiting" || record != waiting {
+		t.Fatalf("retained row = %q, %q, err = %v", status, record, err)
+	}
+	exec(writer.db, sleeping)
+	rows, err := writer.db.QueryContext(ctx, `SELECT name FROM sqlite_schema WHERE type = 'index' AND tbl_name = 'tasks' ORDER BY name`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var indexes []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			t.Fatal(err)
+		}
+		indexes = append(indexes, name)
+	}
+	want := []string{"tasks_by_abort_requested", "tasks_by_background", "tasks_by_conversation", "tasks_by_kind", "tasks_by_status"}
+	if err := rows.Err(); err != nil || !slices.Equal(indexes, want) {
+		t.Fatalf("indexes = %v, err = %v; want %v", indexes, err, want)
+	}
+	var leftover int
+	if err := writer.db.QueryRowContext(ctx, `SELECT count(*) FROM sqlite_schema WHERE name = 'tasks_v2'`).Scan(&leftover); err != nil || leftover != 0 {
+		t.Fatalf("temporary tables = %d, err = %v; want 0", leftover, err)
+	}
+
+	var sqliteVersion, sourceID string
+	if err := writer.db.QueryRowContext(ctx, `SELECT sqlite_version(), sqlite_source_id()`).Scan(&sqliteVersion, &sourceID); err != nil {
+		t.Fatal(err)
+	}
+	conn, ok := writer.db.(*sql.Conn)
+	if !ok {
+		t.Fatalf("opened SQL connection = %T", writer.db)
+	}
+	var driver string
+	if err := conn.Raw(func(raw any) error {
+		driver = reflect.TypeOf(raw).Elem().PkgPath()
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if driver != "modernc.org/sqlite" {
+		t.Fatalf("opened driver = %q", driver)
+	}
+	data, err := json.Marshal(map[string]any{
+		"api":           "OpenSQLite -> opened *sql.Conn",
+		"driver":        driver,
+		"sqlite":        map[string]string{"version": sqliteVersion, "sourceId": sourceID},
+		"schemaVersion": version,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(os.Getenv("SQLITE_ENGINE_TRACE"), data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+}

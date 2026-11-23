@@ -1,0 +1,55 @@
+{
+  "format": 1,
+  "pin": "faac585884ae2c013a6b1400f3e9e77f10b34bac",
+  "platform": "linux/arm64",
+  "oracle": {
+    "test": "packages/durable/test/sqlite-migrations.test.ts",
+    "sha256": "a1a654e68924bf36e436b25cf02f3c3206b1c9a4d0c76449f5eea3cd6223c8fa",
+    "selector": "durable SQLite migrations migrates a version 1 database to store sleeping tasks, keeping its tasks and indexes",
+    "passed": 1,
+    "vitest": "4.1.12",
+    "nodeExecutableSha256": "66f4a883c880ef336276e7730c01cbae2b92fb8e6a51f7371f920599cac824b7",
+    "observed": {
+      "api": "node:sqlite DatabaseSync.exec",
+      "node": "v26.13.0",
+      "nodeSQLiteVersion": "3.54.0",
+      "sqlite": {
+        "version": "3.54.0",
+        "sourceId": "2026-10-09 15:46:58 be8d059e9a49089ab2dce5ed26dd87aaf598fdc5fbe0b107c0dd758464bcd5e3"
+      },
+      "schemaVersionAtDDL": 1
+    }
+  },
+  "native": {
+    "test": "TestNativeSQLiteMigrationEngine",
+    "passed": 1,
+    "go": "go1.27.3",
+    "cgoEnabled": false,
+    "modules": [
+      {
+        "path": "modernc.org/libc",
+        "version": "v1.79.0",
+        "sum": "h1:9Dvvv++bAMSkSuBzuOFAatbTV5OIoq6Y6FohmD3e7q8="
+      },
+      {
+        "path": "modernc.org/sqlite",
+        "version": "v1.61.1",
+        "sum": "h1:TBEE49wz7VlxS+qXRXMQiPUZYOXHJ4ku83daYv1fe04="
+      }
+    ],
+    "observed": {
+      "api": "OpenSQLite -> opened *sql.Conn",
+      "driver": "modernc.org/sqlite",
+      "schemaVersion": 2,
+      "sqlite": {
+        "sourceId": "2026-10-16 14:45:20 555e07ef33f69a0957d24d8e555b702464a131d6f1607f4c3c1e4551e8e6ca76",
+        "version": "3.54.1"
+      }
+    }
+  },
+  "control": {
+    "type": "swap-runtime-sqlite-version-and-source-id",
+    "identityCheck": "rejected",
+    "migrationTestsPassed": 2
+  }
+}
