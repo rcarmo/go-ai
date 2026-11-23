@@ -82,7 +82,7 @@ func ExplainJSONSchemaValueWithResources(schema json.RawMessage, value any, reso
 	if accepted {
 		return []JSONSchemaDiagnostic{}, nil
 	}
-	mode := diagnosticsScoped
+	mode := diagnosticsStructured
 	if v.trackDynamic {
 		mode = diagnosticsDetached
 	}

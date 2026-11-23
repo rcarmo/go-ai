@@ -16,18 +16,28 @@ type toolSchemaItemAnnotationVisit struct {
 }
 
 func (v *toolSchemaValidator) firstUnevaluatedItemFailure(array []interface{}, schema map[string]interface{}, enterRoot bool) int {
+	first := -1
+	v.visitUnevaluatedItemFailures(array, schema, enterRoot, func(index int, _ interface{}) bool {
+		first = index
+		return false
+	})
+	return first
+}
+
+// Both validation and explanation use the same annotations. Validation stops
+// at the first failure; a standalone explanation can visit every failed index.
+func (v *toolSchemaValidator) visitUnevaluatedItemFailures(array []interface{}, schema map[string]interface{}, enterRoot bool, yield func(int, interface{}) bool) {
 	raw, present := schema["unevaluatedItems"]
 	if v.draft7 || !present || raw == true || len(array) == 0 {
-		return -1
+		return
 	}
 	var evaluated toolSchemaItemAnnotations
 	v.collectEvaluatedItems(array, schema, &evaluated, make(map[toolSchemaItemAnnotationVisit]bool), true, enterRoot)
 	for i := evaluated.prefix; i < len(array); i++ {
-		if !evaluated.matches[i] && !v.acceptsRaw(array[i], raw) {
-			return i
+		if !evaluated.matches[i] && !v.acceptsRaw(array[i], raw) && !yield(i, raw) {
+			return
 		}
 	}
-	return -1
 }
 
 // All contributors have passed at this location before their annotations are

@@ -275,10 +275,15 @@ type toolSchemaIssue JSONSchemaDiagnostic
 type toolSchemaDiagnosticMode uint8
 
 const (
-	diagnosticFirst     toolSchemaDiagnosticMode = iota // First error in the validation scope.
-	diagnosticsScoped                                   // Model-facing errors in that scope.
-	diagnosticsDetached                                 // Pinned standalone explanation of dynamic references.
+	diagnosticFirst       toolSchemaDiagnosticMode = iota // First error in the validation scope.
+	diagnosticsScoped                                     // Model-facing errors in that scope.
+	diagnosticsStructured                                 // Standalone structured explanation.
+	diagnosticsDetached                                   // Standalone explanation without the inherited dynamic scope.
 )
+
+func (mode toolSchemaDiagnosticMode) structured() bool {
+	return mode == diagnosticsStructured || mode == diagnosticsDetached
+}
 
 var schemaPointerEscape = strings.NewReplacer("~", "~0", "/", "~1")
 var schemaPointerUnescape = strings.NewReplacer("~1", "/", "~0", "~")
@@ -444,7 +449,20 @@ func (v *toolSchemaValidator) appendIssues(out toolSchemaIssues, value, raw inte
 			return v.appendIssues(out, value[key], raw, childPath, active, mode)
 		}
 	case []interface{}:
-		if index := v.firstUnevaluatedItemFailure(value, schema, mode != diagnosticsDetached); index >= 0 {
+		if mode.structured() {
+			v.visitUnevaluatedItemFailures(value, schema, mode != diagnosticsDetached, func(index int, raw interface{}) bool {
+				itemPath := schemaIssuePath(path, strconv.Itoa(index))
+				if raw == false {
+					out = append(out, JSONSchemaDiagnostic{itemPath, "unevaluatedItems", "unexpected item"})
+				} else {
+					out = v.appendIssues(out, value[index], raw, itemPath, active, mode)
+				}
+				return true
+			})
+			if len(out) > start {
+				return out
+			}
+		} else if index := v.firstUnevaluatedItemFailure(value, schema, true); index >= 0 {
 			return v.appendIssues(out, value[index], schema["unevaluatedItems"], schemaIssuePath(path, strconv.Itoa(index)), active, mode)
 		}
 	}
