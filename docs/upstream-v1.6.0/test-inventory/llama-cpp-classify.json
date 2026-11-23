@@ -1,0 +1,172 @@
+{
+  "format": 1,
+  "pin": "faac585884ae2c013a6b1400f3e9e77f10b34bac",
+  "evidenceBase": "dbd2495eb9e46addcd5fd7453c83b447620b42d9",
+  "node": "v26.13.0",
+  "vitest": "4.1.12",
+  "selection": {
+    "file": "packages/ai/test/llama-cpp-classify.test.ts",
+    "selector": "whole-file",
+    "reportedCaseNames": [
+      "llama.cpp classifier answers choice, bool and score questions from label log-probabilities",
+      "llama.cpp classifier repeats the state around all questions and ends with this question's labels",
+      "llama.cpp classifier shares everything before the final question across the questions of a request",
+      "llama.cpp classifier divides label log-probabilities by the temperature",
+      "llama.cpp classifier rejects non-positive temperatures before sending requests",
+      "llama.cpp classifier retries deeper readouts when a label is missing and fails without inventing zeros",
+      "llama.cpp classifier closes a reasoning block the template leaves open",
+      "llama.cpp classifier reads labels in reply position and rejects labels that are not one token",
+      "llama.cpp classifier caches label tokens per server and model",
+      "llama.cpp classifier validates option counts before sending requests",
+      "llama.cpp classifier passes completion payloads and responses through the request hooks",
+      "llama.cpp classifier reports server errors and cancellation",
+      "llama.cpp classifier rejects models for other classifier APIs",
+      "llama.cpp classifier derives the server root from OpenAI-compatible base URLs",
+      "llama.cpp classifier computes TypeSafe's confidence and expected scores"
+    ]
+  },
+  "result": {
+    "passed": 15,
+    "failed": 0,
+    "skipped": 0,
+    "todo": 0
+  },
+  "sourceDigests": [
+    {
+      "file": "package.json",
+      "sha256": "56c5412227cde9f32dbb1378066b8eb728dfbd934352615ed7e71f9e40728e73"
+    },
+    {
+      "file": "packages/ai/package.json",
+      "sha256": "d5c0803c4fbabe9559ce471a5adb0a6bc26ebae2e2391130f1de9fc7e97eec48"
+    },
+    {
+      "file": "packages/ai/vitest.config.ts",
+      "sha256": "628ade6e9960f0378ef8ddfd1c06f3a12cf375199725f3f6b41de0c8cf5c0313"
+    },
+    {
+      "file": "packages/ai/src/types.ts",
+      "sha256": "8f6b4b9f443708c567dea650d40d247c547e5f3a36481d86acbee545cd038f22"
+    },
+    {
+      "file": "packages/ai/test/llama-cpp-classify.test.ts",
+      "sha256": "14e9cca55ae7b561a971c179812a6869dc8526eebf79602bf0cd9112cdacc7cd"
+    },
+    {
+      "file": "packages/ai/src/api/llama-cpp-classify.ts",
+      "sha256": "b2e00179df0c8b3d91bcb3cb295d75a9e91cb09ac002f08e5797e3ba907a8358"
+    },
+    {
+      "file": "packages/ai/src/utils/error-body.ts",
+      "sha256": "aebab90c2e64630dc834ef5e65af4d56a5f9d24aeaff020891539497b160ba8a"
+    },
+    {
+      "file": "packages/ai/src/utils/headers.ts",
+      "sha256": "423ded49de35ee755f62229ccd64bed6448739c78c6111226ff8e4a201cf9732"
+    },
+    {
+      "file": "packages/ai/src/utils/identity.ts",
+      "sha256": "873fded86c5310497e6cc375256f3c85fffb2a9528145d96e6464142778ba1de"
+    },
+    {
+      "file": "packages/ai/src/utils/provider-retry.ts",
+      "sha256": "91350009509d50845ff0c609bf98bd8818081b6fcc64d034e6d45522f41db9ab"
+    },
+    {
+      "file": "packages/ai/src/utils/text.ts",
+      "sha256": "afd14685bef440b184b32c2ddb8bc5c751c542e5114d4384b66befbc6af0cec3"
+    },
+    {
+      "file": "packages/ai/src/utils/version.ts",
+      "sha256": "c26490762df52de9bf136ec454a7a0cd3ad101d1155049dc47d7b629ac779218"
+    }
+  ],
+  "copiedDependencies": {
+    "roots": [
+      "npm:node_modules/vitest"
+    ],
+    "host": {
+      "os": "linux",
+      "cpu": "arm64",
+      "libc": "glibc"
+    },
+    "placements": [
+      "node_modules/@jridgewell/sourcemap-codec",
+      "node_modules/@oxc-project/types",
+      "node_modules/@rolldown/binding-linux-arm64-gnu",
+      "node_modules/@rolldown/pluginutils",
+      "node_modules/@standard-schema/spec",
+      "node_modules/@types/chai",
+      "node_modules/@types/deep-eql",
+      "node_modules/@types/estree",
+      "node_modules/@vitest/expect",
+      "node_modules/@vitest/mocker",
+      "node_modules/@vitest/pretty-format",
+      "node_modules/@vitest/runner",
+      "node_modules/@vitest/snapshot",
+      "node_modules/@vitest/spy",
+      "node_modules/@vitest/utils",
+      "node_modules/assertion-error",
+      "node_modules/chai",
+      "node_modules/convert-source-map",
+      "node_modules/detect-libc",
+      "node_modules/es-module-lexer",
+      "node_modules/estree-walker",
+      "node_modules/expect-type",
+      "node_modules/fdir",
+      "node_modules/lightningcss",
+      "node_modules/lightningcss-linux-arm64-gnu",
+      "node_modules/magic-string",
+      "node_modules/nanoid",
+      "node_modules/obug",
+      "node_modules/pathe",
+      "node_modules/picocolors",
+      "node_modules/picomatch",
+      "node_modules/postcss",
+      "node_modules/rolldown",
+      "node_modules/siginfo",
+      "node_modules/source-map-js",
+      "node_modules/stackback",
+      "node_modules/std-env",
+      "node_modules/tinybench",
+      "node_modules/tinyexec",
+      "node_modules/tinyglobby",
+      "node_modules/tinyrainbow",
+      "node_modules/vite",
+      "node_modules/vitest",
+      "node_modules/why-is-node-running"
+    ]
+  },
+  "control": {
+    "change": "readout escalation 4096 to 4095 in scratch adapter",
+    "failed": [
+      "llama.cpp classifier retries deeper readouts when a label is missing and fails without inventing zeros"
+    ],
+    "passed": [
+      "llama.cpp classifier answers choice, bool and score questions from label log-probabilities",
+      "llama.cpp classifier repeats the state around all questions and ends with this question's labels",
+      "llama.cpp classifier shares everything before the final question across the questions of a request",
+      "llama.cpp classifier divides label log-probabilities by the temperature",
+      "llama.cpp classifier rejects non-positive temperatures before sending requests",
+      "llama.cpp classifier closes a reasoning block the template leaves open",
+      "llama.cpp classifier reads labels in reply position and rejects labels that are not one token",
+      "llama.cpp classifier caches label tokens per server and model",
+      "llama.cpp classifier validates option counts before sending requests",
+      "llama.cpp classifier passes completion payloads and responses through the request hooks",
+      "llama.cpp classifier reports server errors and cancellation",
+      "llama.cpp classifier rejects models for other classifier APIs",
+      "llama.cpp classifier derives the server root from OpenAI-compatible base URLs",
+      "llama.cpp classifier computes TypeSafe's confidence and expected scores"
+    ]
+  },
+  "gates": {
+    "network": "no-Node-network-permission",
+    "credentials": "dummy-key-and-stub-fetch",
+    "exclusions": []
+  },
+  "priorQueue": {
+    "file": "docs/upstream-v1.6.0/test-inventory/primary-queue-r21.jsonl",
+    "commit": "dbd2495eb9e46addcd5fd7453c83b447620b42d9"
+  },
+  "scope": "offline-classifier-only"
+}

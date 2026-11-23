@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -35,14 +36,21 @@ func classifyLlamaCPP(model *ClassifierModel, classCtx ClassifierContext, opts *
 		ctx = opts.Context
 	}
 	if model.Api != ClassifierApiLlamaCPP {
-		return classifierError(model, fmt.Errorf("unsupported classifier API: %s", model.Api), false), nil
+		//lint:ignore ST1005 keep the pinned classifier diagnostic.
+		return classifierError(model, fmt.Errorf("Unsupported classifier API: %s", model.Api), false), nil
 	}
 	temperature := 1.0
-	if opts != nil && opts.Temperature != 0 {
-		temperature = opts.Temperature
+	if opts != nil {
+		switch {
+		case opts.TemperatureOverride != nil:
+			temperature = *opts.TemperatureOverride
+		case opts.Temperature != 0:
+			temperature = opts.Temperature
+		}
 	}
 	if !(temperature > 0) || math.IsNaN(temperature) || math.IsInf(temperature, 0) {
-		return classifierError(model, fmt.Errorf("temperature must be a positive number, got %v", temperature), false), nil
+		//lint:ignore ST1005 keep the pinned classifier diagnostic.
+		return classifierError(model, fmt.Errorf("Temperature must be a positive number, got %v", temperature), false), nil
 	}
 	ids := sortedQuestionIDs(classCtx.Questions)
 	for _, id := range ids {
@@ -99,7 +107,8 @@ func llamaQuestionLabels(question ClassifierQuestion) ([]string, []string, error
 		// labels, prompt options and probability-to-key mapping.
 		sort.Strings(keys)
 		if len(keys) < 2 || len(keys) > len(llamaChoiceLabels) {
-			return nil, nil, fmt.Errorf("a choice question needs 2 to %d options, got %d", len(llamaChoiceLabels), len(keys))
+			//lint:ignore ST1005 keep the pinned classifier diagnostic.
+			return nil, nil, fmt.Errorf("A choice question needs 2 to %d options, got %d", len(llamaChoiceLabels), len(keys))
 		}
 		labels := make([]string, len(keys))
 		for i := range keys {
@@ -109,7 +118,8 @@ func llamaQuestionLabels(question ClassifierQuestion) ([]string, []string, error
 	case "score":
 		levels := criteria.([]string)
 		if len(levels) < 2 || len(levels) > len(llamaScoreLabels) {
-			return nil, nil, fmt.Errorf("a score question needs 2 to %d levels, got %d", len(llamaScoreLabels), len(levels))
+			//lint:ignore ST1005 keep the pinned classifier diagnostic.
+			return nil, nil, fmt.Errorf("A score question needs 2 to %d levels, got %d", len(llamaScoreLabels), len(levels))
 		}
 		labels := make([]string, len(levels))
 		for i := range levels {
@@ -289,7 +299,8 @@ func llamaResolveLabelToken(request llamaCPPRequest, label string) (int, error) 
 	if len(alone) == 1 {
 		return alone[0], nil
 	}
-	return 0, fmt.Errorf("label %q is not a single token for %s", label, request.model.ID)
+	//lint:ignore ST1005 keep the pinned classifier diagnostic.
+	return 0, fmt.Errorf("Label %q is not a single token for %s", label, request.model.ID)
 }
 
 func llamaTokenize(request llamaCPPRequest, content string) ([]int, error) {
@@ -411,7 +422,8 @@ func llamaPost(request llamaCPPRequest, path string, body map[string]any, observ
 		return nil, classifierResponseReadError(llamaCPPLabel, err)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("%s returned %d", llamaCPPLabel, resp.StatusCode)
+		err := &classifierHTTPError{label: llamaCPPLabel, status: resp.StatusCode, body: string(responseBody)}
+		return nil, errors.New(FormatProviderError(NormalizeProviderError(err), llamaCPPLabel+" error"))
 	}
 	var value any
 	if err := json.Unmarshal(responseBody, &value); err != nil {

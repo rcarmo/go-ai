@@ -44,6 +44,8 @@ type ClassifierOptions struct {
 	Context         context.Context
 	Timeout         time.Duration
 	TimeoutMs       int
+	// TemperatureOverride distinguishes an explicit zero from omission for llama.cpp.
+	TemperatureOverride *float64
 	// TimeoutMsOverride distinguishes an explicit zero timeout from omission.
 	TimeoutMsOverride *int
 	// Non-zero legacy values remain supported. Pointer overrides distinguish
