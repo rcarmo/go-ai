@@ -61,9 +61,71 @@ func ValidateJSONSchemaValueWithResources(schema map[string]any, value any, reso
 // resource map registers no host documents. Errors report an input or checker
 // failure instead of an instance diagnostic.
 func ExplainJSONSchemaValueWithResources(schema json.RawMessage, value any, resources map[string]json.RawMessage, draft ...JSONSchemaReferenceDraft) ([]JSONSchemaDiagnostic, error) {
+	call, err := prepareStandaloneSchemaValue(schema, value, resources, draft)
+	if err != nil {
+		return nil, err
+	}
+	return call.validator.explainSchemaValue(call.schema, call.value, call.valueRaw)
+}
+
+// CoerceJSONSchemaValueWithResources applies the JSON Schema coercion rules
+// without requiring the result to pass validation. It leaves values that cannot
+// be converted as they are and does not modify the input. Schema, value,
+// resources, and draft work as in ExplainJSONSchemaValueWithResources.
+func CoerceJSONSchemaValueWithResources(schema json.RawMessage, value any, resources map[string]json.RawMessage, draft ...JSONSchemaReferenceDraft) (any, error) {
+	call, err := prepareStandaloneSchemaValue(schema, value, resources, draft)
+	if err != nil {
+		return nil, err
+	}
+	return call.coerce()
+}
+
+// ParseJSONSchemaValueWithResources coerces a value and checks the result. A
+// valid value returns an empty diagnostic slice. An invalid value returns nil
+// and the structured diagnostics of the coerced value, using deterministic
+// key order for decoded maps. Errors report setup or checker failures.
+// Schema, value, resources, and draft work as in ExplainJSONSchemaValueWithResources.
+func ParseJSONSchemaValueWithResources(schema json.RawMessage, value any, resources map[string]json.RawMessage, draft ...JSONSchemaReferenceDraft) (any, []JSONSchemaDiagnostic, error) {
+	call, err := prepareStandaloneSchemaValue(schema, value, resources, draft)
+	if err != nil {
+		return nil, nil, err
+	}
+	coerced, err := call.coerce()
+	if err != nil {
+		return nil, nil, err
+	}
+	diagnostics, err := call.validator.explainSchemaValue(call.schema, coerced, nil)
+	if err != nil || len(diagnostics) != 0 {
+		return nil, diagnostics, err
+	}
+	return coerced, diagnostics, nil
+}
+
+type standaloneSchemaValue struct {
+	validator *toolSchemaValidator
+	schema    any
+	value     any
+	valueRaw  json.RawMessage
+}
+
+func (call standaloneSchemaValue) coerce() (any, error) {
+	v := call.validator
+	value := call.value
+	if root, ok := call.schema.(map[string]any); ok {
+		value = v.normalizeOptionalNulls(value, root)
+		value = v.convertValidationValue(value, root)
+		value = v.coerceValidationTypes(value, root)
+	}
+	if v.patternFailure != nil {
+		return nil, fmt.Errorf("pattern checker unavailable: %w", v.patternFailure)
+	}
+	return value, nil
+}
+
+func prepareStandaloneSchemaValue(schema json.RawMessage, value any, resources map[string]json.RawMessage, draft []JSONSchemaReferenceDraft) (standaloneSchemaValue, error) {
 	var parsed any
 	if err := json.Unmarshal(schema, &parsed); err != nil {
-		return nil, fmt.Errorf("decode schema: %w", err)
+		return standaloneSchemaValue{}, fmt.Errorf("decode schema: %w", err)
 	}
 	var root map[string]any
 	switch s := parsed.(type) {
@@ -71,35 +133,39 @@ func ExplainJSONSchemaValueWithResources(schema json.RawMessage, value any, reso
 		root = s
 	case bool:
 	default:
-		return nil, fmt.Errorf("schema must be an object or a boolean")
+		return standaloneSchemaValue{}, fmt.Errorf("schema must be an object or a boolean")
 	}
 	valueRaw, hasRawValue := value.(json.RawMessage)
 	if hasRawValue {
 		var decoded any
 		if err := json.Unmarshal(valueRaw, &decoded); err != nil {
-			return nil, fmt.Errorf("decode value: %w", err)
+			return standaloneSchemaValue{}, fmt.Errorf("decode value: %w", err)
 		}
 		value = decoded
 	}
 	v, err := newToolSchemaResourceValidator(root, schema, resources, draft)
 	if err != nil {
-		return nil, err
+		return standaloneSchemaValue{}, err
 	}
-	accepted := v.acceptsRaw(value, parsed)
+	return standaloneSchemaValue{validator: v, schema: parsed, value: value, valueRaw: valueRaw}, nil
+}
+
+func (v *toolSchemaValidator) explainSchemaValue(schema, value any, valueRaw json.RawMessage) ([]JSONSchemaDiagnostic, error) {
+	accepted := v.acceptsRaw(value, schema)
 	if v.patternFailure != nil {
 		return nil, fmt.Errorf("pattern checker unavailable: %w", v.patternFailure)
 	}
 	if accepted {
 		return []JSONSchemaDiagnostic{}, nil
 	}
-	if hasRawValue {
+	if len(valueRaw) != 0 {
 		v.valueOrders = schemaJSONOrders(value, valueRaw)
 	}
 	mode := diagnosticsStructured
 	if v.trackDynamic {
 		mode = diagnosticsDetached
 	}
-	issues := v.appendIssues(nil, value, parsed, "", make(map[toolSchemaMemoKey]bool), mode)
+	issues := v.appendIssues(nil, value, schema, "", make(map[toolSchemaMemoKey]bool), mode)
 	if len(issues) == 0 {
 		// A detached walk can miss a failure that depends on a dynamic scope.
 		issues = append(issues, JSONSchemaDiagnostic{Keyword: "schema", Message: "invalid"})
