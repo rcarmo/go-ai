@@ -653,3 +653,7 @@ Both unchanged Codemode cases passed. The inline and published portable guests r
 All 35 unchanged nested-tool cases passed. Go now returns the exact duration stored with a successful nested result, and leaves it absent on a fault with no saved result. Tests caught a one-millisecond change and a made-up zero. The original includes the task ID in the result; Go exposes that ID through its handle.
 
 The unchanged seeded idle-index test passed. Go's corresponding 200-step test checks the actual context fallback counter: zero task-graph scans. Bypassing the index left the busy results correct but caused 12,385 scans, which failed the new check. The counter changes no scheduling decisions.
+
+### Reasoning fields survive Completions replay
+
+All nine unchanged cases in this slice passed offline. Go now uses `reasoning_content` for OpenCode Go reasoning in both streamed and replayed messages. Other providers keep their original field. The request checks also cover instruction roles, Xiaomi's explicit empty reasoning field, and the catalogue settings for OpenRouter, Xiaomi and Qwen. Only the two OpenCode Go directions failed before the fix.
