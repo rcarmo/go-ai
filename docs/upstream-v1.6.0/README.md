@@ -667,3 +667,13 @@ All 13 selected unchanged [file-tool cases](test-inventory/portable-file-tools.m
 The last 19 unchanged Completions option and usage cases passed offline. Go omits disabled thinking for Moonshot Kimi K2.7 Code, preserves it for K2.6, and omits unmapped Ant Ling effort on the direct route without changing the simple route's clamp. Earlier token and cache accounting already matched. All 50 cases in the file now have native comparisons; this does not establish SDK lifecycle or live-provider behavior.
 
 Go also now accepts and preserves the explicit JSON `false` tool-sampling declaration. Responses sends exactly the same provider tool definition for `false` and for omission, as upstream does. Durable preserves the explicit value in a typed offer without giving caller JSON any additional marshal authority. Before the fix, Go rejected the literal at decoding.
+
+### Shared nested calls, replay errors, and standalone coercion
+
+The unchanged nested-tool suite passed again. Go checks that a repeated key reuses the same child, that conflicting arguments are refused, and that cancelling a wait leaves the child running. Concurrent calls also share one child. The source's insertion-order distinction stays partial because Go maps do not keep that order.
+
+Both unchanged replay-divergence cases passed. Go now reports the expected diagnostic when replay changes the number of calls or a global's arguments. The live portable guest tests use valid persisted records rather than rewriting an immutable journal; the rejection behavior matches without weakening storage guards.
+
+All 49 unchanged coercion tests passed, along with the selected relative-root test. Go now exposes standalone conversion and parsing with host-registered references and structured errors after conversion. The focused native checks include all 42 diagnostics in the depth-40 case. Tool behavior is unchanged. JavaScript-specific values, reference identity, and reusable compilation remain open.
+
+All eight selected [Linux Bash cases](test-inventory/linux-bash-tools.md) passed in isolation; the prior file-tool receipt and this one cover 21 distinct originals out of 36. No Bash runtime change was needed. The Windows shell cases and the remaining original behaviors stay open.
