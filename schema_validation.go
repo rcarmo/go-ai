@@ -262,31 +262,40 @@ func sortedSchemaKeys(object map[string]interface{}) []string {
 	return keys
 }
 
-type toolSchemaIssue struct{ path, reason string }
-
-func (i *toolSchemaIssue) Error() string {
-	path := i.path
-	if path == "" {
-		path = "root"
-	}
-	return path + ": " + i.reason
+// JSONSchemaDiagnostic explains one failure. Path is a JSON Pointer into the
+// instance (empty for the root), and Keyword identifies the failed check.
+type JSONSchemaDiagnostic struct {
+	Path    string `json:"path"`
+	Keyword string `json:"keyword"`
+	Message string `json:"message"`
 }
 
+type toolSchemaIssue JSONSchemaDiagnostic
+
+var schemaPointerEscape = strings.NewReplacer("~", "~0", "/", "~1")
+var schemaPointerUnescape = strings.NewReplacer("~1", "/", "~0", "~")
+
 func schemaIssuePath(parent, key string) string {
-	if parent == "" {
-		return key
+	return parent + "/" + schemaPointerEscape.Replace(key)
+}
+
+func (i *toolSchemaIssue) Error() string {
+	path := "root"
+	if i.Path != "" {
+		// Convert pointer delimiters before unescaping slashes in keys.
+		path = schemaPointerUnescape.Replace(strings.ReplaceAll(i.Path[1:], "/", "."))
 	}
-	return parent + "." + key
+	return path + ": " + i.Message
 }
 
 // Select a first diagnostic for callers whose API returns one error. The tool
 // failure protocol instead renders each diagnostic found by the same walk.
 func (v *toolSchemaValidator) issue(value interface{}, schema map[string]interface{}, path string, active map[toolSchemaMemoKey]bool) *toolSchemaIssue {
 	issues := v.appendIssues(nil, value, schema, path, active, true)
-	return &issues[0]
+	return (*toolSchemaIssue)(&issues[0])
 }
 
-type toolSchemaIssues []toolSchemaIssue
+type toolSchemaIssues []JSONSchemaDiagnostic
 
 func (issues toolSchemaIssues) Error() string {
 	var out strings.Builder
@@ -295,7 +304,7 @@ func (issues toolSchemaIssues) Error() string {
 			out.WriteByte('\n')
 		}
 		out.WriteString("  - ")
-		out.WriteString(issues[i].Error())
+		out.WriteString((*toolSchemaIssue)(&issues[i]).Error())
 	}
 	return out.String()
 }
@@ -304,7 +313,7 @@ func (issues toolSchemaIssues) Error() string {
 // Pure membership memo entries hold booleans, never a caller-specific path.
 func (v *toolSchemaValidator) appendIssues(out toolSchemaIssues, value, raw interface{}, path string, active map[toolSchemaMemoKey]bool, first bool) toolSchemaIssues {
 	if raw == false {
-		return append(out, toolSchemaIssue{path, "no value is allowed here"})
+		return append(out, JSONSchemaDiagnostic{path, "false", "no value is allowed here"})
 	}
 	schema, ok := raw.(map[string]interface{})
 	if !ok {
@@ -317,47 +326,47 @@ func (v *toolSchemaValidator) appendIssues(out toolSchemaIssues, value, raw inte
 	if ref, ok := schema["$ref"].(string); v.draft7 && ok {
 		out = v.appendReferenceIssues(out, value, schema, ref, false, path, active, first)
 		if len(out) == start {
-			out = append(out, toolSchemaIssue{path, "value does not match schema"})
+			out = append(out, JSONSchemaDiagnostic{path, "schema", "value does not match schema"})
 		}
 		return out
 	}
 	types := schemaTypes(schema["type"])
 	if len(types) > 0 && !anyMatchesJSONSchemaType(value, types) {
-		return append(out, toolSchemaIssue{path, "expected " + strings.Join(types, " or ") + ", got " + schemaLiteralTypeName(value)})
+		return append(out, JSONSchemaDiagnostic{path, "type", "expected " + strings.Join(types, " or ") + ", got " + schemaLiteralTypeName(value)})
 	}
 	if values, ok := schema["enum"].([]interface{}); ok && !schemaContainsLiteral(values, value) {
-		out = append(out, toolSchemaIssue{path, "expected one of " + v.literalEnumList(values)})
+		out = append(out, JSONSchemaDiagnostic{path, "enum", "expected one of " + v.literalEnumList(values)})
 		if first {
 			return out
 		}
 	}
 	if literal, exists := schema["const"]; exists && !SchemaEqual(value, literal) {
-		out = append(out, toolSchemaIssue{path, "expected " + v.literalJSON(literal)})
+		out = append(out, JSONSchemaDiagnostic{path, "const", "expected " + v.literalJSON(literal)})
 		if first {
 			return out
 		}
 	}
-	if reason := schemaNumericBoundsReason(value, schema); reason != "" {
-		out = append(out, toolSchemaIssue{path, reason})
+	if keyword, reason := schemaNumericBoundFailure(value, schema); reason != "" {
+		out = append(out, JSONSchemaDiagnostic{path, keyword, reason})
 		if first {
 			return out
 		}
 	}
 	if issue := v.constraintIssue(value, schema, path, active); issue != nil {
-		out = append(out, *issue)
+		out = append(out, JSONSchemaDiagnostic(*issue))
 		if first {
 			return out
 		}
 	}
 	if _, ok := schemaStringValue(value); ok {
 		if reason := v.stringPatternReason(value, schema); reason != "" {
-			out = append(out, toolSchemaIssue{path, reason})
+			out = append(out, JSONSchemaDiagnostic{path, "pattern", reason})
 			if first {
 				return out
 			}
 		}
 		if reason := v.stringFormatReason(value, schema); reason != "" {
-			out = append(out, toolSchemaIssue{path, reason})
+			out = append(out, JSONSchemaDiagnostic{path, "format", reason})
 			if first {
 				return out
 			}
@@ -407,7 +416,7 @@ func (v *toolSchemaValidator) appendIssues(out toolSchemaIssues, value, raw inte
 			childPath := schemaIssuePath(path, key)
 			raw := schema["unevaluatedProperties"]
 			if raw == false {
-				return append(out, toolSchemaIssue{childPath, "unknown field"})
+				return append(out, JSONSchemaDiagnostic{childPath, "unevaluatedProperties", "unknown field"})
 			}
 			return v.appendIssues(out, value[key], raw, childPath, active, first)
 		}
@@ -416,7 +425,7 @@ func (v *toolSchemaValidator) appendIssues(out toolSchemaIssues, value, raw inte
 			return v.appendIssues(out, value[index], schema["unevaluatedItems"], schemaIssuePath(path, strconv.Itoa(index)), active, first)
 		}
 	}
-	return append(out, toolSchemaIssue{path, "value does not match schema"})
+	return append(out, JSONSchemaDiagnostic{path, "schema", "value does not match schema"})
 }
 
 func (v *toolSchemaValidator) appendObjectIssues(out toolSchemaIssues, object, schema map[string]interface{}, path string, active map[toolSchemaMemoKey]bool, first bool) toolSchemaIssues {
@@ -425,7 +434,7 @@ func (v *toolSchemaValidator) appendObjectIssues(out toolSchemaIssues, object, s
 		for _, raw := range required {
 			if key, ok := raw.(string); ok {
 				if _, present := object[key]; !present {
-					out = append(out, toolSchemaIssue{schemaIssuePath(path, key), "missing"})
+					out = append(out, JSONSchemaDiagnostic{schemaIssuePath(path, key), "required", "missing"})
 					if first {
 						return out
 					}
@@ -451,7 +460,7 @@ func (v *toolSchemaValidator) appendObjectIssues(out toolSchemaIssues, object, s
 		for _, p := range members.patterns {
 			result := v.matchSchemaPattern(p.source, key)
 			if result.err != nil || !result.valid {
-				return append(out, toolSchemaIssue{childPath, "pattern property checker unavailable or invalid"})
+				return append(out, JSONSchemaDiagnostic{childPath, "patternProperties", "pattern property checker unavailable or invalid"})
 			}
 			if result.matched {
 				matched = true
@@ -465,7 +474,7 @@ func (v *toolSchemaValidator) appendObjectIssues(out toolSchemaIssues, object, s
 		}
 		if !matched && members.additional != nil && !v.acceptsRaw(current, members.additional) {
 			if members.additional == false {
-				out = append(out, toolSchemaIssue{childPath, "unknown field"})
+				out = append(out, JSONSchemaDiagnostic{childPath, "additionalProperties", "unknown field"})
 			} else {
 				out = v.appendIssues(out, current, members.additional, childPath, active, first)
 			}
@@ -483,7 +492,7 @@ func (v *toolSchemaValidator) appendUnionIssues(out toolSchemaIssues, value inte
 		return out
 	}
 	if keyword == "oneOf" && matches > 1 {
-		return append(out, toolSchemaIssue{path, "matches more than one alternative"})
+		return append(out, JSONSchemaDiagnostic{path, keyword, "matches more than one alternative"})
 	}
 	object, isObject := value.(map[string]interface{})
 	if keyword != "allOf" && isObject {
@@ -495,7 +504,7 @@ func (v *toolSchemaValidator) appendUnionIssues(out toolSchemaIssues, value inte
 					}
 				}
 			}
-			return append(out, toolSchemaIssue{schemaIssuePath(path, key), "expected one of " + v.literalEnumList(tags)})
+			return append(out, JSONSchemaDiagnostic{schemaIssuePath(path, key), keyword, "expected one of " + v.literalEnumList(tags)})
 		}
 	}
 	var best toolSchemaIssues
@@ -525,7 +534,7 @@ func (v *toolSchemaValidator) appendUnionIssues(out toolSchemaIssues, value inte
 				}
 			}
 		}
-		if len(best) == 0 || declared > bestDeclared || declared == bestDeclared && len(candidate[0].path) > len(best[0].path) {
+		if len(best) == 0 || declared > bestDeclared || declared == bestDeclared && len(candidate[0].Path) > len(best[0].Path) {
 			best, bestDeclared = candidate, declared
 		}
 	}
@@ -584,7 +593,7 @@ func (v *toolSchemaValidator) appendReferenceIssues(out toolSchemaIssues, value 
 		defer v.enterSchemaScope(base)()
 	}
 	if target == nil {
-		return append(out, toolSchemaIssue{path, "unresolved reference " + ref})
+		return append(out, JSONSchemaDiagnostic{path, "$ref", "unresolved reference " + ref})
 	}
 	child, ok := target.(map[string]interface{})
 	if !ok {

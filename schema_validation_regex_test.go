@@ -15,8 +15,8 @@ func TestValidationRegexMemoScope(t *testing.T) {
 			if !v.schemaAcceptsValue(`(?<x>a)\k<x>`, schema) || v.schemaAcceptsValue("[", schema) {
 				t.Fatal("non-coercing membership changed")
 			}
-			issue := v.issue("[", schema, "v", make(map[toolSchemaMemoKey]bool))
-			if issue == nil || issue.reason != "expected format regex" {
+			issue := v.issue("[", schema, "/v", make(map[toolSchemaMemoKey]bool))
+			if issue == nil || issue.Message != "expected format regex" {
 				t.Fatalf("issue=%v", issue)
 			}
 		}
@@ -44,7 +44,7 @@ func TestValidationRegexAnnotationsAndFailure(t *testing.T) {
 	if v.schemaAcceptsValue("a", schema) {
 		t.Fatal("unavailable checker accepted")
 	}
-	if issue := v.issue("a", schema, "v", make(map[toolSchemaMemoKey]bool)); issue == nil || !strings.HasPrefix(issue.reason, "regex format checker unavailable:") {
+	if issue := v.issue("a", schema, "/v", make(map[toolSchemaMemoKey]bool)); issue == nil || !strings.HasPrefix(issue.Message, "regex format checker unavailable:") {
 		t.Fatalf("issue=%v", issue)
 	}
 }

@@ -15,7 +15,7 @@ func TestValidationStringPatternMemoAndFailure(t *testing.T) {
 		if !v.schemaAcceptsValue("aa", schema) || v.schemaAcceptsValue("ab", schema) {
 			t.Fatal("pattern membership changed")
 		}
-		issue := v.issue("ab", schema, "s", make(map[toolSchemaMemoKey]bool))
+		issue := v.issue("ab", schema, "/s", make(map[toolSchemaMemoKey]bool))
 		if issue == nil || issue.Error() != "s: expected to match ^a+$" {
 			t.Fatalf("issue=%v", issue)
 		}
@@ -59,7 +59,7 @@ func TestValidationPatternPropertyFailureIsNotAccepted(t *testing.T) {
 	if v.schemaAcceptsValue(value, schema) {
 		t.Fatal("pattern property engine failure accepted")
 	}
-	issue := v.issue(value, schema, "v", make(map[toolSchemaMemoKey]bool))
+	issue := v.issue(value, schema, "/v", make(map[toolSchemaMemoKey]bool))
 	if issue == nil || !strings.Contains(issue.Error(), "pattern property checker") {
 		t.Fatalf("issue=%v", issue)
 	}

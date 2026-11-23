@@ -27,6 +27,104 @@ const v160RefDiagnosticsSchema = `{
 
 const v160PointerDiagnosticsSchema = `{"type":"object","properties":{"a/b~c":{"type":"string"}}}`
 
+// Exact path, keyword, message, count and order from the five errors cases in
+// packages/schema/test/validator.test.ts. Check is a separate public call.
+func TestSourceV160SchemaStructuredDiagnostics(t *testing.T) {
+	for _, tc := range []struct {
+		name, schema, input, diagnostics string
+	}{
+		{"L35-missing-field-and-unknown-field", v160ReadDiagnosticsSchema, `{"offset":0,"extra":true}`,
+			`[{"path":"/path","keyword":"required","message":"missing"},{"path":"/offset","keyword":"minimum","message":"expected >= 1"},{"path":"/extra","keyword":"additionalProperties","message":"unknown field"}]`},
+		{"L43-empty-for-valid-value", v160ReadDiagnosticsSchema, `{"path":"a.ts"}`, `[]`},
+		{"L48-selected-tag", v160TaggedDiagnosticsSchema, `[{"kind":"text","text":"a"},{"kind":"image","width":-1}]`,
+			`[{"path":"/1/width","keyword":"minimum","message":"expected >= 0"}]`},
+		{"L54-unknown-tag", v160TaggedDiagnosticsSchema, `[{"kind":"video"}]`,
+			`[{"path":"/0/kind","keyword":"anyOf","message":"expected one of [\"text\",\"image\"]"}]`},
+		{"L61-pointer-escaping", v160PointerDiagnosticsSchema, `{"a/b~c":1}`,
+			`[{"path":"/a~1b~0c","keyword":"type","message":"expected string, got integer"}]`},
+		{"L72-referenced-schema", v160RefDiagnosticsSchema, `[{"x":1},{}]`,
+			`[{"path":"/1/x","keyword":"required","message":"missing"}]`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			schema := decodeV160DiagnosticInput(t, tc.schema).(map[string]any)
+			value := decodeV160DiagnosticInput(t, tc.input)
+			if accepted := goai.CheckJSONSchemaValue(schema, value); accepted != (tc.diagnostics == `[]`) {
+				t.Fatalf("strict check = %t; want %t", accepted, tc.diagnostics == `[]`)
+			}
+			issues, err := goai.ExplainJSONSchemaValueWithResources(json.RawMessage(tc.schema), value, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertV160StructuredDiagnostics(t, issues, tc.diagnostics)
+		})
+	}
+}
+
+func assertV160StructuredDiagnostics(t *testing.T, got any, want string) {
+	t.Helper()
+	var encoded strings.Builder
+	encoder := json.NewEncoder(&encoded)
+	encoder.SetEscapeHTML(false)
+	if err := encoder.Encode(got); err != nil {
+		t.Fatal(err)
+	}
+	if text := strings.TrimSuffix(encoded.String(), "\n"); text != want {
+		t.Fatalf("diagnostics = %s; want %s", text, want)
+	}
+}
+
+// Supplemental Go boundary cases: host references, declaration order, absence
+// of implicit fetching, strict draft policies and errors from schema setup.
+func TestSourceV160SchemaStructuredDiagnosticResources(t *testing.T) {
+	const uri = "https://example.com/point.json"
+	root := json.RawMessage(`{"type":"object","properties":{"z":{"$ref":"https://example.com/point.json"},"a":{"type":"integer"}}}`)
+	point := json.RawMessage(`{"type":"object","properties":{"n":{"type":"integer"}},"required":["n"]}`)
+	value := decodeV160DiagnosticInput(t, `{"a":"2","z":{"n":"1"}}`)
+	resources := map[string]json.RawMessage{uri: point}
+	got, err := goai.ExplainJSONSchemaValueWithResources(root, value, resources)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertV160StructuredDiagnostics(t, got, `[{"path":"/z/n","keyword":"type","message":"expected integer, got string"},{"path":"/a","keyword":"type","message":"expected integer, got string"}]`)
+	got, err = goai.ExplainJSONSchemaValueWithResources(root, value, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertV160StructuredDiagnostics(t, got, `[{"path":"/z","keyword":"$ref","message":"unresolved reference https://example.com/point.json"},{"path":"/a","keyword":"type","message":"expected integer, got string"}]`)
+
+	draftRoot := json.RawMessage(`{"$ref":"https://example.com/point.json","maxProperties":0}`)
+	passing := decodeV160DiagnosticInput(t, `{"n":1}`)
+	got, err = goai.ExplainJSONSchemaValueWithResources(draftRoot, passing, resources, goai.JSONSchemaReferenceDraft7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertV160StructuredDiagnostics(t, got, `[]`)
+	got, err = goai.ExplainJSONSchemaValueWithResources(draftRoot, passing, resources)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertV160StructuredDiagnostics(t, got, `[{"path":"","keyword":"maxProperties","message":"expected at most 0 properties"}]`)
+
+	got, err = goai.ExplainJSONSchemaValueWithResources(root, value, map[string]json.RawMessage{uri: json.RawMessage(`42`)})
+	if got != nil || err == nil || err.Error() != `schema resource "https://example.com/point.json": expected an object or boolean` {
+		t.Fatalf("invalid host resource = %#v, %v", got, err)
+	}
+}
+
+func TestSourceV160SchemaStructuredDiagnosticRoot(t *testing.T) {
+	got, err := goai.ExplainJSONSchemaValueWithResources(json.RawMessage(`false`), nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertV160StructuredDiagnostics(t, got, `[{"path":"","keyword":"false","message":"no value is allowed here"}]`)
+
+	got, err = goai.ExplainJSONSchemaValueWithResources(json.RawMessage(`{"properties":{"":{"type":"integer"}}}`), map[string]any{"": "s"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertV160StructuredDiagnostics(t, got, `[{"path":"/","keyword":"type","message":"expected integer, got string"}]`)
+}
+
 // The tool boundary adds a dotted path, omits keywords and coerces before it
 // checks, unlike the validator.errors calls in packages/schema/test/validator.test.ts.
 func TestSourceV160SchemaToolDiagnostics(t *testing.T) {

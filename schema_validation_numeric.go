@@ -11,8 +11,13 @@ import (
 // these checks out of conversion: a converted value can fail this branch's
 // bounds but satisfy another branch of the enclosing union.
 func schemaNumericBoundsReason(value interface{}, schema map[string]interface{}) string {
+	_, reason := schemaNumericBoundFailure(value, schema)
+	return reason
+}
+
+func schemaNumericBoundFailure(value interface{}, schema map[string]interface{}) (keyword, message string) {
 	if !matchesJSONSchemaType(value, "number") {
-		return ""
+		return "", ""
 	}
 	for _, keyword := range []string{"minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum"} {
 		bound, ok := schema[keyword].(float64)
@@ -21,7 +26,7 @@ func schemaNumericBoundsReason(value interface{}, schema map[string]interface{})
 		}
 		comparison, finite := compareSchemaNumber(value, bound)
 		if !finite {
-			return "expected number"
+			return keyword, "expected number"
 		}
 		operator := ""
 		switch {
@@ -35,10 +40,10 @@ func schemaNumericBoundsReason(value interface{}, schema map[string]interface{})
 			operator = "<"
 		}
 		if operator != "" {
-			return "expected " + operator + " " + SafeJSONStringify(bound)
+			return keyword, "expected " + operator + " " + SafeJSONStringify(bound)
 		}
 	}
-	return ""
+	return "", ""
 }
 
 func compareSchemaNumber(value interface{}, bound float64) (int, bool) {

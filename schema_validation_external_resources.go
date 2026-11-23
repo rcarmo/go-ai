@@ -29,21 +29,10 @@ const (
 // The optional reference draft applies to all documents, not just the root.
 // It defaults to draft 2020-12 and is not inferred from $schema.
 func ValidateJSONSchemaValueWithResources(schema map[string]any, value any, resources map[string]json.RawMessage, draft ...JSONSchemaReferenceDraft) error {
-	if len(draft) > 1 {
-		return fmt.Errorf("expected at most one schema reference draft")
-	}
-	if len(draft) == 1 && draft[0] != JSONSchemaReferenceDraft202012 && draft[0] != JSONSchemaReferenceDraft7 {
-		return fmt.Errorf("unsupported schema reference draft %q", draft[0])
-	}
-	v := newToolSchemaValidator(schema)
-	v.draft7 = len(draft) == 1 && draft[0] == JSONSchemaReferenceDraft7
-	r := v.resourceIndex()
-	if err := r.registerExternal(resources); err != nil {
+	v, err := newToolSchemaResourceValidator(schema, nil, resources, draft)
+	if err != nil {
 		return err
 	}
-	// A lazily loaded document can introduce a dynamic reference not present in
-	// the root. Track the resource stack from the start when using a registry.
-	v.trackDynamic = !v.draft7 && (r.hasDynamicRef || len(r.external) > 0)
 	accepted := v.schemaAcceptsValue(value, schema)
 	if v.patternFailure != nil {
 		return fmt.Errorf("pattern checker unavailable: %w", v.patternFailure)
@@ -56,6 +45,66 @@ func ValidateJSONSchemaValueWithResources(schema map[string]any, value any, reso
 		return fmt.Errorf("pattern checker unavailable: %w", v.patternFailure)
 	}
 	return issue
+}
+
+// ExplainJSONSchemaValueWithResources reports why a decoded JSON value fails
+// validation without coercing it. It returns an empty slice for a valid value.
+// Array-index keys sort numerically before other keys. Other property names
+// keep their order in the raw schema. Undeclared fields of a decoded instance
+// map use lexical order after its index keys. Diagnostics can omit other
+// failures at the same node.
+//
+// Resources and draft work as in ValidateJSONSchemaValueWithResources. A nil
+// resource map registers no host documents. Errors report an input or checker
+// failure instead of an instance diagnostic.
+func ExplainJSONSchemaValueWithResources(schema json.RawMessage, value any, resources map[string]json.RawMessage, draft ...JSONSchemaReferenceDraft) ([]JSONSchemaDiagnostic, error) {
+	var parsed any
+	if err := json.Unmarshal(schema, &parsed); err != nil {
+		return nil, fmt.Errorf("decode schema: %w", err)
+	}
+	var root map[string]any
+	switch s := parsed.(type) {
+	case map[string]any:
+		root = s
+	case bool:
+	default:
+		return nil, fmt.Errorf("schema must be an object or a boolean")
+	}
+	v, err := newToolSchemaResourceValidator(root, schema, resources, draft)
+	if err != nil {
+		return nil, err
+	}
+	accepted := v.acceptsRaw(value, parsed)
+	if v.patternFailure != nil {
+		return nil, fmt.Errorf("pattern checker unavailable: %w", v.patternFailure)
+	}
+	if accepted {
+		return []JSONSchemaDiagnostic{}, nil
+	}
+	issues := v.appendIssues(nil, value, parsed, "", make(map[toolSchemaMemoKey]bool), false)
+	if v.patternFailure != nil {
+		return nil, fmt.Errorf("pattern checker unavailable: %w", v.patternFailure)
+	}
+	return issues, nil
+}
+
+func newToolSchemaResourceValidator(schema map[string]any, raw json.RawMessage, resources map[string]json.RawMessage, draft []JSONSchemaReferenceDraft) (*toolSchemaValidator, error) {
+	if len(draft) > 1 {
+		return nil, fmt.Errorf("expected at most one schema reference draft")
+	}
+	if len(draft) == 1 && draft[0] != JSONSchemaReferenceDraft202012 && draft[0] != JSONSchemaReferenceDraft7 {
+		return nil, fmt.Errorf("unsupported schema reference draft %q", draft[0])
+	}
+	v := newToolSchemaValidator(schema, raw)
+	v.draft7 = len(draft) == 1 && draft[0] == JSONSchemaReferenceDraft7
+	r := v.resourceIndex()
+	if err := r.registerExternal(resources); err != nil {
+		return nil, err
+	}
+	// A lazily loaded document can introduce a dynamic reference not present in
+	// the root. Track the resource stack from the start when using a registry.
+	v.trackDynamic = !v.draft7 && (r.hasDynamicRef || len(r.external) > 0)
+	return v, nil
 }
 
 func (r *toolSchemaResources) registerExternal(resources map[string]json.RawMessage) error {

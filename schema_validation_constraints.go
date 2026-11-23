@@ -11,25 +11,25 @@ import (
 // Constraints participate in membership as well as diagnostics: union selection
 // must not regard a branch with failed bounds as a match.
 func (v *toolSchemaValidator) constraintIssue(value interface{}, schema map[string]interface{}, path string, active map[toolSchemaMemoKey]bool) *toolSchemaIssue {
-	fail := func(reason string) *toolSchemaIssue { return &toolSchemaIssue{path, reason} }
+	fail := func(keyword, message string) *toolSchemaIssue { return &toolSchemaIssue{path, keyword, message} }
 	if text, ok := schemaStringValue(value); ok {
 		for _, bound := range []struct {
 			key, description string
 			below            bool
 		}{{"minLength", "at least", true}, {"maxLength", "at most", false}} {
 			if n, ok := schema[bound.key].(float64); ok && (bound.below && float64(schemaStringLength(value, text)) < n || !bound.below && float64(schemaStringLength(value, text)) > n) {
-				return fail("expected " + bound.description + " " + schemaFloatString(n) + " characters")
+				return fail(bound.key, "expected "+bound.description+" "+schemaFloatString(n)+" characters")
 			}
 		}
 	}
 	if divisor, ok := schema["multipleOf"].(float64); ok && matchesJSONSchemaType(value, "number") && !schemaNumberMultiple(value, divisor) {
-		return fail("expected a multiple of " + schemaFloatString(divisor))
+		return fail("multipleOf", "expected a multiple of "+schemaFloatString(divisor))
 	}
 	if object, ok := value.(map[string]interface{}); ok {
 		if names, exists := schema["propertyNames"]; exists {
 			for _, key := range sortedSchemaKeys(object) {
 				if !v.acceptsRaw(key, names) {
-					return &toolSchemaIssue{schemaIssuePath(path, key), "invalid property name"}
+					return &toolSchemaIssue{schemaIssuePath(path, key), "propertyNames", "invalid property name"}
 				}
 			}
 		}
@@ -38,7 +38,7 @@ func (v *toolSchemaValidator) constraintIssue(value interface{}, schema map[stri
 			below            bool
 		}{{"minProperties", "at least", true}, {"maxProperties", "at most", false}} {
 			if n, ok := schema[b.key].(float64); ok && (b.below && float64(len(object)) < n || !b.below && float64(len(object)) > n) {
-				return fail("expected " + b.description + " " + schemaFloatString(n) + " properties")
+				return fail(b.key, "expected "+b.description+" "+schemaFloatString(n)+" properties")
 			}
 		}
 		// Legacy dependencies override dependentRequired for a duplicate key.
@@ -59,7 +59,7 @@ func (v *toolSchemaValidator) constraintIssue(value interface{}, schema map[stri
 				for _, item := range required {
 					if name, ok := item.(string); ok {
 						if _, present := object[name]; !present {
-							return &toolSchemaIssue{schemaIssuePath(path, name), "required when " + key + " is present"}
+							return &toolSchemaIssue{schemaIssuePath(path, name), "dependentRequired", "required when " + key + " is present"}
 						}
 					}
 				}
@@ -81,11 +81,11 @@ func (v *toolSchemaValidator) constraintIssue(value interface{}, schema map[stri
 			below            bool
 		}{{"minItems", "at least", true}, {"maxItems", "at most", false}} {
 			if n, ok := schema[b.key].(float64); ok && (b.below && float64(len(array)) < n || !b.below && float64(len(array)) > n) {
-				return fail("expected " + b.description + " " + schemaFloatString(n) + " items")
+				return fail(b.key, "expected "+b.description+" "+schemaFloatString(n)+" items")
 			}
 		}
 		if unique, _ := schema["uniqueItems"].(bool); unique && !schemaUniqueItems(array) {
-			return fail("expected unique items")
+			return fail("uniqueItems", "expected unique items")
 		}
 		if contains, present := schema["contains"]; present {
 			min, max := 1.0, math.Inf(1)
@@ -107,21 +107,21 @@ func (v *toolSchemaValidator) constraintIssue(value interface{}, schema map[stri
 					noun = "item"
 				}
 				if math.IsInf(max, 1) {
-					return fail("expected at least " + schemaFloatString(min) + " matching " + noun)
+					return fail("contains", "expected at least "+schemaFloatString(min)+" matching "+noun)
 				}
 				if min == 0 {
 					noun := "items"
 					if max == 1 {
 						noun = "item"
 					}
-					return fail("expected at most " + schemaFloatString(max) + " matching " + noun)
+					return fail("contains", "expected at most "+schemaFloatString(max)+" matching "+noun)
 				}
-				return fail("expected between " + schemaFloatString(min) + " and " + schemaFloatString(max) + " matching items")
+				return fail("contains", "expected between "+schemaFloatString(min)+" and "+schemaFloatString(max)+" matching items")
 			}
 		}
 	}
 	if negated, present := schema["not"]; present && v.acceptsRaw(value, negated) {
-		return fail("must not match the schema in not")
+		return fail("not", "must not match the schema in not")
 	}
 	if condition, present := schema["if"]; present {
 		key := "else"
@@ -137,12 +137,12 @@ func (v *toolSchemaValidator) constraintIssue(value interface{}, schema map[stri
 
 func (v *toolSchemaValidator) rawIssue(value, raw interface{}, path string, active map[toolSchemaMemoKey]bool) *toolSchemaIssue {
 	if no, ok := raw.(bool); ok && !no {
-		return &toolSchemaIssue{path, "no value is allowed here"}
+		return &toolSchemaIssue{path, "false", "no value is allowed here"}
 	}
 	if child, ok := raw.(map[string]interface{}); ok {
 		return v.issue(value, child, path, active)
 	}
-	return &toolSchemaIssue{path, "value does not match schema"}
+	return &toolSchemaIssue{path, "schema", "value does not match schema"}
 }
 
 func validationItemRaw(schema map[string]interface{}, index int) interface{} {
