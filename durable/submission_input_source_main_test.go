@@ -312,6 +312,63 @@ func TestCanonicalInboxInputIsPlacementAuthority(t *testing.T) {
 
 // v1.6.0 harness-input-entries.test.ts:258: the conversation abort leaves
 // kept follow-ups queued, but explicit submission abort still withdraws them.
+// harness-submissions.test.ts:82-107. Retry while the original model
+// request is held; neither a retry nor a type conflict can admit a write.
+func TestSourceV160SubmissionRequestIdentityBeforeAdmission(t *testing.T) {
+	store, err := newTestSQLite(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reached := make(chan struct{})
+	ref, options := setupFakeAPI(t, func(ctx context.Context, _ *goai.Model, _ *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
+		ch := make(chan goai.Event)
+		close(reached)
+		go func() { <-ctx.Done(); close(ch) }()
+		return ch
+	})
+	h := openHarness(t, store, options)
+	c := root(t, h, ref)
+	first, err := c.Submit(bg, Input{Type: "input", Content: "hi", RequestID: "r1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	awaitTaskSignal(t, reached)
+	// Use the physical SQLite next sequence, not a local count of callbacks.
+	before := readOnlyHarnessSQLiteHead(t, store)
+	again, err := c.Submit(bg, Input{Type: "input", Content: "different", RequestID: "r1", WhenBusy: "reject"})
+	if err != nil || again == nil || again.ID() != first.ID() {
+		t.Fatalf("busy duplicate: %v, %v; want submission %d", again, err, first.ID())
+	}
+	if next := readOnlyHarnessSQLiteHead(t, store); next != before {
+		t.Fatalf("duplicate advanced next commit from %d to %d", before, next)
+	}
+	draft := Input{Type: "write", Entry: &Entry{Kind: "note"}, RequestID: "r1"}
+	if got, err := c.Submit(bg, draft); got != nil || err == nil || err.Error() != "Request r1 already identifies a submission of type input" {
+		t.Fatalf("type-conflicting duplicate: %v, %v", got, err)
+	}
+	if next := readOnlyHarnessSQLiteHead(t, store); next != before {
+		t.Fatalf("type conflict advanced next commit from %d to %d", before, next)
+	}
+	if record, err := first.Status(bg); err != nil || record.RequestID != "r1" || record.Status != "placed" {
+		t.Fatalf("original submission: %+v, %v; want request r1 still placed", record, err)
+	}
+	other, err := h.CreateConversation(bg, AgentChange{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	write, err := other.Submit(bg, draft)
+	if err != nil || write == nil || write.ID() == first.ID() {
+		t.Fatalf("same request in a different conversation: %v, %v", write, err)
+	}
+	beforeOther := readOnlyHarnessSQLiteHead(t, store)
+	if got, err := other.Submit(bg, draft); err != nil || got == nil || got.ID() != write.ID() {
+		t.Fatalf("duplicate in the second conversation: %v, %v; want %d", got, err, write.ID())
+	}
+	if next := readOnlyHarnessSQLiteHead(t, store); next != beforeOther {
+		t.Fatalf("second conversation duplicate advanced next commit from %d to %d", beforeOther, next)
+	}
+}
+
 func TestSourceV160SubmissionOnAbortKeep(t *testing.T) {
 	store, err := newTestSQLite(t)
 	if err != nil {
