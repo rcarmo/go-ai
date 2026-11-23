@@ -3,8 +3,10 @@ package durable
 import (
 	"context"
 	"fmt"
-	goai "github.com/rcarmo/go-ai"
+	"reflect"
 	"strconv"
+
+	goai "github.com/rcarmo/go-ai"
 )
 
 type Input struct {
@@ -505,7 +507,7 @@ func (s *SubmissionHandle) ID() ID { return s.id }
 func (s *SubmissionHandle) Wait(ctx context.Context) (Settlement, error) {
 	return s.wait(ctx, nil)
 }
-func (s *SubmissionHandle) wait(ctx context.Context, binding *TaskRuntime) (Settlement, error) {
+func (s *SubmissionHandle) wait(ctx context.Context, binding *TaskRuntime) (settlement Settlement, err error) {
 	if binding != nil {
 		if err := binding.check(); err != nil {
 			return Settlement{}, err
@@ -514,6 +516,13 @@ func (s *SubmissionHandle) wait(ctx context.Context, binding *TaskRuntime) (Sett
 	if ctx == nil {
 		return Settlement{}, reject("nil context")
 	}
+	defer func() {
+		// Some lower-level admissions still return only ctx.Err(). Preserve
+		// the caller's reason without replacing a concurrent storage failure.
+		if err != nil && err == ctx.Err() {
+			err = contextError(ctx)
+		}
+	}()
 	if binding == nil {
 		if e := s.h.Resume(ctx); e != nil {
 			return Settlement{}, e
@@ -554,13 +563,36 @@ func (s *SubmissionHandle) wait(ctx context.Context, binding *TaskRuntime) (Sett
 				}
 			}
 			sub, ok := state.Submissions[s.id]
-			if !ok {
+			terminal = ok && terminalStatus(sub.Status)
+			// At registration a delegated store owns the submission read. Keep
+			// it on the line with the close check and waiter insertion. Once
+			// registered, a wake reads the published settlement image instead.
+			if !registered && s.h.session.delegatedStorage {
+				record, found, err := s.h.session.guardedStorage().Submission(ctx, s.id)
+				if err != nil {
+					return err
+				}
+				if !found {
+					return reject("unknown submission")
+				}
+				if record.ID != s.id {
+					return reject("submission read identity")
+				}
+				terminal = record.Status == "done" || record.Status == "unanswered"
+				if terminal && (!ok || !reflect.DeepEqual(publicSubmission(sub), record)) {
+					// Preserve legacy enrichment only from a projection that
+					// agrees with the delegated record, not from a stale image.
+					sub, err = nativeSubmission(record, s.h.session.limits)
+					if err != nil {
+						return err
+					}
+				}
+			} else if !ok {
 				return reject("unknown submission")
 			}
-			terminal = terminalStatus(sub.Status)
 			if !terminal {
 				if s.h.closing.Load() {
-					return ErrClosed
+					return s.h.closedError()
 				}
 				if !registered {
 					if err := s.h.addSubmissionWaiter(s.id, wake); err != nil {

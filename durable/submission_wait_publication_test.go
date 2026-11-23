@@ -10,20 +10,24 @@ import (
 func TestSubmissionWaitRegistersAndSettlesFromArbitraryCommitWithoutPolling(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h := taskTestHarness(t, b.store)
-		var id ID
-		_, err := h.commitTasks(bg, 1, func(tx *Tx) error {
-			var err error
-			id, err = tx.mintID()
+		// The pinned transaction cannot mark a queued write done without
+		// placement. A placed input and its answer exercise the same waiter
+		// notification through a canonical settlement.
+		var submission SubmissionRecord
+		_, err := h.Commit(bg, func(tx *Tx) (any, error) {
+			entry, err := tx.AppendEntry(1, EntryDraft{"kind": "app.note"})
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return tx.putSubmissionRecord(Submission{ID: id, Conversation: 1, Type: "write", Status: "pending", Value: JSON{}})
+			submission, err = tx.CreateSubmission(SubmissionCreate{Conversation: 1, Type: "input", Status: "placed", Entry: entry.ID})
+			return nil, err
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
+		id := submission.ID
 		handle, err := h.Submission(bg, id)
-		if err != nil {
+		if err != nil || handle == nil {
 			t.Fatal(err)
 		}
 		caller, cancel := context.WithCancel(bg)
@@ -31,44 +35,34 @@ func TestSubmissionWaitRegistersAndSettlesFromArbitraryCommitWithoutPolling(t *t
 		first := make(chan error, 1)
 		second := make(chan Settlement, 1)
 		failures := make(chan error, 1)
-		go func() { _, err := handle.Wait(caller); first <- err }()
+		progress := make(chan struct{}, 16)
+		go func() { _, err := handle.Wait(submissionWaitContext{caller, progress}); first <- err }()
 		go func() {
-			result, err := handle.Wait(bg)
+			result, err := handle.Wait(submissionWaitContext{bg, progress})
 			if err != nil {
 				failures <- err
 				return
 			}
 			second <- result
 		}()
-		deadline := time.After(3 * time.Second)
-		for {
-			registered := false
-			h.session.taskBookkeeping(func() { registered = len(h.submissionWaiters[id]) == 2 })
-			if registered {
-				break
-			}
-			select {
-			case <-deadline:
-				t.Fatal("submission registration absent")
-			default:
-			}
-		}
+		awaitSubmissionWaiters(t, h, id, 2, progress)
 		cancel()
-		if err := <-first; !errors.Is(err, context.Canceled) {
+		if err := watchReceive(t, first); !errors.Is(err, context.Canceled) {
 			t.Fatal(err)
 		}
-		_, err = h.commitTasks(bg, 1, func(tx *Tx) error {
-			sub := tx.state.Submissions[id]
-			sub.Status = "done"
-			sub.Value = JSON{"application": "settled"}
-			return tx.putSubmissionRecord(sub)
+		answer, err := h.Commit(bg, func(tx *Tx) (any, error) {
+			entry, err := tx.AppendEntry(1, EntryDraft{"kind": "app.note"})
+			if err != nil {
+				return nil, err
+			}
+			return entry.ID, tx.SettleSubmission(id, SubmissionSettlement{Status: "done", Answer: entry.ID})
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
 		select {
 		case final := <-second:
-			if final.Submission.Status != "done" || final.Submission.Value["application"] != "settled" {
+			if final.Record.ID != id || final.Record.Status != "done" || final.Record.Entry != submission.Entry || final.Record.Answer != answer.(ID) {
 				t.Fatal(final)
 			}
 		case err := <-failures:

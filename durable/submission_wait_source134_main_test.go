@@ -10,6 +10,39 @@ import (
 	goai "github.com/rcarmo/go-ai"
 )
 
+// A Wait's context reports its own admission and parking steps. Use those
+// receipts to check the registration barrier without polling or sleeping.
+type submissionWaitContext struct {
+	context.Context
+	progress chan<- struct{}
+}
+
+func (c submissionWaitContext) Done() <-chan struct{} {
+	select {
+	case c.progress <- struct{}{}:
+	default:
+	}
+	return c.Context.Done()
+}
+
+func awaitSubmissionWaiters(t *testing.T, h *Harness, id ID, count int, progress <-chan struct{}) {
+	t.Helper()
+	deadline := time.NewTimer(3 * time.Second)
+	defer deadline.Stop()
+	for {
+		select {
+		case <-deadline.C:
+			t.Fatalf("submission %d has not registered %d waiters", id, count)
+		case <-progress:
+			var registered int
+			h.session.taskBookkeeping(func() { registered = len(h.submissionWaiters[id]) })
+			if registered == count {
+				return
+			}
+		}
+	}
+}
+
 // Source harness-submissions.test.ts:134: cancelling one wait leaves the
 // placed submission unchanged, while an independently pending wait rejects on
 // close. The Go model stream is held and released after the close signal so this
@@ -48,35 +81,17 @@ func TestMainSubmissionWaitSource134CancellationAndClose(t *testing.T) {
 		unblock()
 		t.Fatal("model request did not start")
 	}
-	ctx, cancel := context.WithCancel(bg)
-	defer cancel()
+	ctx, cancel := context.WithCancelCause(bg)
+	defer cancel(nil)
+	progress := make(chan struct{}, 16)
 	cancelled, pending := make(chan error, 1), make(chan error, 1)
-	go func() { _, err := submission.Wait(ctx); cancelled <- err }()
-	go func() { _, err := submission.Wait(bg); pending <- err }()
-	deadline := time.After(3 * time.Second)
-	for {
-		registered := false
-		h.session.taskBookkeeping(func() { registered = len(h.submissionWaiters[submission.ID()]) == 2 })
-		if registered {
-			break
-		}
-		select {
-		case <-deadline:
-			unblock()
-			t.Fatal("both waits were not registered")
-		default:
-			time.Sleep(time.Millisecond)
-		}
-	}
-	cancel()
-	select {
-	case err := <-cancelled:
-		if !errors.Is(err, context.Canceled) {
-			t.Fatalf("cancelled wait: %v", err)
-		}
-	case <-time.After(3 * time.Second):
-		unblock()
-		t.Fatal("cancelled wait did not return")
+	go func() { _, err := submission.Wait(submissionWaitContext{ctx, progress}); cancelled <- err }()
+	go func() { _, err := submission.Wait(submissionWaitContext{bg, progress}); pending <- err }()
+	awaitSubmissionWaiters(t, h, submission.ID(), 2, progress)
+	cause := errors.New("stop waiting")
+	cancel(cause)
+	if err := watchReceive(t, cancelled); err != cause {
+		t.Fatalf("cancelled wait: %v, want the original %q cause", err, cause)
 	}
 	status, err := submission.Status(bg)
 	if err != nil || status.Status != "placed" {
