@@ -549,3 +549,11 @@ The [updated test queue](test-inventory/primary-queue-r21.md) reviews all 42 cha
 ### Codemode reuses finished calls after reopening SQLite
 
 Both unchanged upstream tests passed. The published guest returned the exact expected result after reopening SQLite. The two finished echo calls each ran once, the replay-safe hold ran twice, and the guest started twice. The clock and randomness test returned `ok` and echoed once. A separate Go check confirmed both guest starts received the same clock and seed; it does not claim equality of sampled values that the original never compared. Changing the first replayed reply or the resumed seed was caught by the corresponding test.
+
+### Strict schemas and grammar streaming
+
+All ten unchanged constrained-sampling cases passed. Go now keeps the upstream property order in strict schemas, rejects untyped nodes that upstream also rejects, and still accepts enum-only nodes. Responses grammar errors use the pinned wording. Go checks the exact streamed input at both tested sizes and confirms that replay drops foreign item IDs. Thirty of the 32 source assertions have native checks. An explicit JavaScript `false` setting and the native memory-allocation ratio remain open; no profiling ran.
+
+### SQLite engines used in the migration tests
+
+The [engine receipt](dependencies/sqlite-migration-engines.md) records the versions from the two actual database connections. The unchanged upstream migration ran on Node's SQLite 3.54.0; Go's translation ran on pure-Go SQLite 3.54.1. Both preserved the migrated task. The Go fixture supplies owner and allocation records, so this does not prove that Go can open the exact raw upstream fixture.
