@@ -617,3 +617,7 @@ The [standalone Node worker check](dependencies/worker-quickjs-load.md) ran the 
 ### Codemode describes what scripts can actually call
 
 The unchanged description test passed. Go now sends the expected call syntax and discovery guidance to the model. It mentions `models` only when the inline sandbox exposes that capability and the host allows it. Execution permissions did not change. Tests caught both incorrect wording and a description that advertised a capability the guest did not have.
+
+### Completions keeps parallel tool calls separate
+
+All seven unchanged stream cases passed offline. Go now keeps one text block and one thinking block even when tool calls arrive between their pieces. A tool call retains its first ID, and parallel calls stay separate. A stream that ends without a required finish reason reports the exact upstream error. The Go tests compare all 63 assertions in this slice, including event counts, event order within each call, and the final blocks. No live provider was contacted.
