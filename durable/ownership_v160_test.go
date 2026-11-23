@@ -7,7 +7,124 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	goai "github.com/rcarmo/go-ai"
 )
+
+// harness-ownership.test.ts:656-673. Use the public conversation abort,
+// not a scheduler mark or a subsequent WaitForTask: Abort must have joined
+// the foreground subtree when it returns.
+func TestSourceV160ConversationAbortJoinsOnlyForeground(t *testing.T) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+		started := make(chan ID, 4)
+		hold := taskDefinition(t, "v160.ownership-hold", func(ctx context.Context, task TaskRecord, _ *TaskRuntime) error {
+			started <- task.ID
+			<-ctx.Done()
+			return ctx.Err()
+		})
+		h := taskTestHarness(t, b.store, hold)
+		root, err := h.Root(bg, AgentChange{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := h.Resume(bg); err != nil {
+			t.Fatal(err)
+		}
+		type tree struct{ owner, inner ID }
+		create := func(label string, background bool) tree {
+			t.Helper()
+			value, err := root.Commit(bg, func(tx *Tx) (any, error) {
+				owner, err := tx.CreateTask(hold, JSON{"name": label}, TaskOptions{
+					Ownership: TaskOwnership{Kind: "conversation"}, Background: background,
+				})
+				if err != nil {
+					return nil, err
+				}
+				child, err := tx.CreateConversation(JSON{"ownership": JSON{"kind": "task", "taskId": owner}})
+				if err != nil {
+					return nil, err
+				}
+				inner, err := tx.CreateTask(hold, JSON{"name": label + ".inner"}, TaskOptions{
+					Conversation: child.ID, Ownership: TaskOwnership{Kind: "conversation"},
+				})
+				return tree{owner, inner}, err
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			return value.(tree)
+		}
+		foreground := create("foreground", false)
+		background := create("background", true)
+		wantStart := map[ID]bool{foreground.owner: true, foreground.inner: true, background.owner: true, background.inner: true}
+		for range 4 {
+			id := watchReceive(t, started)
+			if !wantStart[id] {
+				t.Fatal("unexpected hold invocation", id)
+			}
+			delete(wantStart, id)
+		}
+		if _, err := root.Commit(bg, func(tx *Tx) (any, error) {
+			doc, err := tx.AcquireDocument(LiveDoc(), root.ID(), nil, nil)
+			if err != nil {
+				return nil, err
+			}
+			live, err := doc.Get()
+			if err != nil {
+				return nil, err
+			}
+			live["run"] = JSON{"taskId": foreground.owner, "inputs": []any{}, "turns": 0}
+			return nil, doc.Set(live)
+		}); err != nil {
+			t.Fatal(err)
+		}
+		input, err := root.Submit(bg, Input{Type: "input", Content: "later"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		note := "w"
+		write, err := root.Submit(bg, Input{Type: "write", Entry: &Entry{
+			Kind: "note", Model: []MessageReceipt{{Role: goai.RoleUser, ContentText: &note}},
+		}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, sub := range []*SubmissionHandle{input, write} {
+			if record, err := sub.Status(bg); err != nil || record.Status != "queued" {
+				t.Fatalf("before abort: submission %d: %+v, %v; want queued", sub.ID(), record, err)
+			}
+		}
+		ctx, cancel := context.WithTimeout(bg, 3*time.Second)
+		defer cancel()
+		if err := root.Abort(ctx); err != nil {
+			t.Fatal(err)
+		}
+		for _, id := range []ID{foreground.owner, foreground.inner} {
+			record, found, err := h.Task(bg, id)
+			if err != nil || !found || record.State.Status != "terminal" {
+				t.Errorf("foreground task %d after Abort: found=%t status=%q err=%v; want terminal", id, found, record.State.Status, err)
+			}
+		}
+		for _, member := range []struct {
+			name string
+			id   ID
+		}{{"owner", background.owner}, {"inner", background.inner}} {
+			record, found, err := h.Task(bg, member.id)
+			if err != nil || !found || record.State.Status == "terminal" {
+				t.Errorf("background %s task %d after Abort: found=%t status=%q err=%v; want nonterminal", member.name, member.id, found, record.State.Status, err)
+			}
+		}
+		if record, err := input.Status(bg); err != nil || record.Reason != "aborted" {
+			t.Errorf("input after Abort: %+v, %v; want aborted reason", record, err)
+		}
+		if record, err := write.Status(bg); err != nil || record.Status != "queued" {
+			t.Errorf("write after Abort: %+v, %v; want queued", record, err)
+		}
+		if _, err := h.AbortTask(bg, background.owner); err != nil {
+			t.Fatal(err)
+		}
+	})
+}
 
 // harness-ownership.test.ts:582. The spawner stages a conversation and its
 // first task, then tries to end itself in that same commit.
