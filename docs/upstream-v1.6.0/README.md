@@ -621,3 +621,7 @@ The unchanged description test passed. Go now sends the expected call syntax and
 ### Completions keeps parallel tool calls separate
 
 All seven unchanged stream cases passed offline. Go now keeps one text block and one thinking block even when tool calls arrive between their pieces. A tool call retains its first ID, and parallel calls stay separate. A stream that ends without a required finish reason reports the exact upstream error. The Go tests compare all 63 assertions in this slice, including event counts, event order within each call, and the final blocks. No live provider was contacted.
+
+### Exact dynamic-reference error lists
+
+All 88 unchanged checks passed for the 44 dynamic-reference cases. Go already agreed on which values were valid, but 17 errors differed. The standalone explainer now returns the expected error lists, with the right paths, keywords and order. The change leaves validation and the error text shown to models alone. Deliberately changing scope, fallback wording or annotation scope broke the exact comparisons.
