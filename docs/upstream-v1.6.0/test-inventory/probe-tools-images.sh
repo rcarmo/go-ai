@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# != 4 ]]; then
-  printf 'Usage: bash %s <pinned-git-mirror> <prepared-oracle-dir> <user-npm-cacache> <release-archive-dir>\n' "$0" >&2
+if [[ $# != 4 && ( $# != 5 || $5 != preparation ) ]]; then
+  printf 'Usage: bash %s <pinned-git-mirror> <prepared-oracle-dir> <user-npm-cacache> <release-archive-dir> [preparation]\n' "$0" >&2
   exit 1
 fi
 mirror=$(realpath -- "$1")
@@ -17,6 +17,8 @@ source scripts/project-env.sh
 
 pin=faac585884ae2c013a6b1400f3e9e77f10b34bac
 base=4cff3ac164d79b3acb8399e311c342d59c91f6dc
+mode=${5:-read}
+[[ "$mode" != preparation ]] || base=67f9d63a4f79b3e730d14289193f7c147726f08f
 queue=docs/upstream-v1.6.0/test-inventory/primary-queue-r21.jsonl
 test=packages/durable/test/tools-images.test.ts
 adapter=packages/durable/src/tools/read.ts
@@ -73,6 +75,9 @@ check_sources() {
   local file
   for file in "${sources[@]}"; do git -C "$mirror" show "$pin:$file" | cmp "$scratch/$file" -; done
 }
+if [[ "$mode" == preparation ]]; then
+  sources+=(packages/durable/src/images/{exif,index,node-worker}.ts)
+fi
 check_sources
 sha=$(sha256 "$scratch/$test")
 git show "$base:$queue" | jq -e --arg file "$test" --arg sha "$sha" '
@@ -80,14 +85,87 @@ git show "$base:$queue" | jq -e --arg file "$test" --arg sha "$sha" '
 ' > "$scratch/queue.check"
 
 run() {
-  local tag=$1
+  local tag=$1 pattern=${2:-$selector} heap=${3:-768}
   (cd "$scratch/packages/durable" && env -i PATH="$PATH" HOME="$scratch/home" TMPDIR="$scratch/tmp" \
-    NODE_OPTIONS="--max-old-space-size=768 --permission --allow-fs-read=$scratch --allow-fs-write=$scratch --allow-child-process --allow-worker --allow-addons" \
-    node ../../node_modules/vitest/vitest.mjs run test/tools-images.test.ts -t "$selector" --pool=forks --maxWorkers=1 \
+    NODE_OPTIONS="--max-old-space-size=$heap --permission --allow-fs-read=$scratch --allow-fs-write=$scratch --allow-child-process --allow-worker --allow-addons" \
+    node ../../node_modules/vitest/vitest.mjs run test/tools-images.test.ts -t "$pattern" --pool=forks --maxWorkers=1 \
     --reporter=json --outputFile "$scratch/$tag.json") > "$scratch/$tag.log" 2>&1
 }
 exec 9>/tmp/go-ai/v160-focused-verify.lock
 flock 9
+if [[ "$mode" == preparation ]]; then
+  processor=packages/durable/src/images/index.ts
+  prior=docs/upstream-v1.6.0/test-inventory/tools-images.json
+  stable="createNodePhotonImages gives the same result as the calling thread, and keeps the caller's bytes"
+  timing1='createNodePhotonImages prepares in a worker thread, leaving the event loop free'
+  timing2='createNodePhotonImages prepares concurrent images, and starts a new worker after the idle one exited'
+  selector='^(read of images, with the Photon image processor|EXIF orientation|imageDimensions|toBase64) '
+  worker_selector="^$stable$"
+  worker_heap=1856 # The original deep-compares a multi-MiB Uint8Array in Vitest.
+  git show "$base:$prior" > "$scratch/prior.json"
+  jq -e --arg file "$test" --arg pin "$pin" --arg sha "$sha" '
+    .pin==$pin and .selection.file==$file and any(.sourceDigests[];.file==$file and .sha256==$sha) and
+    .result=={passed:9,failed:0,selectedSkipped:0} and ((.selection.caseNames+.selection.filteredOut)|unique|length)==34
+  ' "$scratch/prior.json" > "$scratch/prior.check"
+  jq -e --arg stable "$stable" --arg timing1 "$timing1" --arg timing2 "$timing2" '
+    .selection.filteredOut-[$stable,$timing1,$timing2]|select(length==22)
+  ' "$scratch/prior.json" > "$scratch/cases.json"
+  show_failure() {
+    local tag=$1
+    cat "$scratch/$tag.log" >&2
+    jq -c '[.testResults[] | {message,failed:[.assertionResults[]|select(.status=="failed")|{fullName,failureMessages}]}]' "$scratch/$tag.json" >&2 || true
+  }
+  if ! run original; then show_failure original; exit 1; fi
+  jq -e --slurpfile cases "$scratch/cases.json" '
+    .numPassedTests==22 and .numFailedTests==0 and .numPendingTests==12 and .numTodoTests==0 and
+    ([.testResults[].assertionResults[]|select(.status!="skipped")|[.fullName,.status]]==($cases[0]|map([.,"passed"])))
+  ' "$scratch/original.json" > "$scratch/original.check"
+  if ! run worker "$worker_selector" "$worker_heap"; then show_failure worker; exit 1; fi
+  jq -e --arg stable "$stable" '
+    .numPassedTests==1 and .numFailedTests==0 and .numPendingTests==33 and .numTodoTests==0 and
+    ([.testResults[].assertionResults[]|select(.status!="skipped")|[.fullName,.status]]==[[$stable,"passed"]])
+  ' "$scratch/worker.json" > "$scratch/worker.check"
+  jq -ne --slurpfile original "$scratch/original.json" --slurpfile worker "$scratch/worker.json" --slurpfile prior "$scratch/prior.json" \
+    --arg timing1 "$timing1" --arg timing2 "$timing2" '
+    [$original[0].testResults[].assertionResults[]] as $main |
+    [$worker[0].testResults[].assertionResults[]] as $workerCases |
+    ($main|map(.fullName)) as $names |
+    ($main|map(select(.status=="passed")|.fullName)) + ($workerCases|map(select(.status=="passed")|.fullName)) as $selected |
+    ($names-$selected) as $unselected |
+    if $names==($workerCases|map(.fullName)) and ($selected|length)==23 and ($selected|unique|length)==23 and
+      $unselected==($prior[0].selection.caseNames+[$timing1,$timing2]) then {caseNames:$selected,filteredOut:$unselected}
+    else error("preparation partitions differ from the audited case names") end
+  ' > "$scratch/selection.json"
+  failed='EXIF orientation turns orientation 7 upright'
+  [[ $(grep -Fc 'orientation === 5 || orientation === 8 ? y' "$scratch/$processor") == 1 ]]
+  sed -i 's/orientation === 5 || orientation === 8 ? y/orientation === 5 || orientation === 8 || orientation === 7 ? y/' "$scratch/$processor"
+  if run mutated; then printf 'Incorrect orientation 7 unexpectedly passed\n' >&2; exit 1; fi
+  if ! jq -e --arg failed "$failed" --slurpfile original "$scratch/original.json" '
+    .numPassedTests==21 and .numFailedTests==1 and .numPendingTests==12 and .numTodoTests==0 and
+    ([.testResults[].assertionResults[]|[.fullName,.status]]==[$original[0].testResults[].assertionResults[]|[.fullName,if .fullName==$failed then "failed" else .status end]]) and
+    any(.testResults[].assertionResults[]; .fullName==$failed and (.failureMessages|join("\n")|contains("tools-images.test.ts:313:")))
+  ' "$scratch/mutated.json" > "$scratch/mutated.check"; then show_failure mutated; exit 1; fi
+  flock -u 9
+  git -C "$mirror" show "$pin:$processor" > "$scratch/$processor"
+  check_sources
+  for member in "$js" "$wasm"; do cmp "$scratch/$member" "$scratch/$key/$member"; done
+  for file in "${sources[@]}"; do
+    jq -cn --arg file "$file" --arg sha "$(sha256 "$scratch/$file")" '{file:$file,sha256:$sha}'
+  done > "$scratch/sources.jsonl"
+  jq -n --arg pin "$pin" --arg base "$base" --arg test "$test" --arg prior "$prior" --arg selector "$selector" --arg workerSelector "$worker_selector" \
+    --argjson workerHeap "$worker_heap" --arg failed "$failed" --arg node "$(node --version)" --arg vitest "$vitest" \
+    --arg url "$url" --arg integrity "$integrity" --arg archiveSha "$archive_sha" --arg aiSha "$ai_sha" \
+    --arg jsSha "$(sha256 "$scratch/$js")" --arg wasmSha "$(sha256 "$scratch/$wasm")" \
+    --slurpfile selection "$scratch/selection.json" --slurpfile sources "$scratch/sources.jsonl" --slurpfile deps "$scratch/copied.json" \
+    --slurpfile control "$scratch/mutated.json" '
+    {format:1,pin:$pin,evidenceBase:$base,node:$node,vitest:$vitest,
+     selection:({file:$test,selector:$selector,workerSelector:$workerSelector}+$selection[0]),
+     result:{passed:23,failed:0,selectedSkipped:0},runs:[{selection:"preparation",passed:22,maxOldSpaceMiB:768},{selection:"stable-worker",passed:1,maxOldSpaceMiB:$workerHeap}],
+     sourceDigests:$sources,photonArchive:{url:$url,integrity:$integrity,sha256:$archiveSha,jsSha256:$jsSha,wasmSha256:$wasmSha},aiArchiveSha256:$aiSha,
+     control:{change:"use the orientation 8 pixel transform for orientation 7 in scratch",failed:[$failed],passed:[$control[0].testResults[].assertionResults[]|select(.status=="passed")|.fullName]},
+     copiedDependencies:$deps[0],priorReadReceipt:{file:$prior,commit:$base},exclusions:[],scope:"offline-preparation-exif-and-stable-worker"}'
+  exit 0
+fi
 if ! run original; then cat "$scratch/original.log" >&2; jq -c '[.testResults[] | {message,failed:[.assertionResults[]|select(.status=="failed")|{fullName,failureMessages}]}]' "$scratch/original.json" >&2 || true; exit 1; fi
 jq -n '[
   ("read of images, without an image processor " + ([

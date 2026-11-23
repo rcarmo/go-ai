@@ -203,8 +203,14 @@ func inlineReadImageResult(ctx context.Context, path string, data []byte, limits
 // transformation supplies placeholders without discarding durable image data.
 func imageReadResult(block goai.ContentBlock, details durable.JSON, vision bool) durable.ToolResult {
 	message := fmt.Sprintf("Read image file [%s]", block.MimeType)
+	convertedFrom, _ := details["convertedFrom"].(string)
+	if convertedFrom != "" {
+		message += fmt.Sprintf(". Converted from %s to %s", convertedFrom, block.MimeType)
+	}
 	if !vision {
 		message += ". Image output will be replaced with a text placeholder because the current model does not support image inputs."
+	} else if convertedFrom != "" {
+		message += "."
 	}
 	return durable.ToolResult{Blocks: []goai.ContentBlock{block}, Details: details, Diagnostics: []durable.ToolDiagnostic{{Severity: "info", Message: message}}}
 }
