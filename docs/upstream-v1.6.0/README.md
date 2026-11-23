@@ -589,3 +589,13 @@ All 62 unchanged draft 2020-12 remote-reference checks passed. Go's separate val
 The unchanged `harness-after-run` and `harness-tool-hooks` files passed 47 cases together. One after-run case now has exact Go comparisons through the public task scan: one task is created with the installed version, it ends, and only the installed initializer runs. Changing the initializer to the older token failed that comparison. The other cases are not claimed as mapped by this check.
 
 All ten selected Groq and z.ai Completions cases passed unchanged upstream. Go now sends `clear_thinking: false` when z.ai thinking is enabled, and sends the mapped effort only when supported. The request checks also verify tool-stream flags, preserved reasoning on replay and effort omission when thinking is off. No live provider was contacted.
+
+### Specification example and duplicate submission IDs
+
+The unchanged specification-usage test passed under Vitest. A separate TypeScript run on the original import closure, with the missing declarations restored in scratch, still reported `MessagePort.onmessage` under the repository's Node-only options. Adding the DOM library let it compile and caught a deliberately wrong type assertion. This does not count as a pass under the original compiler options. The unchanged submit-in-commit example ran and printed the expected seven lines in order.
+
+The Go submission test checks that a duplicate request returns the same ID without advancing SQLite's commit counter. Reusing the ID for a different input type returns the exact error, and another conversation can use the same request ID independently. The unchanged upstream case passed, and bypassing Go deduplication broke the test. No production change was needed.
+
+### QuickJS in the published Codemode guest
+
+The [portable guest check](dependencies/portable-quickjs-load.md) observed the exact QuickJS WASM bytes at compile and instantiation, plus three JavaScript loads. They match the verified archives. Changing the WASM bytes in scratch left the guest result unchanged but failed the digest check. This verifies the published portable subprocess, not the standalone Node worker or Cloudflare setup.
