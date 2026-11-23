@@ -561,3 +561,11 @@ The [engine receipt](dependencies/sqlite-migration-engines.md) records the versi
 ### Draft 7 remote references: exact errors
 
 All 46 unchanged upstream checks passed: 23 values and 23 checks that validation agrees with the error list. Separate Go validation and explanation calls returned 12 empty lists and 11 exact errors, including the expected paths, keywords and messages. Removing the host reference registry or erasing a path broke the new comparisons even though the affected value was still rejected. No production change was needed. The two public calls share validator internals; this does not establish a second compiler or cover the other schema drafts.
+
+### Completions tool choice
+
+All 50 unchanged upstream cases passed offline. The Go tests cover 13 assertions from the first five cases: required and disabled tool choice, omission of unsupported strict flags, and the exact required fields for local and Groq models. No production change was needed. The tests also check automatic and named tool choices at the request boundary. These checks do not cover all 50 cases or the source SDK's internal objects.
+
+### Photon in the resize worker
+
+The [Photon runtime check](dependencies/photon-runtime.md) records what the actual Node image worker loaded. Its JavaScript and WASM match the verified archive byte for byte, and the worker returned a PNG resized from 400×100 to 200×50. Changing those bytes in scratch kept the resize result but failed the archive comparison. The Go image tests passed separately and do not load Photon.
