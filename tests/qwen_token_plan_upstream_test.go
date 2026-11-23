@@ -1,10 +1,15 @@
 package goai_test
 
 import (
+	"encoding/json"
+	"io"
+	"net/http"
 	"slices"
+	"strings"
 	"testing"
 
 	goai "github.com/rcarmo/go-ai"
+	_ "github.com/rcarmo/go-ai/inference/provider/openai"
 )
 
 // Source: pi v1.6.0 packages/ai/test/qwen-token-plan-models.test.ts:143,151,188,195,287.
@@ -65,15 +70,160 @@ func TestQwenTokenPlanModelsExposeTextAndOmitImageModels(t *testing.T) {
 	}
 }
 
+// Source: pi v1.6.0 packages/ai/test/qwen-token-plan-models.test.ts:160-186.
 func TestQwenTokenPlanEnvKeys(t *testing.T) {
-	env := goai.ProviderEnv{"QWEN_TOKEN_PLAN_API_KEY": "global", "QWEN_TOKEN_PLAN_CN_API_KEY": "cn"}
-	if got := goai.GetEnvAPIKeyWithEnv(goai.ProviderQwenTokenPlan, env); got != "global" {
-		t.Fatalf("qwen token plan key=%q", got)
+	plans := []struct {
+		provider goai.Provider
+		planKey  string
+		shared   string
+	}{
+		{goai.ProviderQwenTokenPlan, "QWEN_TOKEN_PLAN_TEAM_API_KEY", "QWEN_TOKEN_PLAN_API_KEY"},
+		{goai.ProviderQwenTokenPlanCN, "QWEN_TOKEN_PLAN_TEAM_CN_API_KEY", "QWEN_TOKEN_PLAN_CN_API_KEY"},
+		{goai.ProviderQwenTokenPlanIndividual, "QWEN_TOKEN_PLAN_INDIVIDUAL_API_KEY", "QWEN_TOKEN_PLAN_API_KEY"},
+		{"qwen-token-plan-individual-cn", "QWEN_TOKEN_PLAN_INDIVIDUAL_CN_API_KEY", "QWEN_TOKEN_PLAN_CN_API_KEY"},
 	}
-	if got := goai.GetEnvAPIKeyWithEnv(goai.ProviderQwenTokenPlanCN, env); got != "cn" {
-		t.Fatalf("qwen token plan cn key=%q", got)
+	for _, p := range plans {
+		t.Setenv(p.planKey, "")
+		t.Setenv(p.shared, "")
 	}
-	if got := goai.GetEnvAPIKeyWithEnv(goai.ProviderQwenTokenPlanIndividual, env); got != "global" {
-		t.Fatalf("qwen token plan individual key=%q", got)
+	check := func(t *testing.T, p goai.Provider, env goai.ProviderEnv, want string) {
+		t.Helper()
+		model := &goai.Model{Provider: p}
+		if got := goai.GetEnvAPIKeyWithEnv(p, env); got != want {
+			t.Errorf("scoped key = %q; want %q", got, want)
+		}
+		if got := goai.ResolveAPIKey(model, &goai.StreamOptions{Env: env}); got != want {
+			t.Errorf("stream key = %q; want %q", got, want)
+		}
+	}
+	for _, p := range plans {
+		t.Run(string(p.provider), func(t *testing.T) {
+			check(t, p.provider, goai.ProviderEnv{p.planKey: "plan", p.shared: "shared"}, "plan")
+			check(t, p.provider, goai.ProviderEnv{p.shared: "shared"}, "shared")
+		})
+	}
+	t.Run("per-plan-key-isolation", func(t *testing.T) {
+		// Go exposes key resolution, not the upstream discovery list.
+		check(t, goai.ProviderQwenTokenPlan, goai.ProviderEnv{"QWEN_TOKEN_PLAN_INDIVIDUAL_API_KEY": "test"}, "")
+		check(t, "qwen-token-plan-individual-cn", goai.ProviderEnv{"QWEN_TOKEN_PLAN_TEAM_CN_API_KEY": "test"}, "")
+	})
+}
+
+// Source: pi v1.6.0 packages/ai/test/qwen-token-plan-models.test.ts:203-285,300-365.
+func TestSourceV160QwenTokenPlanReasoning(t *testing.T) {
+	teamThinking := []string{"deepseek-v4-pro", "glm-5", "glm-5.1", "glm-5.2", "kimi-k2.5", "kimi-k2.6", "kimi-k2.7-code", "qwen3.6-flash", "qwen3.6-plus", "qwen3.7-max", "qwen3.7-plus", "qwen3.8-flash", "qwen3.8-max"}
+	individualThinking := []string{"deepseek-v4-flash-0731", "deepseek-v4-pro", "deepseek-v4-pro-0813", "deepseek-v4.1-flash", "deepseek-v4.1-flash-1017", "glm-5.2", "glm-5.3", "qwen3.6-flash", "qwen3.7-max", "qwen3.7-plus", "qwen3.8-flash", "qwen3.8-max", "qwen4-max-preview"}
+	teamEffort := []string{"deepseek-v4-pro", "glm-5", "glm-5.1", "glm-5.2"}
+	individualEffort := []string{"deepseek-v4-flash-0731", "deepseek-v4-pro", "deepseek-v4-pro-0813", "glm-5.2", "glm-5.3"}
+	low, medium, high, xhigh, max := "low", "medium", "high", "xhigh", "max"
+	for _, p := range []struct {
+		provider         goai.Provider
+		thinking, effort []string
+	}{
+		{goai.ProviderQwenTokenPlan, teamThinking, teamEffort},
+		{goai.ProviderQwenTokenPlanCN, teamThinking, teamEffort},
+		{goai.ProviderQwenTokenPlanIndividual, individualThinking, individualEffort},
+		{"qwen-token-plan-individual-cn", individualThinking, individualEffort},
+	} {
+		t.Run(string(p.provider), func(t *testing.T) {
+			for _, id := range p.thinking {
+				t.Run("thinking-fields/"+id, func(t *testing.T) {
+					payload := qwenStreamPayload(t, p.provider, id, goai.ThinkingHigh)
+					assertQwenField(t, payload, "enable_thinking", "true")
+					assertQwenField(t, payload, "thinking", "")
+				})
+			}
+			for _, id := range p.effort {
+				t.Run("effort-map/"+id, func(t *testing.T) {
+					want := map[goai.ModelThinkingLevel]*string{"minimal": nil, "low": nil, "medium": nil, "high": &high, "xhigh": nil, "max": &max}
+					if id == "glm-5.3" {
+						want["low"] = &low
+					}
+					assertQwenThinkingMap(t, p.provider, id, want)
+				})
+				t.Run("effort-payload/"+id, func(t *testing.T) {
+					payload := qwenStreamPayload(t, p.provider, id, goai.ThinkingHigh)
+					assertQwenField(t, payload, "reasoning_effort", `"high"`)
+				})
+			}
+			for _, id := range []string{"qwen3.8-flash", "qwen3.8-max"} {
+				t.Run("qwen38-effort-map/"+id, func(t *testing.T) {
+					assertQwenThinkingMap(t, p.provider, id, map[goai.ModelThinkingLevel]*string{"minimal": nil, "low": &low, "medium": &medium, "high": nil, "xhigh": &xhigh, "max": nil})
+				})
+				t.Run("qwen38-effort-payload/"+id, func(t *testing.T) {
+					payload := qwenStreamPayload(t, p.provider, id, goai.ThinkingXHigh)
+					assertQwenField(t, payload, "enable_thinking", "true")
+					assertQwenField(t, payload, "reasoning_effort", `"xhigh"`)
+					assertQwenField(t, payload, "thinking", "")
+				})
+			}
+		})
+	}
+}
+
+func assertQwenThinkingMap(t *testing.T, provider goai.Provider, id string, want map[goai.ModelThinkingLevel]*string) {
+	t.Helper()
+	model := requireModel(t, provider, id)
+	for level, expected := range want {
+		got, ok := model.ThinkingLevelMap[level]
+		if !ok || (got == nil) != (expected == nil) || ptrValue(got) != ptrValue(expected) {
+			t.Errorf("%s = %q (present=%t, nil=%t); want %q (nil=%t)", level, ptrValue(got), ok, got == nil, ptrValue(expected), expected == nil)
+		}
+	}
+}
+
+func qwenStreamPayload(t *testing.T, provider goai.Provider, id string, effort goai.ThinkingLevel) map[string]json.RawMessage {
+	t.Helper()
+	model := *requireModel(t, provider, id)
+	if model.Api != goai.ApiOpenAICompletions {
+		t.Fatalf("unexpected API %q", model.Api)
+	}
+	// As in the original, the adapter completes against a fake stream. Keep
+	// a loopback-only fallback even if the request transport is not honored.
+	model.BaseURL = "http://127.0.0.1:0/compatible-mode/v1"
+	adapter := goai.GetApiProvider(model.Api)
+	if adapter == nil || adapter.StreamSimple == nil {
+		t.Fatal("OpenAI Completions adapter not registered")
+	}
+	var hooks, requests, completed int
+	var payload map[string]json.RawMessage
+	opts := goai.StreamOptions{
+		APIKey: "test", Reasoning: &effort,
+		OnPayload: func(value any, _ *goai.Model) (any, error) {
+			hooks++
+			data, err := json.Marshal(value)
+			if err != nil {
+				return nil, err
+			}
+			return nil, json.Unmarshal(data, &payload)
+		},
+		HTTPTransport: providerRetryTransportMain(func(req *http.Request) (*http.Response, error) {
+			requests++
+			mock := "data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":1,\"completion_tokens\":1,\"prompt_tokens_details\":{\"cached_tokens\":0},\"completion_tokens_details\":{\"reasoning_tokens\":0}}}\n\ndata: [DONE]\n\n"
+			return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {"text/event-stream"}}, Body: io.NopCloser(strings.NewReader(mock)), Request: req}, nil
+		}),
+	}
+	var streamErr error
+	for event := range adapter.StreamSimple(t.Context(), &model, &goai.Context{Messages: []goai.Message{goai.UserMessage("Hi")}}, &opts) {
+		switch e := event.(type) {
+		case *goai.ErrorEvent:
+			streamErr = e.Err
+		case *goai.DoneEvent:
+			if e.Reason == goai.StopReasonStop {
+				completed++
+			}
+		}
+	}
+	if hooks != 1 || requests != 1 || completed != 1 || streamErr != nil || payload == nil {
+		t.Fatalf("stream hooks=%d requests=%d completed=%d; error=%v", hooks, requests, completed, streamErr)
+	}
+	return payload
+}
+
+func assertQwenField(t *testing.T, payload map[string]json.RawMessage, field, want string) {
+	t.Helper()
+	got, present := payload[field]
+	if want == "" && present || want != "" && (!present || string(got) != want) {
+		t.Errorf("%s = %s (present=%t); want %s (empty means absent)", field, got, present, want)
 	}
 }
