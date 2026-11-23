@@ -613,3 +613,7 @@ The unchanged host-cutoff test passed. Go previously published a `context cancel
 All 42 unchanged Harness tool cases passed offline. Go already distinguishes explicit null tool details from omitted details. The public receipt test checks both the presence marker and the value: explicit null replaces the earlier object, while an omitted value retains it. A fault that ignored the presence marker returned the old object and failed the test. This maps the value and presence, not the JavaScript field layout of the entire receipt.
 
 The [standalone Node worker check](dependencies/worker-quickjs-load.md) ran the unchanged namespaced-globals case and observed the real worker loading the pinned entry and instantiating the transferred QuickJS module. A scratch byte change left the behavior test passing but failed the input checks. The archived `dist` worker and Cloudflare were not part of this run.
+
+### Codemode describes what scripts can actually call
+
+The unchanged description test passed. Go now sends the expected call syntax and discovery guidance to the model. It mentions `models` only when the inline sandbox exposes that capability and the host allows it. Execution permissions did not change. Tests caught both incorrect wording and a description that advertised a capability the guest did not have.
