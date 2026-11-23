@@ -641,3 +641,15 @@ The [published Node worker check](dependencies/published-worker-quickjs-load.md)
 ### Unevaluated array errors include every rejected item
 
 All 142 unchanged checks passed for the 71 unevaluated-array cases. Go already agreed about validity, but 24 error lists differed. The standalone explanation now lists every rejected index in order with the expected keyword and message. It leaves model-facing errors alone. Tests caught missing later items, a wrong keyword, and a missed `contains` match. Unevaluated object properties still need separate work.
+
+### Object-property errors preserve order and report every rejection
+
+All 258 unchanged checks passed for the 129 unevaluated-property cases. Four Go error lists were missing a second property. The standalone explanation now includes every rejected property and keeps the source key order when it receives raw JSON. Go maps still use a stable order because they do not retain insertion order. Validation and model-facing errors are unchanged. Fault controls caught missing errors, reversed order, and an incorrect dynamic-reference annotation.
+
+### Guest discovery, nested-call duration, and indexed idle checks
+
+Both unchanged Codemode cases passed. The inline and published portable guests return the full expected discovery object. Empty catalogues omit the prompt section. New portable starts record access to the three read-only discovery functions; older journals keep their original environment, and paid and custom permissions do not change.
+
+All 35 unchanged nested-tool cases passed. Go now returns the exact duration stored with a successful nested result, and leaves it absent on a fault with no saved result. Tests caught a one-millisecond change and a made-up zero. The original includes the task ID in the result; Go exposes that ID through its handle.
+
+The unchanged seeded idle-index test passed. Go's corresponding 200-step test checks the actual context fallback counter: zero task-graph scans. Bypassing the index left the busy results correct but caused 12,385 scans, which failed the new check. The counter changes no scheduling decisions.
