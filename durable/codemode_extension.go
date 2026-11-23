@@ -179,6 +179,11 @@ func NewCodemodeExtension(sandbox CodemodeSandbox, options ...CodemodeExtensionO
 		if globals != nil {
 			selectedGlobals = *globals
 		}
+		// Omit an empty catalogue section. Keep declarations for configured
+		// native model/custom globals even when there are no nested tools.
+		if catalogue == "" && !paid && len(selectedGlobals) == 0 {
+			return nil, nil
+		}
 		for _, global := range selectedGlobals {
 			start.Globals = append(start.Globals, codemodeGlobalDescription(global))
 		}

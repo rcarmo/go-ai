@@ -98,6 +98,9 @@ type CodemodeWorkerRemote struct {
 // Execute honours the recorded start flag even when called during replay.
 func (*CodemodeWorkerRemote) SupportsWorkerArgumentPresence() bool { return true }
 
+// SupportsWorkerDiscovery advertises catalogue-only globals for new starts.
+func (*CodemodeWorkerRemote) SupportsWorkerDiscovery() bool { return true }
+
 func (r *CodemodeWorkerRemote) Execute(ctx context.Context, code string, start CodemodeStart, exchange func(context.Context, CodemodeEvent) (CodemodeRemoteReply, error), receive func(context.Context) (CodemodeDelivery, error)) error {
 	if ctx == nil || r == nil || r.Transport == nil || r.Fingerprint == "" || exchange == nil || receive == nil {
 		return reject("invalid worker remote adapter")
@@ -105,6 +108,11 @@ func (r *CodemodeWorkerRemote) Execute(ctx context.Context, code string, start C
 	request := CodemodeWorkerRequest{Data: CodemodeWorkerStart{Code: code, MemoryLimitBytes: start.MemoryLimitBytes, Tools: []CodemodeWorkerTool{}, Globals: []CodemodeWorkerGlobal{}, Store: map[string]string{}, Deterministic: &CodemodeWorkerDeterminism{StartedAt: start.StartedAt, Seed: uint32(start.Seed)}}, InterruptBudget: start.InterruptBudget}
 	for _, tool := range start.Tools {
 		request.Data.Tools = append(request.Data.Tools, CodemodeWorkerTool{tool.Name, tool.Identifier, tool.Description})
+	}
+	if start.WorkerDiscovery {
+		for _, name := range codemodeDiscoveryNames {
+			request.Data.Globals = append(request.Data.Globals, CodemodeWorkerGlobal{Name: name, Spread: true})
+		}
 	}
 	for _, global := range start.Globals {
 		request.Data.Globals = append(request.Data.Globals, CodemodeWorkerGlobal{global.Name, global.Spread})

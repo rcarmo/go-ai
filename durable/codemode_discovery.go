@@ -8,9 +8,11 @@ import (
 	"github.com/rcarmo/go-ai/internal/quickjs"
 )
 
+var codemodeDiscoveryNames = [...]string{"searchTools", "describeTool", "describeNamespace"}
+
 func quickjsDiscoveryGlobals(start CodemodeStart) []quickjs.Global {
 	globals := []quickjs.Global{}
-	for _, name := range []string{"searchTools", "describeTool", "describeNamespace"} {
+	for _, name := range codemodeDiscoveryNames {
 		name := name
 		globals = append(globals, quickjs.Global{Name: name, Spread: true, Execute: func(_ context.Context, raw json.RawMessage) (json.RawMessage, error) {
 			var args []json.RawMessage

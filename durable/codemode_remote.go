@@ -36,6 +36,14 @@ func (s *RemoteCodemodeSandbox) SupportsWorkerArgumentPresence() bool {
 	return ok && worker.SupportsWorkerArgumentPresence()
 }
 
+func (s *RemoteCodemodeSandbox) SupportsWorkerDiscovery() bool {
+	if s == nil {
+		return false
+	}
+	worker, ok := s.Remote.(codemodeWorkerDiscovery)
+	return ok && worker.SupportsWorkerDiscovery()
+}
+
 func (s *RemoteCodemodeSandbox) Start(ctx context.Context, code string, start CodemodeStart) (CodemodeExecution, error) {
 	if ctx == nil || s == nil || s.Remote == nil || s.Identity == "" || start.RuntimeIdentity != "" && start.RuntimeIdentity != s.Identity {
 		return nil, reject("invalid remote codemode runtime")

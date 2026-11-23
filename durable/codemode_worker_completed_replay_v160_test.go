@@ -89,12 +89,16 @@ type workerNestedReplayV160 struct {
 
 type workerReplayChangesV160 struct {
 	now          func() int64
+	beforeStart  func(*RemoteCodemodeSandbox)
 	beforeResume func(context.Context, Storage, *RemoteCodemodeSandbox)
 }
 
 func runV160PublishedWorkerNestedReplay(t *testing.T, source string, changes workerReplayChangesV160) workerNestedReplayV160 {
 	t.Helper()
 	sandbox, remote := newJournalWorkerSandboxV160(t)
+	if changes.beforeStart != nil {
+		changes.beforeStart(sandbox)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	registry := NewRegistry()

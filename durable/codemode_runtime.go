@@ -33,6 +33,7 @@ type CodemodeSandboxDrains interface{ SupportsDrainAcknowledgements() bool }
 
 // Only new runs persist this capability. Replay uses the stored flag.
 type codemodeWorkerArgumentPresence interface{ SupportsWorkerArgumentPresence() bool }
+type codemodeWorkerDiscovery interface{ SupportsWorkerDiscovery() bool }
 
 // DefaultCodemodeInterruptBudget matches pi-codemode 1.2.0 inline execution.
 const DefaultCodemodeInterruptBudget = 100000
@@ -60,6 +61,9 @@ type CodemodeStart struct {
 	// WorkerArgumentPresence pins worker decoding of non-spread globals. An
 	// absent flag in a stored start retains the legacy worker projection.
 	WorkerArgumentPresence bool `json:"workerArgumentPresence,omitempty"`
+	// WorkerDiscovery pins the three catalogue-only globals on portable guests.
+	// An absent bit preserves starts recorded before those globals were exposed.
+	WorkerDiscovery bool `json:"workerDiscovery,omitempty"`
 }
 type CodemodeExecution interface {
 	Next(context.Context) (CodemodeEvent, error)
@@ -211,6 +215,9 @@ func (r *TaskRuntime) runCodemode(ctx context.Context, key, source string, sandb
 	start := CodemodeStart{InterruptBudget: budget, PaidModels: paid, Namespaces: selectedNamespaces, RuntimeIdentity: identity, Deadline: now + parsed.TimeoutMs, MaxOutputTokens: parsed.MaxOutputTokens, Version: 2, StartedAt: now, Seed: uint64(binary.LittleEndian.Uint32(random[:4])), Tools: tools}
 	if worker, ok := sandbox.(codemodeWorkerArgumentPresence); ok {
 		start.WorkerArgumentPresence = worker.SupportsWorkerArgumentPresence()
+	}
+	if worker, ok := sandbox.(codemodeWorkerDiscovery); ok {
+		start.WorkerDiscovery = worker.SupportsWorkerDiscovery()
 	}
 	if drains, ok := sandbox.(CodemodeSandboxDrains); ok {
 		start.DrainAcknowledgements = drains.SupportsDrainAcknowledgements()

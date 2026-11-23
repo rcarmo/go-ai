@@ -33,7 +33,12 @@ func v160NamespaceHarness(t *testing.T, budget *int, script string, extensions .
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = engine.Close(bg) })
-	codemode, err := NewCodemodeExtension(engine, CodemodeExtensionOptions{InlineBudget: budget})
+	return v160NamespaceHarnessWithSandbox(t, engine, budget, script, extensions...)
+}
+
+func v160NamespaceHarnessWithSandbox(t *testing.T, sandbox CodemodeSandbox, budget *int, script string, extensions ...*Extension) (*Harness, *Registry, ModelRef) {
+	t.Helper()
+	codemode, err := NewCodemodeExtension(sandbox, CodemodeExtensionOptions{InlineBudget: budget})
 	if err != nil {
 		t.Fatal(err)
 	}
