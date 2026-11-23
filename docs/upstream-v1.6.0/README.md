@@ -685,3 +685,7 @@ The unchanged Responses grammar allocation test passed. The Go checks used the s
 All 35 unchanged cache-retention tests passed offline. Go now checks the expected payload inside the public callback, before any network request. It requires exactly one callback and no HTTP request when the callback stops the operation. The separate HTTP-level checks remain in place. These tests cover the callback behavior and values, not JavaScript SDK class identity.
 
 All 49 unchanged coercion tests passed. The new Go comparisons cover 27 assertions about optional nulls, arrays and tuples, primitive and union conversions, and object properties. No production change was needed. The tests distinguish tuple conversion from array wrapping and reject conversions that are not in an enumeration.
+
+### Codemode distinguishes a missing call from an early return
+
+Three unchanged upstream cases passed. With a real portable guest and SQLite reopen, Go now gives the expected reason when replay waits without making call 99 or ends after a result where the original continued. The missing-call test confirms exactly two nested tasks. Replay still rejects both cases using the saved count. The source case with a missing non-final count followed by another saved result remains unmapped because Go rejects that stored shape.
