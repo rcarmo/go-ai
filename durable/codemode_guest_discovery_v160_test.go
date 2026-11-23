@@ -130,7 +130,7 @@ func TestV160CodemodePortableDiscoveryUsesRecordedStart(t *testing.T) {
 func TestSourceV160CodemodeEmptyPromptSection(t *testing.T) {
 	h, _, ref := v160NamespaceHarness(t, nil, "", &Extension{Name: "coding"})
 	system := v160NamespaceSystem(t, root(t, h, ref))
-	if section := system.Sections["codemode"]; section != nil {
-		t.Fatalf("empty codemode prompt section = %q; want absent", *section)
+	if section, present := system.Sections["codemode"]; present {
+		t.Fatalf("empty codemode prompt section is present (%v); want absent", section)
 	}
 }
