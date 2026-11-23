@@ -577,3 +577,7 @@ All 12 unchanged upstream cases passed. Go now returns the caller's original can
 ### Codemode refuses replay when the sandbox changes or time runs out
 
 Both unchanged upstream tests passed. After SQLite reopen, the published guest did not start again or run the new `late` call when the sandbox identity changed or the saved deadline had passed. Go now gives the expected reason and still lets callers recognize the deadline error. The version-0 variant remains partial: Go rejects the attempted rewrite of a saved start at the storage boundary, before the source's replay scenario can be reproduced.
+
+### llama.cpp classifier behavior
+
+All 15 unchanged classifier cases passed offline using simulated server replies. Go now distinguishes an explicit zero temperature from an omitted setting and preserves the server's error details. The tests also check the exact token limits used when deeper readouts are needed. Two prompt comparisons still differ because Go sorts map keys while JavaScript keeps their insertion order. No live server was contacted. See the [test results and remaining differences](test-inventory/llama-cpp-classify.md).
