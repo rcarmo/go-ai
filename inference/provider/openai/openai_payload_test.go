@@ -3,7 +3,6 @@ package openai
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -125,23 +124,23 @@ func TestStreamOpenAICloudflareAIGatewayHeadersAndURL(t *testing.T) {
 	}
 }
 
+// Source: pi v1.6.0 openai-completions-tool-choice.test.ts:1536–1578.
 func TestV0842DeepSeekMixedCaseURLUsesMaxTokensField(t *testing.T) {
-	maxTokens := 123
-	model := &goai.Model{ID: "deepseek-v4-flash", Provider: "proxy", Api: goai.ApiOpenAICompletions, BaseURL: "https://API.DeepSeek.COM/v1"}
-	req := buildRequestBody(model, &goai.Context{Messages: []goai.Message{goai.UserMessage("hello")}}, &goai.StreamOptions{MaxTokens: &maxTokens})
-	data, err := json.Marshal(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var payload map[string]any
-	if err := json.Unmarshal(data, &payload); err != nil {
-		t.Fatal(err)
-	}
-	if payload["max_tokens"] != float64(123) {
-		t.Fatalf("expected max_tokens=123 for mixed-case DeepSeek URL, got %#v in %s", payload["max_tokens"], data)
-	}
-	if _, ok := payload["max_completion_tokens"]; ok {
-		t.Fatalf("unexpected max_completion_tokens for DeepSeek URL: %s", data)
+	goai.RegisterBuiltinModels()
+	t.Setenv("PI_CACHE_RETENTION", "")
+	custom := localCompletionsModelV160("custom-deepseek-model", "Custom DeepSeek Model")
+	custom.Provider, custom.BaseURL = "custom-deepseek", "https://api.deepseek.com"
+	upper := custom
+	upper.ID, upper.Name, upper.BaseURL = "custom-uppercase-deepseek-model", "Custom Uppercase DeepSeek Model", "https://API.DeepSeek.COM"
+	for _, tc := range []struct {
+		model   *goai.Model
+		catalog bool
+	}{
+		{promptCacheCatalogueV160(t, goai.ProviderDeepSeek, "deepseek-flash"), true},
+		{promptCacheCatalogueV160(t, goai.ProviderDeepSeek, "deepseek-v4-pro"), true},
+		{&custom, false}, {&upper, false},
+	} {
+		t.Run(tc.model.ID, func(t *testing.T) { assertCompletionsMaxTokensV160(t, tc.model, tc.catalog) })
 	}
 }
 
@@ -299,31 +298,6 @@ func stringsReader(s string) io.Reader { return strings.NewReader(s) }
 func TestSourceV160OpenAICompletionsInstructionRolesAndEffort(t *testing.T) {
 	goai.RegisterBuiltinModels()
 	t.Setenv("PI_CACHE_RETENTION", "")
-	ctx := context.Background()
-	abort := errors.New("captured request")
-	body := func(t *testing.T, model *goai.Model, level goai.ThinkingLevel) chatRequest {
-		t.Helper()
-		var captured chatRequest
-		var reason error
-		for event := range streamOpenAISimple(ctx, model, &goai.Context{SystemPrompt: "instruction", Messages: []goai.Message{goai.UserMessage("hello")}}, &goai.StreamOptions{APIKey: "key", Reasoning: &level, OnPayload: func(value any, _ *goai.Model) (any, error) {
-			wire, err := json.Marshal(value)
-			if err != nil {
-				return nil, err
-			}
-			if err := json.Unmarshal(wire, &captured); err != nil {
-				return nil, err
-			}
-			return nil, abort
-		}}) {
-			if failure, ok := event.(*goai.ErrorEvent); ok {
-				reason = failure.Err
-			}
-		}
-		if !errors.Is(reason, abort) {
-			t.Fatalf("payload was not captured: %v", reason)
-		}
-		return captured
-	}
 	const azureURL = "https://my-resource.openai.azure.com/openai/v1"
 	official := *promptCacheCatalogueV160(t, goai.ProviderOpenAI, "gpt-5.5")
 	official.Api, official.ResponsesCompat, official.CompletionsCompat = goai.ApiOpenAICompletions, nil, nil
@@ -370,13 +344,10 @@ func TestSourceV160OpenAICompletionsInstructionRolesAndEffort(t *testing.T) {
 		})
 	}
 	for _, effort := range []goai.ThinkingLevel{goai.ThinkingLow, goai.ThinkingHigh} {
-		model := goai.GetModel("github-copilot", "gemini-4-argon")
-		if model == nil || model.Api != goai.ApiOpenAICompletions {
-			t.Fatalf("Copilot model = %#v", model)
-		}
-		result := body(t, model, effort)
-		if result.ReasoningEffort != string(effort) {
-			t.Errorf("reasoning_effort = %q; want %q", result.ReasoningEffort, effort)
-		}
+		t.Run("github-copilot/"+string(effort), func(t *testing.T) {
+			model := promptCacheCatalogueV160(t, goai.ProviderGitHubCopilot, "gemini-4-argon")
+			got := captureCompletionsEffortV160(t, model, completionsChoiceContextV160("Hi"), effort)
+			got.field(t, "reasoning_effort", string(effort))
+		})
 	}
 }

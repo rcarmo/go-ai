@@ -47,6 +47,11 @@ func capturePromptCacheV160(t *testing.T, model *goai.Model, opts goai.StreamOpt
 
 func captureCompletionsWireV160(t *testing.T, model *goai.Model, ctx *goai.Context, opts goai.StreamOptions) promptCacheRequestV160 {
 	t.Helper()
+	return captureCompletionsWireUsingV160(t, model, ctx, opts, goai.Stream)
+}
+
+func captureCompletionsWireUsingV160(t *testing.T, model *goai.Model, ctx *goai.Context, opts goai.StreamOptions, stream goai.ProviderStream) promptCacheRequestV160 {
+	t.Helper()
 	var got promptCacheRequestV160
 	var requestCount int
 	opts.APIKey = "test-key"
@@ -69,7 +74,7 @@ func captureCompletionsWireV160(t *testing.T, model *goai.Model, ctx *goai.Conte
 		}, nil
 	})
 	var completed int
-	for e := range goai.Stream(t.Context(), model, ctx, &opts) {
+	for e := range stream(t.Context(), model, ctx, &opts) {
 		switch e := e.(type) {
 		case *goai.ErrorEvent:
 			t.Errorf("unexpected stream error: %v", e.Err)

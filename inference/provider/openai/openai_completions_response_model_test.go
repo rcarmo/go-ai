@@ -83,16 +83,21 @@ func runOpenAICompletionsResponseModelChunks(t *testing.T, chunks []string) *goa
 }
 
 // Source: openai-completions-tool-choice.test.ts, Copilot's top-level usage.
+// Source: pi v1.6.0 openai-completions-tool-choice.test.ts:1752–1787.
 func TestSourceV160OpenAIReasoningUsageFallback(t *testing.T) {
 	goai.RegisterBuiltinModels()
-	registered := goai.GetModel("github-copilot", "gemini-4-argon")
-	if registered == nil {
-		t.Fatal("missing Copilot model")
-	}
+	registered := promptCacheCatalogueV160(t, goai.ProviderGitHubCopilot, "gemini-4-argon")
+	t.Run("pinned missing details", func(t *testing.T) {
+		message := observeCompletionsStreamV160(t, registered, completionsChoiceContextV160("Reply with exactly OK"), 1752).message
+		if usage := message.Usage; usage == nil || !usage.ReasoningSet || usage.Reasoning != 30 || usage.Output != 40 {
+			t.Fatalf("usage=%+v; want reasoning=30, output=40", usage)
+		}
+	})
+	// Existing supplemental nested zero and positive cases.
 	for _, tc := range []struct {
 		details   string
 		reasoning int
-	}{{"", 30}, {`,"completion_tokens_details":{"reasoning_tokens":0}`, 30}, {`,"completion_tokens_details":{"reasoning_tokens":7}`, 7}} {
+	}{{`,"completion_tokens_details":{"reasoning_tokens":0}`, 30}, {`,"completion_tokens_details":{"reasoning_tokens":7}`, 7}} {
 		chunks := []string{
 			`data: {"id":"chatcmpl-copilot-reasoning","choices":[{"index":0,"delta":{"content":"OK"}}]}`,
 			`data: {"id":"chatcmpl-copilot-reasoning","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":40,"prompt_tokens_details":{"cached_tokens":0},"reasoning_tokens":30` + tc.details + `}}`,
@@ -120,5 +125,29 @@ func TestSourceV160OpenAIReasoningUsageFallback(t *testing.T) {
 		if message.Usage == nil || !message.Usage.ReasoningSet || message.Usage.Reasoning != tc.reasoning || message.Usage.Output != 40 {
 			t.Errorf("details=%q, usage=%+v; want reasoning=%d, output=40", tc.details, message.Usage, tc.reasoning)
 		}
+	}
+}
+
+// Source: pi v1.6.0 openai-completions-tool-choice.test.ts:1629–1749.
+func TestSourceV160CompletionsTokenAndCacheUsage(t *testing.T) {
+	goai.RegisterBuiltinModels()
+	t.Setenv("PI_CACHE_RETENTION", "")
+	model := promptCacheModelV160(t, "", "", "")
+	t.Run("reasoning counted within output", func(t *testing.T) {
+		got := observeCompletionsStreamV160(t, model, completionsChoiceContextV160("Use reasoning."), 1629).message.Usage
+		if got == nil || got.Input != 10 || got.Output != 33 || got.TotalTokens != 43 {
+			t.Fatalf("usage=%+v; want input=10 output=33 total=43", got)
+		}
+	})
+	for _, tc := range []struct {
+		name string
+		line int
+	}{{"chunk usage", 1664}, {"choice fallback", 1705}} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := observeCompletionsStreamV160(t, model, completionsChoiceContextV160("Reply with exactly OK"), tc.line).message.Usage
+			if got == nil || got.Input != 20 || got.CacheRead != 50 || got.CacheWrite != 30 || got.TotalTokens != 105 {
+				t.Fatalf("usage=%+v; want input=20 cache read=50 cache write=30 total=105", got)
+			}
+		})
 	}
 }
