@@ -545,3 +545,7 @@ The unchanged upstream case passed. When Go's public `Abort` returns, both foreg
 Go can now report each covered validation error with its JSON Pointer path, keyword and message, without changing the existing tool-error text. The six assertions in the five unchanged diagnostics cases matched exactly. Tests caught wrong path escaping, a wrong keyword and the wrong order. Compiled-validator reuse and exhaustive errors for every constraint still need work.
 
 The [updated test queue](test-inventory/primary-queue-r21.md) reviews all 42 changed primary suites using evidence through round 20. It found an upstream run for 24 of the 37 files in the earlier queue; 13 still had no run on record at that checkpoint. It separates actual test receipts, written accounts and Go comparisons. The audit did not run tests or turn any open case into an exclusion.
+
+### Codemode reuses finished calls after reopening SQLite
+
+Both unchanged upstream tests passed. The published guest returned the exact expected result after reopening SQLite. The two finished echo calls each ran once, the replay-safe hold ran twice, and the guest started twice. The clock and randomness test returned `ok` and echoed once. A separate Go check confirmed both guest starts received the same clock and seed; it does not claim equality of sampled values that the original never compared. Changing the first replayed reply or the resumed seed was caught by the corresponding test.
