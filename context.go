@@ -156,13 +156,13 @@ func ValidateToolArguments(tool *Tool, tc ToolCall) (any, error) {
 		if errors.As(err, &syntaxErr) {
 			return nil, errors.New(syntaxErr.publicMessage())
 		}
-		if issue, ok := err.(*toolSchemaIssue); ok {
+		if issues, ok := err.(toolSchemaIssues); ok {
 			received, marshalErr := json.MarshalIndent(tc.Arguments, "", "  ")
 			if marshalErr != nil {
 				received = []byte("<non-JSON arguments>")
 			}
 			//lint:ignore ST1005 The upstream outcome protocol recognises this exact capitalised prefix.
-			return nil, fmt.Errorf("Validation failed for tool %q:\n  - %s\n\nReceived arguments:\n%s", tool.Name, issue, received)
+			return nil, fmt.Errorf("Validation failed for tool %q:\n%s\n\nReceived arguments:\n%s", tool.Name, issues, received)
 		}
 		return nil, fmt.Errorf("validation failed for tool %q: %w", tool.Name, err)
 	}
@@ -252,11 +252,11 @@ func (v *toolSchemaValidator) coerceWithJSONSchema(value interface{}, schema map
 		return nil, fmt.Errorf("pattern checker unavailable: %w", v.patternFailure)
 	}
 	if !accepted {
-		issue := v.issue(converted, schema, "", make(map[toolSchemaMemoKey]bool))
+		issues := v.appendIssues(nil, converted, schema, "", make(map[toolSchemaMemoKey]bool), false)
 		if v.patternFailure != nil {
 			return nil, fmt.Errorf("pattern checker unavailable: %w", v.patternFailure)
 		}
-		return nil, issue
+		return nil, issues
 	}
 	return converted, nil
 }
