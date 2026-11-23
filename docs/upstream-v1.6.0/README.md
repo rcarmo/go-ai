@@ -557,3 +557,7 @@ All ten unchanged constrained-sampling cases passed. Go now keeps the upstream p
 ### SQLite engines used in the migration tests
 
 The [engine receipt](dependencies/sqlite-migration-engines.md) records the versions from the two actual database connections. The unchanged upstream migration ran on Node's SQLite 3.54.0; Go's translation ran on pure-Go SQLite 3.54.1. Both preserved the migrated task. The Go fixture supplies owner and allocation records, so this does not prove that Go can open the exact raw upstream fixture.
+
+### Draft 7 remote references: exact errors
+
+All 46 unchanged upstream checks passed: 23 values and 23 checks that validation agrees with the error list. Separate Go validation and explanation calls returned 12 empty lists and 11 exact errors, including the expected paths, keywords and messages. Removing the host reference registry or erasing a path broke the new comparisons even though the affected value was still rejected. No production change was needed. The two public calls share validator internals; this does not establish a second compiler or cover the other schema drafts.
