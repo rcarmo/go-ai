@@ -2,7 +2,7 @@
 
 This [immutable snapshot](primary-queue-r21.jsonl) covers all **42 primary suites** added or changed in pi v1.6.0: 22 AI and 20 Durable paths, including two Durable-hosted Codemode files. It is tied to pinned upstream `faac585884ae2c013a6b1400f3e9e77f10b34bac` and native evidence through `d0f5e86bf5392e4a8027904f888c6e244c2e0284`. It preserves the [Round 12 reconciliation](primary-queue-reconciled.md). The 37 files in that earlier queue now have original-run evidence for 24 files; for 13 files, no original-run evidence was located in this audit, down from 21 in Round 12. This does not count assertions or imply parity.
 
-No original or native tests were executed in Round 21. The script compares exact Git paths, blobs, byte hashes, report partitions, source conditions, and committed evidence. A machine receipt binds exact source bytes to named case outcomes; a prose claim or a ledger reference links to a committed account of execution, not a retained test report. Where several reports exist, the table lists the strongest file-level evidence and the snapshot retains the rest.
+This audit did not run upstream or native tests. The script compares exact Git paths, blobs, byte hashes, report partitions, source conditions, and committed evidence. A machine receipt binds exact source bytes to named case outcomes; a prose claim or a ledger reference links to a committed account of execution, not a retained test report. Where several reports exist, the table lists the strongest file-level evidence and the snapshot retains the rest.
 
 | Strongest original evidence | All 42 | Historical 37 |
 | --- | ---: | ---: |

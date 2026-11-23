@@ -539,3 +539,9 @@ The [native QuickJS receipt](dependencies/native-quickjs-wasm-load.md) checks th
 ### Conversation abort joins foreground work only
 
 The unchanged upstream case passed. When Go's public `Abort` returns, both foreground tasks have ended and both background tasks are still live. The queued input has reason `aborted`, and the queued write stays queued. The SQLite test passed without a production change. Fault controls caught both a no-op abort and a cascade that incorrectly stopped background work.
+
+### Structured Schema errors and the current test queue
+
+Go can now report each covered validation error with its JSON Pointer path, keyword and message, without changing the existing tool-error text. The six assertions in the five unchanged diagnostics cases matched exactly. Tests caught wrong path escaping, a wrong keyword and the wrong order. Compiled-validator reuse and exhaustive errors for every constraint still need work.
+
+The [updated test queue](test-inventory/primary-queue-r21.md) reviews all 42 changed primary suites using evidence through round 20. It found an upstream run for 24 of the 37 files in the earlier queue; 13 still had no run on record at that checkpoint. It separates actual test receipts, written accounts and Go comparisons. The audit did not run tests or turn any open case into an exclusion.
