@@ -607,3 +607,9 @@ Nine unchanged [image-read tests](test-inventory/tools-images.md) passed offline
 ### Closing a Codemode guest keeps its work replayable
 
 The unchanged host-cutoff test passed. Go previously published a `context canceled` tool result after the host closed a guest, so a replacement guest never ran. Now closing the guest leaves the result unset. After SQLite reopen, the replacement guest returns `done`, and the earlier echo still ran only once. The test also checks that ordinary caller cancellation stays separate. This covers one active portable guest execution, not shutdown of a worker pool.
+
+### Tool details and the standalone Codemode worker
+
+All 42 unchanged Harness tool cases passed offline. Go already distinguishes explicit null tool details from omitted details. The public receipt test checks both the presence marker and the value: explicit null replaces the earlier object, while an omitted value retains it. A fault that ignored the presence marker returned the old object and failed the test. This maps the value and presence, not the JavaScript field layout of the entire receipt.
+
+The [standalone Node worker check](dependencies/worker-quickjs-load.md) ran the unchanged namespaced-globals case and observed the real worker loading the pinned entry and instantiating the transferred QuickJS module. A scratch byte change left the behavior test passing but failed the input checks. The archived `dist` worker and Cloudflare were not part of this run.
