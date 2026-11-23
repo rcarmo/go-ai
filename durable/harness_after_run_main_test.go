@@ -504,6 +504,7 @@ func TestMainAfterRunRejectedRequestsKeepValidSibling(t *testing.T) {
 
 // Source617: the installed version supplies both checkpoint and runtime; the
 // request token is only a kind reference. Initialisation must be off the line.
+// Source: pi v1.6.0 harness-after-run.test.ts:618–654.
 func TestMainAfterRunInstalledDefinitionInitialOnce(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var installed, token atomic.Int64
@@ -552,24 +553,18 @@ func TestMainAfterRunInstalledDefinitionInitialOnce(t *testing.T) {
 		if err := c.WaitForIdle(ctx); err != nil {
 			t.Fatal(err)
 		}
-		state, err := h.Snapshot(bg)
+		result, err := h.Commit(bg, func(tx *Tx) (any, error) {
+			return tx.ScanTasks(TaskQuery{Conversation: c.ID(), Kind: "test.versioned"}, 10, nil)
+		})
 		if err != nil {
 			t.Fatal(err)
 		}
-		var tasks []TaskRecord
-		for _, task := range state.Tasks {
-			if task.Conversation == c.ID() && task.Kind == "test.versioned" {
-				record, err := CanonicalTask(task, h.session.limits)
-				if err != nil {
-					t.Fatal(err)
-				}
-				tasks = append(tasks, record)
-			}
+		page := result.(Page[TaskRecord])
+		if len(page.Items) != 1 || page.Next != nil {
+			t.Fatalf("expected just one requested task, got %+v", page)
 		}
-		if len(tasks) != 1 {
-			t.Error("requested task count", tasks)
-		} else if tasks[0].Version != 2 || tasks[0].State.Status != "terminal" {
-			t.Error("installed version/outcome", tasks[0])
+		if task := page.Items[0]; task.Version != 2 || task.State.Status != "terminal" {
+			t.Errorf("installed version/outcome: %+v", task)
 		}
 		if installed.Load() != 1 || token.Load() != 0 {
 			t.Error("initial calls", installed.Load(), token.Load())
