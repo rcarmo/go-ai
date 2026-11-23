@@ -376,7 +376,8 @@ type Tool struct {
 	// ConstrainedSampling requests provider-supported constrained sampling for tool inputs.
 	// Type may be "json_schema" or "grammar". Strict is used by json_schema
 	// constraints ("prefer" or "require"); Variants carries provider grammar
-	// definitions such as "openai_lark" or "openai_regex".
+	// definitions such as "openai_lark" or "openai_regex". The explicit JSON
+	// false form uses ToolConstrainedSamplingDisabled.
 	ConstrainedSampling *ToolConstrainedSampling `json:"constrainedSampling,omitempty"`
 }
 

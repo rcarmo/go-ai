@@ -14,9 +14,8 @@ func constrainedSamplingToolV160(parameters string, cfg *goai.ToolConstrainedSam
 	return goai.Tool{Name: "sample_tool", Description: "Sample tool", Parameters: json.RawMessage(parameters), ConstrainedSampling: cfg}
 }
 
-// Source: constrained-sampling.test.ts:92-124. Explicit JavaScript false is
-// not a value of the native pointer field; the false-versus-omission source
-// assertion on line 126 is not claimed here.
+// Source: constrained-sampling.test.ts:92-124. The separate explicit-false
+// test below covers the remaining assertion on line 126.
 func TestSourceV160ResponsesSupportedConstraints(t *testing.T) {
 	const parameters = `{"type":"object","properties":{"payload":{"type":"string"}},"required":["payload"],"additionalProperties":false}`
 	strict := constrainedSamplingToolV160(parameters, &goai.ToolConstrainedSampling{Type: "json_schema", Strict: "prefer"})
@@ -167,5 +166,43 @@ func TestStrictSchemaJSPropertyOrderV160(t *testing.T) {
 	want := []any{"0", "2", "10", "4294967294", "z", "4294967295", "01", "a"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("required order got %v, want %v", got, want)
+	}
+}
+
+// Source: pi v1.6.0 constrained-sampling.test.ts:126–128. Accept the
+// actual boolean declaration, keep it in the public JSON form, and compare
+// the complete declarations sent by the two real request builders.
+func TestSourceV160ResponsesExplicitFalseSampling(t *testing.T) {
+	const prefix = `{"name":"sample_tool","description":"Sample","parameters":{"type":"object","properties":{"payload":{"type":"string"}},"required":["payload"]}`
+	request := func(extras string) []toolDef {
+		t.Helper()
+		var tool goai.Tool
+		if err := json.Unmarshal([]byte(prefix+extras+`}`), &tool); err != nil {
+			t.Fatalf("decode public tool: %v", err)
+		}
+		encoded, err := json.Marshal(tool)
+		if err != nil {
+			t.Fatal(err)
+		}
+		wire := schemaObjectV160(t, encoded)
+		value, present := wire["constrainedSampling"]
+		if present != (extras != "") || present && value != false {
+			t.Fatalf("constrainedSampling present=%t value=%v; declaration=%s", present, value, encoded)
+		}
+		model := grammarReplayModel()
+		conv := &goai.Context{Tools: []goai.Tool{tool}, Messages: []goai.Message{goai.UserMessage("sample")}}
+		payload, _ := captureV100ResponsesReplayRequest(t, model, conv)
+		if len(payload.Tools) != 1 || payload.Tools[0].Type != "function" || payload.Tools[0].Name != "sample_tool" {
+			t.Fatalf("unexpected provider tools: %+v", payload.Tools)
+		}
+		return payload.Tools
+	}
+	var invalid goai.Tool
+	if err := json.Unmarshal([]byte(prefix+`,"constrainedSampling":true}`), &invalid); err == nil {
+		t.Fatal("true is not a constrained sampling declaration")
+	}
+	disabled, omitted := request(`,"constrainedSampling":false`), request("")
+	if !reflect.DeepEqual(disabled, omitted) {
+		t.Fatalf("provider declarations differ: explicit false=%+v omitted=%+v", disabled, omitted)
 	}
 }

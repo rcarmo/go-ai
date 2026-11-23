@@ -112,6 +112,14 @@ func (b *jsonBudget) walk(v reflect.Value, depth int, objectsOnly bool) error {
 		defer func() { b.nativeArgument, b.utf16Keys = previousArgument, previousKeys }()
 		return b.walk(reflect.ValueOf(wrapped.value), depth, objectsOnly)
 	}
+	if !objectsOnly {
+		if value, ok, err := reflectedToolSampling(v); ok {
+			if err != nil {
+				return err
+			}
+			return b.walk(reflect.ValueOf(value), depth, false)
+		}
+	}
 	if err := b.node(); err != nil {
 		return err
 	}
@@ -433,6 +441,12 @@ func encodeValue(b *limitedJSON, v reflect.Value) error {
 		b.utf16Keys = true
 		defer func() { b.utf16Keys = previous }()
 		return encodeValue(b, reflect.ValueOf(wrapped.value))
+	}
+	if value, ok, err := reflectedToolSampling(v); ok {
+		if err != nil {
+			return err
+		}
+		return encodeValue(b, reflect.ValueOf(value))
 	}
 	if !v.IsValid() {
 		return emit(b, "null")

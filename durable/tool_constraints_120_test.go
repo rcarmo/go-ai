@@ -44,8 +44,42 @@ func TestTool120ConstraintsPersistAndDetach(t *testing.T) {
 		t.Fatal(restored)
 	}
 }
+func TestSourceV160ToolDisabledConstraintSurvivesRegistry(t *testing.T) {
+	var tool goai.Tool
+	if err := json.Unmarshal([]byte(`{"name":"plain","parameters":{"type":"object"},"constrainedSampling":false}`), &tool); err != nil {
+		t.Fatal(err)
+	}
+	registry := NewRegistry()
+	if err := registry.Register(ToolRegistration{Definition: tool, Implementation: "plain.native", Version: 1, Execute: func(context.Context, any, *ToolAPI) (ToolResult, error) { return ToolResult{}, nil }}); err != nil {
+		t.Fatal(err)
+	}
+	registered, found := registry.current("plain")
+	if !found {
+		t.Fatal("registered tool missing")
+	}
+	object, err := dtoObject(registered.offer, DefaultLimits())
+	if err != nil || object["constrainedSampling"] != false {
+		t.Fatalf("stored offer lost disabled sampling: %+v, err=%v", object, err)
+	}
+	var restored toolOffer
+	if err := fromObject(object, &restored, DefaultLimits()); err != nil {
+		t.Fatal(err)
+	}
+	tools, err := protocolTools([]toolOffer{restored}, DefaultLimits())
+	if err != nil || len(tools) != 1 {
+		t.Fatalf("replayed tools: %+v, err=%v", tools, err)
+	}
+	encoded, err := json.Marshal(tools[0].ConstrainedSampling)
+	if err != nil || string(encoded) != "false" {
+		t.Fatalf("replayed sampling: %s, err=%v; want false", encoded, err)
+	}
+	if _, err := ownJSONValue(JSON{"sampling": tool.ConstrainedSampling}, DefaultLimits()); err == nil {
+		t.Fatal("typed tool constraint gained marshal authority in caller JSON")
+	}
+}
+
 func TestTool120InvalidConstraintsReject(t *testing.T) {
-	for _, value := range []*goai.ToolConstrainedSampling{{Type: "grammar"}, {Type: "grammar", Variants: map[string]string{"unknown": "source"}}, {Type: "grammar", Strict: "require", Variants: map[string]string{"openai_lark": "source"}}, {Type: "json_schema", Strict: "bad"}, {Type: "json_schema", Variants: map[string]string{"openai_lark": "source"}}} {
+	for _, value := range []*goai.ToolConstrainedSampling{{Type: goai.ToolConstrainedSamplingDisabled, Strict: "require"}, {Type: "grammar"}, {Type: "grammar", Variants: map[string]string{"unknown": "source"}}, {Type: "grammar", Strict: "require", Variants: map[string]string{"openai_lark": "source"}}, {Type: "json_schema", Strict: "bad"}, {Type: "json_schema", Variants: map[string]string{"openai_lark": "source"}}} {
 		if _, err := copyToolConstraints(value, DefaultLimits()); err == nil {
 			t.Fatal("invalid constraint", value)
 		}
