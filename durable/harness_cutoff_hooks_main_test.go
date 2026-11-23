@@ -259,6 +259,136 @@ func TestMainCutoffHooksNormalizeReplacement(t *testing.T) {
 		}
 	})
 }
+
+// harness-tool-hooks.test.ts:443-463 and :508-538. Establish the live
+// and stored progress boundaries before abort, then reopen for readback.
+func TestSourceV160AbortHookPreservesTerminalToolResult(t *testing.T) {
+	for _, mode := range []string{"throws", "held"} {
+		t.Run(mode, func(t *testing.T) {
+			store, dir := newSQLiteTestStore(t)
+			failure := errors.New("hook failed")
+			type hookReceipt struct {
+				call   string
+				result ToolResult
+			}
+			var hooks []hookReceipt
+			var hookMu sync.Mutex
+			f := mainCutoffHooksSetup(t, func(_ context.Context, call goai.ToolCall, result ToolResult, _ *HookAPI) (*ToolResult, error) {
+				hookMu.Lock()
+				hooks = append(hooks, hookReceipt{call.ID, result})
+				hookMu.Unlock()
+				if mode == "throws" {
+					return nil, failure
+				}
+				return nil, nil
+			}, nil)
+			f.options.Settings.RestartLimit = nil
+			if mode == "held" {
+				window := float64(60_000)
+				f.options.Settings.Progress.PersistWithinMs = &window
+			}
+			h := openHarness(t, store, f.options)
+			c := root(t, h, f.ref)
+			sub, err := c.Submit(bg, Input{Type: "input", Content: "go"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			awaitTaskSignal(t, f.started)
+			wantOutput := "work " + strings.Repeat("o", 40) + "\n"
+			if mode == "held" {
+				live, found, err := c.SnapshotDefinition(bg, LiveDoc(), nil)
+				if err != nil || !found {
+					t.Fatal("live tool progress", live, found, err)
+				}
+				slots, _ := generationObject(live.Copy())["tools"].([]any)
+				if len(slots) != 1 || generationObject(slots[0])["output"] != wantOutput || !equalJSONValue(generationObject(slots[0])["details"], JSON{"run": 1}) {
+					t.Fatal("held tool progress missing from Harness", slots)
+				}
+				address := DocumentAddress{Scope: "conversation", Owner: c.ID(), Kind: "pi.live"}
+				doc, found, err := store.FindDocument(bg, address, CurrentDocumentPoint())
+				if err != nil || !found {
+					t.Fatal("stored live document", doc, found, err)
+				}
+				doc, found, err = store.DocumentAt(bg, doc.ID, CurrentDocumentPoint())
+				if err != nil || !found {
+					t.Fatal("stored live value", doc, found, err)
+				}
+				stored, _ := doc.Value["tools"].([]any)
+				if len(stored) != 1 || generationObject(stored[0])["details"] != nil || generationObject(stored[0])["output"] == wantOutput {
+					t.Fatal("progress stored before abort", stored)
+				}
+			}
+			ctx, cancel := context.WithTimeout(bg, 3*time.Second)
+			defer cancel()
+			if err := c.Abort(ctx); err != nil {
+				t.Fatal(err)
+			}
+			if record := waitSubmission(t, sub).Record; record.Status != "unanswered" {
+				t.Fatal("abort settlement", record)
+			}
+			if liveResult := v160ToolResult(t, bg, c, "c1"); !liveResult.IsError || !strings.HasPrefix(v160ToolResultText(liveResult), strings.TrimSuffix(wantOutput, "\n")) {
+				t.Fatal("abort result lost original output", liveResult)
+			}
+			if err := h.Close(bg); err != nil {
+				t.Fatal(err)
+			}
+			hookMu.Lock()
+			seen := append([]hookReceipt(nil), hooks...)
+			hookMu.Unlock()
+			if len(seen) != 1 || seen[0].call != "c1" || !reflect.DeepEqual(mainCutoffCodes(seen[0].result), []string{"aborted"}) {
+				t.Fatal("abort hook did not receive one built result", seen)
+			}
+			if result := seen[0].result; !result.HasDetails || !equalJSONValue(result.DetailsValue, JSON{"run": 1}) || result.Content != wantOutput {
+				t.Fatal("abort hook lost held output or details", result)
+			}
+			if mode == "throws" {
+				f.mu.Lock()
+				reported := append([]error(nil), f.errors...)
+				f.mu.Unlock()
+				if len(reported) != 1 || !errors.Is(reported[0], failure) || reported[0].Error() != "hook failed" {
+					t.Fatalf("throwing afterTool report: %v", reported)
+				}
+			}
+			reader, err := openSQLiteTestDirectory(dir, SQLiteOptions{ReadOnly: true})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer reader.Close(bg)
+			viewer, err := Open(bg, reader, Options{ReadOnly: true})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer viewer.Close(bg)
+			view, err := viewer.Conversation(bg, c.ID())
+			if err != nil || view == nil {
+				t.Fatal(view, err)
+			}
+			persisted := v160ToolResult(t, bg, view, "c1")
+			if !persisted.IsError || !equalJSONValue(persisted.Details, JSON{"run": 1}) || !strings.HasPrefix(v160ToolResultText(persisted), strings.TrimSuffix(wantOutput, "\n")) {
+				t.Fatal("reopened terminal tool receipt", persisted)
+			}
+			page, err := view.Entries(bg, EntryQuery{}, 10, nil)
+			if err != nil || page.Next != nil {
+				t.Fatal(page, err)
+			}
+			var codes []string
+			for _, entry := range page.Items {
+				if entry.Kind != toolResultEntryKind {
+					continue
+				}
+				diagnostics, _ := generationObject(entry.Data)["diagnostics"].([]any)
+				for _, diagnostic := range diagnostics {
+					code, _ := generationObject(diagnostic)["code"].(string)
+					codes = append(codes, code)
+				}
+			}
+			if !reflect.DeepEqual(codes, []string{"aborted"}) {
+				t.Fatal("durable abort entry diagnostics", codes)
+			}
+		})
+	}
+}
+
 func TestMainCutoffHooksThrowReportsAndRetainsSlot(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		failure := errors.New("cutoff hook failed")
