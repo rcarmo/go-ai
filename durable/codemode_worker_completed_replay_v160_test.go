@@ -83,11 +83,14 @@ type workerNestedReplayV160 struct {
 	echoes      map[string]int
 	starts      int32
 	holds       int32
+	replies     int32
 	beforeClose []CodemodeDelivery
 	inputs      []workerReplayInputsV160
 }
 
 type workerReplayChangesV160 struct {
+	guestCode    func(int32, string) string
+	globals      []CodemodeGlobal
 	now          func() int64
 	beforeStart  func(*RemoteCodemodeSandbox)
 	beforeResume func(context.Context, Storage, *RemoteCodemodeSandbox)
@@ -96,6 +99,7 @@ type workerReplayChangesV160 struct {
 func runV160PublishedWorkerNestedReplay(t *testing.T, source string, changes workerReplayChangesV160) workerNestedReplayV160 {
 	t.Helper()
 	sandbox, remote := newJournalWorkerSandboxV160(t)
+	remote.guestCode = changes.guestCode
 	if changes.beforeStart != nil {
 		changes.beforeStart(sandbox)
 	}
@@ -163,6 +167,7 @@ func runV160PublishedWorkerNestedReplay(t *testing.T, source string, changes wor
 		return ch
 	})
 	options.Registry = registry
+	options.CodemodeGlobals = changes.globals
 	options.Now = changes.now
 	store, err := newTestSQLite(t)
 	if err != nil {
@@ -247,5 +252,5 @@ func runV160PublishedWorkerNestedReplay(t *testing.T, source string, changes wor
 		t.Fatal(err)
 	}
 	return workerNestedReplayV160{text: text, isError: result.IsError, echoes: echoes,
-		starts: remote.starts.Load(), holds: holds.Load(), beforeClose: beforeClose, inputs: inputs}
+		starts: remote.starts.Load(), holds: holds.Load(), replies: remote.deliveries.Load(), beforeClose: beforeClose, inputs: inputs}
 }

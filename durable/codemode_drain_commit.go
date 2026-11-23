@@ -1,6 +1,9 @@
 package durable
 
-import "context"
+import (
+	"context"
+	"fmt"
+)
 
 // acknowledgeCodemodeDrain commits a new count or checks a recorded one before
 // releasing the VM. observed and delivered refer to this execution, not the
@@ -34,6 +37,10 @@ func acknowledgeCodemodeDrain(ctx context.Context, vm CodemodeDrainExecution, jo
 	}
 	if recorded != nil {
 		if *recorded != observed {
+			if deliveryIndex >= 0 {
+				seq := journal.Deliveries[deliveryIndex].Seq
+				return reject(fmt.Sprintf("codemode drain replay count divergence: after result %d it had made %d calls, where it had made %d", seq, observed, *recorded))
+			}
 			return reject("codemode drain replay count divergence")
 		}
 	} else {

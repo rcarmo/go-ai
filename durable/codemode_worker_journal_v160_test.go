@@ -14,12 +14,16 @@ type journalWorkerRemoteV160 struct {
 	*CodemodeWorkerRemote
 	observed     chan<- int
 	observeStart func(CodemodeStart)
+	guestCode    func(int32, string) string
 	starts       atomic.Int32
 	deliveries   atomic.Int32
 }
 
 func (r *journalWorkerRemoteV160) Execute(ctx context.Context, code string, start CodemodeStart, exchange func(context.Context, CodemodeEvent) (CodemodeRemoteReply, error), receive func(context.Context) (CodemodeDelivery, error)) error {
-	r.starts.Add(1)
+	run := r.starts.Add(1)
+	if r.guestCode != nil {
+		code = r.guestCode(run, code)
+	}
 	if r.observeStart != nil {
 		r.observeStart(start)
 	}

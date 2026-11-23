@@ -2,6 +2,7 @@ package durable
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"sync"
 )
@@ -118,7 +119,11 @@ func (r *TaskRuntime) runParallelCodemode(ctx context.Context, vm CodemodeExecut
 				if observed < len(journal.Issued) {
 					old := journal.Issued[observed]
 					if call.ID != old.ID || call.Name != old.Name || call.Global != old.Global || !codemodeArgumentModeCompatible(call, old) || !equalJSONValue(call.Arguments, old.Arguments) {
-						return divergence("sandbox call replay divergence")
+						name := call.Name
+						if !call.Global {
+							name = "tools." + name
+						}
+						return divergence(fmt.Sprintf("sandbox call replay divergence: call %d is %s", call.ID, name))
 					}
 				} else {
 					journal.Issued = append(journal.Issued, call)
