@@ -689,3 +689,11 @@ All 49 unchanged coercion tests passed. The new Go comparisons cover 27 assertio
 ### Codemode distinguishes a missing call from an early return
 
 Three unchanged upstream cases passed. With a real portable guest and SQLite reopen, Go now gives the expected reason when replay waits without making call 99 or ends after a result where the original continued. The missing-call test confirms exactly two nested tasks. Replay still rejects both cases using the saved count. The source case with a missing non-final count followed by another saved result remains unmapped because Go rejects that stored shape.
+
+### Abort hooks, PowerShell, and local Cloudflare
+
+All 18 unchanged tool-hook cases passed. Go verifies that an error from `afterTool` is reported without replacing the abort result, and that held output and details reach the hook and survive reopen. The timing test now measures the full task, as upstream does. No production hook change was needed.
+
+All three [mocked PowerShell cases](test-inventory/mock-powershell-tools.md) passed without launching PowerShell. Go preserves the last failed start's message and cause. The tests compare the exact UTF-8 command arguments, fallback order and exit details. Some source output callbacks have only partial Go mappings; the real Windows process case remains open.
+
+The [pinned Cloudflare example](dependencies/cloudflare-codemode-example.md) ran on real local workerd. A separate Worker returned HTTP `200`, value `2`, text `n=2`, and one successful callback through a Durable Object binding. The runtime and inputs were verified. This is an example run, not a hosted deployment or a dedicated upstream suite pass.

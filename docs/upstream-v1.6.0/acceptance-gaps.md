@@ -8,7 +8,7 @@ Target: pi v1.6.0 at `faac585884ae2c013a6b1400f3e9e77f10b34bac`. The [verificati
 | --- | --- |
 | Live OpenAI and Codex replay | `packages/ai/test/openai-reasoning-replay-e2e.test.ts` uses `gpt-6.2-sol` with an OpenAI API key and a Codex token. It covers OpenAI, Codex SSE and Codex WebSocket. Run the actual requests only with explicit approval and provisioned access. Offline replay tests do not close this check. |
 | Real PowerShell | `packages/durable/test/tools.test.ts:617` requires a Windows host. The mocked adapter tests can run offline; a real process check needs a Windows runner. Any hosted runner needs separate approval. |
-| Cloudflare worker | The Node source worker, the published Node worker and the portable guest each have exact input checks. Cloudflare needs its own real runtime run against verified inputs. |
+| Cloudflare worker | The [pinned example passed on local workerd](dependencies/cloudflare-codemode-example.md) with verified inputs. It was a supplemental example run. A hosted check, if required by the target matrix, still needs separate approval. |
 | Full local acceptance | Once the open behavior and test cases are resolved, obtain separate approval to run the full checks on the exact candidate. Measure CPU, allocated bytes and allocation counts, fix measured outliers and remove raw profiles. No race-detector coverage is claimed. Hosted CI, SBOM publication, tags and release still need their own authorisations. |
 
 ## Behavior that needs an exact match or a scope decision
