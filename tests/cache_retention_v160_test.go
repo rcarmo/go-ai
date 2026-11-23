@@ -2,6 +2,7 @@ package goai_test
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,9 +13,8 @@ import (
 	goai "github.com/rcarmo/go-ai"
 )
 
-// The original onPayload sentinel stops before HTTP. For wire assertions the
-// native stream sends the one serialized request to this non-dialing transport.
-// It returns a permanent error so later events cannot require a real provider.
+// Wire assertions use a non-dialing transport that fails permanently after
+// recording the HTTP request. Hook assertions must never reach this transport.
 type cacheRetentionTransportV160 struct {
 	requests int
 	body     map[string]json.RawMessage
@@ -48,6 +48,50 @@ func cacheRetentionWireV160(t *testing.T, model *goai.Model, ctx *goai.Context, 
 		t.Fatalf("expected one captured request, got %d: %v", w.requests, terminal)
 	}
 	return w.body
+}
+
+func cacheRetentionOnPayloadV160(t *testing.T, model *goai.Model, ctx *goai.Context, opts goai.StreamOptions) map[string]json.RawMessage {
+	t.Helper()
+	w := &cacheRetentionTransportV160{}
+	stop := errors.New("payload captured")
+	var calls int
+	var captured map[string]json.RawMessage
+	var captureErr, terminal error
+	opts.HTTPTransport = w
+	opts.OnPayload = func(payload any, _ *goai.Model) (any, error) {
+		calls++
+		// Take a JSON view of the native value in the callback, not from an
+		// HTTP body. This preserves field presence, nulls and array order.
+		var snapshot []byte
+		snapshot, captureErr = json.Marshal(payload)
+		if captureErr == nil {
+			captureErr = json.Unmarshal(snapshot, &captured)
+		}
+		return nil, stop
+	}
+	for event := range goai.Stream(t.Context(), model, ctx, &opts) {
+		if failed, ok := event.(*goai.ErrorEvent); ok {
+			terminal = failed.Err
+		}
+	}
+	if w.requests != 0 {
+		t.Errorf("expected no HTTP requests in OnPayload capture, got %d", w.requests)
+	}
+	if calls != 1 || captured == nil || captureErr != nil {
+		t.Fatalf("expected one non-null OnPayload capture, got calls=%d captured=%t: decode=%v terminal=%v", calls, captured != nil, captureErr, terminal)
+	}
+	if !errors.Is(terminal, stop) {
+		t.Fatalf("expected OnPayload sentinel as the terminal error, got %v", terminal)
+	}
+	return captured
+}
+
+func checkCacheRetentionPayloadsV160(t *testing.T, model *goai.Model, ctx *goai.Context, opts goai.StreamOptions, check func(*testing.T, map[string]json.RawMessage)) {
+	t.Helper()
+	check(t, cacheRetentionWireV160(t, model, ctx, opts))
+	t.Run("on_payload", func(t *testing.T) {
+		check(t, cacheRetentionOnPayloadV160(t, model, ctx, opts))
+	})
 }
 
 func cacheRetentionOptionsV160(env string, retention goai.CacheRetention, session string) goai.StreamOptions {
@@ -124,24 +168,25 @@ func TestSourceV160CacheRetentionAnthropic(t *testing.T) {
 			if tc.name != "default_env" && tc.name != "long_env" {
 				opts.APIKey = "fake-key"
 			}
-			body := cacheRetentionWireV160(t, &model, cacheRetentionContextV160(), opts)
-			if tc.lastUserBlock {
-				msgs := cacheRetentionDecodeV160[[]map[string]json.RawMessage](t, body["messages"])
-				if len(msgs) == 0 {
-					t.Fatal("missing messages")
+			checkCacheRetentionPayloadsV160(t, &model, cacheRetentionContextV160(), opts, func(t *testing.T, body map[string]json.RawMessage) {
+				if tc.lastUserBlock {
+					msgs := cacheRetentionDecodeV160[[]map[string]json.RawMessage](t, body["messages"])
+					if len(msgs) == 0 {
+						t.Fatal("missing messages")
+					}
+					blocks := cacheRetentionDecodeV160[[]map[string]json.RawMessage](t, msgs[len(msgs)-1]["content"])
+					if len(blocks) == 0 {
+						t.Fatal("missing last message content blocks")
+					}
+					assertCacheRetentionFieldV160(t, blocks[len(blocks)-1], "cache_control", tc.want)
+					return
 				}
-				blocks := cacheRetentionDecodeV160[[]map[string]json.RawMessage](t, msgs[len(msgs)-1]["content"])
-				if len(blocks) == 0 {
-					t.Fatal("missing last message content blocks")
+				system := cacheRetentionDecodeV160[[]map[string]json.RawMessage](t, body["system"])
+				if len(system) == 0 || system[0] == nil {
+					t.Fatal("missing first system content block")
 				}
-				assertCacheRetentionFieldV160(t, blocks[len(blocks)-1], "cache_control", tc.want)
-				return
-			}
-			system := cacheRetentionDecodeV160[[]map[string]json.RawMessage](t, body["system"])
-			if len(system) == 0 || system[0] == nil {
-				t.Fatal("missing first system content block")
-			}
-			assertCacheRetentionFieldV160(t, system[0], "cache_control", tc.want)
+				assertCacheRetentionFieldV160(t, system[0], "cache_control", tc.want)
+			})
 		})
 	}
 }
@@ -178,10 +223,11 @@ func TestSourceV160CacheRetentionResponses(t *testing.T) {
 			if tc.name != "default_env" && tc.name != "long_env" {
 				opts.APIKey = "sk-fake-key"
 			}
-			body := cacheRetentionWireV160(t, &model, cacheRetentionContextV160(), opts)
-			for key, want := range tc.fields {
-				assertCacheRetentionFieldV160(t, body, key, want)
-			}
+			checkCacheRetentionPayloadsV160(t, &model, cacheRetentionContextV160(), opts, func(t *testing.T, body map[string]json.RawMessage) {
+				for key, want := range tc.fields {
+					assertCacheRetentionFieldV160(t, body, key, want)
+				}
+			})
 		})
 	}
 	for _, tc := range []struct{ id, retention, options string }{
@@ -222,9 +268,10 @@ func TestSourceV160CacheRetentionCompletions(t *testing.T) {
 			}
 			opts := cacheRetentionOptionsV160("", goai.CacheRetentionLong, tc.session)
 			opts.APIKey = "fake-key"
-			body := cacheRetentionWireV160(t, model, cacheRetentionContextV160(), opts)
-			assertCacheRetentionFieldV160(t, body, "prompt_cache_key", tc.key)
-			assertCacheRetentionFieldV160(t, body, "prompt_cache_retention", tc.retention)
+			checkCacheRetentionPayloadsV160(t, model, cacheRetentionContextV160(), opts, func(t *testing.T, body map[string]json.RawMessage) {
+				assertCacheRetentionFieldV160(t, body, "prompt_cache_key", tc.key)
+				assertCacheRetentionFieldV160(t, body, "prompt_cache_retention", tc.retention)
+			})
 		})
 	}
 	for _, id := range []string{"deepseek-v4.1-flash", "deepseek-v4-pro", "kimi-k2.5", "kimi-k2.6", "minimax-m2.7"} {
@@ -235,9 +282,10 @@ func TestSourceV160CacheRetentionCompletions(t *testing.T) {
 			}
 			opts := cacheRetentionOptionsV160("", goai.CacheRetentionLong, "session-opencode-long-cache-unsupported")
 			opts.APIKey = "fake-key"
-			body := cacheRetentionWireV160(t, model, cacheRetentionContextV160(), opts)
-			assertCacheRetentionFieldV160(t, body, "prompt_cache_key", "")
-			assertCacheRetentionFieldV160(t, body, "prompt_cache_retention", "")
+			checkCacheRetentionPayloadsV160(t, model, cacheRetentionContextV160(), opts, func(t *testing.T, body map[string]json.RawMessage) {
+				assertCacheRetentionFieldV160(t, body, "prompt_cache_key", "")
+				assertCacheRetentionFieldV160(t, body, "prompt_cache_retention", "")
+			})
 		})
 	}
 	for _, id := range []string{"gpt-oss-120b", "qwen-3.8-27b"} {
@@ -255,16 +303,17 @@ func TestSourceV160CacheRetentionCompletions(t *testing.T) {
 			ctx := goai.ContextFromTranscript(goai.TranscriptContext{Messages: []goai.Message{*initial, user}})
 			opts := cacheRetentionOptionsV160("", "", "test")
 			opts.APIKey = "fake-key"
-			body := cacheRetentionWireV160(t, model, ctx, opts)
-			tools := cacheRetentionDecodeV160[[]map[string]json.RawMessage](t, body["tools"])
-			if len(tools) != 2 {
-				t.Fatalf("expected both declared tools, got %s", body["tools"])
-			}
-			for i, tool := range tools {
-				function := cacheRetentionDecodeV160[map[string]json.RawMessage](t, tool["function"])
-				assertCacheRetentionFieldV160(t, function, "name", fmt.Sprintf(`"t%d"`, i+1))
-				assertCacheRetentionFieldV160(t, function, "strict", "")
-			}
+			checkCacheRetentionPayloadsV160(t, model, ctx, opts, func(t *testing.T, body map[string]json.RawMessage) {
+				tools := cacheRetentionDecodeV160[[]map[string]json.RawMessage](t, body["tools"])
+				if len(tools) != 2 {
+					t.Fatalf("expected both declared tools, got %s", body["tools"])
+				}
+				for i, tool := range tools {
+					function := cacheRetentionDecodeV160[map[string]json.RawMessage](t, tool["function"])
+					assertCacheRetentionFieldV160(t, function, "name", fmt.Sprintf(`"t%d"`, i+1))
+					assertCacheRetentionFieldV160(t, function, "strict", "")
+				}
+			})
 		})
 	}
 }
