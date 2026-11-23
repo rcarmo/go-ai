@@ -569,3 +569,7 @@ All 50 unchanged upstream cases passed offline. The Go tests cover 13 assertions
 ### Photon in the resize worker
 
 The [Photon runtime check](dependencies/photon-runtime.md) records what the actual Node image worker loaded. Its JavaScript and WASM match the verified archive byte for byte, and the worker returned a PNG resized from 400×100 to 200×50. Changing those bytes in scratch kept the resize result but failed the archive comparison. The Go image tests passed separately and do not load Photon.
+
+### Submission waits preserve cancellation and close ordering
+
+All 12 unchanged upstream cases passed. Go now returns the caller's original cancellation cause without cancelling the submission itself. A wait whose first storage read overlaps shutdown returns `ErrClosed`. A separate check confirms the observer sees the exact settlement before `Wait` returns. These changes and checks cover three cases; the JavaScript `unhandledRejection` check remains upstream-only.
