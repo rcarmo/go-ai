@@ -15,6 +15,7 @@ type journalWorkerRemoteV160 struct {
 	observed     chan<- int
 	observeStart func(CodemodeStart)
 	guestCode    func(int32, string) string
+	guestStore   func(int32, JSON) JSON
 	starts       atomic.Int32
 	deliveries   atomic.Int32
 }
@@ -26,6 +27,9 @@ func (r *journalWorkerRemoteV160) Execute(ctx context.Context, code string, star
 	}
 	if r.observeStart != nil {
 		r.observeStart(start)
+	}
+	if r.guestStore != nil {
+		start.Store = r.guestStore(run, start.Store)
 	}
 	return r.CodemodeWorkerRemote.Execute(ctx, code, start, func(ctx context.Context, event CodemodeEvent) (CodemodeRemoteReply, error) {
 		reply, err := exchange(ctx, event)

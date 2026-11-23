@@ -37,11 +37,20 @@ func acknowledgeCodemodeDrain(ctx context.Context, vm CodemodeDrainExecution, jo
 	}
 	if recorded != nil {
 		if *recorded != observed {
+			const reason = "codemode drain replay count divergence"
+			if !drain.Final && delivered < len(journal.Deliveries) {
+				if next := journal.Deliveries[delivered].Call.ID; next > observed {
+					return reject(fmt.Sprintf("%s: it waits without making call %d, which it made before", reason, next))
+				}
+			}
 			if deliveryIndex >= 0 {
 				seq := journal.Deliveries[deliveryIndex].Seq
-				return reject(fmt.Sprintf("codemode drain replay count divergence: after result %d it had made %d calls, where it had made %d", seq, observed, *recorded))
+				if drain.Final && observed < *recorded {
+					return reject(fmt.Sprintf("%s: it ended after result %d, where it went on before", reason, seq))
+				}
+				return reject(fmt.Sprintf("%s: after result %d it had made %d calls, where it had made %d", reason, seq, observed, *recorded))
 			}
-			return reject("codemode drain replay count divergence")
+			return reject(reason)
 		}
 	} else {
 		// Work on a detached slice: a failed transaction must not adopt its count.

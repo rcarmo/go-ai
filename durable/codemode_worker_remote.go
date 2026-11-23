@@ -169,7 +169,7 @@ func (r *CodemodeWorkerRemote) Execute(ctx context.Context, code string, start C
 		}
 	}()
 	defer func() { cancel(); <-joined }()
-	drain := func(ctx context.Context, seq, count int) error {
+	drain := func(ctx context.Context, seq, count int, final bool) error {
 		if seq == lastDrain {
 			if count != lastIssued {
 				return reject("worker drain changed issued count")
@@ -183,7 +183,7 @@ func (r *CodemodeWorkerRemote) Execute(ctx context.Context, code string, start C
 		if !ok {
 			return reject("worker drain before delivery")
 		}
-		d := CodemodeDrain{DeliveryID: callID, Issued: count}
+		d := CodemodeDrain{DeliveryID: callID, Issued: count, Final: final}
 		reply, err := exchange(ctx, CodemodeEvent{Drain: &d})
 		if err != nil {
 			return err
@@ -291,7 +291,7 @@ func (r *CodemodeWorkerRemote) Execute(ctx context.Context, code string, start C
 				if !started {
 					err = reject("worker idle before started")
 				} else {
-					err = drain(callCtx, message.Seq, message.Issued)
+					err = drain(callCtx, message.Seq, message.Issued, false)
 				}
 			case "done":
 				if !started || message.During == nil || message.During.Issued != issued || message.During.Seq < lastDrain || message.During.Seq > lastDrain+1 {
@@ -300,7 +300,7 @@ func (r *CodemodeWorkerRemote) Execute(ctx context.Context, code string, start C
 				}
 				result := CodemodeResult{Images: images, WallMs: time.Since(began).Milliseconds()}
 				if message.OK {
-					err = drain(callCtx, message.During.Seq, message.During.Issued)
+					err = drain(callCtx, message.During.Seq, message.During.Issued, true)
 					if err != nil {
 						break
 					}

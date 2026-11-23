@@ -84,12 +84,14 @@ type workerNestedReplayV160 struct {
 	starts      int32
 	holds       int32
 	replies     int32
+	nested      int
 	beforeClose []CodemodeDelivery
 	inputs      []workerReplayInputsV160
 }
 
 type workerReplayChangesV160 struct {
 	guestCode    func(int32, string) string
+	guestStore   func(int32, JSON) JSON
 	globals      []CodemodeGlobal
 	now          func() int64
 	beforeStart  func(*RemoteCodemodeSandbox)
@@ -100,6 +102,7 @@ func runV160PublishedWorkerNestedReplay(t *testing.T, source string, changes wor
 	t.Helper()
 	sandbox, remote := newJournalWorkerSandboxV160(t)
 	remote.guestCode = changes.guestCode
+	remote.guestStore = changes.guestStore
 	if changes.beforeStart != nil {
 		changes.beforeStart(sandbox)
 	}
@@ -248,9 +251,21 @@ func runV160PublishedWorkerNestedReplay(t *testing.T, source string, changes wor
 	if requests.Load() != 2 {
 		t.Errorf("model requests = %d; want 2", requests.Load())
 	}
+	page, err := next.Commit(ctx, func(tx *Tx) (any, error) {
+		return tx.ScanTasks(TaskQuery{Kind: "pi.tool"}, 100, nil)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	nested := 0
+	for _, task := range page.(Page[TaskRecord]).Items {
+		if task.Input != nil && generationObject(task.Input.Value)["kind"] == "nested" {
+			nested++
+		}
+	}
 	if err := next.Close(ctx); err != nil {
 		t.Fatal(err)
 	}
 	return workerNestedReplayV160{text: text, isError: result.IsError, echoes: echoes,
-		starts: remote.starts.Load(), holds: holds.Load(), replies: remote.deliveries.Load(), beforeClose: beforeClose, inputs: inputs}
+		starts: remote.starts.Load(), holds: holds.Load(), replies: remote.deliveries.Load(), nested: nested, beforeClose: beforeClose, inputs: inputs}
 }

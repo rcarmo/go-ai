@@ -76,6 +76,9 @@ type CodemodeExecution interface {
 type CodemodeDrain struct {
 	DeliveryID int
 	Issued     int
+	// Final marks a drain reported by successful termination, not an idle wait.
+	// This transient hint affects diagnostics, not acknowledgement or admission.
+	Final bool `json:"Final,omitempty"`
 }
 
 // CodemodeDrainExecution acknowledges a count after the host persists or verifies it.

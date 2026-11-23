@@ -72,3 +72,57 @@ func TestSourceV160CodemodePublishedWorkerReplayGlobalArgumentDivergence(t *test
 		t.Errorf("guest starts=%d, guest replies=%d, global calls=%d; want two guests and only the original reply and effect", got.starts, got.replies, calls.Load())
 	}
 }
+
+// codemode.test.ts:293–310 (L305–308). The source changes the first
+// delivery's ID to 99. Instead the live guest issues 98 pending globals so
+// the first echo genuinely has ID 99 (only echo and hold are nested tasks).
+// On replay the guest waits on the first pending global without issuing 99.
+func TestSourceV160CodemodePublishedWorkerReplayWaitsWithoutCall(t *testing.T) {
+	const source = `const pending = [];
+for (let i = 0; i < 98; i++) pending.push(waiting());
+if (load("k")) await pending[0];
+await tools.echo({ text: "a" }); await tools.hold({});`
+	got := runV160PublishedWorkerNestedReplay(t, source, workerReplayChangesV160{
+		guestStore: workerReplayStoreWithKV160,
+		globals: []CodemodeGlobal{{Name: "waiting", Version: 1, Execute: func(ctx context.Context, _ any) (any, error) {
+			<-ctx.Done()
+			return nil, ctx.Err()
+		}}},
+	})
+	if len(got.beforeClose) != 1 || got.beforeClose[0].Call.ID != 99 || got.beforeClose[0].Call.Name != "echo" {
+		t.Fatalf("saved delivery must answer echo at call 99: %+v", got.beforeClose)
+	}
+	if !got.isError || !strings.Contains(got.text, "it waits without making call 99") {
+		t.Errorf("replay error=%t, text=%q; want exact missing call diagnostic fragment", got.isError, got.text)
+	}
+	if got.nested != 2 {
+		t.Errorf("durable nested tasks = %d; want exactly 2", got.nested)
+	}
+	if got.starts != 2 || got.replies != 1 {
+		t.Errorf("guest starts=%d, guest replies=%d; want two guests and only the original echo delivery", got.starts, got.replies)
+	}
+}
+
+// codemode.test.ts:354–375 (L372–373). The guest runs the unchanged script
+// with the source's changed k only in its replay input; native storage keeps
+// its original start and the acknowledged count after result 1 intact.
+func TestSourceV160CodemodePublishedWorkerReplayEndsEarly(t *testing.T) {
+	const source = `await tools.echo({ text: "a" }); if (load("k")) return "early"; await tools.hold({});`
+	got := runV160PublishedWorkerNestedReplay(t, source, workerReplayChangesV160{guestStore: workerReplayStoreWithKV160})
+	if len(got.beforeClose) != 1 || got.beforeClose[0].IssuedAfter == nil || *got.beforeClose[0].IssuedAfter != 2 {
+		t.Fatalf("live run must acknowledge result 1 with two issued calls: %+v", got.beforeClose)
+	}
+	if !got.isError || !strings.Contains(got.text, "it ended after result 1, where it went on before") {
+		t.Errorf("replay error=%t, text=%q; want exact early end diagnostic fragment", got.isError, got.text)
+	}
+	if got.starts != 2 || got.replies != 2 || !reflect.DeepEqual(got.echoes, map[string]int{"a": 1}) {
+		t.Errorf("guest starts=%d, guest replies=%d, echo effects=%v; want two guests, two deliveries and one echo", got.starts, got.replies, got.echoes)
+	}
+}
+
+func workerReplayStoreWithKV160(run int32, store JSON) JSON {
+	if run == 2 {
+		return JSON{"k": true}
+	}
+	return store
+}
