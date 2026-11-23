@@ -85,7 +85,7 @@ func mainIdleModelTargets(state Snapshot, hosts map[ID]*TaskRuntime, conversatio
 	return out
 }
 
-// Pinned harness-idle-scopes.test.ts:436-511, seed 42 and 200 operations.
+// Pinned pi v1.6.0 harness-idle-scopes.test.ts:486–562, seed 42 and 200 operations.
 // Actual registered hosts and public creation/completion APIs preserve native
 // owner fences. Warm indexed busy queries must not rebuild or touch nodes;
 // target enumeration and the remaining Source work bounds are separate.
@@ -278,6 +278,9 @@ func TestMainIdleNestedWorkModel(t *testing.T) {
 			checked++
 		}
 		h.session.taskBookkeeping(func() {
+			if got := h.session.contextFullChecks; got != 0 {
+				t.Fatalf("context busy checks that scanned the task graph = %d; want zero", got)
+			}
 			idle := 0
 			for _, r := range h.session.contextRanges {
 				if r.idleSince != nil {

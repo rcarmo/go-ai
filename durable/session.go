@@ -44,6 +44,7 @@ type Session struct {
 	closeErr              error
 	limits                Limits
 	contextRanges         map[ID]*contextRange
+	contextFullChecks     uint64 // Session-line count of context busy checks that scan the task graph.
 	contextRevision       uint64 // line-owned retention/host/settings witness for off-line reads
 	contextExpiry         *sessionTimer
 	contextExpiryAt       contextDeadline

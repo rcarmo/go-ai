@@ -134,6 +134,7 @@ func (s *Session) contextBusy(conversation ID) bool {
 	if busy, indexed := s.taskScheduler.indexedContextBusy(conversation); indexed {
 		return busy
 	}
+	s.contextFullChecks++
 	for _, task := range s.readImage.Tasks {
 		if taskKeepsContextBusy(task, s.taskScheduler.invocations[task.ID] != nil) && s.taskScheduler.idleTaskInScope(s.readImage, task, conversation) {
 			return true
