@@ -631,3 +631,9 @@ All 88 unchanged checks passed for the 44 dynamic-reference cases. Go already ag
 All 35 unchanged nested-tool tests passed offline. The Go check verifies that the child belongs to the right call, that only the parent's result reaches the transcript, and that the nested result document is retired. The stored result includes duration, but the Go caller's result does not expose it. The Go fixture now expects the upstream tool task version, 4. A fault that put the nested result in the child's terminal record was caught.
 
 The [image preparation checks](test-inventory/tools-images-preparation.md) cover the expected colours and decoded dimensions for all eight EXIF orientations. Go now reports the BMP-to-PNG conversion in the read result. The two remaining unchanged worker timing cases also passed in a separate isolated run with a 1,400 MiB Node heap, so all 34 source image-tool cases have now run across three selections. The worker timing and idle restart behavior have no exact Go mapping yet.
+
+### Provider capabilities and the published Node worker
+
+All 30 unchanged provider tests passed in a network-isolated run. The new Go checks read the real catalogue: they distinguish an absent grammar flag from `true`, check which OpenAI models support strict schemas and grammar tools, and verify strict-tool support for the Anthropic and Copilot models in the source case. Hiding the gpt-5.4 grammar flag made the test fail. Other provider cases are not mapped by this check.
+
+The [published Node worker check](dependencies/published-worker-quickjs-load.md) ran the pinned script through the package's actual `dist/runtime/worker.js` entry. It observed the archived JavaScript and the transferred QuickJS module, and checked the exact result and callback arguments. Altering the WASM bytes left the behavior unchanged but failed the archive checks. Cloudflare and other worker builds remain outside this run.
