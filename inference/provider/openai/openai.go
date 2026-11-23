@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -1115,7 +1116,7 @@ func isValidReasoningDetail(detail reasoningDetail) bool {
 }
 
 type sseToolCall struct {
-	Index    int             `json:"index"`
+	Index    *int            `json:"index,omitempty"`
 	ID       string          `json:"id,omitempty"`
 	Type     string          `json:"type,omitempty"`
 	Function sseToolFunction `json:"function"`
@@ -1167,7 +1168,7 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 
 	// Track active tool calls for argument accumulation
 	type activeToolCall struct {
-		index          int
+		indexed        bool
 		id             string
 		name           string
 		argumentStream jsonparse.ToolCallArgumentsStream
@@ -1176,8 +1177,11 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 		contentIdx     int
 	}
 	var activeTools []*activeToolCall
+	toolsByIndex := make(map[int]*activeToolCall)
+	toolsByID := make(map[string]*activeToolCall)
 	var streamedReasoningDetails []reasoningDetail
 	var thinkingBlockIdx = -1
+	var textBlockIdx = -1
 	var finishReason *string
 
 	events := sse.Parse(body)
@@ -1239,7 +1243,7 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 			reasoningDelta, reasoningField = *delta.ReasoningText, "reasoning_text"
 		}
 		if reasoningDelta != "" {
-			if len(partial.Content) == 0 || partial.Content[len(partial.Content)-1].Type != "thinking" {
+			if thinkingBlockIdx < 0 {
 				partial.Content = append(partial.Content, goai.ContentBlock{Type: "thinking"})
 				thinkingBlockIdx = len(partial.Content) - 1
 				send(goai.SnapshotEvent(&goai.ThinkingStartEvent{
@@ -1247,10 +1251,7 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 					Partial:      partial,
 				}))
 			}
-			idx := len(partial.Content) - 1
-			if partial.Content[idx].Type == "thinking" {
-				thinkingBlockIdx = idx
-			}
+			idx := thinkingBlockIdx
 			partial.Content[idx].Thinking += reasoningDelta
 			if partial.Content[idx].ThinkingSignature == "" {
 				partial.Content[idx].ThinkingSignature = reasoningField
@@ -1262,6 +1263,38 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 			}))
 		}
 
+		// reasoning_details are replay metadata. Keep them on a single thinking
+		// block signature, merging adjacent text/summary deltas in stream order.
+		for _, detail := range delta.ReasoningDetails {
+			if !isValidReasoningDetail(detail) {
+				continue
+			}
+			streamedReasoningDetails = appendReasoningDetail(streamedReasoningDetails, detail)
+			if thinkingBlockIdx < 0 || thinkingBlockIdx >= len(partial.Content) || partial.Content[thinkingBlockIdx].Type != "thinking" {
+				partial.Content = append(partial.Content, goai.ContentBlock{Type: "thinking"})
+				thinkingBlockIdx = len(partial.Content) - 1
+				send(&goai.ThinkingStartEvent{ContentIndex: thinkingBlockIdx, Partial: partial})
+			}
+		}
+		// Text content
+		if delta.Content != nil && *delta.Content != "" {
+			if textBlockIdx < 0 {
+				partial.Content = append(partial.Content, goai.ContentBlock{Type: "text"})
+				textBlockIdx = len(partial.Content) - 1
+				send(goai.SnapshotEvent(&goai.TextStartEvent{
+					ContentIndex: textBlockIdx,
+					Partial:      partial,
+				}))
+			}
+			idx := textBlockIdx
+			partial.Content[idx].Text += *delta.Content
+			send(goai.SnapshotEvent(&goai.TextDeltaEvent{
+				ContentIndex: idx,
+				Delta:        *delta.Content,
+				Partial:      partial,
+			}))
+		}
+
 		// Tool calls
 		for _, tc := range delta.ToolCalls {
 			name := tc.Function.Name
@@ -1269,13 +1302,14 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 			if name == "" {
 				name = tc.Custom.Name
 			}
-			// Find or create active tool call
+			// Prefer the provider index when present, with ID fallback for
+			// providers that leave it out. A missing index is not index zero.
 			var at *activeToolCall
-			for i := range activeTools {
-				if activeTools[i].index == tc.Index {
-					at = activeTools[i]
-					break
-				}
+			if tc.Index != nil {
+				at = toolsByIndex[*tc.Index]
+			}
+			if at == nil && tc.ID != "" {
+				at = toolsByID[tc.ID]
 			}
 			if at == nil {
 				contentIdx := len(partial.Content)
@@ -1285,7 +1319,6 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 					Name: name,
 				})
 				activeTools = append(activeTools, &activeToolCall{
-					index:      tc.Index,
 					id:         tc.ID,
 					name:       name,
 					custom:     isCustom,
@@ -1294,12 +1327,29 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 				at = activeTools[len(activeTools)-1]
 				send(&goai.ToolCallStartEvent{ContentIndex: contentIdx, Partial: partial})
 			}
+			if tc.Index != nil && !at.indexed {
+				at.indexed = true
+				toolsByIndex[*tc.Index] = at
+			}
+			if tc.ID != "" {
+				// Keep later IDs as aliases without replacing the call's ID.
+				toolsByID[tc.ID] = at
+				if at.id == "" {
+					at.id = tc.ID
+					partial.Content[at.contentIdx].ID = tc.ID
+				}
+			}
+			if at.name == "" && name != "" {
+				at.name = name
+				partial.Content[at.contentIdx].Name = name
+			}
 			if isCustom {
 				at.custom = true
 			}
 
-			// Accumulate arguments/input
-			if string(tc.Function.Arguments) != "" {
+			// Function streams emit a delta for each frame, even when the
+			// argument fragment is empty (usually on the first frame).
+			if string(tc.Function.Arguments) != "" || !at.custom {
 				partial.Content[at.contentIdx].SetStreamingArguments(at.argumentStream.Append(string(tc.Function.Arguments)), "")
 				send(&goai.ToolCallDeltaEvent{ContentIndex: at.contentIdx, Delta: string(tc.Function.Arguments), Partial: partial})
 			}
@@ -1320,47 +1370,6 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 					send(&goai.ToolCallDeltaEvent{ContentIndex: at.contentIdx, Delta: deltaJSON, Partial: partial})
 				}
 			}
-
-			// Update name/id if provided
-			if tc.ID != "" {
-				at.id = tc.ID
-				partial.Content[at.contentIdx].ID = tc.ID
-			}
-			if name != "" {
-				at.name = name
-				partial.Content[at.contentIdx].Name = name
-			}
-		}
-
-		// reasoning_details are replay metadata. Keep them on a single thinking
-		// block signature, merging adjacent text/summary deltas in stream order.
-		for _, detail := range delta.ReasoningDetails {
-			if !isValidReasoningDetail(detail) {
-				continue
-			}
-			streamedReasoningDetails = appendReasoningDetail(streamedReasoningDetails, detail)
-			if thinkingBlockIdx < 0 || thinkingBlockIdx >= len(partial.Content) || partial.Content[thinkingBlockIdx].Type != "thinking" {
-				partial.Content = append(partial.Content, goai.ContentBlock{Type: "thinking"})
-				thinkingBlockIdx = len(partial.Content) - 1
-				send(&goai.ThinkingStartEvent{ContentIndex: thinkingBlockIdx, Partial: partial})
-			}
-		}
-		// Text content
-		if delta.Content != nil && *delta.Content != "" {
-			if len(partial.Content) == 0 || partial.Content[len(partial.Content)-1].Type != "text" {
-				partial.Content = append(partial.Content, goai.ContentBlock{Type: "text"})
-				send(goai.SnapshotEvent(&goai.TextStartEvent{
-					ContentIndex: len(partial.Content) - 1,
-					Partial:      partial,
-				}))
-			}
-			idx := len(partial.Content) - 1
-			partial.Content[idx].Text += *delta.Content
-			send(goai.SnapshotEvent(&goai.TextDeltaEvent{
-				ContentIndex: idx,
-				Delta:        *delta.Content,
-				Partial:      partial,
-			}))
 		}
 
 	}
@@ -1450,8 +1459,8 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 			}
 		} else {
 			partial.StopReason = goai.StopReasonError
-			partial.ErrorMessage = "OpenAI Completions stream ended without a finish reason"
-			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("OpenAI Completions stream ended without a finish reason")})
+			partial.ErrorMessage = "Stream ended without finish_reason"
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: errors.New(partial.ErrorMessage)})
 			return
 		}
 	}
