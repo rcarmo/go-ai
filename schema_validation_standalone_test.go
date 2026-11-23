@@ -35,6 +35,90 @@ func TestSourceV160SchemaStandaloneCoerce(t *testing.T) {
 	}
 }
 
+// packages/schema/test/coerce.test.ts:161–267. The object schemas below
+// retain the fields emitted by the pinned builders. coerceValue inputs keep
+// the source test's required-property wrapper, including its null handling.
+func TestSourceV160SchemaStandaloneCoercionPasses(t *testing.T) {
+	check := func(t *testing.T, schema, input, want string) {
+		t.Helper()
+		value := decodeV160DiagnosticInput(t, input)
+		got, err := goai.CoerceJSONSchemaValueWithResources(json.RawMessage(schema), value, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertV160StandaloneJSON(t, got, want)
+		if !reflect.DeepEqual(value, decodeV160DiagnosticInput(t, input)) {
+			t.Fatalf("coerce changed the input: %#v", value)
+		}
+	}
+
+	const optionalNulls = `{
+		"type":"object",
+		"properties":{
+			"path":{"type":"string"},"offset":{"type":"number"},
+			"nullable":{"anyOf":[{"type":"string"},{"type":"null"}]},
+			"metadata":{"type":"object","properties":{"enabled":{"type":"boolean"}},"additionalProperties":false}
+		},"required":["path","metadata"]
+	}`
+	const arrayOfObjects = `{
+		"type":"array","items":{"type":"object","properties":{"a":{"type":"string"},"b":{"type":"integer"}},
+		"required":["a"],"additionalProperties":false}
+	}`
+	const allOf = `{"allOf":[
+		{"type":"object","properties":{"a":{"type":"number"}},"required":["a"]},
+		{"type":"object","properties":{"b":{"type":"boolean"}},"required":["b"]}
+	]}`
+	const objectRef = `{
+		"type":"object","properties":{"item":{"$ref":"#/$defs/item"}},
+		"$defs":{"item":{"type":"object","properties":{"id":{"type":"integer"}}}}
+	}`
+	const mixedMembers = `{
+		"type":"object","properties":{"a":{"type":"number"}},
+		"patternProperties":{"^n_":{"type":"number"}},"additionalProperties":{"type":"boolean"}
+	}`
+	for _, tc := range []struct{ name, schema, input, want string }{
+		{"L171-optional-null-removal", optionalNulls, `{"path":"file.txt","offset":null,"nullable":null,"metadata":{"enabled":null}}`, `{"metadata":{},"nullable":null,"path":"file.txt"}`},
+		{"L184-nullable-reference", `{"type":"object","properties":{"value":{"$ref":"#/$defs/value"}},"$defs":{"value":{"anyOf":[{"type":"number"},{"type":"null"}]}}}`, `{"value":null}`, `{"value":null}`},
+		{"L189-array-items", arrayOfObjects, `[{"a":"x","b":null}]`, `[{"a":"x"}]`},
+		{"L234-allof-branches", allOf, `{"a":"1","b":"true"}`, `{"a":1,"b":true}`},
+		{"L243-local-reference", objectRef, `{"item":{"id":"7"}}`, `{"item":{"id":7}}`},
+		{"L267-pattern-and-additional", mixedMembers, `{"a":"1","n_x":"2","other":"true"}`, `{"a":1,"n_x":2,"other":true}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) { check(t, tc.schema, tc.input, tc.want) })
+	}
+
+	const tuple = `{"type":"array","prefixItems":[{"type":"number"},{"type":"boolean"}],"items":false}`
+	const nullableNumber = `{"anyOf":[{"type":"number"},{"type":"null"}]}`
+	for _, tc := range []struct{ name, schema, input, want string }{
+		{"L195-number-from-string", `{"type":"number"}`, `"42"`, `42`},
+		{"L196-number-from-empty-string", `{"type":"number"}`, `""`, `0`},
+		{"L197-number-from-true-string", `{"type":"number"}`, `"true"`, `1`},
+		{"L198-integer-from-fractional-string", `{"type":"integer"}`, `"3.5"`, `3`},
+		{"L199-integer-from-fractional-number", `{"type":"integer"}`, `1.5`, `1`},
+		{"L200-boolean-from-one-string", `{"type":"boolean"}`, `"1"`, `true`},
+		{"L201-boolean-from-uppercase-string", `{"type":"boolean"}`, `"FALSE"`, `false`},
+		{"L202-null-from-string", `{"type":"null"}`, `"null"`, `null`},
+		{"L203-string-from-number", `{"type":"string"}`, `42`, `"42"`},
+		{"L207-wrap-and-convert-number", `{"type":"array","items":{"type":"number"}}`, `"1"`, `[1]`},
+		{"L208-wrap-and-convert-null", `{"type":"array","items":{"type":"string"}}`, `null`, `["null"]`},
+		{"L213-coerce-tuple-items", tuple, `["1","true"]`, `[1,true]`},
+		{"L214-do-not-wrap-tuple", tuple, `"1"`, `"1"`},
+		{"L218-const-accepts-converted", `{"const":1}`, `"1"`, `1`},
+		{"L219-const-leaves-nonmember", `{"const":1}`, `"2"`, `"2"`},
+		{"L220-enum-accepts-converted", `{"enum":[1,2,"hello"]}`, `"2"`, `2`},
+		{"L221-enum-leaves-nonmember", `{"enum":[1,2,"hello"]}`, `"world"`, `"world"`},
+		{"L226-keep-matching-union", nullableNumber, `null`, `null`},
+		{"L227-coerce-numeric-union", nullableNumber, `"42"`, `42`},
+		{"L228-coerce-nullable-union", nullableNumber, `"null"`, `null`},
+		{"L229-first-oneof-candidate", `{"oneOf":[{"type":"boolean"},{"type":"number"}]}`, `"1"`, `true`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			check(t, `{"type":"object","properties":{"value":`+tc.schema+`},"required":["value"]}`,
+				`{"value":`+tc.input+`}`, `{"value":`+tc.want+`}`)
+		})
+	}
+}
+
 const v160StandaloneRecursiveTree = `{
 	"type":"object","properties":{"t":{"$ref":"#/$defs/Tree"}},
 	"$defs":{"Tree":{"anyOf":[{"type":"string"},{"type":"array","items":{"$ref":"#/$defs/Tree"}}]}}
