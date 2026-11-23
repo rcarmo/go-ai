@@ -126,6 +126,14 @@ func TestSourceV160QwenTokenPlanReasoning(t *testing.T) {
 		{"qwen-token-plan-individual-cn", individualThinking, individualEffort},
 	} {
 		t.Run(string(p.provider), func(t *testing.T) {
+			// Source: openai-completions-tool-choice.test.ts:1227-1241.
+			t.Run("qwen37-max-replay-metadata", func(t *testing.T) {
+				model := requireModel(t, p.provider, "qwen3.7-max")
+				compat := model.CompletionsCompat
+				if compat == nil || compat.ThinkingFormat != "qwen" || compat.RequiresReasoningContentOnAssistantMessages != nil || compat.SupportsStore == nil || *compat.SupportsStore {
+					t.Fatalf("qwen3.7-max compat=%+v; want qwen, no forced reasoning_content and explicit supportsStore=false", compat)
+				}
+			})
 			for _, id := range p.thinking {
 				t.Run("thinking-fields/"+id, func(t *testing.T) {
 					payload := qwenStreamPayload(t, p.provider, id, goai.ThinkingHigh)

@@ -118,15 +118,28 @@ func TestTogetherModelsResolvesTogetherAPIKeyFromEnvironment(t *testing.T) {
 	}
 }
 
+// Source: pi v1.6.0 openai-completions-tool-choice.test.ts:1215-1225.
 func TestXiaomiModelsKeepsMimoV26ProOnAPIBillingAndTokenPlanProviders(t *testing.T) {
-	goai.RegisterBuiltinModels()
-	if model := goai.GetModel(goai.ProviderXiaomi, "mimo-v2.6-pro"); model == nil {
-		t.Fatalf("mimo-v2.6-pro should be present for xiaomi")
+	for _, provider := range []goai.Provider{goai.ProviderXiaomi, goai.ProviderXiaomiTokenPlanCN, goai.ProviderXiaomiTokenPlanAMS, goai.ProviderXiaomiTokenPlanSGP} {
+		t.Run(string(provider), func(t *testing.T) {
+			model := requireModel(t, provider, "mimo-v2.6-pro")
+			compat := model.CompletionsCompat
+			if compat == nil || compat.RequiresReasoningContentOnAssistantMessages == nil || !*compat.RequiresReasoningContentOnAssistantMessages {
+				t.Fatalf("reasoning replay must be explicitly required, got %+v", compat)
+			}
+			if compat.ThinkingFormat != "deepseek" || compat.MaxTokensField != "" || compat.SupportsDeveloperRole != nil {
+				t.Errorf("compat: thinkingFormat=%q maxTokensField=%q supportsDeveloperRole=%v; want deepseek and no token/role override",
+					compat.ThinkingFormat, compat.MaxTokensField, compat.SupportsDeveloperRole)
+			}
+		})
 	}
-	for _, provider := range []goai.Provider{goai.ProviderXiaomiTokenPlanCN, goai.ProviderXiaomiTokenPlanAMS, goai.ProviderXiaomiTokenPlanSGP} {
-		if model := goai.GetModel(provider, "mimo-v2.6-pro"); model == nil {
-			t.Fatalf("mimo-v2.6-pro should be present for %s", provider)
-		}
+}
+
+// Source: pi v1.6.0 openai-completions-tool-choice.test.ts:1208-1213.
+func TestSourceV160CompletionsOpenRouterKimiReplayMetadata(t *testing.T) {
+	model := requireModel(t, goai.ProviderOpenRouter, "moonshotai/kimi-k2.6")
+	if compat := model.CompletionsCompat; compat == nil || compat.RequiresReasoningContentOnAssistantMessages == nil || !*compat.RequiresReasoningContentOnAssistantMessages {
+		t.Fatalf("reasoning replay must be explicitly required, got %+v", compat)
 	}
 }
 

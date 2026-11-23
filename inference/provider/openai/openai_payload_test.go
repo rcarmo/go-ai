@@ -295,7 +295,10 @@ func stringsReader(s string) io.Reader { return strings.NewReader(s) }
 
 // Source: openai-completions-tool-choice.test.ts. Capture the payload before
 // I/O so registered host identities stay intact without a network request.
+// Source: openai-completions-tool-choice.test.ts:1174-1206 (roles) and 1790-1795 (Copilot effort).
 func TestSourceV160OpenAICompletionsInstructionRolesAndEffort(t *testing.T) {
+	goai.RegisterBuiltinModels()
+	t.Setenv("PI_CACHE_RETENTION", "")
 	ctx := context.Background()
 	abort := errors.New("captured request")
 	body := func(t *testing.T, model *goai.Model, level goai.ThinkingLevel) chatRequest {
@@ -321,29 +324,51 @@ func TestSourceV160OpenAICompletionsInstructionRolesAndEffort(t *testing.T) {
 		}
 		return captured
 	}
+	const azureURL = "https://my-resource.openai.azure.com/openai/v1"
+	official := *promptCacheCatalogueV160(t, goai.ProviderOpenAI, "gpt-5.5")
+	official.Api, official.ResponsesCompat, official.CompletionsCompat = goai.ApiOpenAICompletions, nil, nil
+	customOfficial := official
+	customOfficial.Provider = "custom" // Existing supplemental direct-host check.
+	local := &goai.Model{Api: goai.ApiOpenAICompletions, ID: "qwen3.8-27b", Name: "Qwen3.8 27B",
+		Provider: "local-vllm", BaseURL: "http://localhost:8000/v1", Reasoning: true, Input: []string{"text"}, ContextWindow: 128_000, MaxTokens: 8192}
+	azureHost := *local
+	azureHost.ID, azureHost.Name, azureHost.Provider, azureHost.BaseURL = "gpt-5.5", "GPT-5.5", "my-azure", azureURL
+	azureDeepSeek := *promptCacheCatalogueV160(t, goai.ProviderAzureOpenAI, "deepseek-v4-pro")
+	azureDeepSeek.BaseURL = azureURL
 	for _, test := range []struct {
-		provider      goai.Provider
-		id, url, want string
+		model *goai.Model
+		want  string
 	}{
-		{"openai", "gpt-5.5", "https://api.openai.com/v1", "developer"},
-		{"custom", "gpt-5.5", "https://api.openai.com/v1", "developer"},
-		{"groq", "qwen/qwen3.8-27b", "https://api.groq.com/openai/v1", "system"},
-		{"custom", "qwen3.8-27b", "https://api.example.test/v1", "system"},
-		{"openrouter", "deepseek/deepseek-v4-pro", "https://openrouter.ai/api/v1", "system"},
-		{"openrouter", "openai/gpt-5.2-codex", "https://openrouter.ai/api/v1", "system"},
-		{"openrouter", "anthropic/claude-fable-5.1:batch", "https://openrouter.ai/api/v1", "system"},
-		{"azure", "deepseek-v4-pro", "https://my-resource.openai.azure.com/openai/v1", "system"},
-		{"my-azure", "gpt-5.5", "https://my-resource.openai.azure.com/openai/v1", "system"},
+		{&official, "developer"},
+		{&customOfficial, "developer"},
+		{promptCacheCatalogueV160(t, goai.ProviderGroq, "qwen/qwen3.8-27b"), "system"},
+		{local, "system"},
+		{promptCacheCatalogueV160(t, goai.ProviderOpenRouter, "deepseek/deepseek-v4-pro"), "system"},
+		{promptCacheCatalogueV160(t, goai.ProviderOpenRouter, "openai/gpt-5.2-codex"), "system"},
+		{promptCacheCatalogueV160(t, goai.ProviderOpenRouter, "anthropic/claude-fable-5.1:batch"), "system"},
+		{&azureDeepSeek, "system"},
+		{&azureHost, "system"},
 	} {
-		t.Run(string(test.provider)+"/"+test.id, func(t *testing.T) {
-			model := &goai.Model{Api: goai.ApiOpenAICompletions, Provider: test.provider, ID: test.id, BaseURL: test.url, Reasoning: true}
-			result := body(t, model, "")
-			if len(result.Messages) < 1 || result.Messages[0].Role != test.want {
-				t.Errorf("instruction role: %#v, want %s", result.Messages, test.want)
+		t.Run(string(test.model.Provider)+"/"+test.model.ID, func(t *testing.T) {
+			if test.model.Api != goai.ApiOpenAICompletions || !test.model.Reasoning {
+				t.Fatalf("provider fixture: API=%q reasoning=%t, want Completions and reasoning", test.model.Api, test.model.Reasoning)
+			}
+			conv := &goai.Context{SystemPrompt: "Follow instructions.", Messages: []goai.Message{goai.UserMessage("Hi")}}
+			level := goai.ThinkingLevel("")
+			opts := goai.StreamOptions{Reasoning: &level, Env: goai.ProviderEnv{
+				"AZURE_OPENAI_BASE_URL": "", "AZURE_OPENAI_RESOURCE_NAME": "", "AZURE_OPENAI_DEPLOYMENT_NAME_MAP": "",
+			}}
+			wire := captureCompletionsWireV160(t, test.model, conv, opts)
+			messages, ok := wire.payload["messages"].([]any)
+			if !ok || len(messages) == 0 {
+				t.Fatalf("missing request messages: %#v", wire.payload["messages"])
+			}
+			first, _ := messages[0].(map[string]any)
+			if first["role"] != test.want {
+				t.Errorf("first instruction role: %#v, want %s", first, test.want)
 			}
 		})
 	}
-	goai.RegisterBuiltinModels()
 	for _, effort := range []goai.ThinkingLevel{goai.ThinkingLow, goai.ThinkingHigh} {
 		model := goai.GetModel("github-copilot", "gemini-4-argon")
 		if model == nil || model.Api != goai.ApiOpenAICompletions {

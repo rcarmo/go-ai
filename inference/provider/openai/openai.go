@@ -898,7 +898,7 @@ func convertMessages(model *goai.Model, convCtx *goai.Context, compat *goai.Open
 				for _, block := range m.Content {
 					if block.Type == "thinking" && block.Thinking != "" {
 						value := strings.Join(thinkingParts, "\n")
-						switch block.ThinkingSignature {
+						switch completionsReasoningField(model.Provider, block.ThinkingSignature) {
 						case "reasoning_content":
 							msg.ReasoningContent = &value
 						case "reasoning":
@@ -996,6 +996,15 @@ func extractTextContent(blocks []goai.ContentBlock) string {
 		}
 	}
 	return ""
+}
+
+// OpenCode Go may stream the reasoning alias, but it expects reasoning_content
+// when assistant history is replayed.
+func completionsReasoningField(provider goai.Provider, field string) string {
+	if provider == goai.ProviderOpenCodeGo && field == "reasoning" {
+		return "reasoning_content"
+	}
+	return field
 }
 
 func joinStrings(parts []string) string {
@@ -1254,7 +1263,7 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 			idx := thinkingBlockIdx
 			partial.Content[idx].Thinking += reasoningDelta
 			if partial.Content[idx].ThinkingSignature == "" {
-				partial.Content[idx].ThinkingSignature = reasoningField
+				partial.Content[idx].ThinkingSignature = completionsReasoningField(model.Provider, reasoningField)
 			}
 			send(goai.SnapshotEvent(&goai.ThinkingDeltaEvent{
 				ContentIndex: idx,
