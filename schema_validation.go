@@ -54,9 +54,9 @@ func toolSchemaKey(schema map[string]interface{}, value interface{}) (toolSchema
 type toolSchemaWork struct{ convertCalls, indexNodes, regexChecks, literalCandidates, diagnosticRefs int }
 
 type toolSchemaDiagnosticKey struct {
-	ref   toolSchemaMemoKey
-	path  string
-	first bool
+	ref  toolSchemaMemoKey
+	path string
+	mode toolSchemaDiagnosticMode
 }
 
 type toolSchemaValidator struct {
@@ -272,6 +272,14 @@ type JSONSchemaDiagnostic struct {
 
 type toolSchemaIssue JSONSchemaDiagnostic
 
+type toolSchemaDiagnosticMode uint8
+
+const (
+	diagnosticFirst     toolSchemaDiagnosticMode = iota // First error in the validation scope.
+	diagnosticsScoped                                   // Model-facing errors in that scope.
+	diagnosticsDetached                                 // Pinned standalone explanation of dynamic references.
+)
+
 var schemaPointerEscape = strings.NewReplacer("~", "~0", "/", "~1")
 var schemaPointerUnescape = strings.NewReplacer("~1", "/", "~0", "~")
 
@@ -291,7 +299,7 @@ func (i *toolSchemaIssue) Error() string {
 // Select a first diagnostic for callers whose API returns one error. The tool
 // failure protocol instead renders each diagnostic found by the same walk.
 func (v *toolSchemaValidator) issue(value interface{}, schema map[string]interface{}, path string, active map[toolSchemaMemoKey]bool) *toolSchemaIssue {
-	issues := v.appendIssues(nil, value, schema, path, active, true)
+	issues := v.appendIssues(nil, value, schema, path, active, diagnosticFirst)
 	return (*toolSchemaIssue)(&issues[0])
 }
 
@@ -311,7 +319,7 @@ func (issues toolSchemaIssues) Error() string {
 
 // appendIssues explains an already rejected value without repeating conversion.
 // Pure membership memo entries hold booleans, never a caller-specific path.
-func (v *toolSchemaValidator) appendIssues(out toolSchemaIssues, value, raw interface{}, path string, active map[toolSchemaMemoKey]bool, first bool) toolSchemaIssues {
+func (v *toolSchemaValidator) appendIssues(out toolSchemaIssues, value, raw interface{}, path string, active map[toolSchemaMemoKey]bool, mode toolSchemaDiagnosticMode) toolSchemaIssues {
 	if raw == false {
 		return append(out, JSONSchemaDiagnostic{path, "false", "no value is allowed here"})
 	}
@@ -319,12 +327,19 @@ func (v *toolSchemaValidator) appendIssues(out toolSchemaIssues, value, raw inte
 	if !ok {
 		return out
 	}
-	if v.trackDynamic {
+	if mode == diagnosticsDetached {
+		// The pinned explainer checks each node without the dynamic stack
+		// that led to it. Membership (checked before this walk) still uses
+		// the full stack.
+		if v.acceptsRaw(value, raw) {
+			return out
+		}
+	} else if v.trackDynamic {
 		defer v.enterSchemaResource(schema)()
 	}
 	start := len(out)
 	if ref, ok := schema["$ref"].(string); v.draft7 && ok {
-		out = v.appendReferenceIssues(out, value, schema, ref, false, path, active, first)
+		out = v.appendReferenceIssues(out, value, schema, ref, false, path, active, mode)
 		if len(out) == start {
 			out = append(out, JSONSchemaDiagnostic{path, "schema", "value does not match schema"})
 		}
@@ -336,74 +351,82 @@ func (v *toolSchemaValidator) appendIssues(out toolSchemaIssues, value, raw inte
 	}
 	if values, ok := schema["enum"].([]interface{}); ok && !schemaContainsLiteral(values, value) {
 		out = append(out, JSONSchemaDiagnostic{path, "enum", "expected one of " + v.literalEnumList(values)})
-		if first {
+		if mode == diagnosticFirst {
 			return out
 		}
 	}
 	if literal, exists := schema["const"]; exists && !SchemaEqual(value, literal) {
 		out = append(out, JSONSchemaDiagnostic{path, "const", "expected " + v.literalJSON(literal)})
-		if first {
+		if mode == diagnosticFirst {
 			return out
 		}
 	}
 	if keyword, reason := schemaNumericBoundFailure(value, schema); reason != "" {
 		out = append(out, JSONSchemaDiagnostic{path, keyword, reason})
-		if first {
+		if mode == diagnosticFirst {
 			return out
 		}
 	}
-	if issue := v.constraintIssue(value, schema, path, active); issue != nil {
+	if issue := v.constraintIssue(value, schema, path, active, mode != diagnosticsDetached); issue != nil {
 		out = append(out, JSONSchemaDiagnostic(*issue))
-		if first {
+		if mode == diagnosticFirst {
 			return out
 		}
 	}
 	if _, ok := schemaStringValue(value); ok {
 		if reason := v.stringPatternReason(value, schema); reason != "" {
 			out = append(out, JSONSchemaDiagnostic{path, "pattern", reason})
-			if first {
+			if mode == diagnosticFirst {
 				return out
 			}
 		}
 		if reason := v.stringFormatReason(value, schema); reason != "" {
 			out = append(out, JSONSchemaDiagnostic{path, "format", reason})
-			if first {
+			if mode == diagnosticFirst {
 				return out
 			}
 		}
 	}
 	switch value := value.(type) {
 	case map[string]interface{}:
-		out = v.appendObjectIssues(out, value, schema, path, active, first)
+		out = v.appendObjectIssues(out, value, schema, path, active, mode)
 	case []interface{}:
 		for i, current := range value {
 			if item := validationItemRaw(schema, i); item != nil && !v.acceptsRaw(current, item) {
-				out = v.appendIssues(out, current, item, schemaIssuePath(path, strconv.Itoa(i)), active, first)
-				if first && len(out) > start {
+				out = v.appendIssues(out, current, item, schemaIssuePath(path, strconv.Itoa(i)), active, mode)
+				if mode == diagnosticFirst && len(out) > start {
 					return out
 				}
 			}
 		}
 	}
-	if first && len(out) > start {
+	if mode == diagnosticFirst && len(out) > start {
 		return out
 	}
 	for _, keyword := range []string{"allOf", "anyOf", "oneOf"} {
 		if branches, ok := schema[keyword].([]interface{}); ok {
-			out = v.appendUnionIssues(out, value, branches, keyword, path, active, first)
-			if first && len(out) > start {
+			out = v.appendUnionIssues(out, value, branches, keyword, path, active, mode)
+			if mode == diagnosticFirst && len(out) > start {
 				return out
 			}
+		}
+	}
+	if mode == diagnosticsDetached {
+		if negated, present := schema["not"]; present && v.acceptsRaw(value, negated) {
+			out = append(out, JSONSchemaDiagnostic{path, "not", "must not match the schema in not"})
+		}
+		if selected, present := v.schemaConditionalBranch(value, schema); present {
+			out = v.appendIssues(out, value, selected, path, active, mode)
 		}
 	}
 	for _, keyword := range []string{"$ref", "$dynamicRef"} {
 		dynamic := keyword == "$dynamicRef"
 		ref, ok := schema[keyword].(string)
-		if !ok || (dynamic && !v.trackDynamic) {
+		if !ok || (dynamic && (!v.trackDynamic || mode == diagnosticsDetached)) {
 			continue
 		}
-		out = v.appendReferenceIssues(out, value, schema, ref, dynamic, path, active, first)
-		if first && len(out) > start {
+		out = v.appendReferenceIssues(out, value, schema, ref, dynamic, path, active, mode)
+		if mode == diagnosticFirst && len(out) > start {
 			return out
 		}
 	}
@@ -412,30 +435,36 @@ func (v *toolSchemaValidator) appendIssues(out toolSchemaIssues, value, raw inte
 	}
 	switch value := value.(type) {
 	case map[string]interface{}:
-		if key, fails := v.firstUnevaluatedPropertyFailure(value, schema); fails {
+		if key, fails := v.firstUnevaluatedPropertyFailure(value, schema, mode != diagnosticsDetached); fails {
 			childPath := schemaIssuePath(path, key)
 			raw := schema["unevaluatedProperties"]
 			if raw == false {
 				return append(out, JSONSchemaDiagnostic{childPath, "unevaluatedProperties", "unknown field"})
 			}
-			return v.appendIssues(out, value[key], raw, childPath, active, first)
+			return v.appendIssues(out, value[key], raw, childPath, active, mode)
 		}
 	case []interface{}:
-		if index := v.firstUnevaluatedItemFailure(value, schema); index >= 0 {
-			return v.appendIssues(out, value[index], schema["unevaluatedItems"], schemaIssuePath(path, strconv.Itoa(index)), active, first)
+		if index := v.firstUnevaluatedItemFailure(value, schema, mode != diagnosticsDetached); index >= 0 {
+			return v.appendIssues(out, value[index], schema["unevaluatedItems"], schemaIssuePath(path, strconv.Itoa(index)), active, mode)
 		}
+	}
+	if mode == diagnosticsDetached {
+		if _, dynamic := schema["$dynamicRef"].(string); dynamic {
+			return append(out, JSONSchemaDiagnostic{path, "$dynamicRef", "does not match the dynamically referenced schema"})
+		}
+		return out
 	}
 	return append(out, JSONSchemaDiagnostic{path, "schema", "value does not match schema"})
 }
 
-func (v *toolSchemaValidator) appendObjectIssues(out toolSchemaIssues, object, schema map[string]interface{}, path string, active map[toolSchemaMemoKey]bool, first bool) toolSchemaIssues {
+func (v *toolSchemaValidator) appendObjectIssues(out toolSchemaIssues, object, schema map[string]interface{}, path string, active map[toolSchemaMemoKey]bool, mode toolSchemaDiagnosticMode) toolSchemaIssues {
 	initial := len(out)
 	if required, ok := schema["required"].([]interface{}); ok {
 		for _, raw := range required {
 			if key, ok := raw.(string); ok {
 				if _, present := object[key]; !present {
 					out = append(out, JSONSchemaDiagnostic{schemaIssuePath(path, key), "required", "missing"})
-					if first {
+					if mode == diagnosticFirst {
 						return out
 					}
 				}
@@ -445,8 +474,8 @@ func (v *toolSchemaValidator) appendObjectIssues(out toolSchemaIssues, object, s
 	members := v.membersFor(schema)
 	for _, key := range v.resourceIndex().keys(members.properties) {
 		if current, present := object[key]; present && !v.acceptsRaw(current, members.properties[key]) {
-			out = v.appendIssues(out, current, members.properties[key], schemaIssuePath(path, key), active, first)
-			if first && len(out) > initial {
+			out = v.appendIssues(out, current, members.properties[key], schemaIssuePath(path, key), active, mode)
+			if mode == diagnosticFirst && len(out) > initial {
 				return out
 			}
 		}
@@ -465,8 +494,8 @@ func (v *toolSchemaValidator) appendObjectIssues(out toolSchemaIssues, object, s
 			if result.matched {
 				matched = true
 				if !v.acceptsRaw(current, p.schema) {
-					out = v.appendIssues(out, current, p.schema, childPath, active, first)
-					if first && len(out) > initial {
+					out = v.appendIssues(out, current, p.schema, childPath, active, mode)
+					if mode == diagnosticFirst && len(out) > initial {
 						return out
 					}
 				}
@@ -476,9 +505,9 @@ func (v *toolSchemaValidator) appendObjectIssues(out toolSchemaIssues, object, s
 			if members.additional == false {
 				out = append(out, JSONSchemaDiagnostic{childPath, "additionalProperties", "unknown field"})
 			} else {
-				out = v.appendIssues(out, current, members.additional, childPath, active, first)
+				out = v.appendIssues(out, current, members.additional, childPath, active, mode)
 			}
-			if first && len(out) > initial {
+			if mode == diagnosticFirst && len(out) > initial {
 				return out
 			}
 		}
@@ -486,7 +515,7 @@ func (v *toolSchemaValidator) appendObjectIssues(out toolSchemaIssues, object, s
 	return out
 }
 
-func (v *toolSchemaValidator) appendUnionIssues(out toolSchemaIssues, value interface{}, branches []interface{}, keyword, path string, active map[toolSchemaMemoKey]bool, first bool) toolSchemaIssues {
+func (v *toolSchemaValidator) appendUnionIssues(out toolSchemaIssues, value interface{}, branches []interface{}, keyword, path string, active map[toolSchemaMemoKey]bool, mode toolSchemaDiagnosticMode) toolSchemaIssues {
 	matches, count := v.schemaApplicatorMatches(value, branches)
 	if count == 0 || keyword == "allOf" && matches == count || keyword == "oneOf" && matches == 1 || keyword == "anyOf" && matches > 0 {
 		return out
@@ -500,7 +529,7 @@ func (v *toolSchemaValidator) appendUnionIssues(out toolSchemaIssues, value inte
 			if tag, present := object[key]; present {
 				for i, candidate := range tags {
 					if SchemaEqual(tag, candidate) {
-						return v.appendIssues(out, value, branches[i], path, active, first)
+						return v.appendIssues(out, value, branches[i], path, active, mode)
 					}
 				}
 			}
@@ -515,13 +544,13 @@ func (v *toolSchemaValidator) appendUnionIssues(out toolSchemaIssues, value inte
 			continue
 		}
 		if keyword == "allOf" {
-			out = v.appendIssues(out, value, branch, path, active, first)
-			if first && len(out) > initial {
+			out = v.appendIssues(out, value, branch, path, active, mode)
+			if mode == diagnosticFirst && len(out) > initial {
 				return out
 			}
 			continue
 		}
-		candidate := v.appendIssues(nil, value, branch, path, active, first)
+		candidate := v.appendIssues(nil, value, branch, path, active, mode)
 		if len(candidate) == 0 {
 			continue
 		}
@@ -584,12 +613,12 @@ func schemaContainsLiteral(values []interface{}, candidate interface{}) bool {
 	return false
 }
 
-func (v *toolSchemaValidator) appendReferenceIssues(out toolSchemaIssues, value interface{}, schema map[string]interface{}, ref string, dynamic bool, path string, active map[toolSchemaMemoKey]bool, first bool) toolSchemaIssues {
+func (v *toolSchemaValidator) appendReferenceIssues(out toolSchemaIssues, value interface{}, schema map[string]interface{}, ref string, dynamic bool, path string, active map[toolSchemaMemoKey]bool, mode toolSchemaDiagnosticMode) toolSchemaIssues {
 	target, base := v.referenceTarget(ref, dynamic, schema)
-	if v.checkReferenceTarget(value, target, base) {
+	if mode != diagnosticsDetached && v.checkReferenceTarget(value, target, base) {
 		return out
 	}
-	if base != "" {
+	if mode != diagnosticsDetached && base != "" {
 		defer v.enterSchemaScope(base)()
 	}
 	if target == nil {
@@ -597,7 +626,7 @@ func (v *toolSchemaValidator) appendReferenceIssues(out toolSchemaIssues, value 
 	}
 	child, ok := target.(map[string]interface{})
 	if !ok {
-		return v.appendIssues(out, value, target, path, active, first)
+		return v.appendIssues(out, value, target, path, active, mode)
 	}
 	key, cacheable := toolSchemaKey(child, value)
 	key.scope = v.scopeKey
@@ -606,9 +635,9 @@ func (v *toolSchemaValidator) appendReferenceIssues(out toolSchemaIssues, value 
 		return out
 	}
 	// Competing union arms often explain the same reference and value at the
-	// same path. Keep paths and the explanation mode in the key: neither a
-	// shorter first-only answer nor a receipt from another path can be reused.
-	memo := toolSchemaDiagnosticKey{ref: key, path: path, first: first}
+	// same path. A first-only or detached answer, or an answer from a
+	// different path, cannot be reused in another explanation.
+	memo := toolSchemaDiagnosticKey{ref: key, path: path, mode: mode}
 	if issues, found := v.diagnostics[memo]; found {
 		return append(out, issues...)
 	}
@@ -618,7 +647,7 @@ func (v *toolSchemaValidator) appendReferenceIssues(out toolSchemaIssues, value 
 		v.work.diagnosticRefs++
 	}
 	cuts := v.diagnosticCuts
-	issues := v.appendIssues(nil, value, child, path, active, first)
+	issues := v.appendIssues(nil, value, child, path, active, mode)
 	if cuts == v.diagnosticCuts {
 		if v.diagnostics == nil {
 			v.diagnostics = make(map[toolSchemaDiagnosticKey]toolSchemaIssues)

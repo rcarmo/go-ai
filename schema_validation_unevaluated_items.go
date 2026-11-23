@@ -15,13 +15,13 @@ type toolSchemaItemAnnotationVisit struct {
 	scope  string
 }
 
-func (v *toolSchemaValidator) firstUnevaluatedItemFailure(array []interface{}, schema map[string]interface{}) int {
+func (v *toolSchemaValidator) firstUnevaluatedItemFailure(array []interface{}, schema map[string]interface{}, enterRoot bool) int {
 	raw, present := schema["unevaluatedItems"]
 	if v.draft7 || !present || raw == true || len(array) == 0 {
 		return -1
 	}
 	var evaluated toolSchemaItemAnnotations
-	v.collectEvaluatedItems(array, schema, &evaluated, make(map[toolSchemaItemAnnotationVisit]bool), true)
+	v.collectEvaluatedItems(array, schema, &evaluated, make(map[toolSchemaItemAnnotationVisit]bool), true, enterRoot)
 	for i := evaluated.prefix; i < len(array); i++ {
 		if !evaluated.matches[i] && !v.acceptsRaw(array[i], raw) {
 			return i
@@ -33,11 +33,11 @@ func (v *toolSchemaValidator) firstUnevaluatedItemFailure(array []interface{}, s
 // All contributors have passed at this location before their annotations are
 // used. In particular, a passing child with unevaluatedItems has already
 // checked the indexes that its own keywords did not evaluate.
-func (v *toolSchemaValidator) collectEvaluatedItems(array []interface{}, schema map[string]interface{}, out *toolSchemaItemAnnotations, seen map[toolSchemaItemAnnotationVisit]bool, own bool) {
+func (v *toolSchemaValidator) collectEvaluatedItems(array []interface{}, schema map[string]interface{}, out *toolSchemaItemAnnotations, seen map[toolSchemaItemAnnotationVisit]bool, own, enterRoot bool) {
 	if out.prefix == len(array) {
 		return
 	}
-	if v.trackDynamic {
+	if v.trackDynamic && (!own || enterRoot) {
 		defer v.enterSchemaResource(schema)()
 	}
 	visit := toolSchemaItemAnnotationVisit{reflect.ValueOf(schema).Pointer(), v.scopeKey}
@@ -70,7 +70,7 @@ func (v *toolSchemaValidator) collectEvaluatedItems(array []interface{}, schema 
 	add := func(raw interface{}, knownPassing bool) {
 		if child, ok := raw.(map[string]interface{}); ok && out.prefix < len(array) &&
 			(knownPassing || v.checkReferenceTarget(array, child, "")) {
-			v.collectEvaluatedItems(array, child, out, seen, false)
+			v.collectEvaluatedItems(array, child, out, seen, false, enterRoot)
 		}
 	}
 	for _, keyword := range []string{"allOf", "anyOf", "oneOf"} {
@@ -100,7 +100,7 @@ func (v *toolSchemaValidator) collectEvaluatedItems(array []interface{}, schema 
 			if base != "" {
 				leave = v.enterSchemaScope(base)
 			}
-			v.collectEvaluatedItems(array, child, out, seen, false)
+			v.collectEvaluatedItems(array, child, out, seen, false, enterRoot)
 			leave()
 		}
 	}

@@ -52,7 +52,8 @@ func ValidateJSONSchemaValueWithResources(schema map[string]any, value any, reso
 // Array-index keys sort numerically before other keys. Other property names
 // keep their order in the raw schema. Undeclared fields of a decoded instance
 // map use lexical order after its index keys. Diagnostics can omit other
-// failures at the same node.
+// failures at the same node. A dynamic reference can reject a value in scope
+// but yield no local diagnostic. Such failures are reported at the root.
 //
 // Resources and draft work as in ValidateJSONSchemaValueWithResources. A nil
 // resource map registers no host documents. Errors report an input or checker
@@ -81,7 +82,15 @@ func ExplainJSONSchemaValueWithResources(schema json.RawMessage, value any, reso
 	if accepted {
 		return []JSONSchemaDiagnostic{}, nil
 	}
-	issues := v.appendIssues(nil, value, parsed, "", make(map[toolSchemaMemoKey]bool), false)
+	mode := diagnosticsScoped
+	if v.trackDynamic {
+		mode = diagnosticsDetached
+	}
+	issues := v.appendIssues(nil, value, parsed, "", make(map[toolSchemaMemoKey]bool), mode)
+	if len(issues) == 0 {
+		// A detached walk can miss a failure that depends on a dynamic scope.
+		issues = append(issues, JSONSchemaDiagnostic{Keyword: "schema", Message: "invalid"})
+	}
 	if v.patternFailure != nil {
 		return nil, fmt.Errorf("pattern checker unavailable: %w", v.patternFailure)
 	}

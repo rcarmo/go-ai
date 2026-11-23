@@ -63,7 +63,7 @@ func TestValidationDiagnosticRefMemoKeepsPaths(t *testing.T) {
 	}
 	shared := map[string]any{"n": "x"}
 	v := newToolSchemaValidator(schema, []byte(raw))
-	issues := v.appendIssues(nil, map[string]any{"a": shared, "b": shared}, schema, "", make(map[toolSchemaMemoKey]bool), false)
+	issues := v.appendIssues(nil, map[string]any{"a": shared, "b": shared}, schema, "", make(map[toolSchemaMemoKey]bool), diagnosticsScoped)
 	const want = "  - a.n: expected integer, got string\n  - b.n: expected integer, got string"
 	if got := issues.Error(); got != want {
 		t.Fatalf("diagnostics = %q; want %q", got, want)

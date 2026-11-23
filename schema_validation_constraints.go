@@ -10,7 +10,7 @@ import (
 
 // Constraints participate in membership as well as diagnostics: union selection
 // must not regard a branch with failed bounds as a match.
-func (v *toolSchemaValidator) constraintIssue(value interface{}, schema map[string]interface{}, path string, active map[toolSchemaMemoKey]bool) *toolSchemaIssue {
+func (v *toolSchemaValidator) constraintIssue(value interface{}, schema map[string]interface{}, path string, active map[toolSchemaMemoKey]bool, includeLogic bool) *toolSchemaIssue {
 	fail := func(keyword, message string) *toolSchemaIssue { return &toolSchemaIssue{path, keyword, message} }
 	if text, ok := schemaStringValue(value); ok {
 		for _, bound := range []struct {
@@ -120,19 +120,29 @@ func (v *toolSchemaValidator) constraintIssue(value interface{}, schema map[stri
 			}
 		}
 	}
+	if !includeLogic {
+		return nil
+	}
 	if negated, present := schema["not"]; present && v.acceptsRaw(value, negated) {
 		return fail("not", "must not match the schema in not")
 	}
-	if condition, present := schema["if"]; present {
-		key := "else"
-		if v.acceptsRaw(value, condition) {
-			key = "then"
-		}
-		if branch, present := schema[key]; present && !v.acceptsRaw(value, branch) {
-			return v.rawIssue(value, branch, path, active)
-		}
+	if branch, present := v.schemaConditionalBranch(value, schema); present && !v.acceptsRaw(value, branch) {
+		return v.rawIssue(value, branch, path, active)
 	}
 	return nil
+}
+
+func (v *toolSchemaValidator) schemaConditionalBranch(value interface{}, schema map[string]interface{}) (interface{}, bool) {
+	condition, present := schema["if"]
+	if !present {
+		return nil, false
+	}
+	key := "else"
+	if v.acceptsRaw(value, condition) {
+		key = "then"
+	}
+	branch, present := schema[key]
+	return branch, present
 }
 
 func (v *toolSchemaValidator) rawIssue(value, raw interface{}, path string, active map[toolSchemaMemoKey]bool) *toolSchemaIssue {

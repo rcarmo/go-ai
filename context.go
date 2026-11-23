@@ -252,7 +252,7 @@ func (v *toolSchemaValidator) coerceWithJSONSchema(value interface{}, schema map
 		return nil, fmt.Errorf("pattern checker unavailable: %w", v.patternFailure)
 	}
 	if !accepted {
-		issues := v.appendIssues(nil, converted, schema, "", make(map[toolSchemaMemoKey]bool), false)
+		issues := v.appendIssues(nil, converted, schema, "", make(map[toolSchemaMemoKey]bool), diagnosticsScoped)
 		if v.patternFailure != nil {
 			return nil, fmt.Errorf("pattern checker unavailable: %w", v.patternFailure)
 		}
@@ -489,7 +489,7 @@ func (v *toolSchemaValidator) schemaAcceptsValue(value interface{}, schema map[s
 			return false
 		}
 	}
-	if v.constraintIssue(value, schema, "", make(map[toolSchemaMemoKey]bool)) != nil || schemaNumericBoundsReason(value, schema) != "" || v.stringFormatReason(value, schema) != "" || v.stringPatternReason(value, schema) != "" {
+	if v.constraintIssue(value, schema, "", make(map[toolSchemaMemoKey]bool), true) != nil || schemaNumericBoundsReason(value, schema) != "" || v.stringFormatReason(value, schema) != "" || v.stringPatternReason(value, schema) != "" {
 		return false
 	}
 	switch value := value.(type) {
@@ -509,7 +509,7 @@ func (v *toolSchemaValidator) schemaAcceptsValue(value interface{}, schema map[s
 				return false
 			}
 		}
-		_, fails := v.firstUnevaluatedPropertyFailure(value, schema)
+		_, fails := v.firstUnevaluatedPropertyFailure(value, schema, true)
 		return !fails
 	case []interface{}:
 		for i, current := range value {
@@ -517,7 +517,7 @@ func (v *toolSchemaValidator) schemaAcceptsValue(value interface{}, schema map[s
 				return false
 			}
 		}
-		return v.firstUnevaluatedItemFailure(value, schema) < 0
+		return v.firstUnevaluatedItemFailure(value, schema, true) < 0
 	}
 	return true
 }

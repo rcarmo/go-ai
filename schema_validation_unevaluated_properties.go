@@ -12,13 +12,13 @@ type toolSchemaPropertyAnnotationVisit struct {
 	scope  string
 }
 
-func (v *toolSchemaValidator) firstUnevaluatedPropertyFailure(object, schema map[string]interface{}) (string, bool) {
+func (v *toolSchemaValidator) firstUnevaluatedPropertyFailure(object, schema map[string]interface{}, enterRoot bool) (string, bool) {
 	raw, present := schema["unevaluatedProperties"]
 	if v.draft7 || !present || raw == true || len(object) == 0 {
 		return "", false
 	}
 	annotations := toolSchemaPropertyAnnotations{names: make(map[string]bool)}
-	v.collectEvaluatedProperties(object, schema, &annotations, make(map[toolSchemaPropertyAnnotationVisit]bool), true)
+	v.collectEvaluatedProperties(object, schema, &annotations, make(map[toolSchemaPropertyAnnotationVisit]bool), true, enterRoot)
 	if !annotations.all {
 		for _, key := range sortedSchemaKeys(object) {
 			if !annotations.names[key] && !v.acceptsRaw(object[key], raw) {
@@ -32,11 +32,13 @@ func (v *toolSchemaValidator) firstUnevaluatedPropertyFailure(object, schema map
 // Annotations belong to the current object instance and dynamic resource stack.
 // A passing child with unevaluatedProperties has checked all names left by its
 // own annotations. It contributes all names, but cannot read its siblings'.
-func (v *toolSchemaValidator) collectEvaluatedProperties(object, schema map[string]interface{}, out *toolSchemaPropertyAnnotations, seen map[toolSchemaPropertyAnnotationVisit]bool, own bool) {
+// Detached explanations skip the original resource when they annotate the
+// remaining keywords; references within those keywords still enter scope.
+func (v *toolSchemaValidator) collectEvaluatedProperties(object, schema map[string]interface{}, out *toolSchemaPropertyAnnotations, seen map[toolSchemaPropertyAnnotationVisit]bool, own, enterRoot bool) {
 	if out.all {
 		return
 	}
-	if v.trackDynamic {
+	if v.trackDynamic && (!own || enterRoot) {
 		defer v.enterSchemaResource(schema)()
 	}
 	visit := toolSchemaPropertyAnnotationVisit{reflect.ValueOf(schema).Pointer(), v.scopeKey}
@@ -69,7 +71,7 @@ func (v *toolSchemaValidator) collectEvaluatedProperties(object, schema map[stri
 	add := func(raw interface{}, knownPassing bool) {
 		if child, ok := raw.(map[string]interface{}); ok && !out.all &&
 			(knownPassing || v.checkReferenceTarget(object, child, "")) {
-			v.collectEvaluatedProperties(object, child, out, seen, false)
+			v.collectEvaluatedProperties(object, child, out, seen, false, enterRoot)
 		}
 	}
 	for _, keyword := range []string{"allOf", "anyOf", "oneOf"} {
@@ -99,7 +101,7 @@ func (v *toolSchemaValidator) collectEvaluatedProperties(object, schema map[stri
 			if base != "" {
 				leave = v.enterSchemaScope(base)
 			}
-			v.collectEvaluatedProperties(object, child, out, seen, false)
+			v.collectEvaluatedProperties(object, child, out, seen, false, enterRoot)
 			leave()
 		}
 	}
