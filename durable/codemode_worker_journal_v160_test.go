@@ -12,13 +12,17 @@ import (
 // recorded delivery without invoking that callback again.
 type journalWorkerRemoteV160 struct {
 	*CodemodeWorkerRemote
-	observed   chan<- int
-	starts     atomic.Int32
-	deliveries atomic.Int32
+	observed     chan<- int
+	observeStart func(CodemodeStart)
+	starts       atomic.Int32
+	deliveries   atomic.Int32
 }
 
 func (r *journalWorkerRemoteV160) Execute(ctx context.Context, code string, start CodemodeStart, exchange func(context.Context, CodemodeEvent) (CodemodeRemoteReply, error), receive func(context.Context) (CodemodeDelivery, error)) error {
 	r.starts.Add(1)
+	if r.observeStart != nil {
+		r.observeStart(start)
+	}
 	return r.CodemodeWorkerRemote.Execute(ctx, code, start, func(ctx context.Context, event CodemodeEvent) (CodemodeRemoteReply, error) {
 		reply, err := exchange(ctx, event)
 		if event.Call == nil || err != nil || reply.Stop {
