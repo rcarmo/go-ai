@@ -76,6 +76,10 @@ func PowerShell(env durable.FileSystem, options ...PowerShellOptions) durable.To
 						break
 					}
 				}
+				var startFailure *durable.ExecutionError
+				if errors.As(err, &startFailure) && startFailure.Code == "spawn_error" && startFailure.Cause != nil {
+					return result, &bashCommandError{message: startFailure.Cause.Error(), cause: err}
+				}
 				return result, err
 			})
 		},
