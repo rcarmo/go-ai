@@ -5,8 +5,10 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
-	goai "github.com/rcarmo/go-ai"
+	"fmt"
 	"time"
+
+	goai "github.com/rcarmo/go-ai"
 )
 
 const codemodeRunKind = "pi.codemode.run"
@@ -248,8 +250,11 @@ func (r *TaskRuntime) runCodemode(ctx context.Context, key, source string, sandb
 			}
 		}
 		if runID != 0 {
-			if journalID == 0 || run.Source != source || run.Start.Version != 2 || run.Start.RuntimeIdentity != identity {
+			if journalID == 0 || run.Source != source || run.Start.Version != 2 {
 				return nil, reject("codemode replay identity mismatch")
+			}
+			if run.Start.RuntimeIdentity != identity {
+				return nil, reject("the script cannot resume: the sandbox changed since it started")
 			}
 			return nil, nil
 		}
@@ -331,7 +336,7 @@ func (r *TaskRuntime) runCodemode(ctx context.Context, key, source string, sandb
 	} // clock rollback cannot extend original timeout
 	remaining := run.Start.Deadline - current
 	if current >= run.Start.Deadline || remaining <= 0 {
-		return CodemodeResult{}, context.DeadlineExceeded
+		return CodemodeResult{}, fmt.Errorf("script timed out: its deadline passed while it was interrupted: %w", context.DeadlineExceeded)
 	}
 	linked, cancel := context.WithTimeout(ctx, time.Duration(remaining)*time.Millisecond)
 	stop := context.AfterFunc(r.context, cancel)

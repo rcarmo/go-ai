@@ -22,7 +22,7 @@ func TestSourceV160CodemodePublishedWorkerCompletedCallReplay(t *testing.T) {
 const held = await tools.hold({ id: 1 });
 const b = await tools.echo({ text: "b" });
 return [a, held, b, Date.now() > 0];`
-	got := runV160PublishedWorkerNestedReplay(t, source)
+	got := runV160PublishedWorkerNestedReplay(t, source, workerReplayChangesV160{})
 	if got.isError || got.text != `["echo a","held 1","echo b",true]` {
 		t.Errorf("result = %q, error=%t; want [\"echo a\",\"held 1\",\"echo b\",true]", got.text, got.isError)
 	}
@@ -49,7 +49,7 @@ func TestSourceV160CodemodePublishedWorkerClockAndRandomness(t *testing.T) {
 await tools.hold({});
 await tools.echo({ text: String(before[0]) + "/" + String(before[1]) });
 return "ok";`
-	got := runV160PublishedWorkerNestedReplay(t, source)
+	got := runV160PublishedWorkerNestedReplay(t, source, workerReplayChangesV160{})
 	if got.text != "ok" {
 		t.Errorf("result = %q; want ok", got.text)
 	}
@@ -87,7 +87,12 @@ type workerNestedReplayV160 struct {
 	inputs      []workerReplayInputsV160
 }
 
-func runV160PublishedWorkerNestedReplay(t *testing.T, source string) workerNestedReplayV160 {
+type workerReplayChangesV160 struct {
+	now          func() int64
+	beforeResume func(context.Context, Storage, *RemoteCodemodeSandbox)
+}
+
+func runV160PublishedWorkerNestedReplay(t *testing.T, source string, changes workerReplayChangesV160) workerNestedReplayV160 {
 	t.Helper()
 	sandbox, remote := newJournalWorkerSandboxV160(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -154,6 +159,7 @@ func runV160PublishedWorkerNestedReplay(t *testing.T, source string) workerNeste
 		return ch
 	})
 	options.Registry = registry
+	options.Now = changes.now
 	store, err := newTestSQLite(t)
 	if err != nil {
 		t.Fatal(err)
@@ -202,7 +208,12 @@ func runV160PublishedWorkerNestedReplay(t *testing.T, source string) workerNeste
 		t.Fatal(err)
 	}
 	block.Store(false)
-	next := openHarness(t, reopenStoreAfterHarnessClose(t, store), options)
+	reopenedStore := reopenStoreAfterHarnessClose(t, store)
+	t.Cleanup(func() { _ = reopenedStore.Close(context.Background()) })
+	if changes.beforeResume != nil {
+		changes.beforeResume(ctx, reopenedStore, sandbox)
+	}
+	next := openHarness(t, reopenedStore, options)
 	if err := next.Resume(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -218,9 +229,12 @@ func runV160PublishedWorkerNestedReplay(t *testing.T, source string) workerNeste
 		t.Fatal(err)
 	}
 	result := v160ToolResult(t, ctx, conversation, "s1")
-	header, text, ok := strings.Cut(v160ToolResultText(result), "\nOutput:\n")
-	if !ok || !regexp.MustCompile(`^Script (completed|failed)\nWall time [\d.]+ seconds$`).MatchString(header) {
-		t.Fatalf("invalid tool result envelope: %q", v160ToolResultText(result))
+	text := v160ToolResultText(result)
+	header, body, found := strings.Cut(text, "\nOutput:\n")
+	if found && regexp.MustCompile(`^Script (completed|failed)\nWall time [\d.]+ seconds$`).MatchString(header) {
+		text = body
+	} else if !result.IsError {
+		t.Fatalf("invalid tool result envelope: %q", text)
 	}
 	if requests.Load() != 2 {
 		t.Errorf("model requests = %d; want 2", requests.Load())
