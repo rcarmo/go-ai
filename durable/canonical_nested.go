@@ -140,9 +140,10 @@ func (h *NestedToolHandle) waitCanonicalTool(ctx context.Context, record TaskRec
 	var fields struct {
 		Diagnostics []ToolDiagnostic `json:"diagnostics"`
 		Usage       *goai.Usage      `json:"usage"`
+		DurationMs  *int64           `json:"durationMs"`
 	}
 	selected := JSON{}
-	for _, key := range []string{"diagnostics", "usage"} {
+	for _, key := range []string{"diagnostics", "usage", "durationMs"} {
 		if value, present := value[key]; present {
 			selected[key] = value
 		}
@@ -150,6 +151,6 @@ func (h *NestedToolHandle) waitCanonicalTool(ctx context.Context, record TaskRec
 	if err := fromObject(selected, &fields, h.runtime.harness.session.limits); err != nil {
 		return ToolResult{}, err
 	}
-	result.Diagnostics, result.Usage = fields.Diagnostics, fields.Usage
+	result.Diagnostics, result.Usage, result.DurationMs = fields.Diagnostics, fields.Usage, fields.DurationMs
 	return result, nil
 }

@@ -537,10 +537,13 @@ type ToolResult struct {
 	DetailsValue any
 	HasDetails   bool
 	// Diagnostics are model/UI remarks, separate from application details.
-	Diagnostics             []ToolDiagnostic
-	IsError                 bool
-	Control                 *ToolControl
-	Usage                   *goai.Usage
+	Diagnostics []ToolDiagnostic
+	IsError     bool
+	Control     *ToolControl
+	Usage       *goai.Usage
+	// DurationMs is the recorded elapsed time returned by a canonical nested call.
+	// Nil means its result has no duration; a measured zero is still present.
+	DurationMs              *int64
 	Commit                  func(*Tx) error
 	usesRetainedOutput      bool
 	usesReportedDiagnostics bool

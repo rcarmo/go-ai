@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 
 	goai "github.com/rcarmo/go-ai"
@@ -150,6 +151,31 @@ func TestNestedTool120ModelParentCallAttribution(t *testing.T) {
 	})
 }
 
+func openNestedResultHarness(t *testing.T, store Storage, tools ...ToolRegistration) (*Harness, *ConversationHandle) {
+	t.Helper()
+	registry := NewRegistry()
+	for _, tool := range tools {
+		if err := registry.Register(tool); err != nil {
+			t.Fatal(err)
+		}
+	}
+	calls := 0
+	ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
+		calls++
+		ch := make(chan goai.Event, 1)
+		if calls == 1 {
+			ch <- &goai.DoneEvent{Reason: goai.StopReasonToolUse, Message: &goai.Message{Role: goai.RoleAssistant, StopReason: goai.StopReasonToolUse, Content: []goai.ContentBlock{{Type: "toolCall", ID: "c1", Name: "batch", Arguments: JSON{}}}}}
+		} else {
+			ch <- terminal("done")
+		}
+		close(ch)
+		return ch
+	})
+	options.Registry = registry
+	h := openHarness(t, store, options)
+	return h, root(t, h, ref)
+}
+
 // harness-nested-tools.test.ts:175-217. Observe the automatic keyed call
 // while the caller still owns its result and again after it retires.
 func TestSourceV160NestedToolOwnsResultOutsideTranscript(t *testing.T) {
@@ -191,27 +217,7 @@ func TestSourceV160NestedToolOwnsResultOutsideTranscript(t *testing.T) {
 			seen <- witness{api.TaskID(), child.ID(), result, generationObject(doc.Value["result"])}
 			return ToolResult{Content: fmt.Sprint("got ", result.StructuredOutput)}, nil
 		}
-		registry := NewRegistry()
-		for _, tool := range []ToolRegistration{echo, batch} {
-			if err := registry.Register(tool); err != nil {
-				t.Fatal(err)
-			}
-		}
-		calls := 0
-		ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
-			calls++
-			ch := make(chan goai.Event, 1)
-			if calls == 1 {
-				ch <- &goai.DoneEvent{Reason: goai.StopReasonToolUse, Message: &goai.Message{Role: goai.RoleAssistant, StopReason: goai.StopReasonToolUse, Content: []goai.ContentBlock{{Type: "toolCall", ID: "c1", Name: "batch", Arguments: JSON{}}}}}
-			} else {
-				ch <- terminal("done")
-			}
-			close(ch)
-			return ch
-		})
-		options.Registry = registry
-		h := openHarness(t, b.store, options)
-		conversation := root(t, h, ref)
+		h, conversation := openNestedResultHarness(t, b.store, echo, batch)
 		submission, err := conversation.Submit(bg, Input{Type: "input", Content: "hi"})
 		if err != nil {
 			t.Fatal(err)
@@ -227,6 +233,9 @@ func TestSourceV160NestedToolOwnsResultOutsideTranscript(t *testing.T) {
 		wantResult := JSON{"taskId": float64(got.child), "structuredOutput": "echo a", "isError": false, "diagnostics": []any{}, "durationMs": got.stored["durationMs"]}
 		if !number || duration.Sign() < 0 || !equalJSONValue(got.stored, wantResult) {
 			t.Fatal("stored nested result", got.stored)
+		}
+		if got.result.DurationMs == nil || !duration.IsInt() || !duration.Num().IsInt64() || *got.result.DurationMs != duration.Num().Int64() {
+			t.Fatalf("nested Wait omitted or changed the stored duration %v: %+v", got.stored["durationMs"], got.result)
 		}
 		page, err := conversation.Entries(bg, EntryQuery{Order: Ascending}, 10, nil)
 		if err != nil || page.Next != nil {
@@ -284,6 +293,54 @@ func TestSourceV160NestedToolOwnsResultOutsideTranscript(t *testing.T) {
 		}
 		if live, found, err := conversation.SnapshotDefinition(bg, LiveDoc(), nil); err != nil || !found || !equalJSONValue(live.Copy(), JSON{}) {
 			t.Fatal("run left a live tool slot", live, found, err)
+		}
+	})
+}
+
+// harness-nested-tools.test.ts:1096-1122. The unsupported details value
+// fails settlement, so the fallback result has diagnostics but no duration.
+func TestSourceV160FaultedNestedToolOmitsDuration(t *testing.T) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+		type witness struct {
+			id     ID
+			result ToolResult
+		}
+		seen := make(chan witness, 1)
+		echo := wrapRegistration("echo")
+		echo.Execute = func(context.Context, any, *ToolAPI) (ToolResult, error) {
+			return ToolResult{DetailsValue: JSON{"count": make(chan int)}, HasDetails: true}, nil
+		}
+		batch := wrapRegistration("batch")
+		batch.Execute = func(ctx context.Context, _ any, api *ToolAPI) (ToolResult, error) {
+			child, err := api.StartToolAuto(ctx, "echo", JSON{"text": "a"})
+			if err != nil {
+				return ToolResult{}, err
+			}
+			got, err := child.Wait(ctx)
+			if err != nil {
+				return ToolResult{}, err
+			}
+			seen <- witness{child.ID(), got}
+			return ToolResult{}, nil
+		}
+		h, conversation := openNestedResultHarness(t, b.store, echo, batch)
+		submission, err := conversation.Submit(bg, Input{Type: "input", Content: "go"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		waitSubmission(t, submission)
+		got := watchReceive(t, seen)
+		child, found, err := h.Task(bg, got.id)
+		if err != nil || !found || child.ID != got.id || child.State.Status != "terminal" || child.State.Outcome == nil || child.State.Outcome.Status != "faulted" {
+			t.Fatal("faulted nested task", child, found, err)
+		}
+		result := got.result
+		if !result.IsError || result.DurationMs != nil || result.HasStructuredOutput || result.HasDetails || result.Usage != nil || result.Content != "" || len(result.Blocks) != 0 || len(result.Diagnostics) != 1 {
+			t.Fatalf("faulted nested result; want diagnostics only: %+v", result)
+		}
+		diagnostic := result.Diagnostics[0]
+		if diagnostic.Severity != "error" || diagnostic.Code != "faulted" || !strings.Contains(diagnostic.Message, "Tool echo failed") {
+			t.Fatal("faulted nested diagnostic", diagnostic)
 		}
 	})
 }
