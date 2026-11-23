@@ -1,0 +1,104 @@
+{
+  "format": 1,
+  "pin": "faac585884ae2c013a6b1400f3e9e77f10b34bac",
+  "node": "v26.13.0",
+  "go": "go1.27.3",
+  "cgoEnabled": false,
+  "platform": "linux/arm64",
+  "upstreamReference": {
+    "file": "packages/codemode/test/sandbox.test.ts",
+    "sha256": "a76f2e0f3688286fcb15de79a675cc05bae699117e5f740b12dd26dbb0090931",
+    "lines": "506-523",
+    "execution": "not-rerun-by-this-probe"
+  },
+  "native": {
+    "test": "TestSourceV160CodemodePublishedWorkerNamespacedGlobals",
+    "file": "durable/codemode_worker_published_v160_test.go",
+    "sha256": "6e3644d344ed853bcbde2ebf85aa2df1908eefbf210f2d72117ebd8d0f83dd33",
+    "bridge": "durable/testdata/worker-remote-120.mjs",
+    "bridgeSha256": "c5bbef431c855f2aa46d5af85b50c434cf970262a7d4cb19b9ddae84f37a02a8",
+    "passed": 1
+  },
+  "codemodeArchive": {
+    "file": "earendil-works-pi-codemode-1.6.0.tgz",
+    "sha256": "22f7dabd30eeaac7e38a133b72008ccfc379732f2ed86d760297cb9d385a42db"
+  },
+  "quickjsArchive": {
+    "version": "3.6.2",
+    "sha256": "f1f4349f19a2d849e33ea0ae9bec2e7062b8839f4eceb17c9051ddbaa2720982",
+    "integrity": "sha512-FCqGtGOrMgzUiIrMNMA2YnsOxCNwo31dzqXvclXUC6xeT35NJLKXQJsvbeCTjvoFAwZgEAPg8U6+KAPDGXn8Mg=="
+  },
+  "observed": [
+    {
+      "kind": "compile-wasm",
+      "api": "WebAssembly.compile",
+      "caller": "node_modules/@earendil-works/pi-codemode/dist/wasm.js",
+      "bytes": 637405,
+      "sha256": "d4c9375f2b1ca4dc95f72c8aa2982a7a9951ac8011490d79c6582df732b4bbd9"
+    },
+    {
+      "kind": "instantiate-wasm",
+      "api": "WebAssembly.instantiate",
+      "caller": "node_modules/quickjs-wasi/dist/index.js",
+      "bytes": 637405,
+      "sha256": "d4c9375f2b1ca4dc95f72c8aa2982a7a9951ac8011490d79c6582df732b4bbd9"
+    },
+    {
+      "kind": "load-js",
+      "entry": "node_modules/@earendil-works/pi-codemode/dist/portable.js",
+      "bytes": 806,
+      "sha256": "72f8c7384c4c768a9f0dee5479d86d529a062f0c89152d9264de83fc6098b3b1"
+    },
+    {
+      "kind": "load-js",
+      "entry": "node_modules/@earendil-works/pi-codemode/dist/wasm.js",
+      "bytes": 925,
+      "sha256": "69aec098994dd4f9f3d249e0e88e6d0cd89e88872b9446164963bf6e924228b2"
+    },
+    {
+      "kind": "load-js",
+      "entry": "node_modules/quickjs-wasi/dist/index.js",
+      "bytes": 115939,
+      "sha256": "91fcfc11e7f7372f3aee8d4373c0d4f969baac5cd12648663971550054217ae8"
+    }
+  ],
+  "control": {
+    "change": "append-valid-wasm-custom-section",
+    "nativePassed": 1,
+    "observed": [
+      {
+        "kind": "compile-wasm",
+        "api": "WebAssembly.compile",
+        "caller": "node_modules/@earendil-works/pi-codemode/dist/wasm.js",
+        "bytes": 637414,
+        "sha256": "13876efd80551d91285fcb5a4d55a651c1ed3c2d325d9addebbdc018ae7bc764"
+      },
+      {
+        "kind": "instantiate-wasm",
+        "api": "WebAssembly.instantiate",
+        "caller": "node_modules/quickjs-wasi/dist/index.js",
+        "bytes": 637414,
+        "sha256": "13876efd80551d91285fcb5a4d55a651c1ed3c2d325d9addebbdc018ae7bc764"
+      },
+      {
+        "kind": "load-js",
+        "entry": "node_modules/@earendil-works/pi-codemode/dist/portable.js",
+        "bytes": 806,
+        "sha256": "72f8c7384c4c768a9f0dee5479d86d529a062f0c89152d9264de83fc6098b3b1"
+      },
+      {
+        "kind": "load-js",
+        "entry": "node_modules/@earendil-works/pi-codemode/dist/wasm.js",
+        "bytes": 925,
+        "sha256": "69aec098994dd4f9f3d249e0e88e6d0cd89e88872b9446164963bf6e924228b2"
+      },
+      {
+        "kind": "load-js",
+        "entry": "node_modules/quickjs-wasi/dist/index.js",
+        "bytes": 115939,
+        "sha256": "91fcfc11e7f7372f3aee8d4373c0d4f969baac5cd12648663971550054217ae8"
+      }
+    ],
+    "comparison": "archive-checks-rejected-at-compile-and-instantiation"
+  }
+}
