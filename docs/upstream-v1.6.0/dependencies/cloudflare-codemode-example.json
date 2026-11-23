@@ -1,0 +1,108 @@
+{
+  "format": 1,
+  "pin": "faac585884ae2c013a6b1400f3e9e77f10b34bac",
+  "platform": "linux/arm64",
+  "example": {
+    "directory": "packages/codemode/examples/cloudflare",
+    "agentSha256": "56fdae5a953dde0abe0b1d8865b4ac540e13ca5c60b3a34b97827762d9dadc2e",
+    "sandboxSha256": "4fb1f4efdd31a9babcfb33ee5a14558a04bd48fe9adf21641a654ac389f1b3e5",
+    "request": "const n = await tools.count({ add: 2 }); text(\"n=\" + n); return n",
+    "execution": "unchanged-example-source-under-local-workerd-test-harness"
+  },
+  "harness": {
+    "configSha256": "06a6ae849df7b70145b72e26f7f5d8e01053d300c5e46b922c1f5a27a21f3af8",
+    "agentBundleSha256": "88894914dbde2845c3b040acb2077d25d011701e9d81f38eb6cbb96c4000c835",
+    "sandboxBundleSha256": "b9dd3f57cefb54d10607a66632ace3a14d99eb3359fffc4f6dfc0f9743a689cd"
+  },
+  "workerd": {
+    "version": "workerd 2026-10-23",
+    "binary": {
+      "key": "node_modules/@cloudflare/workerd-linux-arm64",
+      "version": "1.20261023.1",
+      "integrity": "sha512-ilpRHzfDN8YFRM5CLRKuFw40x/LJBS89yVdhdQmxehlVDuBqjKpJB++zPFbTgKRRFaNupgnXc8RHktXAIhgCmQ==",
+      "archiveSha256": "338f91707eebaaf4728e225154af318b1e929561e7f4db80b79fd040f6bd6e67",
+      "member": "package/bin/workerd",
+      "sha256": "c9c4d377aa0ae66889b497b8df08247f0642d803d36cd4c7f123715ee2c548d7",
+      "bytes": 148415712
+    },
+    "schema": {
+      "key": "node_modules/workerd",
+      "version": "1.20261023.1",
+      "integrity": "sha512-NeofJFyaYNpqKpFRJW3ApuonaerPd6/JWlfTtLDYf2A6ygqrDEFnYgEXmc0hhOxqnJsSM+kXJN6VebPojzRrsg==",
+      "archiveSha256": "5766328bb67d7f294647e346950b17370717816ac61f014e97305865a1ca8fe4",
+      "member": "package/workerd.capnp",
+      "sha256": "8abb88e9727013c30a69367550a710da40f0e85f6a661106d81bc94926f236b6",
+      "bytes": 51954
+    }
+  },
+  "esbuild": {
+    "version": "0.28.2",
+    "binary": {
+      "key": "node_modules/@esbuild/linux-arm64",
+      "version": "0.28.2",
+      "integrity": "sha512-pW4AC0P3it8c7do9MVM4p51FzHzdM/TZrerurgRcHJ2WTa1VQ1CIq18xncfpBJw4ojkiZZrKW2yIBWBP92j6Ug==",
+      "archiveSha256": "a96dbfa41d3ef5dbd1ef22b1c10d5187be9267e86093a870f06402a7ec931596",
+      "member": "package/bin/esbuild",
+      "sha256": "90bd269553d258e80b19e3ccab4f98f0831f87442a2f056510ce24fd1b425fc2",
+      "bytes": 10289264
+    }
+  },
+  "codemodeArchiveSha256": "22f7dabd30eeaac7e38a133b72008ccfc379732f2ed86d760297cb9d385a42db",
+  "quickjsWasm": {
+    "key": "node_modules/quickjs-wasi",
+    "version": "3.6.2",
+    "integrity": "sha512-FCqGtGOrMgzUiIrMNMA2YnsOxCNwo31dzqXvclXUC6xeT35NJLKXQJsvbeCTjvoFAwZgEAPg8U6+KAPDGXn8Mg==",
+    "archiveSha256": "f1f4349f19a2d849e33ea0ae9bec2e7062b8839f4eceb17c9051ddbaa2720982",
+    "member": "package/quickjs.wasm",
+    "sha256": "d4c9375f2b1ca4dc95f72c8aa2982a7a9951ac8011490d79c6582df732b4bbd9",
+    "bytes": 637405
+  },
+  "original": {
+    "status": 200,
+    "value": 2,
+    "output": [
+      {
+        "type": "text",
+        "text": "n=2"
+      }
+    ],
+    "calls": [
+      {
+        "name": "count",
+        "status": "ok"
+      }
+    ],
+    "module": {
+      "exports": 450,
+      "auditSections": []
+    }
+  },
+  "control": {
+    "change": "append-valid-wasm-custom-section",
+    "sha256": "13876efd80551d91285fcb5a4d55a651c1ed3c2d325d9addebbdc018ae7bc764",
+    "observed": {
+      "status": 200,
+      "value": 2,
+      "output": [
+        {
+          "type": "text",
+          "text": "n=2"
+        }
+      ],
+      "calls": [
+        {
+          "name": "count",
+          "status": "ok"
+        }
+      ],
+      "module": {
+        "exports": 450,
+        "auditSections": [
+          [
+            0
+          ]
+        ]
+      }
+    }
+  }
+}
