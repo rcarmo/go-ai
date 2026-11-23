@@ -5,23 +5,30 @@ import { pathToFileURL } from "node:url";
 import { isMainThread, workerData } from "node:worker_threads";
 
 const root = pathToFileURL(`${process.env.WORKER_QUICKJS_ROOT}/`).href;
-const workerEntry = "packages/codemode/src/runtime/worker.ts";
-const loader = "packages/codemode/src/wasm.ts";
+const published = process.env.WORKER_QUICKJS_LAYOUT === "published";
+const dist = "node_modules/@earendil-works/pi-codemode/dist";
+const workerEntry = published ? `${dist}/runtime/worker.js` : "packages/codemode/src/runtime/worker.ts";
+const loader = published ? `${dist}/wasm.js` : "packages/codemode/src/wasm.ts";
 const sdk = "node_modules/quickjs-wasi/dist/index.js";
 const digest = bytes => ({ bytes: bytes.byteLength, sha256: createHash("sha256").update(bytes).digest("hex") });
 const record = event => appendFileSync(process.env.WORKER_QUICKJS_TRACE, JSON.stringify(event) + "\n");
 const isGuest = !isMainThread && workerData?.wasm instanceof WebAssembly.Module;
-if (isGuest) {
+if (isGuest || (isMainThread && published)) {
+	const entries = new Set(isGuest ? [workerEntry, sdk] : [`${dist}/index.js`, `${dist}/runtime/host.js`, loader]);
+	const kind = isGuest ? "load-guest-js" : "load-host-js";
 	registerHooks({
 		load(url, context, next) {
 			const loaded = next(url, context);
-			if (url === root + workerEntry || url === root + sdk) {
+			const entry = url.slice(root.length);
+			if (url.startsWith(root) && entries.has(entry)) {
 				if (loaded.source == null) throw Error(`Worker ESM source unavailable: ${url}`);
-				record({ kind: "load-guest-js", entry: url.slice(root.length), format: loaded.format, ...digest(Buffer.from(loaded.source)) });
+				record({ kind, entry, format: loaded.format, ...digest(Buffer.from(loaded.source)) });
 			}
 			return loaded;
 		},
 	});
+}
+if (isGuest) {
 	const instantiate = WebAssembly.instantiate;
 	WebAssembly.instantiate = async function (module, ...options) {
 		const caller = new Error().stack?.includes(`${root}${sdk}:`);
