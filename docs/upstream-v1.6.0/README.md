@@ -625,3 +625,9 @@ All seven unchanged stream cases passed offline. Go now keeps one text block and
 ### Exact dynamic-reference error lists
 
 All 88 unchanged checks passed for the 44 dynamic-reference cases. Go already agreed on which values were valid, but 17 errors differed. The standalone explainer now returns the expected error lists, with the right paths, keywords and order. The change leaves validation and the error text shown to models alone. Deliberately changing scope, fallback wording or annotation scope broke the exact comparisons.
+
+### Nested tool receipts and image preparation
+
+All 35 unchanged nested-tool tests passed offline. The Go check verifies that the child belongs to the right call, that only the parent's result reaches the transcript, and that the nested result document is retired. The stored result includes duration, but the Go caller's result does not expose it. The Go fixture now expects the upstream tool task version, 4. A fault that put the nested result in the child's terminal record was caught.
+
+The [image preparation checks](test-inventory/tools-images-preparation.md) cover the expected colours and decoded dimensions for all eight EXIF orientations. Go now reports the BMP-to-PNG conversion in the read result. The two remaining unchanged worker timing cases also passed in a separate isolated run with a 1,400 MiB Node heap, so all 34 source image-tool cases have now run across three selections. The worker timing and idle restart behavior have no exact Go mapping yet.
