@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 
 	goai "github.com/rcarmo/go-ai"
@@ -219,7 +220,7 @@ func TestSourceV160SchemaDraft7ExternalReferences(t *testing.T) {
 	}
 	var groups []struct {
 		Description string
-		Schema      map[string]any
+		Schema      json.RawMessage
 		Tests       []struct {
 			Description string
 			Data        any
@@ -233,20 +234,21 @@ func TestSourceV160SchemaDraft7ExternalReferences(t *testing.T) {
 	selections := []struct {
 		name      string
 		documents []string
+		pointer   string // Exact invalid-case path from the pinned explainer.
 		issue     string
 		cases     int
 	}{
-		{"remote ref", []string{"integer.json"}, expectedInteger, 2},
-		{"fragment within remote ref", []string{"draft7/subSchemas.json"}, expectedInteger, 2},
-		{"ref within remote ref", []string{"draft7/subSchemas.json"}, expectedInteger, 2},
-		{"base URI change", []string{"baseUriChange/folderInteger.json"}, "0.0: expected integer, got string", 2},
-		{"base URI change - change folder", []string{"baseUriChangeFolder/folderInteger.json"}, "list.0: expected integer, got string", 2},
-		{"base URI change - change folder in subschema", []string{"baseUriChangeFolderInSubschema/folderInteger.json"}, "list.0: expected integer, got string", 2},
-		{"root ref in remote ref", []string{"draft7/name.json"}, "name: expected null, got object", 3},
-		{"remote ref with ref to definitions", []string{"draft7/ref-and-definitions.json"}, "bar: expected string, got integer", 2},
-		{"Location-independent identifier in remote ref", []string{"draft7/locationIndependentIdentifier.json"}, expectedInteger, 2},
-		{"retrieved nested refs resolve relative to their URI not $id", []string{"nested/foo-ref-string.json", "nested/string.json"}, "name.foo: expected string, got integer", 2},
-		{"$ref to $ref finds location-independent $id", []string{"draft7/detached-ref.json"}, expectedInteger, 2},
+		{"remote ref", []string{"integer.json"}, "", expectedInteger, 2},
+		{"fragment within remote ref", []string{"draft7/subSchemas.json"}, "", expectedInteger, 2},
+		{"ref within remote ref", []string{"draft7/subSchemas.json"}, "", expectedInteger, 2},
+		{"base URI change", []string{"baseUriChange/folderInteger.json"}, "/0/0", "0.0: expected integer, got string", 2},
+		{"base URI change - change folder", []string{"baseUriChangeFolder/folderInteger.json"}, "/list/0", "list.0: expected integer, got string", 2},
+		{"base URI change - change folder in subschema", []string{"baseUriChangeFolderInSubschema/folderInteger.json"}, "/list/0", "list.0: expected integer, got string", 2},
+		{"root ref in remote ref", []string{"draft7/name.json"}, "/name", "name: expected null, got object", 3},
+		{"remote ref with ref to definitions", []string{"draft7/ref-and-definitions.json"}, "/bar", "bar: expected string, got integer", 2},
+		{"Location-independent identifier in remote ref", []string{"draft7/locationIndependentIdentifier.json"}, "", expectedInteger, 2},
+		{"retrieved nested refs resolve relative to their URI not $id", []string{"nested/foo-ref-string.json", "nested/string.json"}, "/name/foo", "name.foo: expected string, got integer", 2},
+		{"$ref to $ref finds location-independent $id", []string{"draft7/detached-ref.json"}, "", expectedInteger, 2},
 	}
 	if len(groups) != len(selections) {
 		t.Fatalf("pinned fixture contains %d groups, want %d", len(groups), len(selections))
@@ -262,6 +264,10 @@ func TestSourceV160SchemaDraft7ExternalReferences(t *testing.T) {
 		if group.Description != expected.name || len(group.Tests) != expected.cases || invalid != 1 {
 			t.Fatalf("unexpected pinned group %d: %+v", i, group)
 		}
+		var schema map[string]any
+		if err := json.Unmarshal(group.Schema, &schema); err != nil {
+			t.Fatal(err)
+		}
 		resources := make(map[string]json.RawMessage, len(expected.documents))
 		for _, document := range expected.documents {
 			resources[base+document] = read("remotes/" + document)
@@ -269,12 +275,31 @@ func TestSourceV160SchemaDraft7ExternalReferences(t *testing.T) {
 		t.Run(group.Description, func(t *testing.T) {
 			for _, c := range group.Tests {
 				t.Run(c.Description, func(t *testing.T) {
-					err := goai.ValidateJSONSchemaValueWithResources(group.Schema, c.Data, resources, goai.JSONSchemaReferenceDraft7)
+					err := goai.ValidateJSONSchemaValueWithResources(schema, c.Data, resources, goai.JSONSchemaReferenceDraft7)
 					if (err == nil) != c.Valid {
 						t.Fatalf("validation = %v; want valid=%t", err, c.Valid)
 					}
 					if !c.Valid && err.Error() != expected.issue {
 						t.Fatalf("validation = %q; want %q", err, expected.issue)
+					}
+
+					// Invoke the explainer on the original schema bytes in a separate
+					// validation scope. The pinned runner compares emptiness with check;
+					// the supplemental pinned capture also fixes the exact records.
+					issues, explainErr := goai.ExplainJSONSchemaValueWithResources(group.Schema, c.Data, resources, goai.JSONSchemaReferenceDraft7)
+					if explainErr != nil {
+						t.Fatal(explainErr)
+					}
+					if (len(issues) == 0) != (err == nil) {
+						t.Fatalf("diagnostics = %+v; disagree with validation %v", issues, err)
+					}
+					want := []goai.JSONSchemaDiagnostic{}
+					if !c.Valid {
+						_, message, _ := strings.Cut(expected.issue, ": ")
+						want = append(want, goai.JSONSchemaDiagnostic{Path: expected.pointer, Keyword: "type", Message: message})
+					}
+					if !reflect.DeepEqual(issues, want) {
+						t.Fatalf("diagnostics = %+v; want %+v", issues, want)
 					}
 				})
 			}
