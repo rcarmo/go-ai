@@ -3,7 +3,9 @@ package durable
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+
 	goai "github.com/rcarmo/go-ai"
 )
 
@@ -93,6 +95,13 @@ func NewCodemodeExtension(sandbox CodemodeSandbox, options ...CodemodeExtensionO
 			return ToolResult{}, reject("codemode source missing")
 		}
 		result, err := api.runtime.runCodemode(ctx, "script", code, sandbox, namespaces, models, globals, interruptBudget)
+		if errors.Is(err, errCodemodeHostCutoff) {
+			// The host closed this guest, not the script's durable call. Leave
+			// the call undecided until its owner closes or explicitly aborts it.
+			api.runtime.reportError(err)
+			<-ctx.Done()
+			return ToolResult{}, ctx.Err()
+		}
 		if err != nil {
 			return ToolResult{}, err
 		}

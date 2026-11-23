@@ -43,17 +43,17 @@ func (s *RemoteCodemodeSandbox) Start(ctx context.Context, code string, start Co
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	linked, cancel := context.WithCancel(ctx)
+	linked, cancel := context.WithCancelCause(ctx)
 	e := &remoteCodemodeExecution{ctx: linked, cancel: cancel, events: make(chan remoteCodemodeEvent, 1), replies: make(chan CodemodeRemoteReply), done: make(chan struct{}), deliveries: make(chan CodemodeDelivery), lastNow: start.StartedAt}
 	// Detach all configuration before handing it to a transport implementation.
 	object, err := dtoObject(start, DefaultLimits())
 	if err != nil {
-		cancel()
+		cancel(nil)
 		return nil, err
 	}
 	var owned CodemodeStart
 	if err := fromObject(object, &owned, DefaultLimits()); err != nil {
-		cancel()
+		cancel(nil)
 		return nil, err
 	}
 	go func() {
@@ -153,6 +153,11 @@ func (s *RemoteCodemodeSandbox) Start(ctx context.Context, code string, start Co
 			err = reject("remote execution ended without result")
 		}
 		if err != nil {
+			// Errors from tearing down a canceled transport are not a new
+			// execution failure. Next observes the recorded cancellation.
+			if linked.Err() != nil {
+				return
+			}
 			select {
 			case e.events <- remoteCodemodeEvent{err: err}:
 			case <-linked.Done():
@@ -179,9 +184,19 @@ type remoteCodemodeEvent struct {
 	event CodemodeEvent
 	err   error
 }
+
+// A host-closed guest leaves its journal replayable. Do not confuse it with
+// a script failure, or with cancellation of the caller or its Harness.
+type codemodeHostCutoffError struct{}
+
+var errCodemodeHostCutoff = codemodeHostCutoffError{}
+
+func (codemodeHostCutoffError) Error() string { return "codemode sandbox closed by host" }
+func (codemodeHostCutoffError) Unwrap() error { return context.Canceled }
+
 type remoteCodemodeExecution struct {
 	ctx          context.Context
-	cancel       context.CancelFunc
+	cancel       context.CancelCauseFunc
 	events       chan remoteCodemodeEvent
 	replies      chan CodemodeRemoteReply
 	done         chan struct{}
@@ -197,6 +212,16 @@ type remoteCodemodeExecution struct {
 	terminal     bool
 }
 
+func (e *remoteCodemodeExecution) stopError(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if context.Cause(e.ctx) == errCodemodeHostCutoff {
+		return errCodemodeHostCutoff
+	}
+	return e.ctx.Err()
+}
+
 func (e *remoteCodemodeExecution) Next(ctx context.Context) (CodemodeEvent, error) {
 	if ctx == nil {
 		return CodemodeEvent{}, reject("nil context")
@@ -207,7 +232,7 @@ func (e *remoteCodemodeExecution) Next(ctx context.Context) (CodemodeEvent, erro
 	case <-ctx.Done():
 		return CodemodeEvent{}, ctx.Err()
 	case <-e.ctx.Done():
-		return CodemodeEvent{}, e.ctx.Err()
+		return CodemodeEvent{}, e.stopError(ctx)
 	}
 }
 func (e *remoteCodemodeExecution) AcknowledgeDrain(ctx context.Context, drain CodemodeDrain) error {
@@ -217,7 +242,7 @@ func (e *remoteCodemodeExecution) AcknowledgeDrain(ctx context.Context, drain Co
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if e.ctx.Err() != nil {
-		return e.ctx.Err()
+		return e.stopError(ctx)
 	}
 	if e.terminal || e.drain == nil || *e.drain != drain {
 		return reject("invalid remote drain acknowledgement")
@@ -230,7 +255,7 @@ func (e *remoteCodemodeExecution) AcknowledgeDrain(ctx context.Context, drain Co
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-e.ctx.Done():
-		return e.ctx.Err()
+		return e.stopError(ctx)
 	}
 }
 func (e *remoteCodemodeExecution) Deliver(ctx context.Context, delivery CodemodeDelivery) error {
@@ -247,6 +272,9 @@ func (e *remoteCodemodeExecution) Deliver(ctx context.Context, delivery Codemode
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if e.ctx.Err() != nil {
+		return e.stopError(ctx)
+	}
 	call, ok := e.waiting[owned.Call.ID]
 	if e.terminal || !e.acknowledged || !ok || owned.Seq != e.delivered+1 || owned.Now < e.lastNow || uint64(owned.Now) > MaxID || owned.Call.Name != call.Name || owned.Call.Global != call.Global || !codemodeArgumentModeCompatible(owned.Call, call) || !equalJSONValue(owned.Call.Arguments, call.Arguments) || owned.Properties != nil && owned.Error == "" || owned.HasValue && owned.Error != "" || !owned.HasValue && owned.Value != nil {
 		return reject("invalid remote delivery")
@@ -262,10 +290,14 @@ func (e *remoteCodemodeExecution) Deliver(ctx context.Context, delivery Codemode
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-e.ctx.Done():
-		return e.ctx.Err()
+		return e.stopError(ctx)
 	}
 }
-func (e *remoteCodemodeExecution) Close() error { e.cancel(); <-e.done; return nil }
+func (e *remoteCodemodeExecution) Close() error {
+	e.cancel(errCodemodeHostCutoff)
+	<-e.done
+	return nil
+}
 
 func (e *remoteCodemodeExecution) admitEvent(event CodemodeEvent, start CodemodeStart) error {
 	e.mu.Lock()
