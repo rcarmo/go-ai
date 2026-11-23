@@ -56,9 +56,11 @@ type agentState struct {
 	ToolsRemoved    *[]string               `json:"toolsRemoved,omitempty"`
 	// Process-local defaults are injected only for selection, never persisted.
 	defaultExtensions *[]string
+	paidModels        bool
 }
 
 func (h *Harness) selectionAgent(agent agentState) agentState {
+	agent.paidModels = h.options.PaidModels
 	agent.defaultExtensions = h.options.Extensions
 	if settings := h.hostSettings.Load(); settings != nil {
 		agent.defaultExtensions = settings.Extensions

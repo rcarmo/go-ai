@@ -20,6 +20,14 @@ NEWLINE: /\r?\n/
 SOURCE: /[\s\S]+/
 `
 
+const codemodeToolDescription = "Run JavaScript that calls other tools. The input is raw JavaScript (not JSON or a code fence), run as an async function body in a QuickJS sandbox. No ambient filesystem, network, or timers.\n" +
+	"- `await tools.<name>({ ...args })` resolves to text or a value described by the tool's declaration.\n" +
+	"- `text(value)`, `image(dataUrlOrImageBlock)`, `console.log(...)`, and top-level `return` add output. `store(key, value)` and `load(key)` keep JSON values across calls.\n" +
+	"- When the sandbox provides discovery globals, `await searchTools(query, { limit?, namespace? })`, `await describeTool(name)`, and `await describeNamespace(name)` find declarations.\n\n" +
+	"The `codemode` section of the system prompt lists the tools scripts can call, by namespace, as far as space allows."
+
+const codemodeModelsDescription = "`models` provides the model catalog (`getModelsOfType`, `getAvailableOfType`, `getModelOfType`) and can run `models.classify(...)` and `models.generateImages(...)` when the requested model is configured."
+
 // CodemodeExtensionOptions controls model-facing declaration rendering.
 // Nil InlineBudget uses 3000 estimated tokens; explicit zero lists no tools.
 // Nil Namespaces inherits the harness list; an explicit empty list disables grouping.
@@ -88,7 +96,10 @@ func NewCodemodeExtension(sandbox CodemodeSandbox, options ...CodemodeExtensionO
 	if parallel {
 		callGuidance = "Independent tool/global calls may run concurrently with Promise.all; await required results before returning."
 	}
-	tool := ToolRegistration{Definition: goai.Tool{Name: "codemode", Description: "Run an async JavaScript function body in an isolated QuickJS sandbox. Use tools, text, image, console, store/load and discovery globals. No ambient filesystem, network or timers. " + callGuidance, Parameters: json.RawMessage(`{"type":"object","properties":{"code":{"type":"string"}},"required":["code"],"additionalProperties":false}`), ConstrainedSampling: &goai.ToolConstrainedSampling{Type: "grammar", Variants: map[string]string{"openai_lark": CodemodeSourceGrammar}}}, Implementation: "pi.codemode", Version: 1, ReplaySafe: true, Callers: []string{"model"}, Execute: func(ctx context.Context, rawToolArguments any, api *ToolAPI) (ToolResult, error) {
+	// Only the inline sandbox is known to install the paid model globals.
+	// Model-facing selection also checks the actual Harness's permission.
+	_, inline := sandbox.(*QuickJSSandbox)
+	tool := ToolRegistration{describeCodemodeModels: inline && (models == nil || *models), Definition: goai.Tool{Name: "codemode", Description: codemodeToolDescription + "\n\n" + callGuidance, Parameters: json.RawMessage(`{"type":"object","properties":{"code":{"type":"string"}},"required":["code"],"additionalProperties":false}`), ConstrainedSampling: &goai.ToolConstrainedSampling{Type: "grammar", Variants: map[string]string{"openai_lark": CodemodeSourceGrammar}}}, Implementation: "pi.codemode", Version: 1, ReplaySafe: true, Callers: []string{"model"}, Execute: func(ctx context.Context, rawToolArguments any, api *ToolAPI) (ToolResult, error) {
 		args := rawToolArguments.(JSON)
 		code, ok := args["code"].(string)
 		if !ok {

@@ -28,6 +28,7 @@ const MaxToolOutputBytes = 50 << 10
 // remains the host's responsibility even when both replay policies permit it.
 type ToolRegistration struct {
 	paidModel              bool // private reserved adapter registration authority
+	describeCodemodeModels bool // private, host-permission-gated presentation only
 	StructuredOutputSchema JSON // optional native schema for nested structured results
 	Deferred               bool
 	Callers                []string // nil permits model and tools; explicit empty permits neither
@@ -67,14 +68,15 @@ type toolOffer struct {
 	OutputLimits           *ToolOutputLimits             `json:"outputLimits,omitempty"`
 }
 type registeredTool struct {
-	composite bool
-	extension string // process-local installer, never an intent field
-	paidModel bool
-	offer     toolOffer
-	execute   func(context.Context, any, *ToolAPI) (ToolResult, error)
-	cancel    func(context.Context, any, *ToolAPI) error
-	validator func(context.Context, any) (any, error)
-	prepare   func(context.Context, any) (any, error)
+	composite              bool
+	extension              string // process-local installer, never an intent field
+	paidModel              bool
+	describeCodemodeModels bool
+	offer                  toolOffer
+	execute                func(context.Context, any, *ToolAPI) (ToolResult, error)
+	cancel                 func(context.Context, any, *ToolAPI) error
+	validator              func(context.Context, any) (any, error)
+	prepare                func(context.Context, any) (any, error)
 }
 type Registry struct {
 	mu                   sync.RWMutex
@@ -166,7 +168,7 @@ func (r *Registry) Register(reg ToolRegistration) error {
 	if _, exists := r.tools[offer.Name]; !exists {
 		r.toolOrder = append(r.toolOrder, offer.Name)
 	}
-	r.tools[offer.Name] = registeredTool{paidModel: reg.paidModel, offer: offer, execute: reg.Execute, cancel: reg.Cancel, validator: reg.Validator, prepare: reg.PrepareArguments}
+	r.tools[offer.Name] = registeredTool{paidModel: reg.paidModel, describeCodemodeModels: reg.describeCodemodeModels, offer: offer, execute: reg.Execute, cancel: reg.Cancel, validator: reg.Validator, prepare: reg.PrepareArguments}
 	wake := r.taskListenersLocked()
 	r.mu.Unlock()
 	for _, notify := range wake {

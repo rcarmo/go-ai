@@ -219,6 +219,12 @@ func (r *Registry) selectedTools(agent agentState, limits Limits, modelOnly bool
 		hooks = append(hooks, selectedGenerationHook{extension.hooks, extension.name})
 	}
 	r.mu.RUnlock()
+	if agent.paidModels {
+		if tool, ok := tools["codemode"]; ok && tool.describeCodemodeModels {
+			tool.offer.Description += "\n\n" + codemodeModelsDescription
+			tools["codemode"] = tool
+		}
+	}
 	// Host callbacks may reenter the registry. Compose from captured definitions,
 	// never while holding its lock. Reports are delivered by the harness later.
 	for _, extension := range extensions {
