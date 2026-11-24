@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# != 4 ]]; then
-  printf 'Usage: bash %s <pinned-git-mirror> <prepared-oracle-dir> <user-npm-cacache> <release-archive-dir>\n' "$0" >&2
+if [[ $# != 4 && ( $# -lt 5 || $# -gt 6 || $5 != stable-worker ) ]]; then
+  printf 'Usage: bash %s <pinned-git-mirror> <prepared-oracle-dir> <user-npm-cacache> <release-archive-dir> [stable-worker [new-fixture-path]]\n' "$0" >&2
   exit 1
 fi
 mirror=$(realpath -- "$1")
 oracle=$(realpath -- "$2")
 cache=$(realpath -- "$3")
 releases=$(realpath -- "$4")
+fixture_out=${6:-}
+if [[ -n "$fixture_out" && "$fixture_out" != /* ]]; then fixture_out="$PWD/$fixture_out"; fi
 here=$(cd -- "$(dirname -- "$0")" && pwd -P)
 cd "$(git -C "$here" rev-parse --show-toplevel)"
 # shellcheck source=/dev/null
@@ -17,6 +19,14 @@ source scripts/project-env.sh
 pin=faac585884ae2c013a6b1400f3e9e77f10b34bac
 test=packages/durable/test/images-fit.test.ts
 selector='fitImages scales an image beyond the limits down, keeps the text in place, and says how to map coordinates back'
+mode=${5:-resize}
+base=1f3655a205424ccf7eeb709435666c9658e29bde
+heap=768
+if [[ "$mode" == stable-worker ]]; then
+  test=packages/durable/test/tools-images.test.ts
+  selector="createNodePhotonImages gives the same result as the calling thread, and keeps the caller's bytes"
+  heap=1856 # Vitest deep-compares a multi-MiB Uint8Array.
+fi
 key=node_modules/@silvia-odwyer/photon
 js=photon_rs.js
 wasm=photon_rs_bg.wasm
@@ -62,28 +72,55 @@ for member in "$js" "$wasm"; do cmp "$scratch/$member" "$scratch/$key/$member"; 
 vitest=$(jq -er '.version' "$scratch/node_modules/vitest/package.json")
 [[ $vitest == 4.1.12 ]]
 
-run_selected() {
+show_failure() {
   local tag=$1
+  cat "$scratch/$tag.log" >&2
+  if [[ -f "$scratch/$tag.result.json" ]]; then
+    jq -c '[.testResults[]|{message,failed:[.assertionResults[]|select(.status=="failed")|{fullName,failureMessages:(.failureMessages|map(.[0:500]))}]}]' "$scratch/$tag.result.json" >&2
+  fi
+}
+
+run_test() {
+  local tag=$1 fixture=
+  [[ "$mode" != stable-worker ]] || fixture="$scratch/$tag.input.png"
   (
     cd "$scratch/packages/durable"
     env -i PATH="$PATH" HOME="$scratch/home" TMPDIR="$scratch/tmp" PHOTON_PROBE_ROOT="$scratch" \
-      PHOTON_RUNTIME_TRACE="$scratch/$tag.trace.jsonl" \
-      NODE_OPTIONS="--max-old-space-size=768 --permission --allow-fs-read=$scratch --allow-fs-write=$scratch --allow-child-process --allow-worker --allow-addons --import=$scratch/witness.mjs" \
-      node ../../node_modules/vitest/vitest.mjs run test/images-fit.test.ts -t "$selector" --pool=forks --maxWorkers=1 \
+      PHOTON_RUNTIME_TRACE="$scratch/$tag.trace.jsonl" PHOTON_STABLE_FIXTURE="$fixture" \
+      NODE_OPTIONS="--max-old-space-size=$heap --permission --allow-fs-read=$scratch --allow-fs-write=$scratch --allow-child-process --allow-worker --allow-addons --import=$scratch/witness.mjs" \
+      node ../../node_modules/vitest/vitest.mjs run "${test#packages/durable/}" -t "$selector" --pool=forks --maxWorkers=1 \
       --reporter=json --outputFile "$scratch/$tag.result.json"
-  ) > "$scratch/$tag.log" 2>&1 || { cat "$scratch/$tag.log" >&2; return 1; }
+  ) > "$scratch/$tag.log" 2>&1
+}
+
+run_selected() {
+  local tag=$1
+  if ! run_test "$tag"; then show_failure "$tag"; return 1; fi
   jq -e --arg full "$selector" '.numPassedTests==1 and .numFailedTests==0 and
     ([.testResults[].assertionResults[]|select(.status=="passed")|.fullName]==[$full])' \
     "$scratch/$tag.result.json" > "$scratch/$tag.test.check"
-  # Validate and normalise per-thread event order while ignoring which thread
+  # Validate and normalise per-thread event order, ignoring which thread
   # reached the trace first. Require the actual reply, ruling out fallback.
-  jq -es '
+  if [[ "$mode" == stable-worker ]]; then
+    jq -e '.numPendingTests==33 and .numTodoTests==0' "$scratch/$tag.result.json" > "$scratch/$tag.pending.check"
+    # The calling-thread processor reuses the fixture thread's initialized WASM.
+    jq -es --arg sha "$(sha256 "$scratch/$tag.input.png")" --argjson bytes "$(wc -c < "$scratch/$tag.input.png")" '
+      ([.[]|select(.thread=="test-thread")|.kind]==["instantiate-wasm"]) and
+      ([.[]|select(.thread=="image-worker")|.kind]==["load-js","instantiate-wasm","worker-request","worker-reply"]) and length==5 and
+      ([.[]|select(.kind=="worker-request")|del(.thread,.kind)]==[
+        {id:0,mimeType:"image/png",limits:{maxWidth:2000,maxHeight:2000,maxBytes:4718592},sha256:$sha,bytes:$bytes}
+      ]) and any(.[]; .kind=="worker-reply" and .id==0 and .mimeType=="image/jpeg" and
+        .convertedFrom=="image/png" and (has("resized")|not) and .data.bytes>0 and .base64.bytes<=4718592)
+    ' "$scratch/$tag.trace.jsonl" > "$scratch/$tag.events.check" || { cat "$scratch/$tag.trace.jsonl" >&2; return 1; }
+  else
+    jq -es '
     ([.[]|select(.thread=="test-thread")|.kind]==["instantiate-wasm"]) and
     ([.[]|select(.thread=="image-worker")|.kind]==["load-js","instantiate-wasm","worker-reply"]) and
     length==4 and
     ([.[]|select(.kind=="worker-reply")|{id,mimeType,resized}]==[
       {id:0,mimeType:"image/png",resized:{from:{width:400,height:100},to:{width:200,height:50}}}
     ])' "$scratch/$tag.trace.jsonl" > "$scratch/$tag.events.check" || { cat "$scratch/$tag.trace.jsonl" >&2; return 1; }
+  fi
   jq -s 'sort_by(.thread)' "$scratch/$tag.trace.jsonl" > "$scratch/$tag.events.json"
 }
 
@@ -106,7 +143,6 @@ verify_asset original instantiate-wasm "$scratch/$wasm" > "$scratch/wasm.check"
 printf '\n// Photon provenance control.\n' >> "$scratch/$key/$js"
 printf '\000\007\005audit\000' >> "$scratch/$key/$wasm"
 run_selected control
-flock -u 9
 for entry in "load-js:$js" "instantiate-wasm:$wasm"; do
   kind=${entry%:*} member=${entry#*:}
   verify_asset control "$kind" "$scratch/$key/$member" > "$scratch/$kind.control-input.check"
@@ -118,6 +154,34 @@ for entry in "load-js:$js" "instantiate-wasm:$wasm"; do
   fi
 done
 
+if [[ "$mode" == stable-worker ]]; then
+  cmp "$scratch/original.input.png" "$scratch/control.input.png"
+  jq -ne --slurpfile orig "$scratch/original.events.json" --slurpfile control "$scratch/control.events.json" '
+    ($orig[0]|map(select(.kind=="worker-reply")))==($control[0]|map(select(.kind=="worker-reply")))
+  ' > "$scratch/control.reply.check"
+  src=("$test" packages/durable/{test/image-fixtures.ts,src/{images/{index,node,node-worker}.ts,tools/image-processor.ts}})
+  adapter=packages/durable/src/images/node.ts
+  for member in "$js" "$wasm"; do cp "$scratch/$member" "$scratch/$key/$member"; done
+  [[ $(grep -Fc 'const copy = bytes.slice();' "$scratch/$adapter") == 1 ]]
+  sed -i 's/const copy = bytes\.slice();/const copy = bytes;/' "$scratch/$adapter"
+  if run_test transfer; then printf 'Transferring the original input unexpectedly passed\n' >&2; exit 1; fi
+  if ! jq -e --arg full "$selector" '
+    .numPassedTests==0 and .numFailedTests==1 and .numPendingTests==33 and .numTodoTests==0 and
+    ([.testResults[].assertionResults[]|select(.status=="failed")|.fullName]==[$full]) and
+    any(.testResults[].assertionResults[]; .fullName==$full and (.failureMessages|join("\n")|test("tools-images\\.test\\.ts:44[01]:")))
+  ' "$scratch/transfer.result.json" > "$scratch/transfer.check"; then show_failure transfer; exit 1; fi
+  jq -er --arg full "$selector" '
+    .testResults[].assertionResults[]|select(.fullName==$full)|.failureMessages|join("\n")|match("tools-images\\.test\\.ts:44[01]:[0-9]+").string
+  ' "$scratch/transfer.result.json" > "$scratch/transfer.location"
+  git -C "$mirror" show "$pin:$adapter" > "$scratch/$adapter"
+  for file in "${src[@]}"; do
+    git -C "$mirror" show "$pin:$file" | cmp "$scratch/$file" -
+    jq -cn --arg file "$file" --arg sha "$(sha256 "$scratch/$file")" '{file:$file,sha256:$sha}'
+  done > "$scratch/source.jsonl"
+  if [[ -n "$fixture_out" ]]; then (set -o noclobber; cat "$scratch/original.input.png" > "$fixture_out"); fi
+fi
+flock -u 9
+
 jq -n --arg pin "$pin" --arg test "$test" --arg testSha "$(sha256 "$scratch/$test")" --arg selector "$selector" \
   --arg node "$(node --version)" --arg vitest "$vitest" --arg url "$url" --arg integrity "$integrity" \
   --arg archiveSha "$archive_sha" --arg aiSha "$ai_sha" \
@@ -127,4 +191,15 @@ jq -n --arg pin "$pin" --arg test "$test" --arg testSha "$(sha256 "$scratch/$tes
     original:{test:$test,sha256:$testSha,selector:$selector,passed:1},
     photonArchive:{url:$url,integrity:$integrity,sha256:$archiveSha},aiArchiveSha256:$aiSha,
     observed:$observed[0],control:{changed:["glue-comment","wasm-custom-section"],originalPassed:1,
-      observed:$control[0],comparisons:"both-archive-checks-rejected"},copiedDependencies:$deps[0]}'
+      observed:$control[0],comparisons:"both-archive-checks-rejected"},copiedDependencies:$deps[0]}' > "$scratch/receipt.json"
+if [[ "$mode" == stable-worker ]]; then
+  jq --arg base "$base" --argjson heap "$heap" --slurpfile sources "$scratch/source.jsonl" --slurpfile result "$scratch/original.result.json" \
+    --rawfile location "$scratch/transfer.location" '
+    .evidenceBase=$base | .exclusions=[] |
+    .original += {failed:0,selectedSkipped:0,filteredOut:[$result[0].testResults[].assertionResults[]|select(.status=="skipped")|.fullName],maxOldSpaceMiB:$heap} |
+    .sourceDigests=$sources |
+    .ownershipControl={change:"transfer the original caller buffer without making a copy",failed:[.original.selector],assertion:($location|rtrimstr("\n"))}
+  ' "$scratch/receipt.json"
+else
+  cat "$scratch/receipt.json"
+fi

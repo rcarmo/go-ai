@@ -1,0 +1,271 @@
+{
+  "format": 1,
+  "pin": "faac585884ae2c013a6b1400f3e9e77f10b34bac",
+  "node": "v26.13.0",
+  "vitest": "4.1.12",
+  "original": {
+    "test": "packages/durable/test/tools-images.test.ts",
+    "sha256": "ae800f074a9c959b8be69afb10950f6d6a1fc8f3d0aea254d040e186c21790aa",
+    "selector": "createNodePhotonImages gives the same result as the calling thread, and keeps the caller's bytes",
+    "passed": 1,
+    "failed": 0,
+    "selectedSkipped": 0,
+    "filteredOut": [
+      "read of images, without an image processor returns a supported image within the limits as it is",
+      "read of images, without an image processor refuses an image too large to send without reading it",
+      "read of images, without an image processor refuses an image wider or taller than the limits, by its header",
+      "read of images, without an image processor refuses a format that needs converting",
+      "read of images, without an image processor names a text-only model in details for UIs, not in what the model gets",
+      "read of images, without an image processor applies the model's image limits instead of the defaults",
+      "read of images, without an image processor lists bmp in the description only with a processor",
+      "read of an image that changes while it is read reads it again rather than return a cut-off image, even when it grew",
+      "read of an image that changes while it is read fails when it changes during the second read too",
+      "read of images, with the Photon image processor passes an image that needs no change through untouched",
+      "read of images, with the Photon image processor scales an image down to the maximum size, and says how to map coordinates back",
+      "read of images, with the Photon image processor re-encodes a PNG too large for the byte limit as JPEG at its size, and shrinks it when that is not enough",
+      "read of images, with the Photon image processor keeps at least one pixel on each side of an extreme aspect ratio",
+      "read of images, with the Photon image processor gives up when not even one pixel fits the byte limit",
+      "read of images, with the Photon image processor keeps a JPEG that must be re-encoded a JPEG",
+      "read of images, with the Photon image processor converts a format providers do not take inline to PNG",
+      "read of images, with the Photon image processor reports bytes it cannot decode as an error",
+      "read of images, with the Photon image processor is what createCodingTools({ images }) gives read",
+      "EXIF orientation turns orientation 1 upright",
+      "EXIF orientation turns orientation 2 upright",
+      "EXIF orientation turns orientation 3 upright",
+      "EXIF orientation turns orientation 4 upright",
+      "EXIF orientation turns orientation 5 upright",
+      "EXIF orientation turns orientation 6 upright",
+      "EXIF orientation turns orientation 7 upright",
+      "EXIF orientation turns orientation 8 upright",
+      "EXIF orientation reads big- and little-endian JPEG EXIF, after an APP0 segment, and 1 when absent or out of range",
+      "EXIF orientation reads WebP EXIF chunks with and without the Exif prefix",
+      "imageDimensions reads the size each format declares in its header",
+      "toBase64 matches Buffer for every remainder length",
+      "toBase64 encodes a 3 MiB image within a 128 MB heap",
+      "createNodePhotonImages prepares in a worker thread, leaving the event loop free",
+      "createNodePhotonImages prepares concurrent images, and starts a new worker after the idle one exited"
+    ],
+    "maxOldSpaceMiB": 1856
+  },
+  "photonArchive": {
+    "url": "https://registry.npmjs.org/@silvia-odwyer/photon/-/photon-0.3.3.tgz",
+    "integrity": "sha512-8BhUjEch4slwRe8uXnaA4vcA5uiiOTT90UMsxulOj2gN98X1p0q9Z4Ysk4DkD05uNgbR9XoSqtZ37w+33w4QKQ==",
+    "sha256": "eed5c8f7d10b319d1c58e9bd8eef24646affb9b697cf3792b42b8832fcbf4bae"
+  },
+  "aiArchiveSha256": "d68312ec574bc959cb7fee26da4f4876d067aed9bbbe76e876359e60d2294747",
+  "observed": [
+    {
+      "thread": "image-worker",
+      "kind": "load-js",
+      "api": "node:module load",
+      "entry": "node_modules/@silvia-odwyer/photon/photon_rs.js",
+      "bytes": 139647,
+      "sha256": "d51ba7a7ef9c23fbfec5423e01afd3fa9f6ad9c7ac4c20789aa9e4b3f9e0c157"
+    },
+    {
+      "thread": "image-worker",
+      "kind": "instantiate-wasm",
+      "api": "WebAssembly.Module -> WebAssembly.Instance",
+      "caller": "packages/durable/src/images/node-worker.ts",
+      "bytes": 1880773,
+      "sha256": "06e9f6b245d53b488244e04dfe30e6731c029526101c6400e6490057fcfbdd04"
+    },
+    {
+      "thread": "image-worker",
+      "kind": "worker-request",
+      "id": 0,
+      "mimeType": "image/png",
+      "limits": {
+        "maxWidth": 2000,
+        "maxHeight": 2000,
+        "maxBytes": 4718592
+      },
+      "bytes": 4841533,
+      "sha256": "0ff500396af0d58acc92d2f9c308d18a9afafb15850fca7f3bf59f9e3bdb09c7"
+    },
+    {
+      "thread": "image-worker",
+      "kind": "worker-reply",
+      "id": 0,
+      "mimeType": "image/jpeg",
+      "convertedFrom": "image/png",
+      "data": {
+        "bytes": 1644243,
+        "sha256": "3d148e1ff31efc27c8e12c7d67c0f82309651b43d25b1d60129c7f378001381b"
+      },
+      "base64": {
+        "bytes": 2192324,
+        "sha256": "7563968bbab30134060c67793b6f33a98aa2cbc8f30e0e52e751ddb87c950859"
+      }
+    },
+    {
+      "thread": "test-thread",
+      "kind": "instantiate-wasm",
+      "api": "WebAssembly.Module -> WebAssembly.Instance",
+      "caller": "packages/durable/test/image-fixtures.ts",
+      "bytes": 1880773,
+      "sha256": "06e9f6b245d53b488244e04dfe30e6731c029526101c6400e6490057fcfbdd04"
+    }
+  ],
+  "control": {
+    "changed": [
+      "glue-comment",
+      "wasm-custom-section"
+    ],
+    "originalPassed": 1,
+    "observed": [
+      {
+        "thread": "image-worker",
+        "kind": "load-js",
+        "api": "node:module load",
+        "entry": "node_modules/@silvia-odwyer/photon/photon_rs.js",
+        "bytes": 139678,
+        "sha256": "5d86e6592501578aba6c78ad1caef5c78825989d8681ff0c43a1ca0b10e0a48f"
+      },
+      {
+        "thread": "image-worker",
+        "kind": "instantiate-wasm",
+        "api": "WebAssembly.Module -> WebAssembly.Instance",
+        "caller": "packages/durable/src/images/node-worker.ts",
+        "bytes": 1880782,
+        "sha256": "538c6d51e287344fe81ecd5ee989ef18d57a76b7638d7480d286b86ce77d17f1"
+      },
+      {
+        "thread": "image-worker",
+        "kind": "worker-request",
+        "id": 0,
+        "mimeType": "image/png",
+        "limits": {
+          "maxWidth": 2000,
+          "maxHeight": 2000,
+          "maxBytes": 4718592
+        },
+        "bytes": 4841533,
+        "sha256": "0ff500396af0d58acc92d2f9c308d18a9afafb15850fca7f3bf59f9e3bdb09c7"
+      },
+      {
+        "thread": "image-worker",
+        "kind": "worker-reply",
+        "id": 0,
+        "mimeType": "image/jpeg",
+        "convertedFrom": "image/png",
+        "data": {
+          "bytes": 1644243,
+          "sha256": "3d148e1ff31efc27c8e12c7d67c0f82309651b43d25b1d60129c7f378001381b"
+        },
+        "base64": {
+          "bytes": 2192324,
+          "sha256": "7563968bbab30134060c67793b6f33a98aa2cbc8f30e0e52e751ddb87c950859"
+        }
+      },
+      {
+        "thread": "test-thread",
+        "kind": "instantiate-wasm",
+        "api": "WebAssembly.Module -> WebAssembly.Instance",
+        "caller": "packages/durable/test/image-fixtures.ts",
+        "bytes": 1880782,
+        "sha256": "538c6d51e287344fe81ecd5ee989ef18d57a76b7638d7480d286b86ce77d17f1"
+      }
+    ],
+    "comparisons": "both-archive-checks-rejected"
+  },
+  "copiedDependencies": {
+    "roots": [
+      "npm:node_modules/vitest",
+      "npm:node_modules/diff",
+      "npm:node_modules/@silvia-odwyer/photon",
+      "npm:node_modules/quickjs-wasi",
+      "npm:node_modules/partial-json"
+    ],
+    "host": {
+      "os": "linux",
+      "cpu": "arm64",
+      "libc": "glibc"
+    },
+    "placements": [
+      "node_modules/@jridgewell/sourcemap-codec",
+      "node_modules/@oxc-project/types",
+      "node_modules/@rolldown/binding-linux-arm64-gnu",
+      "node_modules/@rolldown/pluginutils",
+      "node_modules/@silvia-odwyer/photon",
+      "node_modules/@standard-schema/spec",
+      "node_modules/@types/chai",
+      "node_modules/@types/deep-eql",
+      "node_modules/@types/estree",
+      "node_modules/@vitest/expect",
+      "node_modules/@vitest/mocker",
+      "node_modules/@vitest/pretty-format",
+      "node_modules/@vitest/runner",
+      "node_modules/@vitest/snapshot",
+      "node_modules/@vitest/spy",
+      "node_modules/@vitest/utils",
+      "node_modules/assertion-error",
+      "node_modules/chai",
+      "node_modules/convert-source-map",
+      "node_modules/detect-libc",
+      "node_modules/diff",
+      "node_modules/es-module-lexer",
+      "node_modules/estree-walker",
+      "node_modules/expect-type",
+      "node_modules/fdir",
+      "node_modules/lightningcss",
+      "node_modules/lightningcss-linux-arm64-gnu",
+      "node_modules/magic-string",
+      "node_modules/nanoid",
+      "node_modules/obug",
+      "node_modules/partial-json",
+      "node_modules/pathe",
+      "node_modules/picocolors",
+      "node_modules/picomatch",
+      "node_modules/postcss",
+      "node_modules/quickjs-wasi",
+      "node_modules/rolldown",
+      "node_modules/siginfo",
+      "node_modules/source-map-js",
+      "node_modules/stackback",
+      "node_modules/std-env",
+      "node_modules/tinybench",
+      "node_modules/tinyexec",
+      "node_modules/tinyglobby",
+      "node_modules/tinyrainbow",
+      "node_modules/vite",
+      "node_modules/vitest",
+      "node_modules/why-is-node-running"
+    ]
+  },
+  "evidenceBase": "1f3655a205424ccf7eeb709435666c9658e29bde",
+  "exclusions": [],
+  "sourceDigests": [
+    {
+      "file": "packages/durable/test/tools-images.test.ts",
+      "sha256": "ae800f074a9c959b8be69afb10950f6d6a1fc8f3d0aea254d040e186c21790aa"
+    },
+    {
+      "file": "packages/durable/test/image-fixtures.ts",
+      "sha256": "23f6666f26e55c412de5dcdb2472c4e629215ab4244aadd6aad69082d23c6ce6"
+    },
+    {
+      "file": "packages/durable/src/images/index.ts",
+      "sha256": "dbe59efe444d9816a74088ea27cd74c40b254efbd479e420ea8b723b5d5eeaf3"
+    },
+    {
+      "file": "packages/durable/src/images/node.ts",
+      "sha256": "1450617d47f42a5b56c67af0c45d5a56734e5ca43495cda271915d6b02593406"
+    },
+    {
+      "file": "packages/durable/src/images/node-worker.ts",
+      "sha256": "494cfe3c40c66c32e3b77c2292e743c0d234ccf4972979922d31a548f93b028e"
+    },
+    {
+      "file": "packages/durable/src/tools/image-processor.ts",
+      "sha256": "aeaaee843a5ddb2d91d6643922044c5983285567d56998c4011dd074d7226a35"
+    }
+  ],
+  "ownershipControl": {
+    "change": "transfer the original caller buffer without making a copy",
+    "failed": [
+      "createNodePhotonImages gives the same result as the calling thread, and keeps the caller's bytes"
+    ],
+    "assertion": "tools-images.test.ts:440:20"
+  }
+}
