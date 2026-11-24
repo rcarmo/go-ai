@@ -725,3 +725,15 @@ All three unchanged namespaced-global sandbox variants passed. Go now drives the
 Three unchanged Durable Codemode tool-result cases passed. In Go, a schema-less nested tool now returns text to the script without its image payload. A rejected schema-less tool carries that text in both the error message and `structuredOutput`. A schema tool still returns its declared value on a nonzero result when it supplied one. If it supplied no value, Go uses its existing error diagnostic, or records bounded failure text when none exists. The new tests run the original scripts through the published portable guest and a real SQLite Harness, and compare the resulting tool output exactly. Reverting either change failed the original result checks.
 
 Focused Go tests passed twice with the verified package offline. Vet, Staticcheck and the Node syntax check passed. The saved-version rewrite, JavaScript object identity and late callback timing remain open.
+
+### Offline queue, image, and validator checks
+
+The [round 33 test inventory](test-inventory/primary-queue-r33.md) finds upstream execution evidence for 41 of 42 changed primary suites at its starting commit. It separates exact case receipts from broader notes. This count does not establish native parity. The unchanged Together file then passed all three cases offline with the verified catalogue data. Go returns the exact synthetic key; it has no public equivalent for the source's list of detected environment variable names.
+
+The three unchanged prepared-image read tests passed. Go preserves unchanged PNG bytes and GIF format, reports the resize dimensions and coordinate scale, and names the corrupt image and its MIME type in the preparation error. The original missing messages failed before the change, and removing either message made the new tests fail.
+
+Two unchanged ownership cases passed. Public Go tests now check four exact queue outcomes without seeding legacy records: the owner's own input and a child's queued write stay queued, the child's input is withdrawn, and an input arriving below a held failed owner settles before its abort handler is released. No production change was needed.
+
+The two selected upstream Codemode replay tests passed. A reopened published guest cannot admit any fresh call when its first batch diverges. The native run with changed arguments rejects the first changed call before reaching the upstream count diagnostic. A separate native run with the matching prefix and one extra call checks that diagnostic. The exact combined source count assertion stays partial; the tests do not rewrite sealed journals.
+
+All 40 unchanged validator cases passed. New Go checks cover own properties, host-registered references, draft selection, and opt-in format assertions. `CheckJSONSchemaValueWithOptions` treats `format` as an annotation by default. Existing native check and tool defaults are unchanged.
