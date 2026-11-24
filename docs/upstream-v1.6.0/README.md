@@ -737,3 +737,11 @@ Two unchanged ownership cases passed. Public Go tests now check four exact queue
 The two selected upstream Codemode replay tests passed. A reopened published guest cannot admit any fresh call when its first batch diverges. The native run with changed arguments rejects the first changed call before reaching the upstream count diagnostic. A separate native run with the matching prefix and one extra call checks that diagnostic. The exact combined source count assertion stays partial; the tests do not rewrite sealed journals.
 
 All 40 unchanged validator cases passed. New Go checks cover own properties, host-registered references, draft selection, and opt-in format assertions. `CheckJSONSchemaValueWithOptions` treats `format` as an annotation by default. Existing native check and tool defaults are unchanged.
+
+### Refresh overlap and file edit ordering
+
+The unchanged providers and Vertex files passed all 39 cases offline. An explicit forced Go refresh now overtakes a blocked fetch, and the old fetch cannot overwrite the newer catalogue or cache. Ordinary Go refreshes still share an in-flight fetch; upstream starts a new refresh by default. The native tests use `Force` for the overlap, so that comparison stays partial. The JavaScript Vertex constructor assertions remain partial even though Go's effective requests are checked.
+
+Six unchanged edit and path tests passed in the isolated Linux fixture. Go now uses the same mutation lock for a missing name containing a literal backslash and for the file after creation. Symlink and filesystem guards are unchanged. The two GIF signature cases and image-by-content case also passed in a separate offline run. Go recognises the PNG in `image.txt`, keeps its bytes intact, and returns the expected read diagnostic. Go reports a false error flag rather than an absent JavaScript field. Two delayed mutation cases are still open in this source file, and real Windows PowerShell remains excluded.
+
+The combined focused Go tests passed twice, and vet, Staticcheck and the offline edit receipt passed. No live provider requests or release checks ran.
