@@ -8,13 +8,13 @@ The [Oracle receipt](llama-cpp-classify.json) records **15 passes, no failures, 
 
 | Pinned case lines | What the native comparison checks |
 | --- | --- |
-| 117, 157, 201 | Exact request fields and auth, all three answer types, exact JSON prompt text in native key order, shared prefix, and final question instructions |
+| 117, 157, 201 | Exact request fields and auth, all three answer types, exact JSON prompt text in the supplied order, shared prefix, and final question instructions |
 | 216, 229 | Temperature scaling and zero rejection before any request |
 | 238, 257, 269, 292 | Exact depth order, no invented answers, closed thinking marker, split-token fallback and rejection, and label token cache reuse |
 | 306, 325, 352, 373 | Exact bounds and API diagnostics, completion-only request hooks, HTTP status/body detail, and cancellation |
 | 381, 387 | URL normalization through the actual completion request, expected score and confidence from supplied logits |
 
-Go's maps do not preserve JS object insertion order. The prompt and choice tests compare the Go adapter's stable sorted order; the same option logits are attached to the corresponding native letters. Thus the original's literal JS ordering in the prompt and label assignment remains a difference, not an exact mapping. The private upstream numerical helpers are exercised through production classification; the comparisons use an independent formula with `1e-12` tolerance. The URL cases substitute a loopback authority and keep the original `/v1` and prefix variants.
+The first native run used Go map order. The [later ordered comparison](../README.md#explicit-llamacpp-question-and-choice-order) supplies the source question and choice order explicitly, matches the prompt bytes, and attaches the supplied logits to the source choice keys. Ordinary Go maps still use sorted order. The native tests compare the probabilities through the public classifier against an independent formula.
 
 The compiled native baseline failed five subtests. Explicit zero was treated as omission and made 22 mock requests; malformed label, bounds and API details had different capitalization; the HTTP 400 message lost the server body. [`ClassifierOptions.TemperatureOverride`](../../../classifier_runtime.go) now provides explicit presence for llama.cpp, while retaining existing nonzero callers and the default of 1. The [adapter](../../../classifier_llama_cpp.go) uses the pinned diagnostics and formats bounded HTTP error bodies through the existing provider error normalizer.
 

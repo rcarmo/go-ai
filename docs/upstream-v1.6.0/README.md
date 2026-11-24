@@ -793,3 +793,7 @@ All 23 unchanged cases in the changed [Chord telemetry suite](test-inventory/cho
 ### Prepared image values and caller ownership
 
 The unchanged [Photon image-ownership case](test-inventory/tools-images-ownership.md) passed with the real worker and pinned JavaScript and WASM assets. With its exact captured PNG, Go's native processor and standalone preparation functions produce the same full value and leave the caller's bytes unchanged. The two runtimes choose different encodings for this input: Photon emits a 1,644,243-byte JPEG and Go a 66,171-byte PNG. The Go comparison does not exercise worker scheduling. Codec selection, event-loop freedom and idle-worker restart remain open.
+
+### Explicit llama.cpp question and choice order
+
+All 15 unchanged classifier cases passed offline. With ordinary Go map sorting, the translated fixture put `severity` first and assigned label `B` to `sales`; the source assigns `B` to `technical`. `ClassifyLlamaCPPWithOrder` accepts a `LlamaCPPOrder` and uses it for the question sequence, prompt and answer probabilities. With the source order supplied, all three captured prompts match byte for byte, and `technical` gets the probability for label `B`. The existing `Classify` entry point, registry dispatch and default sorted order are unchanged. Invalid permutations fail before transport, and five fault controls caught regressions in the prompt, label mapping, map fallback or validation.
