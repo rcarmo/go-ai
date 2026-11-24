@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	goai "github.com/rcarmo/go-ai"
+	"reflect"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	goai "github.com/rcarmo/go-ai"
 )
 
 func wrapRegistration(name string) ToolRegistration {
@@ -312,8 +314,8 @@ func TestSourceToolNamesAreStringsAcrossRegistrationWrappingAndNestedCalls(t *te
 	}
 }
 
-// Source: harness-tool-parks.test.ts, wrappers. ToolPark pointers represent
-// object identity; the shared case uses the very same pointer in two calls.
+// harness-tool-parks.test.ts:608-702. A ToolPark pointer represents the
+// returned park identity; the shared park is initially returned by both bases.
 func TestSourceV160ToolWrapperParks(t *testing.T) {
 	for _, mode := range []string{"pass", "own", "shared", "stale"} {
 		t.Run(mode, func(t *testing.T) {
@@ -330,8 +332,9 @@ func TestSourceV160ToolWrapperParks(t *testing.T) {
 				t.Fatal(err)
 			}
 			shared := &ToolPark{Sleep: &ToolSleep{Signals: []SignalKey{key}}}
-			var kept *ToolPark // one call only in stale mode
-			var requests, runs atomic.Int32
+			var kept atomic.Pointer[ToolPark] // one call only in stale mode
+			baseEntered, releaseBase := make(chan ID, 2), make(chan struct{})
+			var requests, runs, staleReturns atomic.Int32
 			ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
 				ch := make(chan goai.Event, 1)
 				if requests.Add(1) == 1 {
@@ -355,6 +358,14 @@ func TestSourceV160ToolWrapperParks(t *testing.T) {
 						return ToolResult{}, err
 					}
 					if signal == nil {
+						if mode == "shared" {
+							baseEntered <- api.TaskID()
+							select {
+							case <-releaseBase:
+							case <-ctx.Done():
+								return ToolResult{}, ctx.Err()
+							}
+						}
 						return ToolResult{Park: shared}, nil
 					}
 					return ToolResult{Content: "ok"}, nil
@@ -365,8 +376,9 @@ func TestSourceV160ToolWrapperParks(t *testing.T) {
 			if err := options.Registry.Install(&Extension{Name: "decorator", Wraps: []ExtensionWrap{{Tool: "ci", WrapTool: func(inner ToolRegistration) (ToolRegistration, error) {
 				execute := inner.Execute
 				inner.Execute = func(ctx context.Context, args any, api *ToolAPI) (ToolResult, error) {
-					if mode == "stale" && kept != nil {
-						return ToolResult{Park: kept}, nil
+					if stale := kept.Load(); mode == "stale" && stale != nil {
+						staleReturns.Add(1)
+						return ToolResult{Park: stale}, nil
 					}
 					result, err := execute(ctx, args, api)
 					if result.Park != nil {
@@ -375,7 +387,7 @@ func TestSourceV160ToolWrapperParks(t *testing.T) {
 							result.Park = &copied
 						}
 						if mode == "stale" {
-							kept = result.Park
+							kept.Store(result.Park)
 						}
 					}
 					return result, err
@@ -385,10 +397,20 @@ func TestSourceV160ToolWrapperParks(t *testing.T) {
 				t.Fatal(err)
 			}
 			h := openHarness(t, storage, options)
+			defer releaseTaskGate(releaseBase)
 			c := root(t, h, ref)
 			sub, err := c.Submit(ctx, Input{Type: "input", Content: "go"})
 			if err != nil {
 				t.Fatal(err)
+			}
+			var baseTasks map[ID]bool
+			if mode == "shared" {
+				first, second := watchReceive(t, baseEntered), watchReceive(t, baseEntered)
+				if first == 0 || second == 0 || first == second {
+					t.Fatalf("shared park needs two simultaneous base tasks: %d and %d", first, second)
+				}
+				baseTasks = map[ID]bool{first: true, second: true}
+				close(releaseBase)
 			}
 			var parked []ID
 			if mode != "own" {
@@ -399,12 +421,20 @@ func TestSourceV160ToolWrapperParks(t *testing.T) {
 				for range count {
 					select {
 					case id := <-storage.parked:
+						if mode == "shared" && !baseTasks[id] {
+							t.Fatalf("unexpected or duplicate parked receipt for shared park, task %d", id)
+						}
+						delete(baseTasks, id)
 						parked = append(parked, id)
 					case <-ctx.Done():
 						t.Fatal("missing park", ctx.Err())
 					}
 				}
 				for _, id := range parked {
+					task, found, err := h.Task(ctx, id)
+					if err != nil || !found || task.State.Status != "sleeping" || !reflect.DeepEqual(task.State.Signals, []SignalKey{key}) {
+						t.Fatalf("parked task %d has no independent wake claim: %+v, %v, %v", id, task.State, found, err)
+					}
 					if got, err := h.Signal(ctx, id, token, "done", JSON{"text": "wrapped"}); err != nil || got != SignalDelivered {
 						t.Fatalf("signal = %q, %v", got, err)
 					}
@@ -441,6 +471,9 @@ func TestSourceV160ToolWrapperParks(t *testing.T) {
 				if !result.IsError || !strings.Contains(v160ToolResultText(result), "a wrapper returned a park its base did not return") {
 					t.Fatalf("invalid wrapper park result = %q", v160ToolResultText(result))
 				}
+				if runs.Load() != 1 || mode == "stale" && (kept.Load() != shared || staleReturns.Load() != 1) {
+					t.Fatalf("expected one base approval, no fresh approval for copied or stale return: runs=%d stale=%d", runs.Load(), staleReturns.Load())
+				}
 				return
 			}
 			if result.IsError || v160ToolResultText(result) != "ok" || runs.Load() != int32(len(parked)*2) {
@@ -449,6 +482,24 @@ func TestSourceV160ToolWrapperParks(t *testing.T) {
 			if mode == "shared" {
 				if other := v160ToolResult(t, ctx, c, "b"); other.IsError || v160ToolResultText(other) != "ok" {
 					t.Fatalf("second result = %+v", other)
+				}
+				page, err := c.Entries(ctx, EntryQuery{Order: Ascending}, 10, nil)
+				if err != nil || page.Next != nil {
+					t.Fatal(page, err)
+				}
+				var resultErrors []bool
+				for _, entry := range page.Items {
+					for _, message := range entry.Model {
+						if message.Role == goai.RoleToolResult {
+							resultErrors = append(resultErrors, message.IsError)
+						}
+					}
+				}
+				if !reflect.DeepEqual(resultErrors, []bool{false, false}) {
+					t.Fatalf("shared park terminal errors = %v, want [false false]", resultErrors)
+				}
+				if !reflect.DeepEqual(shared, &ToolPark{Sleep: &ToolSleep{Signals: []SignalKey{key}}}) {
+					t.Fatal("runtime mutated the shared park descriptor", shared)
 				}
 			}
 		})
