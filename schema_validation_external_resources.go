@@ -47,7 +47,11 @@ func CheckJSONSchemaValueWithOptions(schema json.RawMessage, value any, options 
 	}
 	v := call.validator
 	v.ignoreFormats = !options.AssertFormats
-	accepted := v.acceptsRaw(call.value, call.schema)
+	return v.checkStandaloneValue(call.schema, call.value)
+}
+
+func (v *toolSchemaValidator) checkStandaloneValue(schema, value any) (bool, error) {
+	accepted := v.acceptsRaw(value, schema)
 	if v.patternFailure != nil {
 		return false, fmt.Errorf("pattern checker unavailable: %w", v.patternFailure)
 	}
@@ -168,19 +172,26 @@ func prepareStandaloneSchemaValue(schema json.RawMessage, value any, resources m
 	default:
 		return standaloneSchemaValue{}, fmt.Errorf("schema must be an object or a boolean")
 	}
-	valueRaw, hasRawValue := value.(json.RawMessage)
-	if hasRawValue {
-		var decoded any
-		if err := json.Unmarshal(valueRaw, &decoded); err != nil {
-			return standaloneSchemaValue{}, fmt.Errorf("decode value: %w", err)
-		}
-		value = decoded
+	value, valueRaw, err := standaloneSchemaInput(value)
+	if err != nil {
+		return standaloneSchemaValue{}, err
 	}
 	v, err := newToolSchemaResourceValidator(root, schema, resources, draft)
 	if err != nil {
 		return standaloneSchemaValue{}, err
 	}
 	return standaloneSchemaValue{validator: v, schema: parsed, value: value, valueRaw: valueRaw}, nil
+}
+
+func standaloneSchemaInput(value any) (any, json.RawMessage, error) {
+	if raw, ok := value.(json.RawMessage); ok {
+		var decoded any
+		if err := json.Unmarshal(raw, &decoded); err != nil {
+			return nil, nil, fmt.Errorf("decode value: %w", err)
+		}
+		return decoded, raw, nil
+	}
+	return value, nil, nil
 }
 
 func (v *toolSchemaValidator) explainSchemaValue(schema, value any, valueRaw json.RawMessage) ([]JSONSchemaDiagnostic, error) {
