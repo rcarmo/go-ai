@@ -81,3 +81,33 @@ func TestSourceV160PreparedImageReadDiagnostics(t *testing.T) {
 		}
 	})
 }
+
+// Source: pi v1.6.0 tools.test.ts:206–208 and 311–320.
+func TestSourceV160ReadImageByContent(t *testing.T) {
+	for _, signature := range []string{"GIF87a", "GIF89a"} {
+		t.Run(signature, func(t *testing.T) {
+			if got := detectImageMime([]byte(signature)); got != "image/gif" {
+				t.Fatalf("complete %s signature = %q; want image/gif", signature, got)
+			}
+		})
+	}
+	t.Run("png-in-text-file", func(t *testing.T) {
+		const data = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGD4DwABBAEAX+XDSwAAAABJRU5ErkJggg=="
+		decoded, err := base64.StdEncoding.DecodeString(data)
+		if err != nil {
+			t.Fatal(err)
+		}
+		path := t.TempDir()
+		if err := os.WriteFile(filepath.Join(path, "image.txt"), decoded, 0600); err != nil {
+			t.Fatal(err)
+		}
+		got, err := Read(LocalEnv(path)).Execute(t.Context(), durable.JSON{"path": "image.txt"}, nil)
+		if err != nil || got.IsError || len(got.Blocks) != 1 || got.Blocks[0].Type != "image" || got.Blocks[0].MimeType != "image/png" || got.Blocks[0].Data != data {
+			t.Fatalf("PNG detected by content: %+v, err=%v", got, err)
+		}
+		const want = "Read image file [image/png]."
+		if len(got.Diagnostics) != 1 || got.Diagnostics[0].Message != want {
+			t.Fatalf("inline diagnostic=%+v; want %q", got.Diagnostics, want)
+		}
+	})
+}

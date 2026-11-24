@@ -212,7 +212,7 @@ func (e *imagePreparationError) Unwrap() error { return e.cause }
 // Retain images in the transcript even for text-only models. Provider message
 // transformation supplies placeholders without discarding durable image data.
 func imageReadResult(block goai.ContentBlock, details durable.JSON, vision bool) durable.ToolResult {
-	message := fmt.Sprintf("Read image file [%s]", block.MimeType)
+	message := fmt.Sprintf("Read image file [%s].", block.MimeType)
 	prepared := PreparedImage{MimeType: block.MimeType}
 	prepared.ConvertedFrom, _ = details["convertedFrom"].(string)
 	prepared.OriginalWidth, _ = details["originalWidth"].(int)
@@ -224,7 +224,7 @@ func imageReadResult(block goai.ContentBlock, details durable.JSON, vision bool)
 		notes = append(notes, "Image output will be replaced with a text placeholder because the current model does not support image inputs.")
 	}
 	if len(notes) > 0 {
-		message += ". " + strings.Join(notes, " ")
+		message += " " + strings.Join(notes, " ")
 	}
 	return durable.ToolResult{Blocks: []goai.ContentBlock{block}, Details: details, Diagnostics: []durable.ToolDiagnostic{{Severity: "info", Message: message}}}
 }
