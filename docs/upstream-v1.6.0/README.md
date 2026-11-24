@@ -785,3 +785,7 @@ The unchanged spill test passed. The published portable guest writes to `output.
 ### Codemode reports calls in the script failure
 
 The unchanged script-failure case passed. The native portable guest made one `echo({text: "a"})` call, received its reply and threw `Error: boom`. The original Go implementation incorrectly appended `No tool calls were made.`. Go now returns the failure flag, the `Script failed` header, the same error text and one `echo (ok)` row. The worker adapter records tool calls in issue order and updates their status from host deliveries. It excludes globals and does not change the journal or the worker protocol. A delivered schema value can carry a failed tool's output; that host status is not distinguished by the transport summary. Suppressing the list reproduced the native failure. The 15 focused Go tests passed twice, and vet and Staticcheck passed.
+
+### Chord loads the shared Telemetry source
+
+All 23 unchanged cases in the changed [Chord telemetry suite](test-inventory/chord-telemetry.md) passed offline. The witness observed the pinned `memory.ts` and `render.ts` modules evaluate and three connections create the Chord telemetry schema on Node SQLite 3.54.0. Replacing the scratch renderer failed the relay-trace case. The machine receipt reproduced byte for byte. This is an upstream dependency result on this host; it has no native Go mappings.
