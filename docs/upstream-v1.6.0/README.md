@@ -767,3 +767,13 @@ The unchanged restart case passed. The native fixture interrupted a published po
 The unchanged saved-version case also passed upstream. Presenting the old version via a detached SQLite read reached Go's storage guard before the scheduler resumed the guest. The corresponding tool-result assertions remain partial. The production guard and persisted bytes were unchanged.
 
 The integrated code at `1f3655a2` passed 123 focused top-level Go tests twice, with no skips, on Go 1.27.3 with CGO disabled. These runs included the archived portable guest and standalone Node worker and had loopback only. Vet and Staticcheck v0.8.2 passed. The delayed-abort and specification-usage JSON receipts, and the two earlier primary audits, reproduced byte for byte. Of 1,584 recorded sites, 1,539 are mapped, 43 are partial, and two are unmatched. Twenty-eight of the 214 changed suites have assertion-level links. Neither count measures full parity.
+
+### Recursive schemas and relative resource identifiers
+
+All 40 unchanged validator cases passed. The standalone Go checks accept the complete recursive tree and locate the missing field at `/children/0/children/0/value`. They apply a relative root `$id` once, keep property and item annotations from resolved references, and report exact diagnostics under nested resources. The existing standalone parse check also coerces `{"count":"2"}` to `{"count":2}` against the same relative root. Fault controls failed when they reapplied the root identifier, ignored a nested identifier on a `$ref` sibling, or dropped a property annotation. The Go tests cover the resolved-reference outputs; a reusable compile-time `unresolvedRefs` mode is still open.
+
+### Scoped idle waits and SQLite recovery
+
+The unchanged scoped-wait case passed. In Go, two public waits register while their corresponding tasks are held. Ending the other task releases its wait, but the busy task remains running with exactly one registered waiter until it is released. Treating the first wait as global prevents the unrelated wait from completing and fails the test.
+
+All five unchanged viewer cases also passed. A separate native read-only observer saw the old writer's running task with zero restarts. A simultaneous second writable open returned `ErrOwned`. The observer stayed open as the old process was killed and a new writer recovered the same task as pending with one restart. Losing the observer refresh left the old running state and failed the test. The original source opens its second writer while the first writable harness is still open. Those two assertion sites remain partial under Go's single-writer rules.
