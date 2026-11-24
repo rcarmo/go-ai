@@ -107,3 +107,26 @@ func codemodeOutputWithPath(text, path string, tokens int) string {
 	body := projectCodemodeOutput(text, bodyUnits/4)
 	return strings.TrimRight(body, "\n") + hint
 }
+
+// The model transcript already renders a header outside the script's body
+// budget. Add bounded spill metadata there without changing the saved body or
+// consuming its head and tail. The path also remains in the structured details.
+func codemodeModelOutput(result CodemodeResult, l Limits) string {
+	text, path := result.Output, result.FullOutputPath
+	if path == "" {
+		return text
+	}
+	const warning = "Warning: truncated output\n\n"
+	const maxMetadataTokens = 250
+	budget := codemodeTokenUnits(codemodeInlineTokens(maxMetadataTokens, l))
+	if len(warning) > budget {
+		return text
+	}
+	if len(path) <= budget-len(warning) {
+		hint := "\n\n[Full output: " + path + " (read with offset/limit)]"
+		if len(warning)+len(hint) <= budget {
+			text = strings.TrimSuffix(text, "\n[Full output: "+path+"]") + hint
+		}
+	}
+	return warning + text
+}

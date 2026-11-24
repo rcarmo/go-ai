@@ -332,7 +332,7 @@ func (r *CodemodeWorkerRemote) Execute(ctx context.Context, code string, start C
 					}
 					if message.Value != nil {
 						result.HasValue = true
-						err = decodeWorkerJSON([]byte(*message.Value), limits, limits.MaxRecordBytes, &result.Value)
+						err = decodeWorkerReturnValue([]byte(*message.Value), limits, &result.Value)
 						if err != nil {
 							break
 						}
@@ -508,6 +508,19 @@ func decodeWorkerGlobalArguments(start CodemodeStart, message CodemodeWorkerMess
 		value = []any{}
 	}
 	return JSON{"args": value}, false, nil
+}
+
+// A returned string can be spilled and stored in chunks, like the inline
+// sandbox's full output. Only its wire decoding gets the larger text limit;
+// other JSON values, calls and store writes still use record limits.
+func decodeWorkerReturnValue(data []byte, limits Limits, target *any) error {
+	maximum := limits.MaxRecordBytes
+	if value := bytes.TrimSpace(data); len(value) > 0 && value[0] == '"' {
+		limits.MaxStringBytes = MaxCodemodeFullOutputBytes
+		// Each byte can take six bytes in a JSON escape, plus the quotes.
+		maximum = 6*MaxCodemodeFullOutputBytes + 2
+	}
+	return decodeWorkerJSON(data, limits, maximum, target)
 }
 
 func decodeWorkerJSON(data []byte, limits Limits, maximum int, target any) error {

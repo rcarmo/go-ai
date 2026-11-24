@@ -122,8 +122,8 @@ func NewCodemodeExtension(sandbox CodemodeSandbox, options ...CodemodeExtensionO
 		}
 		header := fmt.Sprintf("Script %s\nWall time %.1f seconds\nOutput:\n", status, float64(result.WallMs)/1000)
 		blocks := []goai.ContentBlock{{Type: "text", Text: header}}
-		if result.Output != "" {
-			blocks = append(blocks, goai.ContentBlock{Type: "text", Text: result.Output})
+		if output := codemodeModelOutput(result, api.runtime.harness.session.limits); output != "" {
+			blocks = append(blocks, goai.ContentBlock{Type: "text", Text: output})
 		}
 		for _, image := range result.Images {
 			blocks = append(blocks, goai.ContentBlock{Type: "image", Data: image.Data, MimeType: image.MimeType})
