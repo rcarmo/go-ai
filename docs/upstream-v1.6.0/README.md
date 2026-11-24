@@ -811,3 +811,9 @@ The three unchanged [read-contract cases](test-inventory/tools-images-read-contr
 ### Codemode store values are scoped to a fork point
 
 The unchanged fork case passed. The published portable guest produces `1` and `[1]` in the parent. After SQLite closes and reopens, an ownerless fork taken at the first user entry sees `[null]`. A public snapshot confirms `k=1` in the active parent store and an empty active fork store. Forking at the current position leaked `[1]` to the child in a fault control; suppressing the parent write returned `[null]` in its second turn. The earlier inline comparison still passes. No production change was needed.
+
+### Codemode displays bounded output and preserves the full spill
+
+All three unchanged output cases passed. The [published guest test](../../durable/codemode_worker_output_v160_test.go) checks the header, ordered text items, console section and returned value. At a 20-token body budget, the model now sees both ends of the text, a truncation warning and one reference to the saved file. The file contains the exact original bytes. The pointer and warning use a separately bounded metadata allowance; the stored script body's budget is unchanged.
+
+A 6 MiB return previously hit the portable worker's record limit before it could spill. The terminal decoder now permits strings within the existing full-output bound. Structured return values, call arguments and store writes still use record limits. Go saves the complete 6 MiB string and the separate 200,000-line result while keeping the visible output within the source bounds. Suppressing the warning and path, restoring the old string limit, or relabelling a console item each failed the corresponding comparison. These cases check the warning prefix and path, not upstream's full warning counters.
