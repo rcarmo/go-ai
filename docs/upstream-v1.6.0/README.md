@@ -703,3 +703,9 @@ The [pinned Cloudflare example](dependencies/cloudflare-codemode-example.md) ran
 All five byte-verified upstream read-only tests passed in scratch, including the actual torn-JSONL case. The user authorised the SQLite equivalent. The Go test copies a running session's database and journal, then adds only the first half of the next real SQLite WAL frame to the copy. A fresh read-only viewer sees exactly one user entry and the original running task. Its database and WAL bytes are unchanged after close.
 
 Completing the next frame made the extra entry visible. Using writable SQLite changed the database and removed the WAL. Both controls failed the corresponding assertions. The comparison covers committed data and read-only behaviour across the two formats; it does not compare the formats or SQLite's generated coordination index. No production backend or user data changed.
+
+### Codemode explains changes to the first replay batch
+
+All 42 unchanged Durable Codemode tests passed. Two published-guest tests now match the pinned diagnostics when a tool call turns into a global call or the first batch shrinks from two calls to one. Each test reopens SQLite and confirms that replay delivers no new results and runs neither the new global nor the follow-up tool. The test guest changes its input on reopen; the saved start and journal are not rewritten. Go reports the call targets and empty argument forms without exposing non-empty argument values. Both rejection checks were already in place; only their diagnostics changed.
+
+All three unchanged namespaced-global sandbox variants passed. The native inline and published portable guest tests both check the exact return value and callback arguments. The ledger still distinguishes the separate Node worker topology from those two Go paths. The saved-version rewrite and JavaScript reference-identity comparisons also remain partial.
