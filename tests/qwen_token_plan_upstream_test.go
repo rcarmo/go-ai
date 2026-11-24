@@ -98,14 +98,25 @@ func TestQwenTokenPlanEnvKeys(t *testing.T) {
 	}
 	for _, p := range plans {
 		t.Run(string(p.provider), func(t *testing.T) {
-			check(t, p.provider, goai.ProviderEnv{p.planKey: "plan", p.shared: "shared"}, "plan")
+			both := goai.ProviderEnv{p.planKey: "plan", p.shared: "shared"}
+			check(t, p.provider, both, "plan")
+			if got := goai.FindEnvKeys(p.provider, both); !slices.Equal(got, []string{p.planKey, p.shared}) {
+				t.Fatalf("environment names = %q, want %q", got, []string{p.planKey, p.shared})
+			}
 			check(t, p.provider, goai.ProviderEnv{p.shared: "shared"}, "shared")
 		})
 	}
 	t.Run("per-plan-key-isolation", func(t *testing.T) {
-		// Go exposes key resolution, not the upstream discovery list.
-		check(t, goai.ProviderQwenTokenPlan, goai.ProviderEnv{"QWEN_TOKEN_PLAN_INDIVIDUAL_API_KEY": "test"}, "")
-		check(t, "qwen-token-plan-individual-cn", goai.ProviderEnv{"QWEN_TOKEN_PLAN_TEAM_CN_API_KEY": "test"}, "")
+		individual := goai.ProviderEnv{"QWEN_TOKEN_PLAN_INDIVIDUAL_API_KEY": "test"}
+		teamCN := goai.ProviderEnv{"QWEN_TOKEN_PLAN_TEAM_CN_API_KEY": "test"}
+		if got := goai.FindEnvKeys(goai.ProviderQwenTokenPlan, individual); got != nil {
+			t.Errorf("global team environment names = %q, want nil", got)
+		}
+		if got := goai.FindEnvKeys("qwen-token-plan-individual-cn", teamCN); got != nil {
+			t.Errorf("China individual environment names = %q, want nil", got)
+		}
+		check(t, goai.ProviderQwenTokenPlan, individual, "")
+		check(t, "qwen-token-plan-individual-cn", teamCN, "")
 	})
 }
 

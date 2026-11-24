@@ -10,13 +10,15 @@ import (
 // providerEnvMap maps provider names to their API key environment variables.
 var providerEnvMap = map[Provider][]string{
 	ProviderOpenAI:                  {"OPENAI_API_KEY"},
-	ProviderAnthropic:               {"ANTHROPIC_OAUTH_TOKEN", "ANTHROPIC_API_KEY"},
+	ProviderAnthropic:               {"ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_OAUTH_TOKEN", "ANTHROPIC_API_KEY"},
 	ProviderGoogle:                  {"GEMINI_API_KEY"},
 	ProviderGoogleVertex:            {"GOOGLE_CLOUD_API_KEY"},
 	ProviderAzureOpenAI:             {"AZURE_OPENAI_API_KEY"},
 	ProviderGitHubCopilot:           {"COPILOT_GITHUB_TOKEN"},
 	ProviderMistral:                 {"MISTRAL_API_KEY"},
 	ProviderXAI:                     {"XAI_API_KEY"},
+	"typesafe":                      {"TYPESAFE_API_KEY"},
+	"radius":                        {"RADIUS_API_KEY"},
 	ProviderGroq:                    {"GROQ_API_KEY"},
 	ProviderCerebras:                {"CEREBRAS_API_KEY"},
 	ProviderOpenRouter:              {"OPENROUTER_API_KEY"},
@@ -78,6 +80,20 @@ func ResolveCacheRetention(cacheRetention CacheRetention, env ProviderEnv) Cache
 	return CacheRetentionShort
 }
 
+// FindEnvKeys reports the configured variable names for a known provider in
+// lookup order, or nil if none are set. It reports names, not values or ambient
+// credentials such as ADC. In discovery, an empty scoped value falls back to
+// the process environment.
+func FindEnvKeys(provider Provider, env ProviderEnv) []string {
+	var found []string
+	for _, name := range providerEnvMap[provider] {
+		if env[name] != "" || os.Getenv(name) != "" {
+			found = append(found, name)
+		}
+	}
+	return found
+}
+
 // GetEnvAPIKey looks up an API key from environment variables
 // using the same conventions as pi-ai.
 func GetEnvAPIKey(provider Provider) string {
@@ -90,6 +106,10 @@ func GetEnvAPIKeyWithEnv(provider Provider, env ProviderEnv) string {
 	envNames, ok := providerEnvMap[provider]
 	if ok {
 		for _, name := range envNames {
+			if provider == ProviderAnthropic && name == "ANTHROPIC_AUTH_TOKEN" {
+				// The Anthropic adapter uses this token for bearer auth, not as an API key.
+				continue
+			}
 			if v := GetProviderEnvValue(name, env); v != "" {
 				return v
 			}

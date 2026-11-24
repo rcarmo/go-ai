@@ -25,9 +25,12 @@ func requireModel(t *testing.T, provider goai.Provider, id string) *goai.Model {
 	return model
 }
 
-// Source: pi v1.6.0 packages/ai/test/fireworks-models.test.ts:182-187 (key lookup only).
+// Source: pi v1.6.0 packages/ai/test/fireworks-models.test.ts:182-187.
 func TestFireworksProviderEnvKeyCompatibilityRetained(t *testing.T) {
 	t.Setenv("FIREWORKS_API_KEY", "test-fireworks-key")
+	if got := goai.FindEnvKeys(goai.ProviderFireworks, nil); !reflect.DeepEqual(got, []string{"FIREWORKS_API_KEY"}) {
+		t.Fatalf("Fireworks environment names = %q, want [FIREWORKS_API_KEY]", got)
+	}
 	if got := goai.GetEnvAPIKey(goai.ProviderFireworks); got != "test-fireworks-key" {
 		t.Fatal("Fireworks key not resolved from process env")
 	}
@@ -111,10 +114,34 @@ func TestTogetherModelsReasoningControlsFromTogetherAPISurface(t *testing.T) {
 	}
 }
 
+// Source: pi v1.6.0 packages/ai/test/together-models.test.ts:74-79.
 func TestTogetherModelsResolvesTogetherAPIKeyFromEnvironment(t *testing.T) {
-	env := goai.ProviderEnv{"TOGETHER_API_KEY": "test-together-key"}
-	if got := goai.GetEnvAPIKeyWithEnv(goai.ProviderTogether, env); got != "test-together-key" {
+	t.Setenv("TOGETHER_API_KEY", "test-together-key")
+	if got := goai.FindEnvKeys(goai.ProviderTogether, nil); !reflect.DeepEqual(got, []string{"TOGETHER_API_KEY"}) {
+		t.Fatalf("Together environment names = %q, want [TOGETHER_API_KEY]", got)
+	}
+	if got := goai.GetEnvAPIKey(goai.ProviderTogether); got != "test-together-key" {
 		t.Fatalf("together env key=%q, want test-together-key", got)
+	}
+}
+
+func TestFindEnvKeysReportsNamesWithoutChangingCredentialResolution(t *testing.T) {
+	t.Setenv("ANTHROPIC_AUTH_TOKEN", "test-bearer")
+	t.Setenv("ANTHROPIC_OAUTH_TOKEN", "test-oauth")
+	t.Setenv("ANTHROPIC_API_KEY", "test-key")
+	env := goai.ProviderEnv{"ANTHROPIC_OAUTH_TOKEN": ""}
+	want := []string{"ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_OAUTH_TOKEN", "ANTHROPIC_API_KEY"}
+	if got := goai.FindEnvKeys(goai.ProviderAnthropic, env); !reflect.DeepEqual(got, want) {
+		t.Fatalf("Anthropic environment names = %q, want %q", got, want)
+	}
+	if got := goai.GetEnvAPIKeyWithEnv(goai.ProviderAnthropic, env); got != "test-key" {
+		t.Fatal("existing scoped-empty override or bearer/API key separation changed")
+	}
+	if got := goai.FindEnvKeys(goai.ProviderAmazonBedrock, goai.ProviderEnv{"AWS_PROFILE": "test-profile"}); got != nil {
+		t.Errorf("Bedrock discovered an ambient credential: %q", got)
+	}
+	if got := goai.FindEnvKeys("custom-provider", goai.ProviderEnv{"CUSTOM_PROVIDER_API_KEY": "test"}); got != nil {
+		t.Errorf("unknown provider names = %q, want nil", got)
 	}
 }
 
