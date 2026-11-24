@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
-if [[ $# != 3 && ( $# != 4 || ( $4 != linux-bash && $4 != mock-powershell ) ) ]]; then
-  printf 'Usage: bash %s <pinned-git-mirror> <retained-oracle-dir> <release-archive-dir> [linux-bash|mock-powershell]\n' "$0" >&2; exit 1
+if [[ $# != 3 && ( $# != 4 || ( $4 != linux-bash && $4 != mock-powershell && $4 != edit-paths ) ) ]]; then
+  printf 'Usage: bash %s <pinned-git-mirror> <retained-oracle-dir> <release-archive-dir> [linux-bash|mock-powershell|edit-paths]\n' "$0" >&2; exit 1
 fi
 here=$(cd -- "$(dirname -- "$0")" && pwd -P)
 mirror=$(realpath -- "$1")
@@ -12,6 +12,7 @@ base=3bfd09d6e52cf47b528d33c2e67717fe269cf996
 mode=${4:-file}
 [[ "$mode" != linux-bash ]] || base=bb6f354b08e8415f09a1c92f492a49f0d5f0bdc5
 [[ "$mode" != mock-powershell ]] || base=a0fa5814f398b932edd57ede595a0eecd30a51f5
+[[ "$mode" != edit-paths ]] || base=ebe8ec7ab0a1f2da0a1641a9b63c633a48f1a707
 file=packages/durable/test/tools.test.ts
 adapter=packages/durable/src/tools/read.ts
 [[ "$mode" == file ]] || adapter=packages/durable/src/tools/bash.ts
@@ -52,6 +53,7 @@ check_sources() {
   for source in "${sources[@]}"; do git -C "$mirror" show "$pin:$source" | cmp "$scratch/$source" -; done
 }
 check_sources
+[[ "$mode" != edit-paths ]] || adapter=packages/durable/src/tools/file-mutation-queue.ts
 file_sha=$(sha256 "$scratch/$file")
 git -C "$here" show "$base:$queue" | jq -e --arg file "$file" --arg sha "$file_sha" '
   select(.kind=="suite" and .path==$file) | .upstream.sha256==$sha and .original.status=="none-found"
@@ -83,6 +85,20 @@ elif [[ "$mode" == mock-powershell ]]; then
   scope=isolated-mocked-powershell
   expected_error='tools.test.ts:577:'
   pending=33
+elif [[ "$mode" == edit-paths ]]; then
+  jq -n '[
+    "serializes concurrent edits through canonical and symlink paths",
+    "serializes edits of one file across environment objects of one file system",
+    "serializes a new file created through a symlinked directory with its canonical path",
+    "keys a missing file whose name contains a backslash like the created file",
+    "does not serialize the same path on different file systems",
+    "edits regular files through symlinks"
+  ]|map("durable tools edit "+.)' > "$scratch/cases.json"
+  failed='durable tools edit keys a missing file whose name contains a backslash like the created file'
+  change='split the missing-file basename on a literal backslash in the scratch queue helper'
+  scope=isolated-linux-edit-paths
+  expected_error='tools.test.ts:513:'
+  pending=30
 else
   jq -n '[
     "fail with an ordinary error when no environment is configured",
@@ -107,17 +123,30 @@ else
 fi
 count=$(jq -er 'length' "$scratch/cases.json")
 selector=$(jq -er 'select(all(.[]; test("^[a-zA-Z0-9 ,/\u0027-]+$"))) | "^("+join("|")+")$"' "$scratch/cases.json")
+# Node's symlink API requires wildcard FS permission even for a scratch-only
+# link. The edit selection instead limits host filesystem access by mounting
+# scratch and read-only system runtime files into an otherwise empty root.
+run_edit_sandbox() {
+  bwrap --unshare-user --unshare-net --unshare-pid --unshare-ipc --die-with-parent --cap-drop ALL \
+    --ro-bind /usr /usr --symlink usr/lib /lib --symlink usr/lib64 /lib64 --symlink usr/bin /bin \
+    --proc /proc --dev /dev --dir /tmp --bind "$scratch" "$scratch" --chdir "$PWD" \
+    --clearenv --setenv PATH /usr/local/bin:/usr/bin:/bin --setenv HOME "$scratch/home" --setenv TMPDIR "$scratch/tmp" \
+    -- "$@"
+}
 run_env() {
-  if [[ "$mode" != file ]]; then
+  if [[ "$mode" == edit-paths ]]; then
+    run_edit_sandbox env "$@"
+  elif [[ "$mode" != file ]]; then
     run_offline_loopback "$scratch" env "$@"
   else
     env -i PATH="$PATH" HOME="$scratch/home" TMPDIR="$scratch/tmp" "$@"
   fi
 }
 run() {
-  local tag=$1
+  local tag=$1 fs_scope=$scratch
+  [[ "$mode" != edit-paths ]] || fs_scope='*'
   (cd "$scratch/packages/durable" && run_env \
-    NODE_OPTIONS="--max-old-space-size=768 --permission --allow-fs-read=$scratch --allow-fs-write=$scratch --allow-child-process --allow-worker --allow-addons" \
+    NODE_OPTIONS="--max-old-space-size=768 --permission --allow-fs-read=$fs_scope --allow-fs-write=$fs_scope --allow-child-process --allow-worker --allow-addons" \
     node ../../node_modules/vitest/vitest.mjs run test/tools.test.ts -t "$selector" --pool=forks --maxWorkers=1 \
     --reporter=json --outputFile "$scratch/$tag.json") > "$scratch/$tag.log" 2>&1
 }
@@ -128,7 +157,18 @@ show_failure() {
 }
 exec 9>/tmp/go-ai/v160-focused-verify.lock
 flock 9
-if [[ "$mode" != file ]]; then
+if [[ "$mode" == edit-paths ]]; then
+  cat > "$scratch/check-edit-sandbox.sh" <<'SH'
+set -euo pipefail
+[[ ! -e /work && ! -e /home ]]
+/usr/sbin/ip -j link show | jq -e '[.[].ifname]==["lo"]'
+for family in -4 -6; do
+  /usr/sbin/ip "$family" -j route show table all | jq -e 'all(.[]; .dev=="lo")'
+done
+node ./check-netns.mjs
+SH
+  (cd "$scratch" && run_edit_sandbox bash ./check-edit-sandbox.sh) > "$scratch/sandbox.check"
+elif [[ "$mode" != file ]]; then
   run_offline_loopback "$scratch" node "$scratch/check-netns.mjs"
 fi
 if ! run original; then show_failure original; exit 1; fi
@@ -146,6 +186,9 @@ if [[ "$mode" == linux-bash ]]; then
 elif [[ "$mode" == mock-powershell ]]; then
   [[ $(grep -Fc '[System.Text.Encoding]::UTF8' "$scratch/$adapter") == 1 ]]
   sed -i 's/\[System.Text.Encoding\]::UTF8/[System.Text.Encoding]::ASCII/' "$scratch/$adapter"
+elif [[ "$mode" == edit-paths ]]; then
+  [[ $(grep -Fc 'const name = absolutePath.slice' "$scratch/$adapter") == 1 ]]
+  sed -i '/const name = absolutePath.slice/s/;$/\.split("\\\\").at(-1)!;/' "$scratch/$adapter"
 else
   # shellcheck disable=SC2016
   [[ $(grep -Fc 'more lines in file. Use offset=${nextOffset}' "$scratch/$adapter") == 1 ]]
@@ -174,4 +217,5 @@ jq -n --arg pin "$pin" --arg base "$base" --arg node "$(node --version)" --arg v
    result:{passed:$count,failed:0,selectedSkipped:0},sourceDigests:$sources,aiArchiveSha256:$aiSha,copiedDependencies:$copied[0],
    control:{change:$change,failed:[$failed],passed:($cases[0]-[$failed])},
    priorQueue:{file:$queue,commit:$base},exclusions:[],scope:$scope} +
-   (if $mode!="file" then {isolation:{interfaces:["lo"],egressProbe:{ipv4:"ENETUNREACH",ipv6:"ENETUNREACH"},nodeNetworkPermission:false}} else {} end)'
+   (if $mode!="file" then {isolation:{interfaces:["lo"],egressProbe:{ipv4:"ENETUNREACH",ipv6:"ENETUNREACH"},nodeNetworkPermission:false}} else {} end) +
+   (if $mode=="edit-paths" then {filesystemIsolation:{mechanism:"Bubblewrap mount namespace",writableHostBind:"scratch only",worktreeMounted:false}} else {} end)'

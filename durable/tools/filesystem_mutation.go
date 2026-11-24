@@ -3,6 +3,8 @@ package tools
 import (
 	"context"
 	"errors"
+	"strings"
+
 	"github.com/rcarmo/go-ai/durable"
 )
 
@@ -18,22 +20,20 @@ func filesystemMutationKey(ctx context.Context, fs durable.FileSystem, path stri
 	if failure.Code == "not_supported" {
 		return path, nil
 	}
-	// Portable namespace paths use slash separators; the local implementation
-	// handles its own native JoinPath representation.
+	// Let this filesystem identify the parent. A filename can contain a
+	// character that another filesystem treats as a separator.
 	parent, err := fs.JoinPath(ctx, path, "..")
 	if err != nil {
 		return "", err
 	}
-	if parent == path {
+	if parent == path || !strings.HasPrefix(path, parent) {
 		return path, nil
 	}
-	name := path
-	for i := len(path) - 1; i >= 0; i-- {
-		if path[i] == '/' || path[i] == '\\' {
-			name = path[i+1:]
-			break
-		}
+	nameStart := len(parent)
+	if !strings.HasSuffix(parent, "/") && !strings.HasSuffix(parent, "\\") {
+		nameStart++
 	}
+	name := path[nameStart:]
 	base, err := filesystemMutationKey(ctx, fs, parent)
 	if err != nil {
 		return "", err
