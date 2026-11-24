@@ -697,3 +697,9 @@ All 18 unchanged tool-hook cases passed. Go verifies that an error from `afterTo
 All three [mocked PowerShell cases](test-inventory/mock-powershell-tools.md) passed without launching PowerShell. Go preserves the last failed start's message and cause. The tests compare the exact UTF-8 command arguments, fallback order and exit details. Some source output callbacks have only partial Go mappings; the real Windows process case remains open.
 
 The [pinned Cloudflare example](dependencies/cloudflare-codemode-example.md) ran on real local workerd. A separate Worker returned HTTP `200`, value `2`, text `n=2`, and one successful callback through a Durable Object binding. The runtime and inputs were verified. This is an example run, not a hosted deployment or a dedicated upstream suite pass.
+
+### Read-only viewers preserve a torn-write prefix
+
+All five byte-verified upstream read-only tests passed in scratch, including the actual torn-JSONL case. The user authorised the SQLite equivalent. The Go test copies a running session's database and journal, then adds only the first half of the next real SQLite WAL frame to the copy. A fresh read-only viewer sees exactly one user entry and the original running task. Its database and WAL bytes are unchanged after close.
+
+Completing the next frame made the extra entry visible. Using writable SQLite changed the database and removed the WAL. Both controls failed the corresponding assertions. The comparison covers committed data and read-only behaviour across the two formats; it does not compare the formats or SQLite's generated coordination index. No production backend or user data changed.
