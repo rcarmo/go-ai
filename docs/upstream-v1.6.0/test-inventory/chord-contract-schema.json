@@ -1,0 +1,182 @@
+{
+  "format": 1,
+  "pin": "faac585884ae2c013a6b1400f3e9e77f10b34bac",
+  "evidenceBase": "04a700eb4fba36df946354a6993ec173e8bfc509",
+  "node": "v26.13.0",
+  "configSha256": "f13c3424afac46e1500bb993c23fabce908f899321fd2c90e3adda5712f3ac9a",
+  "original": {
+    "file": "packages/chord/test/contracts/schema.test.ts",
+    "blob": "aabf7eda1b5891c9e8e0bf10a9c5fc25128dd19c",
+    "sha256": "0f4f9d54be0ca6943b116d7fe9a92ddd2fd3a2d787ef0fad64b14dea8e0abac7",
+    "selection": "whole-file",
+    "passed": 9,
+    "failed": 0,
+    "skipped": 0,
+    "todo": 0,
+    "caseNames": [
+      "schema helpers produce plain JSON Schema with bounds under their JSON Schema names",
+      "schema helpers leave absent bounds out instead of writing undefined",
+      "schema helpers obj() is always closed and opt() makes a field optional",
+      "schema helpers Static gives the values' type; pi-schema's compiler checks them",
+      "bytes is plain data: the marker and nothing else",
+      "bytes checks instanceof Uint8Array and the length bounds",
+      "bytes checks inside a record (slices.md L1 carry-over)",
+      "method an omitted side is null",
+      "the types of a contract's members are all exported, so a contract's emitted declaration names them through Chord's entry point"
+    ]
+  },
+  "archives": [
+    {
+      "package": "node_modules/vitest",
+      "version": "4.1.12",
+      "archiveSha256": "ac79c9561c99eabc1cc29e0a839cbd03d1ff0e45bbecb5a2edfa6c3827c823d1",
+      "integrity": "sha512-5eWdz2yb3ajxWF3C8C4TjkXl7FGm3n2E/VlazALrQHzK7nYMSGFnCZto0bbPNl77AwkOZVLk0YnBAejUu0NiWA=="
+    },
+    {
+      "package": "node_modules/typescript",
+      "version": "7.0.2",
+      "archiveSha256": "da2513f4b95176d6dde8b51aab7afe8a927656c9d277369793f77f7e59371c08",
+      "integrity": "sha512-8FYau96o3NKOhbjKi/qNvG/W5jhzxkbdm5sj9AbZ/5T5sWqn3hJgLfGx27sRKZWTvyzCP8dLRBTf5tBTSRVUNA=="
+    },
+    {
+      "package": "node_modules/@typescript/typescript-linux-arm64",
+      "version": "7.0.2",
+      "archiveSha256": "c83d931ac9dd7549cde6e71246aa9d6a9812843023df3e277fe3b5dcf41dd0ea",
+      "integrity": "sha512-Qh4eU4/y3yDjnfjjyPYihMj5/ODIlmt+Bzu17OI+fiSRDW57QmU5SiN63exPRNJPKUzcc1INa1NXdrJ+MqHjUQ=="
+    }
+  ],
+  "copiedDependencies": {
+    "roots": [
+      "npm:node_modules/vitest"
+    ],
+    "host": {
+      "os": "linux",
+      "cpu": "arm64",
+      "libc": "glibc"
+    },
+    "placements": [
+      "node_modules/@jridgewell/sourcemap-codec",
+      "node_modules/@oxc-project/types",
+      "node_modules/@rolldown/binding-linux-arm64-gnu",
+      "node_modules/@rolldown/pluginutils",
+      "node_modules/@standard-schema/spec",
+      "node_modules/@types/chai",
+      "node_modules/@types/deep-eql",
+      "node_modules/@types/estree",
+      "node_modules/@vitest/expect",
+      "node_modules/@vitest/mocker",
+      "node_modules/@vitest/pretty-format",
+      "node_modules/@vitest/runner",
+      "node_modules/@vitest/snapshot",
+      "node_modules/@vitest/spy",
+      "node_modules/@vitest/utils",
+      "node_modules/assertion-error",
+      "node_modules/chai",
+      "node_modules/convert-source-map",
+      "node_modules/detect-libc",
+      "node_modules/es-module-lexer",
+      "node_modules/estree-walker",
+      "node_modules/expect-type",
+      "node_modules/fdir",
+      "node_modules/lightningcss",
+      "node_modules/lightningcss-linux-arm64-gnu",
+      "node_modules/magic-string",
+      "node_modules/nanoid",
+      "node_modules/obug",
+      "node_modules/pathe",
+      "node_modules/picocolors",
+      "node_modules/picomatch",
+      "node_modules/postcss",
+      "node_modules/rolldown",
+      "node_modules/siginfo",
+      "node_modules/source-map-js",
+      "node_modules/stackback",
+      "node_modules/std-env",
+      "node_modules/tinybench",
+      "node_modules/tinyexec",
+      "node_modules/tinyglobby",
+      "node_modules/tinyrainbow",
+      "node_modules/vite",
+      "node_modules/vitest",
+      "node_modules/why-is-node-running"
+    ]
+  },
+  "primaryReferences": [
+    {
+      "file": "packages/ai/src/utils/validation.ts",
+      "sourceSha256": "78675918c09c649aba19b6d268cc07aacb25629351ae2950d18d5b3d282867ad",
+      "line": 1,
+      "import": "@earendil-works/pi-schema"
+    },
+    {
+      "file": "packages/durable/src/harness/tool.ts",
+      "sourceSha256": "394fa454bc3d36c3f37bbd5bdada43decd43e2ffb5ce2cb5efec31bf96b9e28a",
+      "line": 14,
+      "import": "@earendil-works/pi-schema"
+    }
+  ],
+  "observed": {
+    "modules": [
+      {
+        "kind": "source-evaluated",
+        "api": "node:vm runInThisContext",
+        "file": "packages/schema/src/checks.ts",
+        "export": "bytesCheck",
+        "sourceSha256": "2f8f2bfbc03da9af440cc76d0b72714f31c65ec1e4afb4bdddcb319d5498e6fd"
+      },
+      {
+        "kind": "source-evaluated",
+        "api": "node:vm runInThisContext",
+        "file": "packages/schema/src/validator.ts",
+        "export": "compile",
+        "sourceSha256": "173734355e3c770dad137503635e87e2438fc2769f37800470cb0b555ea182cd"
+      }
+    ],
+    "compiler": {
+      "kind": "compiler-executable",
+      "file": "node_modules/@typescript/typescript-linux-arm64/lib/tsc",
+      "bytes": 22872226,
+      "sha256": "f86e8070c267b12d6c119bf567cb82d8b245e9d93da1864bc7c603cea10a8b2f",
+      "api": "process.execve"
+    },
+    "declaration": {
+      "kind": "declaration",
+      "api": "child_process.spawnSync",
+      "status": 0,
+      "config": {
+        "compilerOptions": {
+          "strict": true,
+          "module": "NodeNext",
+          "moduleResolution": "NodeNext",
+          "customConditions": [
+            "source"
+          ],
+          "allowImportingTsExtensions": true,
+          "declaration": true,
+          "emitDeclarationOnly": true,
+          "outDir": "out",
+          "skipLibCheck": true,
+          "types": []
+        },
+        "include": [
+          "contract.ts"
+        ]
+      },
+      "fixture": {
+        "bytes": 1173,
+        "sha256": "ab82f2f7fc862fd75b56990ff00471947241e478a01361d7cb284c87fb72a4ee"
+      },
+      "declaration": {
+        "bytes": 5796,
+        "sha256": "28de2a829e7e1c668db10852c699126f65027ac6bb7012414bf925afd0f059a5"
+      },
+      "mentionsMethod": true,
+      "leaksNodeModules": false
+    }
+  },
+  "control": {
+    "change": "remove-scratch-Uint8Array-maximum-length-check",
+    "case": "bytes checks instanceof Uint8Array and the length bounds",
+    "failed": 1
+  }
+}
