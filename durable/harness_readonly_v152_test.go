@@ -445,6 +445,27 @@ func TestSourceV160ReadOnlyHarnessLeavesRecoveryToWriter(t *testing.T) {
 			t.Fatalf("viewer changed SQLite data bytes of %s: %v", filepath.Base(name), err)
 		}
 	}
+	// Supplemental topology: the original writer still owns the file, so a
+	// second writable open must fail even with a non-owning observer present.
+	// Keep this new observer open across recovery, but do not claim that it
+	// replaces the stale writable Harness of the upstream original.
+	observerStore, err := OpenSQLite(path, SQLiteOptions{ReadOnly: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer observerStore.Close(bg)
+	observer, err := Open(bg, observerStore, Options{ReadOnly: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer observer.Close(bg)
+	assertReadOnlyHarnessTask(t, observer, id, "running", 0)
+	if duplicate, err := OpenSQLite(path, SQLiteOptions{}); !errors.Is(err, ErrOwned) || duplicate != nil {
+		if duplicate != nil {
+			_ = duplicate.Close(bg)
+		}
+		t.Fatalf("second writer while original is alive: %v; want ErrOwned", err)
+	}
 	if err := cmd.Process.Kill(); err != nil {
 		t.Fatal(err)
 	}
@@ -476,6 +497,7 @@ func TestSourceV160ReadOnlyHarnessLeavesRecoveryToWriter(t *testing.T) {
 	}
 	defer writer.Close(bg)
 	assertReadOnlyHarnessTask(t, writer, id, "pending", 1)
+	assertReadOnlyHarnessTask(t, observer, id, "pending", 1)
 	if next := readOnlyHarnessSQLiteHead(t, store); next != before+1 || calls.Load() != 0 {
 		t.Fatalf("recovery head %d (want %d); model lookups %d (want 0)", next, before+1, calls.Load())
 	}

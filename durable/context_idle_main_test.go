@@ -309,6 +309,99 @@ func awaitPendingContextIdleWait(t *testing.T, ctx context.Context, h *Harness, 
 	}
 }
 
+// harness-idle-scopes.test.ts:252-265. Both public waits register while
+// busy; completing only the unrelated task cannot release the first wait.
+func TestSourceV160IdleWaitKeepsUnrelatedBusyScopePending(t *testing.T) {
+	ctx, cancel := context.WithTimeout(bg, 8*time.Second)
+	defer cancel()
+	store, err := newTestSQLite(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	type taskGate struct{ started, release chan struct{} }
+	held := taskGate{make(chan struct{}), make(chan struct{})}
+	quick := taskGate{make(chan struct{}), make(chan struct{})}
+	work := taskDefinition(t, "test.idle.separate-scopes", func(ctx context.Context, task TaskRecord, r *TaskRuntime) error {
+		gate := held
+		if task.Input.Value == "quick" {
+			gate = quick
+		}
+		close(gate.started)
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-gate.release:
+			return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone(nil), nil })
+		}
+	})
+	h := taskTestHarness(t, store, work)
+	cleanupTaskGates(t, quick.release, held.release)
+	busy, err := h.CreateConversation(ctx, AgentChange{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, err := h.CreateConversation(ctx, AgentChange{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	create := func(c *ConversationHandle, name string) ID {
+		t.Helper()
+		value, err := c.Commit(ctx, func(tx *Tx) (any, error) {
+			return tx.CreateTask(work, name, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return value.(ID)
+	}
+	heldID, quickID := create(busy, "held"), create(other, "quick")
+	if err := h.Resume(ctx); err != nil {
+		t.Fatal(err)
+	}
+	awaitTaskSignal(t, held.started)
+	awaitTaskSignal(t, quick.started)
+	idleBusy := awaitPendingContextIdleWait(t, ctx, h, busy)
+	idleOther := awaitPendingContextIdleWait(t, ctx, h, other)
+	close(quick.release)
+	if got := waitPublicTask(t, h, quickID); got.State.Status != "terminal" || got.State.Outcome.Status != "completed" {
+		t.Fatal("unrelated task did not complete", got)
+	}
+	select {
+	case err := <-idleOther:
+		if err != nil {
+			t.Fatal("unrelated conversation did not become idle", err)
+		}
+	case <-ctx.Done():
+		t.Fatalf("unrelated idle wait did not return while the first task was held: %v", ctx.Err())
+	}
+	if got, found, err := h.Task(ctx, heldID); err != nil || !found || got.State.Status != "running" {
+		t.Fatal("held task must still be running", got, found, err)
+	}
+	h.session.taskBookkeeping(func() {
+		busyWaits := 0
+		for wait := range h.scheduler.waiters {
+			if wait.idleScope != nil && *wait.idleScope == busy.ID() {
+				busyWaits++
+			}
+		}
+		if busyWaits != 1 {
+			t.Fatalf("after unrelated completion: %d busy-scope waits, want one", busyWaits)
+		}
+	})
+	select {
+	case err := <-idleBusy:
+		t.Fatalf("busy idle wait settled after unrelated task completion: %v", err)
+	default:
+	}
+	close(held.release)
+	if got := waitPublicTask(t, h, heldID); got.State.Status != "terminal" || got.State.Outcome.Status != "completed" {
+		t.Fatal("held task did not complete after release", got)
+	}
+	if err := watchReceive(t, idleBusy); err != nil {
+		t.Fatal("held conversation did not become idle", err)
+	}
+}
+
 // harness-idle-scopes.test.ts:347-364. X's last context read is retained
 // while a different conversation Z has one held task. An idle wait for Z
 // must drive expiry without a timer callback or a durable state change.
