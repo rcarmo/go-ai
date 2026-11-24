@@ -1,0 +1,100 @@
+{
+  "format": 1,
+  "pin": "faac585884ae2c013a6b1400f3e9e77f10b34bac",
+  "platform": "linux/arm64",
+  "typescript": {
+    "version": "Version 7.0.2",
+    "compilerSha256": "f86e8070c267b12d6c119bf567cb82d8b245e9d93da1864bc7c603cea10a8b2f",
+    "domSha256": "d6b1eba8496bdd0eed6fc8a685768fe01b2da4a0388b5fe7df558290bffcf32f"
+  },
+  "nodeTypes": {
+    "workerThreadsSha256": "8a1a0d0a4a06a8d278947fcb66bf684f117bf147f89b06e50662d79a53be3e9f"
+  },
+  "lockedArchives": [
+    {
+      "package": "@typescript/typescript-linux-arm64",
+      "version": "7.0.2",
+      "integrity": "sha512-Qh4eU4/y3yDjnfjjyPYihMj5/ODIlmt+Bzu17OI+fiSRDW57QmU5SiN63exPRNJPKUzcc1INa1NXdrJ+MqHjUQ==",
+      "archiveSha256": "c83d931ac9dd7549cde6e71246aa9d6a9812843023df3e277fe3b5dcf41dd0ea"
+    },
+    {
+      "package": "@types/node",
+      "version": "22.19.19",
+      "integrity": "sha512-dyh/xO2Fh5bYrfWaaqGrRQQGkNdmYw6AmaAUvYeUMNTWQtvb796ikLdmTchRmOlOiIJ1TDXfWgVx1QkUlQ6Hew==",
+      "archiveSha256": "c32937b40ab720ef6242de0bf4c8b8e48f1e4a29fbb4cb9d9f596471ee58d5c4"
+    },
+    {
+      "package": "undici-types",
+      "version": "6.21.0",
+      "integrity": "sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==",
+      "archiveSha256": "cfa1a9a5e18988850e548f4f6b629c58da32dc32bebb116e58ea301e516fd16d"
+    },
+    {
+      "package": "@anthropic-ai/sdk",
+      "version": "0.129.0",
+      "integrity": "sha512-MH7LB20kNpGLUpPTe2OG5XvL/KhX8HUO9XyBaFjgFk6TLS4Xjt0VPIuMKywe7POKKPslX+QxSlVok9e+8kG5Nw==",
+      "archiveSha256": "dafba131471d2fe98faddbaed7fb8d590efa334dff881fdee6a0d8a6e1e2dfb2"
+    },
+    {
+      "package": "partial-json",
+      "version": "0.1.7",
+      "integrity": "sha512-Njv/59hHaokb/hRUjce3Hdv12wd60MtM9Z5Olmn+nehe0QDAsRtRbJPvJ0Z91TusF0SuZRIvnM+S4l6EIP8leA==",
+      "archiveSha256": "30eafeed6fdc25fb2ca24f34c37796d9f98f0bf5e156452b98a2c356762f6322"
+    },
+    {
+      "package": "diff",
+      "version": "8.0.4",
+      "integrity": "sha512-DPi0FmjiSU5EvQV0++GFDOJ9ASQUVFh5kD+OzOnYdi7n3Wpm9hWWGfB/O2blfHcMVTL5WkQXSnRiK9makhrcnw==",
+      "archiveSha256": "ef51327ad58243cf533326219f5ebaa5029280bd0fafcc11f7c23156639593d6"
+    }
+  ],
+  "config": {
+    "rootSha256": "0eb6ccfcbcbb97bf55c9845596d467ac99caa8990a57584cf89d2d0c28f7fb29",
+    "baseSha256": "eea9b73c99e36e35d2afca6fb313899ebb214840beedad7a67ec07d880857f1b",
+    "lockSha256": "c4d229ab0a1a17106c4d570f18e8406762cf0c706c21c4d07d91167d16ef535a",
+    "lib": [
+      "es2024"
+    ],
+    "types": [
+      "node"
+    ],
+    "module": "nodenext",
+    "noEmit": true
+  },
+  "source": {
+    "spec": {
+      "file": "packages/durable/test/spec-usage.test.ts",
+      "sha256": "f74955f631f22896409b7dfc52abe4dce770fac9193119603f8b517677c3247d"
+    },
+    "writer": {
+      "file": "packages/durable/src/session/writer.ts",
+      "sha256": "92b88db11c9521135196febd617e0545ef25bbf20a9af2b4254c79a1d7031821"
+    },
+    "indexedDB": {
+      "file": "packages/durable/src/storage/indexeddb.ts",
+      "sha256": "c385e4545c40a397fbf307e7849f7fbdbec0136868efa4a35a10b6b3048ee8f8"
+    }
+  },
+  "unchangedRoot": {
+    "phase": "list-files-only",
+    "containsSpec": true,
+    "containsIndexedDB": true,
+    "includesDOM": true,
+    "typeChecked": false
+  },
+  "narrowedClosure": {
+    "exit": 1,
+    "includesDOM": false,
+    "diagnostic": "packages/durable/src/session/writer.ts(355,17): error TS2339: Property 'onmessage' does not exist on type 'MessagePort'."
+  },
+  "narrowedWithPinnedIndexedDB": {
+    "exit": 0,
+    "includesDOM": true,
+    "diagnostics": []
+  },
+  "control": {
+    "change": "replace-sequences-in-expect-type-assertion",
+    "exit": 1,
+    "diagnostic": "packages/durable/test/spec-usage.test.ts(641,48): error TS2345: Argument of type '\"notARealProperty\"' is not assignable to parameter of type '\"Approvals\" | \"AskPerson\" | \"ParkingSubagent\" | \"Payment\" | \"TestsAfterEdits\" | \"research\" | \"runCi\" | \"sequences\"'."
+  }
+}
