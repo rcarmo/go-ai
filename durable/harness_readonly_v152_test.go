@@ -3,6 +3,7 @@ package durable
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -129,6 +130,114 @@ func assertReadOnlyHarnessTask(t *testing.T, h *Harness, id ID, status string, r
 	if err != nil || !found || task.ID != id || task.State.Status != status || task.Restarts != restarts {
 		t.Fatalf("task %d: id=%d found=%t status=%q restarts=%d err=%v; want status=%q restarts=%d", id, task.ID, found, task.State.Status, task.Restarts, err, status, restarts)
 	}
+}
+
+// harness-read-only.test.ts:97-124. SQLite equivalent of the torn JSONL
+// viewer: copy a committed prefix while the original writer remains live,
+// then include only the start of the next actual WAL frame in the copy.
+func TestSourceV160ReadOnlyHarnessIgnoresTornWALTail(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "writer.sqlite")
+	zero := 0
+	store, err := OpenSQLite(path, SQLiteOptions{WALAutoCheckpointPages: &zero})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reached := make(chan struct{})
+	ref, options := setupFakeAPI(t, func(ctx context.Context, _ *goai.Model, _ *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
+		ch := make(chan goai.Event)
+		close(reached)
+		go func() { <-ctx.Done(); close(ch) }()
+		return ch
+	})
+	writer := openHarness(t, store, options)
+	c := root(t, writer, ref)
+	if _, err := c.Submit(bg, Input{Type: "input", Content: "slow"}); err != nil {
+		t.Fatal(err)
+	}
+	awaitTaskSignal(t, reached)
+	id := readOnlyHarnessRunID(t, c)
+	assertReadOnlyHarnessTask(t, writer, id, "running", 0)
+	head := readOnlyHarnessSQLiteHead(t, store)
+	read := func(name string) []byte {
+		t.Helper()
+		data, err := os.ReadFile(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return data
+	}
+	database, committed := read(path), read(path+"-wal")
+
+	// SQLite writes the control transaction itself. No invented WAL header,
+	// checksums or record bytes, and no modification to a live WAL file.
+	if _, err := c.Commit(bg, func(tx *Tx) (any, error) {
+		return tx.AppendEntry(c.ID(), EntryDraft{"kind": "app.after-prefix"})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	full := read(path + "-wal")
+	const header, frameHeader = 32, 24
+	if len(committed) <= header {
+		t.Fatal("missing committed WAL frames")
+	}
+	pageSize := int(binary.BigEndian.Uint32(committed[8:12]))
+	if pageSize < 512 || pageSize > 65_536 || pageSize&(pageSize-1) != 0 {
+		t.Fatalf("invalid WAL page size %d", pageSize)
+	}
+	frameSize := frameHeader + pageSize
+	if (len(committed)-header)%frameSize != 0 || (len(full)-header)%frameSize != 0 || len(full) < len(committed)+frameSize || !bytes.HasPrefix(full, committed) || !bytes.Equal(database, read(path)) {
+		t.Fatal("expected an appended WAL transaction with unchanged database/prefix")
+	}
+	// Leave the next frame header and half of its page, with no SHM copy.
+	// A cold viewer must recover the committed prefix, not rely on a copied
+	// shared WAL index with a head known to exclude the incomplete frame.
+	torn := full[:len(committed)+frameHeader+pageSize/2]
+	viewerPath := filepath.Join(t.TempDir(), "copy.sqlite")
+	for name, value := range map[string][]byte{viewerPath: database, viewerPath + "-wal": torn} {
+		if err := os.WriteFile(name, value, 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	reader, err := OpenSQLite(viewerPath, SQLiteOptions{ReadOnly: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close(bg)
+	viewer, err := Open(bg, reader, Options{ReadOnly: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer viewer.Close(bg)
+	root, err := viewer.Root(bg, AgentChange{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, err := root.Entries(bg, EntryQuery{Order: Ascending}, 10, nil)
+	kinds := make([]string, 0, len(page.Items))
+	for _, entry := range page.Items {
+		kinds = append(kinds, entry.Kind)
+	}
+	if err != nil || page.Next != nil || len(kinds) != 1 || kinds[0] != "pi.user" {
+		t.Fatalf("transcript at torn frame: %v, cursor=%v, err=%v; want exactly [pi.user]", kinds, page.Next, err)
+	}
+	if run := readOnlyHarnessRunID(t, root); run != id {
+		t.Fatalf("viewer run task = %d, want the live writer's %d", run, id)
+	}
+	assertReadOnlyHarnessTask(t, viewer, id, "running", 0)
+	if next := readOnlyHarnessSQLiteHead(t, reader); next != head {
+		t.Fatalf("viewer head = %d, want pre-tail %d", next, head)
+	}
+	if err := viewer.Close(bg); err != nil {
+		t.Fatal(err)
+	}
+	// SHM is a generated SQLite coordination index; the DB and WAL carry
+	// durable data. No repair, truncation or checkpoint may change either.
+	for name, want := range map[string][]byte{viewerPath: database, viewerPath + "-wal": torn} {
+		if got, err := os.ReadFile(name); err != nil || !bytes.Equal(got, want) {
+			t.Errorf("viewer changed %s bytes: got size %d (%v), want unchanged %d bytes", filepath.Base(name), len(got), err, len(want))
+		}
+	}
+	assertReadOnlyHarnessTask(t, writer, id, "running", 0)
 }
 
 // Read SQLite's next commit sequence independently of the Harness projection,
