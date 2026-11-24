@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# != 4 && ( $# != 5 || $5 != preparation ) ]]; then
-  printf 'Usage: bash %s <pinned-git-mirror> <prepared-oracle-dir> <user-npm-cacache> <release-archive-dir> [preparation]\n' "$0" >&2
+if [[ $# != 4 && ( $# != 5 || ( $5 != preparation && $5 != read-contract ) ) ]]; then
+  printf 'Usage: bash %s <pinned-git-mirror> <prepared-oracle-dir> <user-npm-cacache> <release-archive-dir> [preparation|read-contract]\n' "$0" >&2
   exit 1
 fi
 mirror=$(realpath -- "$1")
@@ -19,6 +19,7 @@ pin=faac585884ae2c013a6b1400f3e9e77f10b34bac
 base=4cff3ac164d79b3acb8399e311c342d59c91f6dc
 mode=${5:-read}
 [[ "$mode" != preparation ]] || base=67f9d63a4f79b3e730d14289193f7c147726f08f
+[[ "$mode" != read-contract ]] || base=04a700eb4fba36df946354a6993ec173e8bfc509
 queue=docs/upstream-v1.6.0/test-inventory/primary-queue-r21.jsonl
 test=packages/durable/test/tools-images.test.ts
 adapter=packages/durable/src/tools/read.ts
@@ -75,7 +76,7 @@ check_sources() {
   local file
   for file in "${sources[@]}"; do git -C "$mirror" show "$pin:$file" | cmp "$scratch/$file" -; done
 }
-if [[ "$mode" == preparation ]]; then
+if [[ "$mode" != read ]]; then
   sources+=(packages/durable/src/images/{exif,index,node-worker}.ts)
 fi
 check_sources
@@ -91,8 +92,74 @@ run() {
     node ../../node_modules/vitest/vitest.mjs run test/tools-images.test.ts -t "$pattern" --pool=forks --maxWorkers=1 \
     --reporter=json --outputFile "$scratch/$tag.json") > "$scratch/$tag.log" 2>&1
 }
+show_failure() {
+  local tag=$1
+  cat "$scratch/$tag.log" >&2
+  jq -c '[.testResults[] | {message,failed:[.assertionResults[]|select(.status=="failed")|{fullName,failureMessages}]}]' "$scratch/$tag.json" >&2 || true
+}
+
 exec 9>/tmp/go-ai/v160-focused-verify.lock
 flock 9
+if [[ "$mode" == read-contract ]]; then
+  processor=packages/durable/src/images/index.ts
+  passthrough='read of images, without an image processor returns a supported image within the limits as it is'
+  formats='read of images, without an image processor lists bmp in the description only with a processor'
+  tooSmall='read of images, with the Photon image processor gives up when not even one pixel fits the byte limit'
+  selector="^($passthrough|$formats|$tooSmall)$"
+  jq -n --arg pass "$passthrough" --arg formats "$formats" --arg cap "$tooSmall" '[$pass,$formats,$cap]' > "$scratch/cases.json"
+  if ! run original; then show_failure original; exit 1; fi
+  jq -e --slurpfile cases "$scratch/cases.json" '
+    .numPassedTests==3 and .numFailedTests==0 and .numPendingTests==31 and .numTodoTests==0 and
+    ([.testResults[].assertionResults[]|select(.status!="skipped")|[.fullName,.status]]==($cases[0]|map([.,"passed"]))) and
+    ([.testResults[].assertionResults[].fullName]|unique|length)==34
+  ' "$scratch/original.json" > "$scratch/original.check"
+  check_control() {
+    local tag=$1 failed=$2 location=$3
+    if run "$tag"; then printf 'Expected %s control to fail\n' "$tag" >&2; exit 1; fi
+    if ! jq -e --arg failed "$failed" --arg location "$location" --slurpfile original "$scratch/original.json" '
+      .numPassedTests==2 and .numFailedTests==1 and .numPendingTests==31 and .numTodoTests==0 and
+      ([.testResults[].assertionResults[]|[.fullName,.status]]==[$original[0].testResults[].assertionResults[]|[.fullName,if .fullName==$failed then "failed" else .status end]]) and
+      any(.testResults[].assertionResults[]; .fullName==$failed and (.failureMessages|join("\n")|contains($location)))
+    ' "$scratch/$tag.json" > "$scratch/$tag.check"; then show_failure "$tag"; exit 1; fi
+  }
+  [[ $(grep -Fc '"jpg, png, gif, webp, bmp"' "$scratch/$adapter") == 1 ]]
+  sed -i 's/"jpg, png, gif, webp, bmp"/"jpg, png, gif, webp"/' "$scratch/$adapter"
+  check_control format-control "$formats" 'tools-images.test.ts:168:'
+  git -C "$mirror" show "$pin:$adapter" > "$scratch/$adapter"
+  [[ $(grep -Fc 'encodeWithin(image, target, limits.maxBytes' "$scratch/$processor") == 1 ]]
+  sed -i 's/encodeWithin(image, target, limits.maxBytes/encodeWithin(image, target, 4_718_592/' "$scratch/$processor"
+  check_control cap-control "$tooSmall" 'tools-images.test.ts:236:'
+  git -C "$mirror" show "$pin:$processor" > "$scratch/$processor"
+  # Export only the small input fixtures, using the same verified test helper.
+  (cd "$scratch/packages/durable" && env -i PATH="$PATH" HOME="$scratch/home" TMPDIR="$scratch/tmp" \
+    node --permission --allow-fs-read="$scratch" --input-type=module -e '
+      import { encode, gif, initPhoton } from "./test/image-fixtures.ts";
+      initPhoton();
+      const base64 = (bytes) => Buffer.from(bytes).toString("base64");
+      console.log(JSON.stringify({png8x6:base64(encode(8,6,"png")),gif1x1:base64(gif()),png4x4:base64(encode(4,4,"png"))}));
+    ') > "$scratch/fixtures.json"
+  flock -u 9
+  check_sources
+  for member in "$js" "$wasm"; do cmp "$scratch/$member" "$scratch/$key/$member"; done
+  for file in "${sources[@]}"; do
+    jq -cn --arg file "$file" --arg sha "$(sha256 "$scratch/$file")" '{file:$file,sha256:$sha}'
+  done > "$scratch/sources.jsonl"
+  jq -n --arg pin "$pin" --arg base "$base" --arg test "$test" --arg queue "$queue" --arg selector "$selector" \
+    --arg formats "$formats" --arg cap "$tooSmall" --arg node "$(node --version)" --arg vitest "$vitest" \
+    --arg url "$url" --arg integrity "$integrity" --arg archiveSha "$archive_sha" --arg aiSha "$ai_sha" \
+    --arg jsSha "$(sha256 "$scratch/$js")" --arg wasmSha "$(sha256 "$scratch/$wasm")" \
+    --slurpfile report "$scratch/original.json" --slurpfile sources "$scratch/sources.jsonl" --slurpfile deps "$scratch/copied.json" \
+    --slurpfile fixtures "$scratch/fixtures.json" '
+    [$report[0].testResults[].assertionResults[]] as $cases |
+    {format:1,pin:$pin,evidenceBase:$base,node:$node,vitest:$vitest,
+     selection:{file:$test,selector:$selector,caseNames:[$cases[]|select(.status=="passed")|.fullName],filteredOut:[$cases[]|select(.status=="skipped")|.fullName]},
+     result:{passed:3,failed:0,selectedSkipped:0},sourceDigests:$sources,fixturesBase64:$fixtures[0],
+     photonArchive:{url:$url,integrity:$integrity,sha256:$archiveSha,jsSha256:$jsSha,wasmSha256:$wasmSha},aiArchiveSha256:$aiSha,
+     controls:([{change:"omit BMP from the processor-enabled description",failed:$formats,assertion:"tools-images.test.ts:168"},
+                {change:"ignore the supplied byte cap when encoding a candidate",failed:$cap,assertion:"tools-images.test.ts:236"}]|map(.+{passed:[$cases[]|select(.status=="passed")|.fullName] - [.failed]})),
+     copiedDependencies:$deps[0],priorQueue:{file:$queue,commit:$base},exclusions:[],scope:"offline-inline-format-and-preparation-cap"}'
+  exit 0
+fi
 if [[ "$mode" == preparation ]]; then
   processor=packages/durable/src/images/index.ts
   prior=docs/upstream-v1.6.0/test-inventory/tools-images.json
@@ -110,11 +177,6 @@ if [[ "$mode" == preparation ]]; then
   jq -e --arg stable "$stable" --arg timing1 "$timing1" --arg timing2 "$timing2" '
     .selection.filteredOut-[$stable,$timing1,$timing2]|select(length==22)
   ' "$scratch/prior.json" > "$scratch/cases.json"
-  show_failure() {
-    local tag=$1
-    cat "$scratch/$tag.log" >&2
-    jq -c '[.testResults[] | {message,failed:[.assertionResults[]|select(.status=="failed")|{fullName,failureMessages}]}]' "$scratch/$tag.json" >&2 || true
-  }
   if ! run original; then show_failure original; exit 1; fi
   jq -e --slurpfile cases "$scratch/cases.json" '
     .numPassedTests==22 and .numFailedTests==0 and .numPendingTests==12 and .numTodoTests==0 and

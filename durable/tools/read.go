@@ -30,10 +30,14 @@ func ReadWithPreparedImages(env durable.FileSystem, limits ImageLimits) durable.
 	return readTool(env, true, &limits)
 }
 func readTool(env durable.FileSystem, inlineImages bool, limits *ImageLimits) durable.ToolRegistration {
+	formats := "jpg, png, gif, webp"
+	if inlineImages {
+		formats += ", bmp"
+	}
 	return durable.ToolRegistration{
 		Definition: goai.Tool{
 			Name:        "read",
-			Description: "Read a text file. Text output is truncated to 2000 lines or 50KB (whichever is hit first). Use offset/limit for large files. When you need the full file, continue with offset until complete.",
+			Description: "Read the contents of a file. Supports text files and images (" + formats + "). Images are sent as attachments. For text files, output is truncated to 2000 lines or 50KB (whichever is hit first). Use offset/limit for large files. When you need the full file, continue with offset until complete.",
 			Parameters:  readSchema,
 		},
 		Implementation: "durable.tools.read",
