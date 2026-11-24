@@ -592,7 +592,7 @@ All ten selected Groq and z.ai Completions cases passed unchanged upstream. Go n
 
 ### Specification example and duplicate submission IDs
 
-The unchanged specification-usage test passed under Vitest. A separate TypeScript run on the original import closure, with the missing declarations restored in scratch, still reported `MessagePort.onmessage` under the repository's Node-only options. Adding the DOM library let it compile and caught a deliberately wrong type assertion. This does not count as a pass under the original compiler options. The unchanged submit-in-commit example ran and printed the expected seven lines in order.
+The unchanged specification-usage test passed under Vitest. A reduced TypeScript program reported `MessagePort.onmessage`; a [later compiler probe](test-inventory/spec-usage-types.md) traced this to an omitted workspace root that references the DOM library. The unchanged submit-in-commit example ran and printed the expected seven lines in order.
 
 The Go submission test checks that a duplicate request returns the same ID without advancing SQLite's commit counter. Reusing the ID for a different input type returns the exact error, and another conversation can use the same request ID independently. The unchanged upstream case passed, and bypassing Go deduplication broke the test. No production change was needed.
 
@@ -745,3 +745,17 @@ The unchanged providers and Vertex files passed all 39 cases offline. An explici
 Six unchanged edit and path tests passed in the isolated Linux fixture. Go now uses the same mutation lock for a missing name containing a literal backslash and for the file after creation. Symlink and filesystem guards are unchanged. The two GIF signature cases and image-by-content case also passed in a separate offline run. Go recognises the PNG in `image.txt`, keeps its bytes intact, and returns the expected read diagnostic. Go reports a false error flag rather than an absent JavaScript field. Two delayed mutation cases are still open in this source file, and real Windows PowerShell remains excluded.
 
 The combined focused Go tests passed twice, and vet, Staticcheck and the offline edit receipt passed. No live provider requests or release checks ran.
+
+### Default refresh, environment discovery, idle waits and Schema messages
+
+All 30 unchanged provider cases passed offline. A newer `Refresh(ctx, true)` now starts a new network generation without `Force`. Both refreshes report `Aborted: false`, and the one stored and published model remains `listed-2` after the older callback returns. Cache-only callers can join without starting or superseding a fetch. `Force` still controls provider-specific freshness checks. The old implementation made one fetch in the translated test; the pinned case requires two.
+
+The Fireworks, Together and Qwen originals for environment discovery passed in their respective offline selections. `FindEnvKeys` exposes the configured names in precedence order and returns `nil` for the two cross-plan checks. It excludes ambient credentials and leaves existing key resolution unchanged. The native tests distinguish an ordered name list from successful key-value resolution. Reversing the list broke all four Qwen order controls.
+
+All 25 unchanged idle-scope cases passed. A public idle wait remains registered while its task is parked. In the no-op review case, an active task holds a second conversation while a single retained range expires after the logical clock advances from 1000 to 2500. The stored task and SQLite commit counter stay unchanged. The fixture uses an inert timer handle and fires no timer callbacks. Fault controls caused the parked wait to finish early or prevented no-op expiry.
+
+All 40 unchanged validator cases passed. Nine standalone assertions match: membership at the end of 5,000- and 10,000-value enums, the exact 20-item cap and remaining count, four `contains` messages, and the complete two-record `oneOf` diagnostic. Go still resolves references during validation. An unresolved reference in an omitted property does not fail setup; a reached unresolved reference produces an instance diagnostic. No reusable standalone compile API was added.
+
+Both [delayed-abort file-tool originals](test-inventory/delayed-abort-tools.md) passed. Go holds the mutation lock until the host write settles. An edit that committed to disk before cancellation surfaced now returns `Operation aborted`, with `errors.Is(err, context.Canceled)` preserved. The native test checks the actual file contents and exact hold and settlement order. With the three image cases from the previous round, 35 distinct originals of `tools.test.ts` have run; real Windows PowerShell is the single approved exclusion in that file.
+
+The [specification-usage test type-checks](test-inventory/spec-usage-types.md) under the pinned compiler options with the unchanged IndexedDB workspace root that brings in the DOM declarations. The root graph was enumerated; a full-workspace type-check has not run.
