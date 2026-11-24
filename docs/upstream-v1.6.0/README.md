@@ -789,3 +789,7 @@ The unchanged script-failure case passed. The native portable guest made one `ec
 ### Chord loads the shared Telemetry source
 
 All 23 unchanged cases in the changed [Chord telemetry suite](test-inventory/chord-telemetry.md) passed offline. The witness observed the pinned `memory.ts` and `render.ts` modules evaluate and three connections create the Chord telemetry schema on Node SQLite 3.54.0. Replacing the scratch renderer failed the relay-trace case. The machine receipt reproduced byte for byte. This is an upstream dependency result on this host; it has no native Go mappings.
+
+### Prepared image values and caller ownership
+
+The unchanged [Photon image-ownership case](test-inventory/tools-images-ownership.md) passed with the real worker and pinned JavaScript and WASM assets. With its exact captured PNG, Go's native processor and standalone preparation functions produce the same full value and leave the caller's bytes unchanged. The two runtimes choose different encodings for this input: Photon emits a 1,644,243-byte JPEG and Go a 66,171-byte PNG. The Go comparison does not exercise worker scheduling. Codec selection, event-loop freedom and idle-worker restart remain open.
