@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
-if [[ $# != 3 && ( $# != 4 || ( $4 != linux-bash && $4 != mock-powershell && $4 != edit-paths ) ) ]]; then
-  printf 'Usage: bash %s <pinned-git-mirror> <retained-oracle-dir> <release-archive-dir> [linux-bash|mock-powershell|edit-paths]\n' "$0" >&2; exit 1
+if [[ $# != 3 && ( $# != 4 || ( $4 != linux-bash && $4 != mock-powershell && $4 != edit-paths && $4 != delayed-abort ) ) ]]; then
+  printf 'Usage: bash %s <pinned-git-mirror> <retained-oracle-dir> <release-archive-dir> [linux-bash|mock-powershell|edit-paths|delayed-abort]\n' "$0" >&2; exit 1
 fi
 here=$(cd -- "$(dirname -- "$0")" && pwd -P)
 mirror=$(realpath -- "$1")
@@ -13,6 +13,7 @@ mode=${4:-file}
 [[ "$mode" != linux-bash ]] || base=bb6f354b08e8415f09a1c92f492a49f0d5f0bdc5
 [[ "$mode" != mock-powershell ]] || base=a0fa5814f398b932edd57ede595a0eecd30a51f5
 [[ "$mode" != edit-paths ]] || base=ebe8ec7ab0a1f2da0a1641a9b63c633a48f1a707
+[[ "$mode" != delayed-abort ]] || base=c82245710d014e35a2a3c1c6e78f865f5410a726
 file=packages/durable/test/tools.test.ts
 adapter=packages/durable/src/tools/read.ts
 [[ "$mode" == file ]] || adapter=packages/durable/src/tools/bash.ts
@@ -53,7 +54,9 @@ check_sources() {
   for source in "${sources[@]}"; do git -C "$mirror" show "$pin:$source" | cmp "$scratch/$source" -; done
 }
 check_sources
-[[ "$mode" != edit-paths ]] || adapter=packages/durable/src/tools/file-mutation-queue.ts
+if [[ "$mode" == edit-paths || "$mode" == delayed-abort ]]; then
+  adapter=packages/durable/src/tools/file-mutation-queue.ts
+fi
 file_sha=$(sha256 "$scratch/$file")
 git -C "$here" show "$base:$queue" | jq -e --arg file "$file" --arg sha "$file_sha" '
   select(.kind=="suite" and .path==$file) | .upstream.sha256==$sha and .original.status=="none-found"
@@ -99,6 +102,14 @@ elif [[ "$mode" == edit-paths ]]; then
   scope=isolated-linux-edit-paths
   expected_error='tools.test.ts:513:'
   pending=30
+elif [[ "$mode" == delayed-abort ]]; then
+  jq -n '[
+    "durable tools write keeps the mutation queue locked until an aborted write settles",
+    "durable tools edit keeps the mutation queue locked until an aborted edit write settles"
+  ]' > "$scratch/cases.json"
+  change='release the scratch queue before awaiting the admitted mutation'
+  scope=isolated-delayed-abort-write-edit
+  pending=34
 else
   jq -n '[
     "fail with an ordinary error when no environment is configured",
@@ -120,6 +131,11 @@ else
   scope=portable-text-read-write-edit
   expected_error='offset=62'
   pending=23
+fi
+if [[ "$mode" == delayed-abort ]]; then
+  failures=$(jq -c '{(.[0]):"tools.test.ts:345:",(.[1]):"tools.test.ts:438:"}' "$scratch/cases.json")
+else
+  failures=$(jq -nc --arg name "$failed" --arg error "$expected_error" '{($name):$error}')
 fi
 count=$(jq -er 'length' "$scratch/cases.json")
 selector=$(jq -er 'select(all(.[]; test("^[a-zA-Z0-9 ,/\u0027-]+$"))) | "^("+join("|")+")$"' "$scratch/cases.json")
@@ -189,6 +205,9 @@ elif [[ "$mode" == mock-powershell ]]; then
 elif [[ "$mode" == edit-paths ]]; then
   [[ $(grep -Fc 'const name = absolutePath.slice' "$scratch/$adapter") == 1 ]]
   sed -i '/const name = absolutePath.slice/s/;$/\.split("\\\\").at(-1)!;/' "$scratch/$adapter"
+elif [[ "$mode" == delayed-abort ]]; then
+  [[ $(grep -Fc 'await previous;' "$scratch/$adapter") == 1 ]]
+  sed -i '/await previous;/a\	 release();' "$scratch/$adapter"
 else
   # shellcheck disable=SC2016
   [[ $(grep -Fc 'more lines in file. Use offset=${nextOffset}' "$scratch/$adapter") == 1 ]]
@@ -196,10 +215,10 @@ else
   sed -i '/more lines in file\. Use offset=/s/${nextOffset}/${nextOffset + 1}/' "$scratch/$adapter"
 fi
 if run mutated; then printf 'Unexpected pass: %s\n' "$change" >&2; exit 1; fi
-if ! jq -e --arg failed "$failed" --arg expectedError "$expected_error" --argjson count "$count" --argjson pending "$pending" --slurpfile original "$scratch/original.json" '
-  .numPassedTests==($count-1) and .numFailedTests==1 and .numPendingTests==$pending and .numTodoTests==0 and
-  ([.testResults[].assertionResults[]|[.fullName,.status]]==[$original[0].testResults[].assertionResults[]|[.fullName,if .fullName==$failed then "failed" else .status end]]) and
-  any(.testResults[].assertionResults[]; .fullName==$failed and (.failureMessages|join("\n")|contains($expectedError)))
+if ! jq -e --argjson failures "$failures" --argjson count "$count" --argjson pending "$pending" --slurpfile original "$scratch/original.json" '
+  .numPassedTests==($count-($failures|length)) and .numFailedTests==($failures|length) and .numPendingTests==$pending and .numTodoTests==0 and
+  ([.testResults[].assertionResults[]|[.fullName,.status]]==[$original[0].testResults[].assertionResults[]|[.fullName,if $failures[.fullName] then "failed" else .status end]]) and
+  all(.testResults[].assertionResults[]|select(.status=="failed"); $failures[.fullName] as $loc | (.failureMessages|join("\n")|contains($loc)))
 ' "$scratch/mutated.json" > "$scratch/control.check"; then show_failure mutated; exit 1; fi
 flock -u 9
 git -C "$mirror" show "$pin:$adapter" > "$scratch/$adapter"
@@ -208,14 +227,14 @@ for source in "${sources[@]}"; do
   jq -cn --arg file "$source" --arg sha "$(sha256 "$scratch/$source")" '{file:$file,sha256:$sha}'
 done > "$scratch/sources.jsonl"
 jq -n --arg pin "$pin" --arg base "$base" --arg node "$(node --version)" --arg vitest "$vitest" \
-  --arg file "$file" --arg selector "$selector" --arg aiSha "$ai_sha" --arg failed "$failed" --arg queue "$queue" \
+  --arg file "$file" --arg selector "$selector" --arg aiSha "$ai_sha" --argjson failures "$failures" --arg queue "$queue" \
   --arg change "$change" --arg scope "$scope" --arg mode "$mode" --argjson count "$count" \
   --slurpfile cases "$scratch/cases.json" --slurpfile report "$scratch/original.json" --slurpfile sources "$scratch/sources.jsonl" \
   --slurpfile copied "$scratch/copied.json" '
   {format:1,pin:$pin,evidenceBase:$base,node:$node,vitest:$vitest,
    selection:{file:$file,selector:$selector,caseNames:$cases[0],filteredOut:[$report[0].testResults[].assertionResults[]|select(.status=="skipped")|.fullName]},
    result:{passed:$count,failed:0,selectedSkipped:0},sourceDigests:$sources,aiArchiveSha256:$aiSha,copiedDependencies:$copied[0],
-   control:{change:$change,failed:[$failed],passed:($cases[0]-[$failed])},
+   control:{change:$change,failed:($cases[0]|map(select($failures[.]))),passed:($cases[0]|map(select($failures[.]|not)))},
    priorQueue:{file:$queue,commit:$base},exclusions:[],scope:$scope} +
    (if $mode!="file" then {isolation:{interfaces:["lo"],egressProbe:{ipv4:"ENETUNREACH",ipv6:"ENETUNREACH"},nodeNetworkPermission:false}} else {} end) +
    (if $mode=="edit-paths" then {filesystemIsolation:{mechanism:"Bubblewrap mount namespace",writableHostBind:"scratch only",worktreeMounted:false}} else {} end)'

@@ -75,7 +75,7 @@ func Edit(env durable.FileSystem) durable.ToolRegistration {
 					return editAccessError(path, err)
 				}
 				if err := ctx.Err(); err != nil {
-					return err
+					return &editToolError{message: "Operation aborted", cause: err}
 				}
 				details = detail
 				return nil
@@ -99,19 +99,19 @@ type matchedEdit struct {
 	index int // Original argument index, preserved across positional sorting.
 }
 
-type editFileAccessError struct {
+type editToolError struct {
 	message string
 	cause   error
 }
 
-func (err *editFileAccessError) Error() string { return err.message }
-func (err *editFileAccessError) Unwrap() error { return err.cause }
+func (err *editToolError) Error() string { return err.message }
+func (err *editToolError) Unwrap() error { return err.cause }
 func editAccessError(path string, err error) error {
 	var failure *durable.FileError
 	if !errors.As(err, &failure) {
 		return err
 	}
-	return &editFileAccessError{message: fmt.Sprintf("Could not edit file: %s. Error code: %s.", path, failure.Code), cause: err}
+	return &editToolError{message: fmt.Sprintf("Could not edit file: %s. Error code: %s.", path, failure.Code), cause: err}
 }
 
 type editCommandError string

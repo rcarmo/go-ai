@@ -1,0 +1,193 @@
+{
+  "format": 1,
+  "pin": "faac585884ae2c013a6b1400f3e9e77f10b34bac",
+  "evidenceBase": "c82245710d014e35a2a3c1c6e78f865f5410a726",
+  "node": "v26.13.0",
+  "vitest": "4.1.12",
+  "selection": {
+    "file": "packages/durable/test/tools.test.ts",
+    "selector": "^(durable tools write keeps the mutation queue locked until an aborted write settles|durable tools edit keeps the mutation queue locked until an aborted edit write settles)$",
+    "caseNames": [
+      "durable tools write keeps the mutation queue locked until an aborted write settles",
+      "durable tools edit keeps the mutation queue locked until an aborted edit write settles"
+    ],
+    "filteredOut": [
+      "durable tools fail with an ordinary error when no environment is configured",
+      "durable tools read detects the complete GIF87a signature",
+      "durable tools read detects the complete GIF89a signature",
+      "durable tools read reads text with offsets and limits and reports continuation as a diagnostic",
+      "durable tools read truncates large text by line count",
+      "durable tools read does not count a trailing newline as an extra line at the truncation limit",
+      "durable tools read shows the start of a line longer than the byte limit",
+      "durable tools read rejects offsets beyond the file",
+      "durable tools read reads a log that grows while it is read",
+      "durable tools read returns images by content as one image block",
+      "durable tools write writes files and creates parent directories",
+      "durable tools edit applies disjoint edits and returns both diff formats",
+      "durable tools edit repairs edits sent as a JSON string, a single object, or top-level oldText/newText without mutating them",
+      "durable tools edit matches all edits against the original and rejects overlaps",
+      "durable tools edit rejects missing and duplicate target text",
+      "durable tools edit serializes concurrent edits through canonical and symlink paths",
+      "durable tools edit serializes edits of one file across environment objects of one file system",
+      "durable tools edit serializes a new file created through a symlinked directory with its canonical path",
+      "durable tools edit keys a missing file whose name contains a backslash like the created file",
+      "durable tools edit does not serialize the same path on different file systems",
+      "durable tools edit edits regular files through symlinks",
+      "durable tools edit preserves BOM and CRLF line endings",
+      "durable tools powershell runs the command with pwsh as one argument, forcing UTF-8 output",
+      "durable tools powershell falls back to Windows PowerShell and reports the last start failure",
+      "durable tools powershell answers a nonzero exit with an error result carrying the exit code",
+      "durable tools powershell runs real PowerShell with UTF-8 output",
+      "durable tools bash passes the retained window to the environment and forwards what it skipped",
+      "durable tools bash streams combined stdout and stderr, returns no output of its own, and repeats it with the exit code",
+      "durable tools bash answers a nonzero exit with an error result, and throws on a timeout, after streaming the output",
+      "durable tools bash reports the spill of a command that times out",
+      "durable tools bash prepares command, cwd, and an explicit environment with the call's api",
+      "durable tools bash supports command prefixes",
+      "durable tools bash streams every byte and spills complete output beyond the default limits",
+      "durable tools bash does not spill output within the limits"
+    ]
+  },
+  "result": {
+    "passed": 2,
+    "failed": 0,
+    "selectedSkipped": 0
+  },
+  "sourceDigests": [
+    {
+      "file": "packages/durable/test/tools.test.ts",
+      "sha256": "8d664a5856ac3d9a3c34b0c4e8f973ae4d0d320c63aeadf89629f4b977242eb1"
+    },
+    {
+      "file": "packages/durable/src/tools/bash.ts",
+      "sha256": "2408847c8f3ce95553e3886bc01e3d1744a8e12b35acf8e913ffeecc3edf33d3"
+    },
+    {
+      "file": "packages/durable/vitest.config.ts",
+      "sha256": "0325cd2e313a95a6c67f3b3dc3f45608307df0a6dfcab38bcf0d7319f7c9d817"
+    },
+    {
+      "file": "packages/durable/test/setup-document-retention.ts",
+      "sha256": "48936565bf35afc78025d1b3b60d95f85851f20d6003fbc4d54a72e4d411ac65"
+    },
+    {
+      "file": "packages/durable/src/env/node.ts",
+      "sha256": "95840126f4b7010981a803e948603806b8726efc5ef8bb892efe1ceae4e3cdc3"
+    },
+    {
+      "file": "packages/durable/src/tools/write.ts",
+      "sha256": "c619e5385451913f2c8984e2166838a34ccdc2730e5a239558201f643a8872bf"
+    },
+    {
+      "file": "packages/durable/src/tools/edit.ts",
+      "sha256": "e23ad7339b1e4d1c811b01398cc11ab23ca75a30a45a9334fad83d3c88ee4171"
+    },
+    {
+      "file": "packages/durable/src/tools/file-mutation-queue.ts",
+      "sha256": "3007b153fc3af9a7dbdcd08fa46e3c344474151b40aaca04f55eb4b2499ae9d4"
+    },
+    {
+      "file": "packages/durable/src/tools/env.ts",
+      "sha256": "c84674f1a15b2e870d35cab80c3d8290033d28cee8ba2ad8e4cbba78489e9d21"
+    },
+    {
+      "file": "packages/durable/src/tools/path-utils.ts",
+      "sha256": "6a47cc84862dfdbcb0106c282092621307279232758c8101512ef34b8d098837"
+    },
+    {
+      "file": "packages/durable/src/truncate.ts",
+      "sha256": "2067909f0ca0ec33d1bd4287054798cd10a4b1560149e6ca7743f35d87f6c2d2"
+    },
+    {
+      "file": "packages/durable/src/tools/read.ts",
+      "sha256": "5b5e50f7651489c4fa39828673d546d64194b42c836572fbe91a10e2e38e0638"
+    }
+  ],
+  "aiArchiveSha256": "d68312ec574bc959cb7fee26da4f4876d067aed9bbbe76e876359e60d2294747",
+  "copiedDependencies": {
+    "roots": [
+      "npm:node_modules/vitest",
+      "npm:node_modules/diff",
+      "npm:node_modules/quickjs-wasi",
+      "npm:node_modules/partial-json"
+    ],
+    "host": {
+      "os": "linux",
+      "cpu": "arm64",
+      "libc": "glibc"
+    },
+    "placements": [
+      "node_modules/@jridgewell/sourcemap-codec",
+      "node_modules/@oxc-project/types",
+      "node_modules/@rolldown/binding-linux-arm64-gnu",
+      "node_modules/@rolldown/pluginutils",
+      "node_modules/@standard-schema/spec",
+      "node_modules/@types/chai",
+      "node_modules/@types/deep-eql",
+      "node_modules/@types/estree",
+      "node_modules/@vitest/expect",
+      "node_modules/@vitest/mocker",
+      "node_modules/@vitest/pretty-format",
+      "node_modules/@vitest/runner",
+      "node_modules/@vitest/snapshot",
+      "node_modules/@vitest/spy",
+      "node_modules/@vitest/utils",
+      "node_modules/assertion-error",
+      "node_modules/chai",
+      "node_modules/convert-source-map",
+      "node_modules/detect-libc",
+      "node_modules/diff",
+      "node_modules/es-module-lexer",
+      "node_modules/estree-walker",
+      "node_modules/expect-type",
+      "node_modules/fdir",
+      "node_modules/lightningcss",
+      "node_modules/lightningcss-linux-arm64-gnu",
+      "node_modules/magic-string",
+      "node_modules/nanoid",
+      "node_modules/obug",
+      "node_modules/partial-json",
+      "node_modules/pathe",
+      "node_modules/picocolors",
+      "node_modules/picomatch",
+      "node_modules/postcss",
+      "node_modules/quickjs-wasi",
+      "node_modules/rolldown",
+      "node_modules/siginfo",
+      "node_modules/source-map-js",
+      "node_modules/stackback",
+      "node_modules/std-env",
+      "node_modules/tinybench",
+      "node_modules/tinyexec",
+      "node_modules/tinyglobby",
+      "node_modules/tinyrainbow",
+      "node_modules/vite",
+      "node_modules/vitest",
+      "node_modules/why-is-node-running"
+    ]
+  },
+  "control": {
+    "change": "release the scratch queue before awaiting the admitted mutation",
+    "failed": [
+      "durable tools write keeps the mutation queue locked until an aborted write settles",
+      "durable tools edit keeps the mutation queue locked until an aborted edit write settles"
+    ],
+    "passed": []
+  },
+  "priorQueue": {
+    "file": "docs/upstream-v1.6.0/test-inventory/primary-queue-r21.jsonl",
+    "commit": "c82245710d014e35a2a3c1c6e78f865f5410a726"
+  },
+  "exclusions": [],
+  "scope": "isolated-delayed-abort-write-edit",
+  "isolation": {
+    "interfaces": [
+      "lo"
+    ],
+    "egressProbe": {
+      "ipv4": "ENETUNREACH",
+      "ipv6": "ENETUNREACH"
+    },
+    "nodeNetworkPermission": false
+  }
+}
