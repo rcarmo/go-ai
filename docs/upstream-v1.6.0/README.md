@@ -822,4 +822,12 @@ A 6 MiB return previously hit the portable worker's record limit before it could
 
 All 40 unchanged validator cases passed. [`CompileJSONSchema`](../../schema_validation_compile.go) prepares a read-only schema and host registry for repeated `Check` and `Explain` calls. By default, a reachable unresolved reference fails preparation before any value is supplied. With `RejectUnresolvedRefs`, an omitted optional field is valid; supplying it yields the exact `/t` diagnostic. The checks cover local and host references, without fetching documents. They leave the existing lazy validation and tool paths unchanged.
 
-Supplemental comparisons cover unused definitions and host documents, recursive references, draft-7 sibling pruning and value-time dynamic resolution. The API does not provide compiled coercion or parsing or a full meta-schema check. Four faults caught loss of preparation failure or reject behavior, wrong-draft pruning, and eager traversal of dormant definitions.
+Supplemental comparisons cover unused definitions and host documents, recursive references, draft-7 sibling pruning and value-time dynamic resolution. The API does not provide compiled coercion or parsing or a full meta-schema check. Four faults caught loss of preparation failure or reject behavior, wrong-draft pruning, and eager traversal of dormant definitions. The earlier relative-root property and item cases also match when run through the prepared API with the source's reference policy.
+
+### llama.cpp closes thinking blocks and caches settled token lookups
+
+All 15 unchanged llama.cpp cases passed offline. The native tests now send the exact closed thinking prompt and exercise tokenization fallback and cache reuse through real loopback HTTP. A completed split-label lookup is cached per server and model. A failed request or response decode can retry. The duplicate-token error matches the pinned text. Supplemental controls distinguish same-root reuse from another server or model and verify retry after invalid tokenizer output. JavaScript in-flight promise sharing is not covered.
+
+### Chord executes the pinned Schema compiler and declaration tool
+
+All nine unchanged [Chord contract-schema cases](test-inventory/chord-contract-schema.md) passed offline. The witness observed the pinned Schema compiler and byte-length checker evaluate. It also observed native TypeScript 7.0.2 emit the actual 5,796-byte declaration. Removing the byte cap in scratch broke the unchanged bounds case. This is a shared-dependency and declaration fixture result on one host, without native Go mappings.
