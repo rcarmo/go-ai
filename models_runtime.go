@@ -64,8 +64,10 @@ type ModelRefreshContext struct {
 }
 
 type ModelRuntimeRefreshOptions struct {
+	// AllowNetwork permits fetching and supersedes an in-flight refresh.
+	// Cache-only refreshes may join existing work but never start a fetch.
 	AllowNetwork bool
-	// Force starts new network work instead of joining an in-flight refresh.
+	// Force bypasses provider-specific freshness checks when fetching.
 	Force bool
 }
 
@@ -224,7 +226,7 @@ func (r *ModelRuntime) refreshProvider(ctx context.Context, provider DynamicMode
 		r.refreshes[id] = state
 	}
 	previous := state.current
-	if previous != nil && !(allowNetwork && force) {
+	if previous != nil && !allowNetwork {
 		r.mu.Unlock()
 		select {
 		case <-ctx.Done():

@@ -3,6 +3,7 @@ package goai_test
 import (
 	"context"
 	"errors"
+	"slices"
 	"sync"
 	"testing"
 	"testing/synctest"
@@ -65,23 +66,30 @@ func TestModelRuntimeRefreshAllowNetworkFalseOnlyRestoresCache(t *testing.T) {
 	}
 }
 
-func TestModelRuntimeRefreshDeduplicatesConcurrentFetches(t *testing.T) {
+func TestModelRuntimeCacheOnlyRefreshJoinsWithoutSuperseding(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		provider := &testDynamicProvider{id: "dynamic", refreshed: []*goai.Model{runtimeModel("fresh")}, block: make(chan struct{})}
 		defer close(provider.block)
 		runtime := goai.NewModelRuntime(nil)
 		runtime.SetProvider(provider)
-		first := startModelRefreshV160(t.Context(), runtime, false)
+		first := startModelRefreshV160(t.Context(), runtime, true)
 		synctest.Wait()
-		second := startModelRefreshV160(t.Context(), runtime, false)
+		cacheOnly := startModelRefreshV160(t.Context(), runtime, false)
 		synctest.Wait()
+		select {
+		case got := <-first:
+			t.Fatalf("cache-only refresh did not preserve the in-flight fetch: %v", got)
+		case got := <-cacheOnly:
+			t.Fatalf("cache-only refresh did not preserve the in-flight fetch: waiter returned early: %v", got)
+		default:
+		}
 		if provider.calls != 1 {
 			t.Fatalf("expected one shared fetch, got %d", provider.calls)
 		}
 		provider.block <- struct{}{}
 		synctest.Wait()
-		assertRefreshResultV160(t, first, "first refresh", false)
-		assertRefreshResultV160(t, second, "joined refresh", false)
+		assertRefreshResultV160(t, first, "network refresh", false)
+		assertRefreshResultV160(t, cacheOnly, "cache-only refresh", false)
 	})
 }
 
@@ -111,7 +119,6 @@ func TestModelRuntimeRefreshWithOptionsPassesForce(t *testing.T) {
 }
 
 // Source: pi v1.6.0 packages/ai/test/providers.test.ts:710–754.
-// Use Force for the newer Go call: ordinary Go refreshes retain singleflight.
 func TestSourceV160ModelRuntimeRefreshSupersedesOlderNetworkWork(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		blocked := make(chan struct{})
@@ -121,6 +128,9 @@ func TestSourceV160ModelRuntimeRefreshSupersedesOlderNetworkWork(t *testing.T) {
 		var calls int
 		var firstSignal context.Context
 		provider := refreshFuncV160{fetch: func(opts goai.ModelRefreshContext) ([]*goai.Model, error) {
+			if opts.Force {
+				t.Error("default refresh forced the provider to bypass its cache")
+			}
 			calls++
 			current := calls
 			if current == 1 {
@@ -137,7 +147,9 @@ func TestSourceV160ModelRuntimeRefreshSupersedesOlderNetworkWork(t *testing.T) {
 		if got := runtime.GetModels("dynamic"); len(got) != 0 {
 			t.Fatalf("initial models = %+v, want empty", got)
 		}
-		first := startModelRefreshV160(t.Context(), runtime, false)
+		firstCtx, cancelFirst := context.WithCancel(t.Context())
+		defer cancelFirst()
+		first := startModelRefreshV160(firstCtx, runtime, true)
 		synctest.Wait()
 		if calls != 1 || firstSignal == nil {
 			t.Fatalf("first refresh did not start: calls=%d", calls)
@@ -145,15 +157,16 @@ func TestSourceV160ModelRuntimeRefreshSupersedesOlderNetworkWork(t *testing.T) {
 		second := startModelRefreshV160(t.Context(), runtime, true)
 		synctest.Wait()
 		if calls != 2 {
-			t.Fatalf("newer forced refresh did not bypass the older network work: fetches=%d, want 2", calls)
+			t.Fatalf("newer default refresh did not bypass the older network work: fetches=%d, want 2", calls)
 		}
 		assertRefreshResultV160(t, first, "superseded refresh", false)
 		if firstSignal.Err() != context.Canceled {
 			t.Fatalf("superseded producer signal = %v, want canceled", firstSignal.Err())
 		}
+		cancelFirst() // The older caller no longer owns any part of the newer call.
 		secondBlocked <- struct{}{}
 		synctest.Wait()
-		assertRefreshResultV160(t, second, "newer forced refresh", false)
+		assertRefreshResultV160(t, second, "newer default refresh", false)
 		assertModelPublicationV160(t, runtime, store, "listed-2")
 
 		// Drop the first fetch's last gate and wait for every runnable worker,
@@ -165,14 +178,14 @@ func TestSourceV160ModelRuntimeRefreshSupersedesOlderNetworkWork(t *testing.T) {
 }
 
 // Supplemental: a canceled caller must not publish a result from an
-// uncooperative provider, and a canceled joiner cannot stop a shared refresh.
+// uncooperative provider, and a canceled cache-only waiter cannot stop a fetch.
 func TestModelRuntimeRefreshInFlightCancellationV160(t *testing.T) {
 	for _, tc := range []struct {
 		name       string
 		cancelMain bool
 	}{
 		{"owner", true},
-		{"joiner", false},
+		{"cache_only_waiter", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
@@ -193,7 +206,7 @@ func TestModelRuntimeRefreshInFlightCancellationV160(t *testing.T) {
 				if tc.cancelMain {
 					mainCtx = ctx
 				}
-				main := startModelRefreshV160(mainCtx, runtime, false)
+				main := startModelRefreshV160(mainCtx, runtime, true)
 				synctest.Wait()
 				canceled := main
 				if !tc.cancelMain {
@@ -224,6 +237,72 @@ func TestModelRuntimeRefreshInFlightCancellationV160(t *testing.T) {
 	}
 }
 
+// Supplemental: a store write admitted before supersession cannot be undone,
+// but it must finish before the successor can publish or persist its models.
+func TestModelRuntimeRefreshOrdersInFlightStoreWriteV160(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		unblock := make(chan struct{})
+		defer close(unblock)
+		writeStarted := make(chan struct{})
+		var commits []string
+		var commitsMu sync.Mutex
+		base := goai.NewInMemoryModelsStore()
+		store := refreshStoreV160{
+			ModelsStore: base,
+			write: func(provider goai.Provider, entry *goai.ModelsStoreEntry) error {
+				id := entry.Models[0].ID
+				if id == "listed-1" {
+					close(writeStarted)
+					<-unblock
+				}
+				if err := base.Write(provider, entry); err != nil {
+					return err
+				}
+				commitsMu.Lock()
+				commits = append(commits, id)
+				commitsMu.Unlock()
+				return nil
+			},
+		}
+		runtime := goai.NewModelRuntime(store)
+		var fetches int
+		runtime.SetProvider(refreshFuncV160{fetch: func(goai.ModelRefreshContext) ([]*goai.Model, error) {
+			fetches++
+			if fetches == 1 {
+				return []*goai.Model{runtimeModel("listed-1")}, nil
+			}
+			return []*goai.Model{runtimeModel("listed-2")}, nil
+		}})
+		first := startModelRefreshV160(t.Context(), runtime, true)
+		<-writeStarted
+		second := startModelRefreshV160(t.Context(), runtime, true)
+		// The successor may already be waiting on the store mutex. Read the
+		// old caller's result directly; synctest.Wait does not idle on mutexes.
+		if got := <-first; got.Aborted || len(got.Errors) != 0 {
+			t.Fatalf("superseded refresh with a blocked store write = %+v", got)
+		}
+		if got := runtime.GetModels("dynamic"); len(got) != 0 {
+			t.Fatalf("models published before the cache write finished: %+v", got)
+		}
+		unblock <- struct{}{}
+		synctest.Wait()
+		assertRefreshResultV160(t, second, "newer refresh after an ordered write", false)
+		assertModelPublicationV160(t, runtime, store, "listed-2")
+		if !slices.Equal(commits, []string{"listed-1", "listed-2"}) {
+			t.Fatalf("write order = %v, want [listed-1 listed-2]", commits)
+		}
+	})
+}
+
+type refreshStoreV160 struct {
+	goai.ModelsStore
+	write func(goai.Provider, *goai.ModelsStoreEntry) error
+}
+
+func (s refreshStoreV160) Write(provider goai.Provider, entry *goai.ModelsStoreEntry) error {
+	return s.write(provider, entry)
+}
+
 type refreshFuncV160 struct {
 	fetch func(goai.ModelRefreshContext) ([]*goai.Model, error)
 }
@@ -234,11 +313,9 @@ func (p refreshFuncV160) RefreshModels(opts goai.ModelRefreshContext) ([]*goai.M
 	return p.fetch(opts)
 }
 
-func startModelRefreshV160(ctx context.Context, runtime *goai.ModelRuntime, force bool) <-chan goai.ModelRuntimeRefreshResult {
+func startModelRefreshV160(ctx context.Context, runtime *goai.ModelRuntime, allowNetwork bool) <-chan goai.ModelRuntimeRefreshResult {
 	result := make(chan goai.ModelRuntimeRefreshResult, 1)
-	go func() {
-		result <- runtime.RefreshWithOptions(ctx, goai.ModelRuntimeRefreshOptions{AllowNetwork: true, Force: force})
-	}()
+	go func() { result <- runtime.Refresh(ctx, allowNetwork) }()
 	return result
 }
 
