@@ -144,6 +144,13 @@ func llamaSourceContext() goai.ClassifierContext {
 	}}
 }
 
+func llamaSourceOrder() goai.LlamaCPPOrder {
+	return goai.LlamaCPPOrder{
+		Questions: []string{"team", "urgent", "severity"},
+		Choices:   map[string][]string{"team": {"billing", "technical", "sales"}},
+	}
+}
+
 func llamaSourcePick(instructions string) goai.ClassifierContext {
 	return goai.ClassifierContext{State: map[string]any{}, Questions: map[string]goai.ClassifierQuestion{
 		"pick": {Type: "choice", Instructions: instructions, Criteria: map[string]string{"a": "", "b": ""}},
@@ -152,11 +159,25 @@ func llamaSourcePick(instructions string) goai.ClassifierContext {
 
 func runLlamaSource(t *testing.T, server *llamaSourceServer, model *goai.ClassifierModel, ctx goai.ClassifierContext, opts goai.ClassifierOptions) *goai.ClassifierResult {
 	t.Helper()
+	return runLlamaSourceUsing(t, server, model, ctx, opts, goai.Classify)
+}
+
+func runOrderedLlamaSource(t *testing.T, server *llamaSourceServer, model *goai.ClassifierModel, ctx goai.ClassifierContext, order goai.LlamaCPPOrder, opts goai.ClassifierOptions) *goai.ClassifierResult {
+	t.Helper()
+	return runLlamaSourceUsing(t, server, model, ctx, opts, func(model *goai.ClassifierModel, ctx goai.ClassifierContext, opts *goai.ClassifierOptions) (*goai.ClassifierResult, error) {
+		return goai.ClassifyLlamaCPPWithOrder(model, ctx, order, opts)
+	})
+}
+
+func runLlamaSourceUsing(t *testing.T, server *llamaSourceServer, model *goai.ClassifierModel, ctx goai.ClassifierContext, opts goai.ClassifierOptions,
+	classify func(*goai.ClassifierModel, goai.ClassifierContext, *goai.ClassifierOptions) (*goai.ClassifierResult, error),
+) *goai.ClassifierResult {
+	t.Helper()
 	opts.HTTPClient = &http.Client{Transport: server}
 	if opts.Context == nil {
 		opts.Context = t.Context()
 	}
-	result, err := goai.Classify(model, ctx, &opts)
+	result, err := classify(model, ctx, &opts)
 	if err != nil || result == nil {
 		t.Fatalf("result=%v err=%v", result, err)
 	}
@@ -187,12 +208,11 @@ func TestSourceV160LlamaCPPClassifier(t *testing.T) {
 			case strings.Contains(prompt, "Answer with one level number."):
 				return map[string]float64{"2": -0.2, "1": -1.8, "0": -4}
 			default:
-				// Go sorts keys, so technical is C rather than B.
-				return map[string]float64{"C": -0.3, "A": -1.5, "B": -3}
+				return map[string]float64{"B": -0.3, "A": -1.5, "C": -3}
 			}
 		}}
 		model := llamaSourceModel()
-		result := runLlamaSource(t, server, model, llamaSourceContext(), goai.ClassifierOptions{APIKey: "local"})
+		result := runOrderedLlamaSource(t, server, model, llamaSourceContext(), llamaSourceOrder(), goai.ClassifierOptions{APIKey: "local"})
 		checkLlamaResult(t, result, goai.StopReasonStop, "")
 		choice, urgent, severity := result.Answers["team"], result.Answers["urgent"], result.Answers["severity"]
 		if len(result.Answers) != 3 || choice.Type != "choice" || choice.Choice != "technical" || len(choice.Probabilities) != 3 || urgent.Type != "bool" || severity.Type != "score" {
@@ -229,18 +249,18 @@ func TestSourceV160LlamaCPPClassifier(t *testing.T) {
 		server := &llamaSourceServer{tokens: llamaSourceWords, next: func(_ string, _ int) map[string]float64 {
 			return map[string]float64{"A": -1, "B": -2, "C": -3, "Y": -1, "N": -2, "0": -1, "1": -2, "2": -3}
 		}}
-		result := runLlamaSource(t, server, llamaSourceModel(), llamaSourceContext(), goai.ClassifierOptions{})
+		result := runOrderedLlamaSource(t, server, llamaSourceModel(), llamaSourceContext(), llamaSourceOrder(), goai.ClassifierOptions{})
 		checkLlamaResult(t, result, goai.StopReasonStop, "")
 		state := "State:\n{\n \"message\": \"Help! My payouts have been failing for 3 days.\"\n}"
-		team := "Question: Which team should handle this?\n\nOptions:\n- billing: Payments and refunds\n- sales\n- technical: Bugs and outages"
+		team := "Question: Which team should handle this?\n\nOptions:\n- billing: Payments and refunds\n- technical: Bugs and outages\n- sales"
 		urgent := "Question: Does this convey urgency?\n\nYes means: The user needs help soon\nNo means: No time pressure"
 		severity := "Question: How severe is this?\n\nLevels:\n0. low\n1. medium\n2. high"
-		prefix := strings.Join([]string{state, "Task: answer each of the following questions about the state.", severity, team, urgent, state, ""}, "\n\n")
+		prefix := strings.Join([]string{state, "Task: answer each of the following questions about the state.", team, urgent, severity, state, ""}, "\n\n")
 		templates := server.matching("/apply-template")
 		if len(templates) != 3 {
 			t.Fatalf("template calls=%d", len(templates))
 		}
-		finals := []string{severity + "\n\nAnswer with one level number.", "Question: Which team should handle this?\n\nOptions:\nA. billing: Payments and refunds\nB. sales\nC. technical: Bugs and outages\n\nAnswer with one letter.", urgent + "\n\nAnswer Yes or No."}
+		finals := []string{"Question: Which team should handle this?\n\nOptions:\nA. billing: Payments and refunds\nB. technical: Bugs and outages\nC. sales\n\nAnswer with one letter.", urgent + "\n\nAnswer Yes or No.", severity + "\n\nAnswer with one level number."}
 		for i, request := range templates {
 			messages := request.body["messages"].([]any)
 			got := messages[1].(map[string]any)["content"]
@@ -423,4 +443,69 @@ func TestSourceV160LlamaCPPClassifier(t *testing.T) {
 			checkLlamaFloat(t, "confidence", answer.Confidence, tc.confidence)
 		}
 	})
+}
+
+// Supplemental: ordered choices do not depend on particular source labels,
+// and the existing Classify path still sorts ordinary maps.
+func TestLlamaCPPExplicitChoiceOrderV160(t *testing.T) {
+	ctx := goai.ClassifierContext{State: map[string]any{}, Questions: map[string]goai.ClassifierQuestion{
+		"pick": {Type: "choice", Instructions: "Pick one", Criteria: map[string]string{"later": "first by intent", "earlier": ""}},
+	}}
+	for _, tc := range []struct {
+		name, first, last string
+		ordered           bool
+	}{
+		{"map-default", "earlier", "later: first by intent", false},
+		{"explicit", "later: first by intent", "earlier", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			server := &llamaSourceServer{next: func(_ string, _ int) map[string]float64 { return map[string]float64{"A": -0.1, "B": -3} }}
+			var result *goai.ClassifierResult
+			if tc.ordered {
+				order := goai.LlamaCPPOrder{Choices: map[string][]string{"pick": {"later", "earlier"}}}
+				result = runOrderedLlamaSource(t, server, llamaSourceModel(), ctx, order, goai.ClassifierOptions{})
+			} else {
+				result = runLlamaSource(t, server, llamaSourceModel(), ctx, goai.ClassifierOptions{})
+			}
+			checkLlamaResult(t, result, goai.StopReasonStop, "")
+			wantChoice, _, _ := strings.Cut(tc.first, ":")
+			if got := result.Answers["pick"].Choice; got != wantChoice {
+				t.Errorf("selected choice = %q, want %q", got, wantChoice)
+			}
+			templates := server.matching("/apply-template")
+			if len(templates) != 1 {
+				t.Fatalf("template requests = %d, want 1", len(templates))
+			}
+			messages := templates[0].body["messages"].([]any)
+			got := messages[1].(map[string]any)["content"]
+			want := "State:\n{}\n\nTask: answer the following question about the state.\n\nQuestion: Pick one\n\nOptions:\n- " + tc.first + "\n- " + tc.last + "\n\nState:\n{}\n\nQuestion: Pick one\n\nOptions:\nA. " + tc.first + "\nB. " + tc.last + "\n\nAnswer with one letter."
+			if got != want {
+				t.Errorf("question content:\n%v\nwant:\n%s", got, want)
+			}
+		})
+	}
+}
+
+func TestLlamaCPPRejectsMalformedOrderV160(t *testing.T) {
+	for _, tc := range []struct {
+		name, err string
+		order     goai.LlamaCPPOrder
+	}{
+		{"missing question", "invalid llama.cpp question order: expected 3 keys, got 2", goai.LlamaCPPOrder{Questions: []string{"team", "urgent"}}},
+		{"duplicate question", `invalid llama.cpp question order: duplicate key "team"`, goai.LlamaCPPOrder{Questions: []string{"team", "urgent", "team"}}},
+		{"unknown question", `invalid llama.cpp question order: unknown key "other"`, goai.LlamaCPPOrder{Questions: []string{"team", "urgent", "other"}}},
+		{"missing choice", `invalid llama.cpp choice order for "team": expected 3 keys, got 2`, goai.LlamaCPPOrder{Choices: map[string][]string{"team": {"billing", "technical"}}}},
+		{"duplicate choice", `invalid llama.cpp choice order for "team": duplicate key "billing"`, goai.LlamaCPPOrder{Choices: map[string][]string{"team": {"billing", "technical", "billing"}}}},
+		{"unknown choice", `invalid llama.cpp choice order for "team": unknown key "other"`, goai.LlamaCPPOrder{Choices: map[string][]string{"team": {"billing", "technical", "other"}}}},
+		{"non-choice override", `llama.cpp choice order references non-choice question "urgent"`, goai.LlamaCPPOrder{Choices: map[string][]string{"urgent": {"true", "false"}}}},
+		{"nil choice override", `invalid llama.cpp choice order for "team": missing keys`, goai.LlamaCPPOrder{Choices: map[string][]string{"team": nil}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			server := &llamaSourceServer{}
+			result := runOrderedLlamaSource(t, server, llamaSourceModel(), llamaSourceContext(), tc.order, goai.ClassifierOptions{})
+			if result.StopReason != goai.StopReasonError || result.ErrorMessage != tc.err || len(result.Answers) != 0 || len(server.requests) != 0 {
+				t.Fatalf("result=%+v requests=%d; want pre-transport error %q", result, len(server.requests), tc.err)
+			}
+		})
+	}
 }

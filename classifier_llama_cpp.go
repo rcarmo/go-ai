@@ -7,9 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"math"
 	"net/http"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 )
@@ -26,7 +27,33 @@ var (
 	llamaTokenCache   sync.Map
 )
 
+// LlamaCPPOrder supplies explicit question and choice order without changing the
+// classifier context's map or JSON representation. A nil question order or a
+// missing choice entry uses sorted keys. Each supplied order must contain every
+// key exactly once. Choice orders are keyed by the ID of a choice question.
+type LlamaCPPOrder struct {
+	Questions []string
+	Choices   map[string][]string
+}
+
+// ClassifyLlamaCPPWithOrder calls the built-in llama.cpp adapter with explicit
+// ordering. Use Classify for registry dispatch and the default sorted order.
+func ClassifyLlamaCPPWithOrder(model *ClassifierModel, classCtx ClassifierContext, order LlamaCPPOrder, opts *ClassifierOptions) (*ClassifierResult, error) {
+	if model == nil {
+		return classifierError(nil, fmt.Errorf("nil classifier model"), false), nil
+	}
+	normalized, err := normalizeClassifierContext(model, classCtx)
+	if err != nil {
+		return classifierError(model, err, false), nil
+	}
+	return classifyLlamaCPPOrdered(model, normalized, opts, order)
+}
+
 func classifyLlamaCPP(model *ClassifierModel, classCtx ClassifierContext, opts *ClassifierOptions) (*ClassifierResult, error) {
+	return classifyLlamaCPPOrdered(model, classCtx, opts, LlamaCPPOrder{})
+}
+
+func classifyLlamaCPPOrdered(model *ClassifierModel, classCtx ClassifierContext, opts *ClassifierOptions, order LlamaCPPOrder) (*ClassifierResult, error) {
 	if len(classCtx.Images) > 0 {
 		return classifierError(model, fmt.Errorf("llama.cpp classification does not support image input"), false), nil
 	}
@@ -52,20 +79,18 @@ func classifyLlamaCPP(model *ClassifierModel, classCtx ClassifierContext, opts *
 		//lint:ignore ST1005 keep the pinned classifier diagnostic.
 		return classifierError(model, fmt.Errorf("Temperature must be a positive number, got %v", temperature), false), nil
 	}
-	ids := sortedQuestionIDs(classCtx.Questions)
-	for _, id := range ids {
-		if _, _, err := llamaQuestionLabels(classCtx.Questions[id]); err != nil {
-			return classifierError(model, err, false), nil
-		}
+	questions, err := prepareLlamaQuestions(classCtx.Questions, order)
+	if err != nil {
+		return classifierError(model, err, false), nil
 	}
 	request := llamaCPPRequest{model: model, root: llamaServerRoot(model.BaseURL), options: opts, ctx: ctx}
 	answers := map[string]ClassifierAnswer{}
-	for _, id := range ids {
-		answer, err := classifyLlamaQuestion(request, classCtx, id, classCtx.Questions[id], temperature)
+	for _, question := range questions {
+		answer, err := classifyLlamaQuestion(request, classCtx.State, questions, question, temperature)
 		if err != nil {
 			return classifierError(model, err, ctx.Err() != nil), nil
 		}
-		answers[id] = answer
+		answers[question.id] = answer
 	}
 	out.Answers = answers
 	return out, nil
@@ -82,30 +107,71 @@ func llamaServerRoot(baseURL string) string {
 	return strings.TrimSuffix(strings.TrimRight(baseURL, "/"), "/v1")
 }
 
-func sortedQuestionIDs(questions map[string]ClassifierQuestion) []string {
-	ids := make([]string, 0, len(questions))
-	for id := range questions {
-		ids = append(ids, id)
+func llamaOrderedKeys[V any](values map[string]V, order []string) ([]string, error) {
+	if order == nil {
+		return slices.Sorted(maps.Keys(values)), nil
 	}
-	sort.Strings(ids)
-	return ids
+	if len(order) != len(values) {
+		return nil, fmt.Errorf("expected %d keys, got %d", len(values), len(order))
+	}
+	seen := make(map[string]bool, len(order))
+	for _, key := range order {
+		if _, exists := values[key]; !exists {
+			return nil, fmt.Errorf("unknown key %q", key)
+		}
+		if seen[key] {
+			return nil, fmt.Errorf("duplicate key %q", key)
+		}
+		seen[key] = true
+	}
+	return slices.Clone(order), nil
 }
 
-func llamaQuestionLabels(question ClassifierQuestion) ([]string, []string, error) {
-	criteria, err := question.normalizedCriteria()
+// A single plan keeps prompt options and label probabilities in the same order.
+type llamaQuestionPlan struct {
+	id       string
+	question ClassifierQuestion
+	labels   []string
+	keys     []string
+}
+
+func prepareLlamaQuestions(questions map[string]ClassifierQuestion, order LlamaCPPOrder) ([]llamaQuestionPlan, error) {
+	ids, err := llamaOrderedKeys(questions, order.Questions)
 	if err != nil {
-		return nil, nil, err
+		return nil, fmt.Errorf("invalid llama.cpp question order: %w", err)
 	}
+	for _, id := range slices.Sorted(maps.Keys(order.Choices)) {
+		if questions[id].Type != "choice" {
+			return nil, fmt.Errorf("llama.cpp choice order references non-choice question %q", id)
+		}
+		if order.Choices[id] == nil {
+			return nil, fmt.Errorf("invalid llama.cpp choice order for %q: missing keys", id)
+		}
+	}
+	plans := make([]llamaQuestionPlan, 0, len(ids))
+	for _, id := range ids {
+		question := questions[id]
+		criteria, err := question.normalizedCriteria()
+		if err != nil {
+			return nil, err
+		}
+		question.Criteria = criteria
+		labels, keys, err := llamaQuestionLabels(id, question, order.Choices[id])
+		if err != nil {
+			return nil, err
+		}
+		plans = append(plans, llamaQuestionPlan{id: id, question: question, labels: labels, keys: keys})
+	}
+	return plans, nil
+}
+
+func llamaQuestionLabels(id string, question ClassifierQuestion, order []string) ([]string, []string, error) {
 	switch question.Type {
 	case "choice":
-		meanings := criteria.(map[string]string)
-		keys := make([]string, 0, len(meanings))
-		for key := range meanings {
-			keys = append(keys, key)
+		keys, err := llamaOrderedKeys(question.Criteria.(map[string]string), order)
+		if err != nil {
+			return nil, nil, fmt.Errorf("invalid llama.cpp choice order for %q: %w", id, err)
 		}
-		// Go maps have no insertion order; sort once and use this same order for
-		// labels, prompt options and probability-to-key mapping.
-		sort.Strings(keys)
 		if len(keys) < 2 || len(keys) > len(llamaChoiceLabels) {
 			//lint:ignore ST1005 keep the pinned classifier diagnostic.
 			return nil, nil, fmt.Errorf("A choice question needs 2 to %d options, got %d", len(llamaChoiceLabels), len(keys))
@@ -116,7 +182,7 @@ func llamaQuestionLabels(question ClassifierQuestion) ([]string, []string, error
 		}
 		return labels, keys, nil
 	case "score":
-		levels := criteria.([]string)
+		levels := question.Criteria.([]string)
 		if len(levels) < 2 || len(levels) > len(llamaScoreLabels) {
 			//lint:ignore ST1005 keep the pinned classifier diagnostic.
 			return nil, nil, fmt.Errorf("A score question needs 2 to %d levels, got %d", len(llamaScoreLabels), len(levels))
@@ -131,16 +197,13 @@ func llamaQuestionLabels(question ClassifierQuestion) ([]string, []string, error
 	}
 }
 
-func classifyLlamaQuestion(request llamaCPPRequest, classCtx ClassifierContext, id string, question ClassifierQuestion, temperature float64) (ClassifierAnswer, error) {
-	labels, keys, err := llamaQuestionLabels(question)
-	if err != nil {
-		return ClassifierAnswer{}, err
-	}
+func classifyLlamaQuestion(request llamaCPPRequest, state map[string]any, questions []llamaQuestionPlan, plan llamaQuestionPlan, temperature float64) (ClassifierAnswer, error) {
+	id, labels := plan.id, plan.labels
 	tokens, err := llamaLabelTokens(request, labels)
 	if err != nil {
 		return ClassifierAnswer{}, err
 	}
-	prompt, err := llamaRenderPrompt(request, llamaRenderQuestion(classCtx, id, question, labels))
+	prompt, err := llamaRenderPrompt(request, llamaRenderQuestion(state, questions, plan))
 	if err != nil {
 		return ClassifierAnswer{}, err
 	}
@@ -177,25 +240,25 @@ func classifyLlamaQuestion(request llamaCPPRequest, classCtx ClassifierContext, 
 		return ClassifierAnswer{}, fmt.Errorf("%s returned underflow probabilities for every label of %s", llamaCPPLabel, id)
 	}
 	probs := llamaLabelProbabilities(logprobs, temperature)
-	return llamaAnswerFromProbabilities(question, keys, probs), nil
+	return llamaAnswerFromProbabilities(plan.question, plan.keys, probs), nil
 }
 
-func llamaRenderTask(question ClassifierQuestion, labels []string) string {
-	criteria, _ := question.normalizedCriteria()
+func llamaRenderTask(plan llamaQuestionPlan, numbered bool) string {
+	question := plan.question
+	criteria := question.Criteria
 	head := "Question: " + question.Instructions
 	switch question.Type {
 	case "choice":
 		meanings := criteria.(map[string]string)
-		_, keys, _ := llamaQuestionLabels(question)
-		lines := make([]string, 0, len(keys))
-		for i, key := range keys {
+		lines := make([]string, 0, len(plan.keys))
+		for i, key := range plan.keys {
 			option := key
 			if meanings[key] != "" {
 				option += ": " + meanings[key]
 			}
 			prefix := "- "
-			if labels != nil {
-				prefix = labels[i] + ". "
+			if numbered {
+				prefix = plan.labels[i] + ". "
 			}
 			lines = append(lines, prefix+option)
 		}
@@ -223,25 +286,25 @@ func llamaRenderTask(question ClassifierQuestion, labels []string) string {
 	}
 }
 
-func llamaRenderQuestion(ctx ClassifierContext, id string, question ClassifierQuestion, labels []string) string {
-	data, _ := json.MarshalIndent(ctx.State, "", " ")
+func llamaRenderQuestion(stateObject map[string]any, questions []llamaQuestionPlan, plan llamaQuestionPlan) string {
+	data, _ := json.MarshalIndent(stateObject, "", " ")
 	state := "State:\n" + string(data)
 	intro := "Task: answer each of the following questions about the state."
-	if len(ctx.Questions) == 1 {
+	if len(questions) == 1 {
 		intro = "Task: answer the following question about the state."
 	}
 	overview := []string{intro}
-	for _, questionID := range sortedQuestionIDs(ctx.Questions) {
-		overview = append(overview, llamaRenderTask(ctx.Questions[questionID], nil))
+	for _, question := range questions {
+		overview = append(overview, llamaRenderTask(question, false))
 	}
 	instruction := "Answer Yes or No."
-	if question.Type == "choice" {
+	if plan.question.Type == "choice" {
 		instruction = "Answer with one letter."
 	}
-	if question.Type == "score" {
+	if plan.question.Type == "score" {
 		instruction = "Answer with one level number."
 	}
-	final := llamaRenderTask(question, labels) + "\n\n" + instruction
+	final := llamaRenderTask(plan, true) + "\n\n" + instruction
 	return strings.Join([]string{state, strings.Join(overview, "\n\n"), state, final}, "\n\n")
 }
 

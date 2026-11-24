@@ -90,25 +90,31 @@ func Classify(model *ClassifierModel, ctx ClassifierContext, opts *ClassifierOpt
 	if p == nil {
 		return classifierError(model, fmt.Errorf("no classifier provider registered"), false), nil
 	}
+	normalized, err := normalizeClassifierContext(model, ctx)
+	if err != nil {
+		return classifierError(model, err, false), nil
+	}
+	return p.Classify(model, normalized, opts)
+}
+
+func normalizeClassifierContext(model *ClassifierModel, ctx ClassifierContext) (ClassifierContext, error) {
 	if len(ctx.Images) > 0 {
 		acceptsImages := false
 		for _, input := range model.Input {
 			acceptsImages = acceptsImages || input == "image"
 		}
 		if !acceptsImages {
-			return classifierError(model, fmt.Errorf("model %s/%s does not accept image input", model.Provider, model.ID), false), nil
+			return ClassifierContext{}, fmt.Errorf("model %s/%s does not accept image input", model.Provider, model.ID)
 		}
 	}
 	// Validate and normalize the public JSON union before any provider request.
 	encoded, err := json.Marshal(ctx)
 	if err != nil {
-		return classifierError(model, err, false), nil
+		return ClassifierContext{}, err
 	}
 	var normalized ClassifierContext
-	if err := json.Unmarshal(encoded, &normalized); err != nil {
-		return classifierError(model, err, false), nil
-	}
-	return p.Classify(model, normalized, opts)
+	err = json.Unmarshal(encoded, &normalized)
+	return normalized, err
 }
 
 func classifierBaseResult(model *ClassifierModel) *ClassifierResult {
