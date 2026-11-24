@@ -119,6 +119,9 @@ func (r *TaskRuntime) runParallelCodemode(ctx context.Context, vm CodemodeExecut
 				if observed < len(journal.Issued) {
 					old := journal.Issued[observed]
 					if call.ID != old.ID || call.Name != old.Name || call.Global != old.Global || !codemodeArgumentModeCompatible(call, old) || !equalJSONValue(call.Arguments, old.Arguments) {
+						if call.Global != old.Global {
+							return divergence(fmt.Sprintf("sandbox call replay divergence: call %d is %s, but was %s", call.ID, codemodeReplayCallLabel(call), codemodeReplayCallLabel(old)))
+						}
 						name := call.Name
 						if !call.Global {
 							name = "tools." + name
@@ -216,4 +219,19 @@ func (r *TaskRuntime) runParallelCodemode(ctx context.Context, vm CodemodeExecut
 		delivered++
 		drainPending = true
 	}
+}
+
+// Show the call target and the empty argument forms needed to distinguish a
+// tool call from a global. Do not copy argument values into model diagnostics.
+func codemodeReplayCallLabel(call CodemodeCall) string {
+	if call.Global {
+		if call.UndefinedArgument {
+			return call.Name + "()"
+		}
+		return call.Name + "(…)"
+	}
+	if len(call.Arguments) == 0 && len(call.UTF16Arguments) == 0 {
+		return "tools." + call.Name + "({})"
+	}
+	return "tools." + call.Name + "(…)"
 }

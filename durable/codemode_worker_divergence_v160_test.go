@@ -126,3 +126,55 @@ func workerReplayStoreWithKV160(run int32, store JSON) JSON {
 	}
 	return store
 }
+
+// codemode.test.ts:566–610. Change only the test guest's store input on
+// reopen; the actual SQLite journal and run start remain untouched.
+func TestSourceV160CodemodePublishedWorkerReplayRejectsChangedInitialCalls(t *testing.T) {
+	for _, tc := range []struct {
+		name, script, diagnostic string
+		firstIssued              int
+	}{
+		{"tool-to-global", `if (load("k")) { await pick(); await tools.echo({ text: "new" }); } else { await tools.hold({}); }`,
+			"call 1 is pick(), but was tools.hold({})", 1},
+		{"fewer-initial-calls", `const k = load("k");
+const first = tools.hold({ id: 1 });
+if (!k) tools.hold({ id: 2 });
+await first;
+await pick();
+await tools.echo({ text: "new" });`, "its first run made 1 calls, where it had made 2", 2},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var picks atomic.Int32
+			got := runV160PublishedWorkerNestedReplay(t, tc.script, workerReplayChangesV160{
+				guestStore: workerReplayStoreWithKV160,
+				globals: []CodemodeGlobal{{Name: "pick", Version: 1, Execute: func(context.Context, any) (any, error) {
+					picks.Add(1)
+					return 1, nil
+				}}},
+			})
+			if got.firstIssued == nil || *got.firstIssued != tc.firstIssued || len(got.beforeClose) != 0 {
+				t.Fatalf("initial drain must record %d calls and no deliveries: count=%v deliveries=%+v", tc.firstIssued, got.firstIssued, got.beforeClose)
+			}
+			if !got.isError || !strings.Contains(got.text, tc.diagnostic) {
+				t.Errorf("replay error=%t, text=%q; want %q", got.isError, got.text, tc.diagnostic)
+			}
+			if len(got.echoes) != 0 || picks.Load() != 0 || got.starts != 2 || got.replies != 0 {
+				t.Errorf("echoes=%v picks=%d guest starts=%d replies=%d; want two guests and no new effects or deliveries", got.echoes, picks.Load(), got.starts, got.replies)
+			}
+		})
+	}
+}
+
+func TestCodemodeReplayCallLabelOmitsArgumentValues(t *testing.T) {
+	for _, tc := range []struct {
+		call CodemodeCall
+		want string
+	}{
+		{CodemodeCall{Name: "hold", Arguments: JSON{"token": "sensitive"}}, "tools.hold(…)"},
+		{CodemodeCall{Name: "pick", Global: true, Arguments: JSON{"args": "sensitive"}}, "pick(…)"},
+	} {
+		if got := codemodeReplayCallLabel(tc.call); got != tc.want {
+			t.Errorf("call label = %q; want %q", got, tc.want)
+		}
+	}
+}

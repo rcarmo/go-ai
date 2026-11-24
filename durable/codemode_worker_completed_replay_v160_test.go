@@ -86,6 +86,7 @@ type workerNestedReplayV160 struct {
 	replies     int32
 	nested      int
 	beforeClose []CodemodeDelivery
+	firstIssued *int
 	inputs      []workerReplayInputsV160
 }
 
@@ -202,6 +203,7 @@ func runV160PublishedWorkerNestedReplay(t *testing.T, source string, changes wor
 		t.Fatal(err)
 	}
 	var beforeClose []CodemodeDelivery
+	var firstIssued *int
 	journals := 0
 	for _, doc := range state.Documents {
 		if doc.Kind == codemodeJournalKind {
@@ -210,7 +212,7 @@ func runV160PublishedWorkerNestedReplay(t *testing.T, source string, changes wor
 			if err := decodeDocumentValue(doc, DefaultLimits(), &journal); err != nil {
 				t.Fatal(err)
 			}
-			beforeClose = journal.Deliveries
+			beforeClose, firstIssued = journal.Deliveries, journal.FirstIssued
 		}
 	}
 	if journals != 1 {
@@ -267,5 +269,5 @@ func runV160PublishedWorkerNestedReplay(t *testing.T, source string, changes wor
 		t.Fatal(err)
 	}
 	return workerNestedReplayV160{text: text, isError: result.IsError, echoes: echoes,
-		starts: remote.starts.Load(), holds: holds.Load(), replies: remote.deliveries.Load(), nested: nested, beforeClose: beforeClose, inputs: inputs}
+		starts: remote.starts.Load(), holds: holds.Load(), replies: remote.deliveries.Load(), nested: nested, beforeClose: beforeClose, firstIssued: firstIssued, inputs: inputs}
 }

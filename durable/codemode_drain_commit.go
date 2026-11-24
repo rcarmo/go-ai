@@ -50,7 +50,7 @@ func acknowledgeCodemodeDrain(ctx context.Context, vm CodemodeDrainExecution, jo
 				}
 				return reject(fmt.Sprintf("%s: after result %d it had made %d calls, where it had made %d", reason, seq, observed, *recorded))
 			}
-			return reject(reason)
+			return reject(fmt.Sprintf("%s: its first run made %d calls, where it had made %d", reason, observed, *recorded))
 		}
 	} else {
 		// Work on a detached slice: a failed transaction must not adopt its count.
