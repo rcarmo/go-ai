@@ -1,0 +1,160 @@
+{
+  "format": 1,
+  "pin": "faac585884ae2c013a6b1400f3e9e77f10b34bac",
+  "evidenceBase": "1f3655a205424ccf7eeb709435666c9658e29bde",
+  "node": "v26.13.0",
+  "configSha256": "f13c3424afac46e1500bb993c23fabce908f899321fd2c90e3adda5712f3ac9a",
+  "original": {
+    "file": "packages/chord/test/telemetry.test.ts",
+    "blob": "416ebaa192f3980ad7666c08d803b67856e09110",
+    "sha256": "4d6bc3a22fe2a8fa8545dacb196d97c5e953d3defc1173898bc421e9e84fec32",
+    "selection": "whole-file",
+    "passed": 23,
+    "failed": 0,
+    "skipped": 0,
+    "todo": 0,
+    "caseNames": [
+      "the schema declares every span Chord starts and keeps ids off metrics",
+      "the schema declares every metric a traced call over a relay records",
+      "nothing recorded treats the NOOP context as untraced: no carrier, its own root",
+      "nothing recorded records nothing and sends no carrier when no host has an adapter",
+      "carriers extracts an unknown or absent carrier as the adapter's root, never throwing",
+      "open spans ends once, with how its work settled: ok, a cancel (status ok), or an error with its category",
+      "open spans marks a span failed with a fixed category and at most 500 characters",
+      "metrics makes each instrument once per adapter's metrics and none for NOOP",
+      "metrics keeps no adapter alive (its instruments are cached by its metrics object, weakly)",
+      "across hosts follows a call from the tab through the server's relay into the worker's method and its commit",
+      "across hosts names the host that recorded each span: its address key, `client` without an address",
+      "across hosts holds through the relay under the tab's span; the worker's start and its activations link to their triggers",
+      "across hosts costs a call over a relay exactly its spans and no extra encode",
+      "across hosts starts a new root for a well-formed carrier the server's adapter does not know",
+      "re-holds (slice 9 review L1) carries the carrier only on an object's first hold (a root linked to its getter: shared work); a re-hold after a reconnect is a fresh root linked to it",
+      "relayed re-holds (slice 9 review L1) re-holds upstream after a drop in a fresh relay root linked to the first relay span",
+      "what a peer sends (slice 9 review M1, M2, L8) refuses a 500,000-character type as a malformed header: the link closes, nothing is recorded",
+      "what a peer sends (slice 9 review M1, M2, L8) refuses a 257-character host kind as a malformed header: the link closes, nothing is recorded",
+      "what a peer sends (slice 9 review M1, M2, L8) refuses a carrier with a control character as a malformed header: the link closes, nothing is recorded",
+      "what a peer sends (slice 9 review M1, M2, L8) refuses a carrier key with a space as a malformed header: the link closes, nothing is recorded",
+      "what a peer sends (slice 9 review M1, M2, L8) refuses a carrier of 9 keys as a malformed header: the link closes, nothing is recorded",
+      "what a peer sends (slice 9 review M1, M2, L8) refuses a carrier value of 257 characters as a malformed header: the link closes, nothing is recorded",
+      "what a peer sends (slice 9 review M1, M2, L8) caps an object's label (its client-chosen params key) at 256 characters in its spans"
+    ]
+  },
+  "runner": {
+    "vitest": "4.1.12",
+    "integrity": "sha512-5eWdz2yb3ajxWF3C8C4TjkXl7FGm3n2E/VlazALrQHzK7nYMSGFnCZto0bbPNl77AwkOZVLk0YnBAejUu0NiWA==",
+    "archiveSha256": "ac79c9561c99eabc1cc29e0a839cbd03d1ff0e45bbecb5a2edfa6c3827c823d1",
+    "observedEvaluatorSha256": "a0b36fb2211d2587d8df68d5855d48141be27e99bdb973378a83f927e03b004e",
+    "copiedDependencies": {
+      "roots": [
+        "npm:node_modules/vitest"
+      ],
+      "host": {
+        "os": "linux",
+        "cpu": "arm64",
+        "libc": "glibc"
+      },
+      "placements": [
+        "node_modules/@jridgewell/sourcemap-codec",
+        "node_modules/@oxc-project/types",
+        "node_modules/@rolldown/binding-linux-arm64-gnu",
+        "node_modules/@rolldown/pluginutils",
+        "node_modules/@standard-schema/spec",
+        "node_modules/@types/chai",
+        "node_modules/@types/deep-eql",
+        "node_modules/@types/estree",
+        "node_modules/@vitest/expect",
+        "node_modules/@vitest/mocker",
+        "node_modules/@vitest/pretty-format",
+        "node_modules/@vitest/runner",
+        "node_modules/@vitest/snapshot",
+        "node_modules/@vitest/spy",
+        "node_modules/@vitest/utils",
+        "node_modules/assertion-error",
+        "node_modules/chai",
+        "node_modules/convert-source-map",
+        "node_modules/detect-libc",
+        "node_modules/es-module-lexer",
+        "node_modules/estree-walker",
+        "node_modules/expect-type",
+        "node_modules/fdir",
+        "node_modules/lightningcss",
+        "node_modules/lightningcss-linux-arm64-gnu",
+        "node_modules/magic-string",
+        "node_modules/nanoid",
+        "node_modules/obug",
+        "node_modules/pathe",
+        "node_modules/picocolors",
+        "node_modules/picomatch",
+        "node_modules/postcss",
+        "node_modules/rolldown",
+        "node_modules/siginfo",
+        "node_modules/source-map-js",
+        "node_modules/stackback",
+        "node_modules/std-env",
+        "node_modules/tinybench",
+        "node_modules/tinyexec",
+        "node_modules/tinyglobby",
+        "node_modules/tinyrainbow",
+        "node_modules/vite",
+        "node_modules/vitest",
+        "node_modules/why-is-node-running"
+      ]
+    }
+  },
+  "observed": {
+    "telemetryModules": [
+      {
+        "api": "node:vm runInThisContext module evaluation",
+        "file": "packages/telemetry/src/memory.ts",
+        "export": "InMemoryTelemetryContext",
+        "sourceSha256": "e3be09d86803c34fe807672727161a1d66d8dd03ff69fa8ce2532a986a580a7b"
+      },
+      {
+        "api": "node:vm runInThisContext module evaluation",
+        "file": "packages/telemetry/src/render.ts",
+        "export": "renderTrace",
+        "sourceSha256": "6d470393502b4a77a0f29f5d92ffa5260891ed2ad018fea19451a5570a7cb713"
+      }
+    ],
+    "sqlite": {
+      "connections": 3,
+      "engine": {
+        "api": "node:sqlite DatabaseSync.exec",
+        "sqlite": {
+          "version": "3.54.0",
+          "sourceId": "2026-10-09 15:46:58 be8d059e9a49089ab2dce5ed26dd87aaf598fdc5fbe0b107c0dd758464bcd5e3"
+        },
+        "nodeReportedVersion": "3.54.0"
+      }
+    }
+  },
+  "control": {
+    "change": "replace-pinned-rendered-trace-with-wrong-tree-in-scratch",
+    "case": "across hosts follows a call from the tab through the server's relay into the worker's method and its commit",
+    "failed": 1
+  },
+  "primaryReferences": [
+    {
+      "file": "packages/ai/src/telemetry.ts",
+      "sourceSha256": "91c635e9e3760869faa9d26af9f0347152b11006dac18f7e9733c7b4dae3b086",
+      "line": 10,
+      "import": "@earendil-works/pi-telemetry"
+    },
+    {
+      "file": "packages/durable/src/harness/telemetry.ts",
+      "sourceSha256": "76c320337eb00bf2ed59bc350ba52c68feb2d758875366df487f04f204b91845",
+      "line": 1,
+      "import": "@earendil-works/pi-telemetry"
+    }
+  ],
+  "publishedComparisonOnly": [
+    {
+      "file": "earendil-works-chord-1.6.0.tgz",
+      "sha256": "3967193a8f1bdb79881e4f0715a170853a5946fbb4326f2403529a5a9faedc17"
+    },
+    {
+      "file": "earendil-works-pi-telemetry-1.6.0.tgz",
+      "sha256": "7a28233ebfdd751940619be6a879bda0fe6eb31ac2056e8798e16293c0c39ec5"
+    }
+  ]
+}
