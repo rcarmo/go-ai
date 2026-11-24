@@ -759,3 +759,9 @@ All 40 unchanged validator cases passed. Nine standalone assertions match: membe
 Both [delayed-abort file-tool originals](test-inventory/delayed-abort-tools.md) passed. Go holds the mutation lock until the host write settles. An edit that committed to disk before cancellation surfaced now returns `Operation aborted`, with `errors.Is(err, context.Canceled)` preserved. The native test checks the actual file contents and exact hold and settlement order. With the three image cases from the previous round, 35 distinct originals of `tools.test.ts` have run; real Windows PowerShell is the single approved exclusion in that file.
 
 The [specification-usage test type-checks](test-inventory/spec-usage-types.md) under the pinned compiler options with the unchanged IndexedDB workspace root that brings in the DOM declarations. The root graph was enumerated; a full-workspace type-check has not run.
+
+### Codemode argument divergence before the first reply
+
+The unchanged restart case passed. The native fixture interrupted a published portable guest after the first `echo` reached the host and before any result delivery. After reopening SQLite, it changed `k` only on the next guest's input. Go rejected the changed call, returned the `different path` and `call 1 is tools.echo` fragments, and recorded exactly one `a` effect. The saved start and journal were not rewritten. The old diagnostic lacked the first fragment; bypassing the argument check reached the independent delivery guard instead of the expected replay refusal.
+
+The unchanged saved-version case also passed upstream. Presenting the old version via a detached SQLite read reached Go's storage guard before the scheduler resumed the guest. The corresponding tool-result assertions remain partial. The production guard and persisted bytes were unchanged.
