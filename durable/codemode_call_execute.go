@@ -3,8 +3,9 @@ package durable
 import (
 	"context"
 	"fmt"
-	goai "github.com/rcarmo/go-ai"
 	"strings"
+
+	goai "github.com/rcarmo/go-ai"
 )
 
 func (r *TaskRuntime) executeCodemodeCall(linked context.Context, key string, start CodemodeStart, call CodemodeCall, selectedGlobals []CodemodeGlobal, paid bool) (CodemodeDelivery, error) {
@@ -96,14 +97,23 @@ func (r *TaskRuntime) executeCodemodeCall(linked context.Context, key string, st
 				return CodemodeDelivery{}, err
 			}
 			delivery = CodemodeDelivery{Seq: 0, Now: clock, Call: call}
-			if result.HasStructuredOutput && (structured || !result.IsError) {
-				delivery.Value = result.StructuredOutput
+			value, present, text := result.StructuredOutput, result.HasStructuredOutput, result.Content
+			if r.definition == ToolTask() && !structured {
+				// Canonical nested results collapse text and images for ordinary
+				// callers. Codemode's schema-less tool declarations expose text.
+				if present {
+					text = codemodeNestedText(value)
+				}
+				value, present = text, true
+			}
+			if present && (structured || !result.IsError) {
+				delivery.Value = value
 				delivery.HasValue = true
 			} else if result.IsError {
-				if result.HasStructuredOutput {
-					delivery.Properties = JSON{"structuredOutput": result.StructuredOutput}
+				if present {
+					delivery.Properties = JSON{"structuredOutput": value}
 				}
-				delivery.Error = result.Content
+				delivery.Error = text
 				if delivery.Error == "" {
 					messages := []string{}
 					for _, diagnostic := range result.Diagnostics {
@@ -123,4 +133,24 @@ func (r *TaskRuntime) executeCodemodeCall(linked context.Context, key string, st
 		}
 	}
 	return delivery, nil
+}
+
+// A schema-less nested result is a string, a single image, or a list of
+// text and image blocks. Only text reaches the Codemode script.
+func codemodeNestedText(value any) string {
+	switch output := value.(type) {
+	case string:
+		return output
+	case []any:
+		var text []string
+		for _, item := range output {
+			block := generationObject(item)
+			if s, ok := block["text"].(string); ok && block["type"] == "text" {
+				text = append(text, s)
+			}
+		}
+		return strings.Join(text, "\n")
+	default:
+		return ""
+	}
 }

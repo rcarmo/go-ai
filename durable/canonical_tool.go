@@ -3,11 +3,13 @@ package durable
 import (
 	"context"
 	"fmt"
-	goai "github.com/rcarmo/go-ai"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 	"unicode/utf8"
+
+	goai "github.com/rcarmo/go-ai"
 )
 
 // ToolTask is the source pi.tool v4 token for call, execute and parked states.
@@ -622,6 +624,20 @@ func settleCanonicalTool(ctx context.Context, r *TaskRuntime, input canonicalToo
 			}
 		} else if !result.harnessResult {
 			owned, _ = validateNestedStructuredResult(owned, reg.offer, l)
+			if owned.IsError && !owned.HasStructuredOutput && len(owned.Diagnostics) < l.MaxMembers && !slices.ContainsFunc(owned.Diagnostics, func(d ToolDiagnostic) bool { return d.Severity == "error" }) {
+				// A caller receives no output blocks for a schema tool. Carry
+				// its bounded failure text when there is no value or diagnostic.
+				var text []string
+				for _, block := range content {
+					if block.Type == "text" {
+						text = append(text, block.Text)
+					}
+				}
+				diagnosticLimits := ToolOutputLimits{MaxBytes: l.MaxStringBytes, MaxLines: l.MaxStringBytes, Retain: "head"}
+				if message := boundToolText(strings.Join(text, "\n"), diagnosticLimits); message != "" {
+					owned.Diagnostics = append(owned.Diagnostics, ToolDiagnostic{Severity: "error", Code: "tool_error", Message: message})
+				}
+			}
 		}
 	} else {
 		owned = r.harness.validateModelStructuredResult(owned, reg.offer, func(err error) { r.reportExtensionError(err, reg.extension) })
