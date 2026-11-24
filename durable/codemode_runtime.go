@@ -77,7 +77,7 @@ type CodemodeDrain struct {
 	DeliveryID int
 	Issued     int
 	// Final marks a drain reported by successful termination, not an idle wait.
-	// This transient hint affects diagnostics, not acknowledgement or admission.
+	// Its counts still need acknowledgement, but it does not admit new work.
 	Final bool `json:"Final,omitempty"`
 }
 

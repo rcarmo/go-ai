@@ -43,11 +43,14 @@ func acknowledgeCodemodeDrain(ctx context.Context, vm CodemodeDrainExecution, jo
 					return reject(fmt.Sprintf("%s: it waits without making call %d, which it made before", reason, next))
 				}
 			}
+			seq := 0
 			if deliveryIndex >= 0 {
-				seq := journal.Deliveries[deliveryIndex].Seq
-				if drain.Final && observed < *recorded {
-					return reject(fmt.Sprintf("%s: it ended after result %d, where it went on before", reason, seq))
-				}
+				seq = journal.Deliveries[deliveryIndex].Seq
+			}
+			if drain.Final && observed < *recorded {
+				return reject(fmt.Sprintf("%s: it ended after result %d, where it went on before", reason, seq))
+			}
+			if deliveryIndex >= 0 {
 				return reject(fmt.Sprintf("%s: after result %d it had made %d calls, where it had made %d", reason, seq, observed, *recorded))
 			}
 			return reject(fmt.Sprintf("%s: its first run made %d calls, where it had made %d", reason, observed, *recorded))

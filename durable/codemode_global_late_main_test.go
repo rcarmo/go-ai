@@ -17,6 +17,19 @@ func TestMainCodemodeLateGlobalResultIsNotJournalled(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer engine.Close(bg)
+	checkCodemodeLateGlobalResult(t, engine)
+}
+
+func TestSourceV160CodemodePublishedWorkerDropsLateGlobalReply(t *testing.T) {
+	sandbox, remote := newJournalWorkerSandboxV160(t)
+	checkCodemodeLateGlobalResult(t, sandbox)
+	if remote.starts.Load() != 1 || remote.deliveries.Load() != 1 {
+		t.Fatalf("guest starts=%d deliveries=%d; want one start and only the quick reply", remote.starts.Load(), remote.deliveries.Load())
+	}
+}
+
+func checkCodemodeLateGlobalResult(t *testing.T, sandbox CodemodeSandbox) {
+	t.Helper()
 	store, err := newTestSQLite(t)
 	if err != nil {
 		t.Fatal(err)
@@ -27,11 +40,11 @@ func TestMainCodemodeLateGlobalResultIsNotJournalled(t *testing.T) {
 	unblock := func() { once.Do(func() { close(release) }) }
 	var lateReturns atomic.Int64
 	def := taskDefinition(t, "codemode.global.late", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
-		result, err := r.RunCodemode(ctx, "run", `const pending=host.slowly(null);await host.quickly(null);return 1;`, engine)
+		result, err := r.RunCodemode(ctx, "run", `const pending = slowly(); await quickly(); return 1;`, sandbox)
 		if err != nil {
 			return err
 		}
-		if result.Error != "" || !equalJSONValue(result.Value, 1) {
+		if result.Error != "" || result.Output != "1" || !result.HasValue || !equalJSONValue(result.Value, 1) {
 			t.Errorf("script result %+v", result)
 		}
 		return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone(nil), nil })
@@ -40,7 +53,7 @@ func TestMainCodemodeLateGlobalResultIsNotJournalled(t *testing.T) {
 		t.Fatal(err)
 	}
 	h := openHarness(t, store, Options{Registry: registry, CodemodeGlobals: []CodemodeGlobal{
-		{Name: "host.slowly", Version: 1, Execute: func(ctx context.Context, _ any) (any, error) {
+		{Name: "slowly", Version: 1, Execute: func(ctx context.Context, _ any) (any, error) {
 			close(entered)
 			<-ctx.Done()
 			close(cancelled)
@@ -48,7 +61,7 @@ func TestMainCodemodeLateGlobalResultIsNotJournalled(t *testing.T) {
 			lateReturns.Add(1)
 			return "late", nil
 		}},
-		{Name: "host.quickly", Version: 1, Execute: func(ctx context.Context, _ any) (any, error) {
+		{Name: "quickly", Version: 1, Execute: func(ctx context.Context, _ any) (any, error) {
 			select {
 			case <-entered:
 				return "quick", nil
@@ -68,6 +81,7 @@ func TestMainCodemodeLateGlobalResultIsNotJournalled(t *testing.T) {
 		unblock()
 		t.Fatal(err)
 	}
+	beforeFound := false
 	for _, doc := range before.Documents {
 		if doc.Kind == codemodeJournalKind {
 			var journal codemodeJournalState
@@ -75,13 +89,14 @@ func TestMainCodemodeLateGlobalResultIsNotJournalled(t *testing.T) {
 				unblock()
 				t.Fatal(err)
 			}
-			for _, d := range journal.Deliveries {
-				if d.Call.Name == "host.slowly" {
-					unblock()
-					t.Fatal("slow result journalled before release")
-				}
+			if len(journal.Issued) != 2 || len(journal.Deliveries) != 1 || journal.Deliveries[0].Call.Name != "quickly" {
+				t.Fatalf("journal before late callback returns: %+v; want only the quick reply", journal)
 			}
+			beforeFound = true
 		}
+	}
+	if !beforeFound {
+		t.Fatal("journal missing before the late callback returns")
 	}
 	unblock()
 	record := waitPublicTask(t, h, id)
@@ -99,7 +114,7 @@ func TestMainCodemodeLateGlobalResultIsNotJournalled(t *testing.T) {
 			if err := decodeDocumentValue(doc, h.session.limits, &journal); err != nil {
 				t.Fatal(err)
 			}
-			if len(journal.Issued) != 2 || len(journal.Deliveries) != 1 || journal.Deliveries[0].Call.Name != "host.quickly" {
+			if len(journal.Issued) != 2 || len(journal.Deliveries) != 1 || journal.Deliveries[0].Call.Name != "quickly" {
 				t.Fatalf("late journal %+v", journal)
 			}
 			found = true

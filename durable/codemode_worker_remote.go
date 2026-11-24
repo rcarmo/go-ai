@@ -131,6 +131,18 @@ func (r *CodemodeWorkerRemote) Execute(ctx context.Context, code string, start C
 	waiting := map[int]chan CodemodeDelivery{}
 	deliveredCalls := map[int]int{0: 0}
 	started, terminal := false, false
+	terminalDone := make(chan struct{})
+	// Let RPCs for abandoned calls return after the guest ends. The
+	// transport can join them without waiting for the host to receive the
+	// terminal event, which is deliberately held until the transport returns.
+	finish := func(ctx context.Context, result *CodemodeResult) error {
+		if _, err := exchange(ctx, CodemodeEvent{Result: result}); err != nil {
+			return err
+		}
+		terminal = true
+		close(terminalDone)
+		return nil
+	}
 	issued, lastDrain, lastIssued := 0, -1, 0
 	outputBytes := 0
 	outputItems := []quickjs.OutputItem{}
@@ -369,8 +381,7 @@ func (r *CodemodeWorkerRemote) Execute(ctx context.Context, code string, start C
 					result.Output, err = formatQuickJSText(formatted)
 				}
 				if err == nil {
-					_, err = exchange(callCtx, CodemodeEvent{Result: &result})
-					terminal = err == nil
+					err = finish(callCtx, &result)
 				}
 			case "crash", "failure":
 				result := CodemodeResult{Images: images, Error: message.Message, WallMs: time.Since(began).Milliseconds()}
@@ -389,8 +400,7 @@ func (r *CodemodeWorkerRemote) Execute(ctx context.Context, code string, start C
 					if result.Error == "" {
 						result.Error = "Remote sandbox failed"
 					}
-					_, err = exchange(callCtx, CodemodeEvent{Result: &result})
-					terminal = err == nil
+					err = finish(callCtx, &result)
 				}
 			default:
 				err = reject("unknown worker message type")
@@ -407,6 +417,11 @@ func (r *CodemodeWorkerRemote) Execute(ctx context.Context, code string, start C
 		}
 		select {
 		case delivery := <-pending:
+			select {
+			case <-terminalDone:
+				return &CodemodeWorkerReply{Type: "stop"}, nil
+			default:
+			}
 			reply := &CodemodeWorkerReply{Type: "result", ID: callID, OK: delivery.Error == "", Seq: delivery.Seq, Now: delivery.Now}
 			if delivery.Error != "" {
 				reply.Payload = &delivery.Error
@@ -427,6 +442,8 @@ func (r *CodemodeWorkerRemote) Execute(ctx context.Context, code string, start C
 				reply.Payload = &value
 			}
 			return reply, nil
+		case <-terminalDone:
+			return &CodemodeWorkerReply{Type: "stop"}, nil
 		case <-linked.Done():
 			return &CodemodeWorkerReply{Type: "stop"}, nil
 		}

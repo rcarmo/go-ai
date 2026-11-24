@@ -73,8 +73,8 @@ return "ok";`
 }
 
 type workerReplayInputsV160 struct {
-	clock int64
-	seed  uint64
+	clock, deadline int64
+	seed            uint64
 }
 
 type workerNestedReplayV160 struct {
@@ -121,7 +121,7 @@ func runV160PublishedWorkerNestedReplay(t *testing.T, source string, changes wor
 	var inputs []workerReplayInputsV160
 	remote.observeStart = func(start CodemodeStart) {
 		mu.Lock()
-		inputs = append(inputs, workerReplayInputsV160{clock: start.StartedAt, seed: start.Seed})
+		inputs = append(inputs, workerReplayInputsV160{clock: start.StartedAt, deadline: start.Deadline, seed: start.Seed})
 		mu.Unlock()
 	}
 	echoes := map[string]int{}

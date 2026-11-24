@@ -145,8 +145,9 @@ func (r *TaskRuntime) runParallelCodemode(ctx context.Context, vm CodemodeExecut
 					return CodemodeResult{}, err
 				}
 				drainPending = false
-				// Replay all confirmed deliveries before admitting any unsettled effect.
-				if delivered == len(journal.Deliveries) {
+				// Admit effects only after replay catches up to a live drain.
+				// A final drain records the count but the guest has already ended.
+				if !event.Drain.Final && delivered == len(journal.Deliveries) {
 					launch(observed)
 				}
 			} else if event.Result != nil && event.Call == nil && event.Drain == nil {

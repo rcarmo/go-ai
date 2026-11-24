@@ -68,17 +68,20 @@ func TestV160CodemodePublishedWorkerStartVersionImmutable(t *testing.T) {
 	}
 }
 
-// codemode.test.ts:843–856. Advance the public logical clock only between
-// real guest executions; no wall-clock wait is needed to age the deadline.
+// codemode.test.ts:843–856. Give the cold Node subprocess time to start;
+// advance the public clock 100 ms past the saved deadline, as in the source.
 func TestSourceV160CodemodePublishedWorkerExpiredReplay(t *testing.T) {
 	var now atomic.Int64
 	now.Store(1000)
-	const source = `// @options: {"timeout_ms": 300}
+	const source = `// @options: {"timeout_ms": 3000}
 ` + v160LateReplayScript
 	got := runV160PublishedWorkerNestedReplay(t, source, workerReplayChangesV160{
 		now:          now.Load,
-		beforeResume: func(_ context.Context, _ Storage, _ *RemoteCodemodeSandbox) { now.Add(400) },
+		beforeResume: func(_ context.Context, _ Storage, _ *RemoteCodemodeSandbox) { now.Add(3100) },
 	})
+	if len(got.inputs) != 1 || got.inputs[0].deadline-got.inputs[0].clock != 3000 || now.Load()-got.inputs[0].deadline != 100 {
+		t.Fatalf("expected one guest, with its saved deadline now 100 ms past: starts=%+v now=%d", got.inputs, now.Load())
+	}
 	if !got.isError || !strings.Contains(got.text, "deadline passed") {
 		t.Errorf("result error=%t, text=%q; want deadline passed", got.isError, got.text)
 	}

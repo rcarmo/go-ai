@@ -178,3 +178,19 @@ func TestCodemodeReplayCallLabelOmitsArgumentValues(t *testing.T) {
 		}
 	}
 }
+
+// codemode.test.ts:612–630. The reopened test guest returns before its
+// first call using different input; the saved run start stays immutable.
+func TestSourceV160CodemodePublishedWorkerReplayReturnsBeforeFirstCall(t *testing.T) {
+	const source = `if (load("k")) { store("x", 1); return "early"; } await tools.hold({});`
+	got := runV160PublishedWorkerNestedReplay(t, source, workerReplayChangesV160{guestStore: workerReplayStoreWithKV160})
+	if got.firstIssued == nil || *got.firstIssued != 1 || len(got.beforeClose) != 0 {
+		t.Fatalf("initial drain must record one call and no results: count=%v deliveries=%+v", got.firstIssued, got.beforeClose)
+	}
+	if !got.isError || !strings.Contains(got.text, "it ended after result 0, where it went on before") {
+		t.Errorf("replay error=%t, text=%q; want exact initial early-return diagnostic", got.isError, got.text)
+	}
+	if got.starts != 2 || got.replies != 0 || got.nested != 1 {
+		t.Errorf("guest starts=%d replies=%d nested tasks=%d; want 2 starts, no replies and only the original task", got.starts, got.replies, got.nested)
+	}
+}
