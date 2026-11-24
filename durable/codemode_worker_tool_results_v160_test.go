@@ -107,3 +107,65 @@ return [r.exitCode, r.output, e];`, `[1,"no matches",["permission denied",null]]
 		})
 	}
 }
+
+// Source: pi v1.6.0 codemode.test.ts:1094–1100.
+func TestSourceV160CodemodePublishedWorkerFailureReportsCalls(t *testing.T) {
+	sandbox, remote := newJournalWorkerSandboxV160(t)
+	registry := NewRegistry()
+	ext, err := NewCodemodeExtension(sandbox)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := registry.Install(&ext); err != nil {
+		t.Fatal(err)
+	}
+	var echoes, requests atomic.Int32
+	echo := wrapRegistration("echo")
+	echo.Execute = func(_ context.Context, args any, _ *ToolAPI) (ToolResult, error) {
+		echoes.Add(1)
+		if got := args.(JSON)["text"]; got != "a" {
+			t.Errorf("echo text = %q, want a", got)
+		}
+		return ToolResult{Content: "a"}, nil
+	}
+	if err := registry.Register(echo); err != nil {
+		t.Fatal(err)
+	}
+	const script = `await tools.echo({ text: "a" }); throw new Error("boom");`
+	ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
+		out := make(chan goai.Event, 1)
+		if requests.Add(1) == 1 {
+			out <- toolAnswer("s1", "codemode", JSON{"code": script})
+		} else {
+			out <- terminal("done")
+		}
+		close(out)
+		return out
+	})
+	store, err := newTestSQLite(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	options.Registry = registry
+	h := openHarness(t, store, options)
+	c := root(t, h, ref)
+	sub, err := c.Submit(bg, Input{Content: "go"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := waitSubmission(t, sub).Record.Status; got != "done" || requests.Load() != 2 {
+		t.Fatalf("submission status = %s, model requests = %d; want done and two requests", got, requests.Load())
+	}
+	result := v160ToolResult(t, bg, c, "s1")
+	text := v160ToolResultText(result)
+	if !result.IsError || !strings.HasPrefix(text, "Script failed\n") || !strings.Contains(text, "Error: boom") {
+		t.Errorf("error=%v, text=%q; want failed script with Error: boom", result.IsError, text)
+	}
+	const effect = "Tool calls made before the failure (they are not undone): echo (ok)"
+	if strings.Count(text, effect) != 1 {
+		t.Errorf("failure text = %q; want one %q", text, effect)
+	}
+	if echoes.Load() != 1 || remote.deliveries.Load() != 1 || remote.starts.Load() != 1 {
+		t.Errorf("echoes=%d, deliveries=%d, starts=%d; want one of each", echoes.Load(), remote.deliveries.Load(), remote.starts.Load())
+	}
+}

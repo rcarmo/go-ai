@@ -130,6 +130,10 @@ func (r *CodemodeWorkerRemote) Execute(ctx context.Context, code string, start C
 	var mu sync.Mutex
 	waiting := map[int]chan CodemodeDelivery{}
 	deliveredCalls := map[int]int{0: 0}
+	// Keep tool rows in issue order for a script failure. A global isn't a
+	// tool call, and a pending tool has no successfully delivered outcome.
+	var calls []quickjs.Call
+	callRows := map[int]int{}
 	started, terminal := false, false
 	terminalDone := make(chan struct{})
 	// Let RPCs for abandoned calls return after the guest ends. The
@@ -176,6 +180,12 @@ func (r *CodemodeWorkerRemote) Execute(ctx context.Context, code string, start C
 			}
 			delete(waiting, delivery.Call.ID)
 			deliveredCalls[delivery.Seq] = delivery.Call.ID
+			if row, ok := callRows[delivery.Call.ID]; ok {
+				calls[row].Status = "ok"
+				if delivery.Error != "" {
+					calls[row].Status = "error"
+				}
+			}
 			ch <- delivery
 			mu.Unlock()
 		}
@@ -292,6 +302,10 @@ func (r *CodemodeWorkerRemote) Execute(ctx context.Context, code string, start C
 				}
 				pending = make(chan CodemodeDelivery, 1)
 				waiting[call.ID] = pending
+				if !call.Global {
+					callRows[call.ID] = len(calls)
+					calls = append(calls, quickjs.Call{Name: call.Name, Status: "cancelled"})
+				}
 				callID = call.ID
 				issued++
 				var reply CodemodeRemoteReply
@@ -377,6 +391,7 @@ func (r *CodemodeWorkerRemote) Execute(ctx context.Context, code string, start C
 					}
 					if !message.OK {
 						formatted.Error = &quickjs.Error{Kind: "script", Message: result.Error}
+						formatted.Calls = calls
 					}
 					result.Output, err = formatQuickJSText(formatted)
 				}
