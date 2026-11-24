@@ -65,7 +65,8 @@ type ModelRefreshContext struct {
 
 type ModelRuntimeRefreshOptions struct {
 	AllowNetwork bool
-	Force        bool
+	// Force starts new network work instead of joining an in-flight refresh.
+	Force bool
 }
 
 type DynamicModelProvider interface {
@@ -98,12 +99,18 @@ type ModelRuntime struct {
 	store     ModelsStore
 	providers map[Provider]DynamicModelProvider
 	models    map[Provider][]*Model
-	inflight  map[Provider]*modelRefreshCall
+	refreshes map[Provider]*modelRefreshState
+}
+
+type modelRefreshState struct {
+	current *modelRefreshCall // guarded by ModelRuntime.mu
+	publish sync.Mutex        // orders cache restoration and writes for this provider
 }
 
 type modelRefreshCall struct {
-	done chan struct{}
-	err  error
+	cancel context.CancelFunc
+	done   chan struct{}
+	err    error
 }
 
 type ModelRuntimeRefreshResult struct {
@@ -115,7 +122,7 @@ func NewModelRuntime(store ModelsStore) *ModelRuntime {
 	if store == nil {
 		store = NewInMemoryModelsStore()
 	}
-	return &ModelRuntime{store: store, providers: map[Provider]DynamicModelProvider{}, models: map[Provider][]*Model{}, inflight: map[Provider]*modelRefreshCall{}}
+	return &ModelRuntime{store: store, providers: map[Provider]DynamicModelProvider{}, models: map[Provider][]*Model{}, refreshes: map[Provider]*modelRefreshState{}}
 }
 
 func (r *ModelRuntime) SetProvider(provider DynamicModelProvider) {
@@ -207,34 +214,74 @@ func (r *ModelRuntime) RefreshWithOptions(ctx context.Context, opts ModelRuntime
 func (r *ModelRuntime) refreshProvider(ctx context.Context, provider DynamicModelProvider, allowNetwork bool, force bool) error {
 	id := Provider(provider.ID())
 	r.mu.Lock()
-	if call := r.inflight[id]; call != nil {
+	if err := ctx.Err(); err != nil {
+		r.mu.Unlock()
+		return err
+	}
+	state := r.refreshes[id]
+	if state == nil {
+		state = &modelRefreshState{}
+		r.refreshes[id] = state
+	}
+	previous := state.current
+	if previous != nil && !(allowNetwork && force) {
 		r.mu.Unlock()
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-call.done:
-			return call.err
+		case <-previous.done:
+			return previous.err
 		}
 	}
-	call := &modelRefreshCall{done: make(chan struct{})}
-	r.inflight[id] = call
+	workCtx, cancel := context.WithCancel(ctx)
+	call := &modelRefreshCall{cancel: cancel, done: make(chan struct{})}
+	state.current = call
+	if previous != nil {
+		previous.cancel()
+	}
 	r.mu.Unlock()
 
 	defer func() {
+		cancel()
 		r.mu.Lock()
-		delete(r.inflight, id)
+		if state.current == call {
+			state.current = nil
+		}
 		r.mu.Unlock()
 		close(call.done)
 	}()
 
-	stored, storeErr := r.store.Read(id)
-	if storeErr == nil && stored != nil {
-		r.setProviderModels(id, filterProviderModels(id, stored.Models))
+	// A provider need not honor its signal. Let the caller return first and
+	// allow the worker to deliver its eventual result without a receiver.
+	result := make(chan error, 1)
+	go func() {
+		result <- r.runProviderRefresh(workCtx, id, state, call, provider, allowNetwork, force)
+	}()
+	select {
+	case <-workCtx.Done():
+	case err := <-result:
+		if workCtx.Err() == nil {
+			call.err = err
+			return call.err
+		}
 	}
+	// Supersession, unlike caller cancellation, is not a refresh error.
+	call.err = ctx.Err()
+	return call.err
+}
+
+func (r *ModelRuntime) runProviderRefresh(ctx context.Context, id Provider, state *modelRefreshState, call *modelRefreshCall, provider DynamicModelProvider, allowNetwork bool, force bool) error {
+	state.publish.Lock()
+	if r.currentModelRefresh(ctx, state, call) {
+		if stored, err := r.store.Read(id); err == nil && stored != nil {
+			r.setRefreshedModels(ctx, state, call, id, filterProviderModels(id, stored.Models))
+		}
+	}
+	state.publish.Unlock()
 	if !allowNetwork || ctx.Err() != nil {
-		call.err = ctx.Err()
-		return call.err
+		return nil
 	}
+
 	refreshCtx := ModelRefreshContext{Provider: id, BaseURL: modelRefreshBaseURL(provider), Store: r.store, AllowNetwork: allowNetwork, Force: force, Signal: ctx}
 	var entry *ModelsStoreEntry
 	var err error
@@ -248,25 +295,39 @@ func (r *ModelRuntime) refreshProvider(ctx context.Context, provider DynamicMode
 		}
 	}
 	if err != nil {
-		call.err = NewModelsError(ModelsErrorModelSource, fmt.Sprintf("model refresh failed for %s", id), err)
-		return call.err
+		return NewModelsError(ModelsErrorModelSource, fmt.Sprintf("model refresh failed for %s", id), err)
 	}
 	if entry == nil {
 		entry = &ModelsStoreEntry{CheckedAt: time.Now().UnixMilli()}
 	}
 	entry.Models = filterProviderModels(id, entry.Models)
-	r.setProviderModels(id, entry.Models)
-	if err := r.store.Write(id, entry); err != nil {
-		call.err = NewModelsError(ModelsErrorModelSource, fmt.Sprintf("model store write failed for %s", id), err)
-		return call.err
+	state.publish.Lock()
+	defer state.publish.Unlock()
+	if !r.currentModelRefresh(ctx, state, call) {
+		return nil
+	}
+	// Serialize writes independently of network work. If superseded during
+	// an already-started store write, skip its in-memory update as well.
+	err = r.store.Write(id, entry)
+	r.setRefreshedModels(ctx, state, call, id, entry.Models)
+	if err != nil {
+		return NewModelsError(ModelsErrorModelSource, fmt.Sprintf("model store write failed for %s", id), err)
 	}
 	return nil
 }
 
-func (r *ModelRuntime) setProviderModels(provider Provider, models []*Model) {
+func (r *ModelRuntime) currentModelRefresh(ctx context.Context, state *modelRefreshState, call *modelRefreshCall) bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return state.current == call && ctx.Err() == nil
+}
+
+func (r *ModelRuntime) setRefreshedModels(ctx context.Context, state *modelRefreshState, call *modelRefreshCall, provider Provider, models []*Model) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.models[provider] = cloneModels(models)
+	if state.current == call && ctx.Err() == nil {
+		r.models[provider] = cloneModels(models)
+	}
 }
 
 func filterProviderModels(provider Provider, models []*Model) []*Model {
