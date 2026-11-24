@@ -148,3 +148,24 @@ func checkV160CodemodeNamespacedGlobals(t *testing.T, ctx context.Context, sandb
 		}
 	}
 }
+
+// The standalone variant runs the published runtime/worker.js in a Node
+// Worker thread. The Go adapter still performs all the real callback and drain
+// handling; the subprocess only transfers worker messages and Go replies.
+func TestSourceV160CodemodeStandaloneNodeWorkerNamespacedGlobals(t *testing.T) {
+	observed := make(chan int)
+	process := officialWorkerTransport120{root: officialWorkerPackageRootV160(t), observed: observed}
+	transport := workerTransport120(func(ctx context.Context, request CodemodeWorkerRequest, exchange func(context.Context, []CodemodeWorkerMessage) (*CodemodeWorkerReply, error)) error {
+		return process.executeProcess(ctx, "worker-node-v160.mjs", request, exchange)
+	})
+	// Pinned runtime/worker.ts uses QuickJS's default 512 KiB stack and an
+	// interrupt flag but no poll budget. Neither is the portable VM default.
+	const workerIdentity = "quickjs-wasi 3.6.2, quickjs 0.17.0, prelude 4dce1bde, deterministic 1, stack 524288, heap 33554432, budget none"
+	sandbox := &RemoteCodemodeSandbox{
+		Remote:   &CodemodeWorkerRemote{Transport: transport, Fingerprint: workerIdentity},
+		Identity: workerIdentity,
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	checkV160CodemodeNamespacedGlobals(t, ctx, sandbox, observed, true)
+}

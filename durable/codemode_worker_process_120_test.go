@@ -25,9 +25,13 @@ type officialWorkerTransport120 struct {
 }
 
 func (p officialWorkerTransport120) Execute(ctx context.Context, request CodemodeWorkerRequest, exchange func(context.Context, []CodemodeWorkerMessage) (*CodemodeWorkerReply, error)) error {
+	return p.executeProcess(ctx, "worker-remote-120.mjs", request, exchange)
+}
+
+func (p officialWorkerTransport120) executeProcess(ctx context.Context, launcher string, request CodemodeWorkerRequest, exchange func(context.Context, []CodemodeWorkerMessage) (*CodemodeWorkerReply, error)) error {
 	linked, cancel := context.WithCancel(ctx)
 	defer cancel()
-	cmd := exec.CommandContext(linked, "node", filepath.Join("testdata", "worker-remote-120.mjs"))
+	cmd := exec.CommandContext(linked, "node", filepath.Join("testdata", launcher))
 	cmd.Env = append(os.Environ(), "GOAI_WORKER_PACKAGE_ROOT="+p.root)
 	var stderr strings.Builder
 	cmd.Stderr = &stderr
