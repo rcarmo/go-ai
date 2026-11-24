@@ -1,6 +1,11 @@
 package goai_test
 
-import "testing"
+import (
+	"encoding/json"
+	"testing"
+
+	goai "github.com/rcarmo/go-ai"
+)
 
 // validator.test.ts:189–200. The same root reference accepts the complete
 // tree and identifies the missing property in the innermost child.
@@ -15,9 +20,8 @@ func TestSourceV160SchemaRecursiveRootReference(t *testing.T) {
 	})
 }
 
-// validator.test.ts:203–218. These calls reuse the source's schema and data,
-// but make no claim about compile-time handling of unresolved references.
-// The native coercing parse assertion at L217 lives in the standalone suite.
+// validator.test.ts:203–218. The native coercing parse assertion at L217
+// lives in the standalone suite.
 func TestSourceV160SchemaRelativeRootReference(t *testing.T) {
 	const schema = `{
 		"$id":"schemas/tool.json","type":"object",
@@ -27,8 +31,16 @@ func TestSourceV160SchemaRelativeRootReference(t *testing.T) {
 	t.Run("L211-relative-root-check", func(t *testing.T) {
 		assertV160SchemaCheck(t, schema, `{"count":2}`, nil, "", false, true)
 	})
+	compiled := compileV160RejectingRefs(t, schema)
+	t.Run("L213-relative-root-in-reject-mode", func(t *testing.T) {
+		assertV160CompiledCheck(t, compiled, `{"count":2}`, true)
+	})
 	t.Run("L214-resolved-type-error", func(t *testing.T) {
-		assertV160MessageRecords(t, schema, `{"count":"a"}`, `[{"path":"/count","keyword":"type","message":"expected integer, got string"}]`)
+		issues, err := compiled.Explain(json.RawMessage(`{"count":"a"}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertV160StructuredDiagnostics(t, issues, `[{"path":"/count","keyword":"type","message":"expected integer, got string"}]`)
 	})
 }
 
@@ -44,18 +56,26 @@ func TestSourceV160SchemaRelativeRootAnnotations(t *testing.T) {
 		"$id":"schemas/list.json","type":"array","prefixItems":[{"$ref":"#/$defs/count"}],
 		"$defs":{"count":{"type":"integer"}},"unevaluatedItems":false
 	}`
+	compiled := compileV160RejectingRefs(t, properties)
 	t.Run("L229-properties-have-resolved-reference", func(t *testing.T) {
-		assertV160SchemaCheck(t, properties, `{"count":2}`, nil, "", false, true)
+		assertV160CompiledCheck(t, compiled, `{"count":2}`, true)
 	})
 	t.Run("L230-unevaluated-field-only", func(t *testing.T) {
-		assertV160MessageRecords(t, properties, `{"count":2,"extra":1}`,
-			`[{"path":"/extra","keyword":"unevaluatedProperties","message":"unknown field"}]`)
+		issues, err := compiled.Explain(json.RawMessage(`{"count":2,"extra":1}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertV160StructuredDiagnostics(t, issues, `[{"path":"/extra","keyword":"unevaluatedProperties","message":"unknown field"}]`)
 	})
 	t.Run("L240-prefix-has-resolved-reference", func(t *testing.T) {
-		assertV160SchemaCheck(t, items, `[2]`, nil, "", false, true)
+		assertV160CompiledCheck(t, compileV160RejectingRefs(t, items), `[2]`, true)
 	})
 	t.Run("L241-leftover-item-fails", func(t *testing.T) {
-		assertV160SchemaCheck(t, items, `[2,3]`, nil, "", false, false)
+		compiled, err := goai.CompileJSONSchema(json.RawMessage(items), goai.JSONSchemaCompileOptions{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertV160CompiledCheck(t, compiled, `[2,3]`, false)
 	})
 }
 
@@ -78,4 +98,20 @@ func TestSourceV160SchemaNestedRelativeDiagnostics(t *testing.T) {
 	t.Run("L264-nested-branch-type", func(t *testing.T) {
 		assertV160MessageRecords(t, branch, `{}`, `[{"path":"","keyword":"type","message":"expected integer, got object"}]`)
 	})
+}
+
+func compileV160RejectingRefs(t *testing.T, schema string) *goai.CompiledJSONSchema {
+	t.Helper()
+	compiled, err := goai.CompileJSONSchema(json.RawMessage(schema), goai.JSONSchemaCompileOptions{RejectUnresolvedRefs: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return compiled
+}
+
+func assertV160CompiledCheck(t *testing.T, compiled *goai.CompiledJSONSchema, input string, want bool) {
+	t.Helper()
+	if got, err := compiled.Check(json.RawMessage(input)); err != nil || got != want {
+		t.Fatalf("compiled check(%s) = %t, %v; want %t", input, got, err, want)
+	}
 }
