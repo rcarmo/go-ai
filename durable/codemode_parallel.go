@@ -119,14 +119,13 @@ func (r *TaskRuntime) runParallelCodemode(ctx context.Context, vm CodemodeExecut
 				if observed < len(journal.Issued) {
 					old := journal.Issued[observed]
 					if call.ID != old.ID || call.Name != old.Name || call.Global != old.Global || !codemodeArgumentModeCompatible(call, old) || !equalJSONValue(call.Arguments, old.Arguments) {
+						label := call.Name
 						if call.Global != old.Global {
-							return divergence(fmt.Sprintf("sandbox call replay divergence: call %d is %s, but was %s", call.ID, codemodeReplayCallLabel(call), codemodeReplayCallLabel(old)))
+							label = fmt.Sprintf("%s, but was %s", codemodeReplayCallLabel(call), codemodeReplayCallLabel(old))
+						} else if !call.Global {
+							label = "tools." + label
 						}
-						name := call.Name
-						if !call.Global {
-							name = "tools." + name
-						}
-						return divergence(fmt.Sprintf("sandbox call replay divergence: call %d is %s", call.ID, name))
+						return divergence(fmt.Sprintf("sandbox call replay divergence: call %d is %s; the script took a different path when resumed after a restart", call.ID, label))
 					}
 				} else {
 					journal.Issued = append(journal.Issued, call)

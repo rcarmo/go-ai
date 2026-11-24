@@ -194,3 +194,31 @@ func TestSourceV160CodemodePublishedWorkerReplayReturnsBeforeFirstCall(t *testin
 		t.Errorf("guest starts=%d replies=%d nested tasks=%d; want 2 starts, no replies and only the original task", got.starts, got.replies, got.nested)
 	}
 }
+
+// codemode.test.ts:397–416. Stop the live guest before its first reply so the
+// absence of a delivery is real, not an edit to the sealed journal. Change k
+// only in the replay guest input, keeping the persisted start intact.
+func TestSourceV160CodemodePublishedWorkerRetryChangedArguments(t *testing.T) {
+	const source = `await tools.echo({ text: load("k") ?? "a" }); await tools.hold({});`
+	got := runV160PublishedWorkerNestedReplay(t, source, workerReplayChangesV160{
+		stopAtEcho: true,
+		guestStore: func(run int32, store JSON) JSON {
+			if run == 2 {
+				return JSON{"k": "other"}
+			}
+			return store
+		},
+	})
+	if got.firstIssued == nil || *got.firstIssued != 1 || len(got.beforeClose) != 0 {
+		t.Fatalf("initial echo must be admitted but not delivered: count=%v deliveries=%+v", got.firstIssued, got.beforeClose)
+	}
+	if !got.isError || !strings.Contains(got.text, "different path") || !strings.Contains(got.text, "call 1 is tools.echo") {
+		t.Errorf("replay error=%t, text=%q; want the source path and call diagnostic fragments", got.isError, got.text)
+	}
+	if !reflect.DeepEqual(got.echoes, map[string]int{"a": 1}) {
+		t.Errorf("echo effects = %v; want map[a:1]", got.echoes)
+	}
+	if got.starts != 2 || got.replies != 0 || got.holds != 0 {
+		t.Errorf("guest starts=%d, guest replies=%d, hold runs=%d; want 2, 0, 0", got.starts, got.replies, got.holds)
+	}
+}

@@ -95,6 +95,7 @@ type workerReplayChangesV160 struct {
 	guestStore   func(int32, JSON) JSON
 	globals      []CodemodeGlobal
 	pauseEcho    bool
+	stopAtEcho   bool // cut off before the first echo reply, without waiting for hold
 	now          func() int64
 	beforeStart  func(*RemoteCodemodeSandbox)
 	beforeResume func(context.Context, Storage, *RemoteCodemodeSandbox)
@@ -136,7 +137,7 @@ func runV160PublishedWorkerNestedReplay(t *testing.T, source string, changes wor
 		mu.Lock()
 		echoes[text]++
 		mu.Unlock()
-		if changes.pauseEcho && block.Load() {
+		if (changes.pauseEcho || changes.stopAtEcho) && block.Load() {
 			close(echoEntered)
 			<-ctx.Done()
 			return ToolResult{}, ctx.Err()
@@ -195,13 +196,17 @@ func runV160PublishedWorkerNestedReplay(t *testing.T, source string, changes wor
 	}
 	settled := make(chan error, 1)
 	go func() { _, err := sub.Wait(ctx); settled <- err }()
+	boundary := held
+	if changes.stopAtEcho {
+		boundary = echoEntered
+	}
 	select {
-	case <-held:
+	case <-boundary:
 	case err := <-settled:
 		if err != nil {
-			t.Fatalf("submission stopped before hold: %v", err)
+			t.Fatalf("submission stopped before cutoff barrier: %v", err)
 		}
-		t.Fatalf("submission stopped before hold: %q", v160ToolResultText(v160ToolResult(t, ctx, conversation, "s1")))
+		t.Fatalf("submission stopped before cutoff barrier: %q", v160ToolResultText(v160ToolResult(t, ctx, conversation, "s1")))
 	case <-ctx.Done():
 		t.Fatal(ctx.Err())
 	}
