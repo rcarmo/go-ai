@@ -21,6 +21,39 @@ const (
 	JSONSchemaReferenceDraft7      JSONSchemaReferenceDraft = "7"
 )
 
+// JSONSchemaCheckOptions configures a standalone check. Resources maps
+// retrieval URIs to host-supplied JSON schemas; no references are fetched.
+// A zero Draft selects 2020-12. AssertFormats enables the built-in format
+// checks. Unknown format names always remain annotations.
+type JSONSchemaCheckOptions struct {
+	Resources     map[string]json.RawMessage
+	Draft         JSONSchemaReferenceDraft
+	AssertFormats bool
+}
+
+// CheckJSONSchemaValueWithOptions checks a value without coercion. Pass a
+// decoded value or json.RawMessage. Its zero options treat format as an
+// annotation; CheckJSONSchemaValue and tool validation retain their existing
+// format checks. A false result with no error means the value failed the
+// schema. Errors report setup or checker failures.
+func CheckJSONSchemaValueWithOptions(schema json.RawMessage, value any, options JSONSchemaCheckOptions) (bool, error) {
+	var drafts []JSONSchemaReferenceDraft
+	if options.Draft != "" {
+		drafts = []JSONSchemaReferenceDraft{options.Draft}
+	}
+	call, err := prepareStandaloneSchemaValue(schema, value, options.Resources, drafts)
+	if err != nil {
+		return false, err
+	}
+	v := call.validator
+	v.ignoreFormats = !options.AssertFormats
+	accepted := v.acceptsRaw(call.value, call.schema)
+	if v.patternFailure != nil {
+		return false, fmt.Errorf("pattern checker unavailable: %w", v.patternFailure)
+	}
+	return accepted, nil
+}
+
 // ValidateJSONSchemaValueWithResources validates a decoded JSON value without
 // coercing it. The keys in resources are retrieval URIs; each value is a JSON
 // Schema object or boolean. Retrieval URIs must identify distinct documents

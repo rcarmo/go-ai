@@ -63,6 +63,7 @@ type toolSchemaValidator struct {
 	root            map[string]interface{}
 	draft7          bool
 	trackDynamic    bool
+	ignoreFormats   bool
 	scope           []string
 	scopeKey        string
 	schemaRaw       []byte

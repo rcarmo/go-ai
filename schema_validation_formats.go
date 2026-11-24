@@ -16,6 +16,9 @@ type toolSchemaRegexResult struct {
 // failures. Keep this predicate non-coercing: it participates in whole-union
 // membership as well as the final check, not in primitive conversion.
 func (v *toolSchemaValidator) stringFormatReason(value interface{}, schema map[string]interface{}) string {
+	if v.ignoreFormats {
+		return ""
+	}
 	text, ok := schemaStringValue(value)
 	if !ok {
 		return ""
