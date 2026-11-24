@@ -308,62 +308,63 @@ func llamaRenderQuestion(stateObject map[string]any, questions []llamaQuestionPl
 	return strings.Join([]string{state, strings.Join(overview, "\n\n"), state, final}, "\n\n")
 }
 
+// A completed lookup may find that the vocabulary splits a label. Cache that
+// result, but leave transport and decoding errors eligible for another lookup.
+type llamaLabelToken struct {
+	id     int
+	single bool
+}
+
 func llamaLabelTokens(request llamaCPPRequest, labels []string) ([]int, error) {
 	tokens := make([]int, 0, len(labels))
 	seen := map[int]bool{}
 	for _, label := range labels {
 		key := request.root + "\x00" + request.model.ID + "\x00" + label
+		var token llamaLabelToken
 		if cached, ok := llamaTokenCache.Load(key); ok {
-			id := cached.(int)
-			if seen[id] {
-				return nil, fmt.Errorf("labels share a token for %s: %s", request.model.ID, strings.Join(labels, ", "))
+			token = cached.(llamaLabelToken)
+		} else {
+			var err error
+			token, err = llamaResolveLabelToken(request, label)
+			if err != nil {
+				return nil, err
 			}
-			seen[id] = true
-			tokens = append(tokens, id)
-			continue
+			llamaTokenCache.Store(key, token)
 		}
-		id, err := llamaResolveLabelToken(request, label)
-		if err != nil {
-			llamaTokenCache.Delete(key)
-			return nil, err
+		if !token.single {
+			//lint:ignore ST1005 keep the pinned classifier diagnostic.
+			return nil, fmt.Errorf("Label %q is not a single token for %s", label, request.model.ID)
 		}
-		llamaTokenCache.Store(key, id)
-		if seen[id] {
-			return nil, fmt.Errorf("labels share a token for %s: %s", request.model.ID, strings.Join(labels, ", "))
+		if seen[token.id] {
+			//lint:ignore ST1005 keep the pinned classifier diagnostic.
+			return nil, fmt.Errorf("Labels share a token for %s: %s", request.model.ID, strings.Join(labels, ", "))
 		}
-		seen[id] = true
-		tokens = append(tokens, id)
+		seen[token.id] = true
+		tokens = append(tokens, token.id)
 	}
 	return tokens, nil
 }
 
-func llamaResolveLabelToken(request llamaCPPRequest, label string) (int, error) {
+func llamaResolveLabelToken(request llamaCPPRequest, label string) (llamaLabelToken, error) {
 	newline, err := llamaTokenize(request, "\n")
 	if err != nil {
-		return 0, err
+		return llamaLabelToken{}, err
 	}
 	withLabel, err := llamaTokenize(request, "\n"+label)
 	if err != nil {
-		return 0, err
+		return llamaLabelToken{}, err
 	}
-	if len(withLabel) == len(newline)+1 {
-		match := true
-		for i := range newline {
-			match = match && newline[i] == withLabel[i]
-		}
-		if match {
-			return withLabel[len(newline)], nil
-		}
+	if len(withLabel) == len(newline)+1 && slices.Equal(newline, withLabel[:len(newline)]) {
+		return llamaLabelToken{id: withLabel[len(newline)], single: true}, nil
 	}
 	alone, err := llamaTokenize(request, label)
 	if err != nil {
-		return 0, err
+		return llamaLabelToken{}, err
 	}
 	if len(alone) == 1 {
-		return alone[0], nil
+		return llamaLabelToken{id: alone[0], single: true}, nil
 	}
-	//lint:ignore ST1005 keep the pinned classifier diagnostic.
-	return 0, fmt.Errorf("Label %q is not a single token for %s", label, request.model.ID)
+	return llamaLabelToken{}, nil
 }
 
 func llamaTokenize(request llamaCPPRequest, content string) ([]int, error) {

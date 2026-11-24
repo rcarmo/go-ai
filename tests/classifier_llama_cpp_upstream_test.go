@@ -7,8 +7,11 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"net/http/httptest"
 	"reflect"
+	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -159,21 +162,22 @@ func llamaSourcePick(instructions string) goai.ClassifierContext {
 
 func runLlamaSource(t *testing.T, server *llamaSourceServer, model *goai.ClassifierModel, ctx goai.ClassifierContext, opts goai.ClassifierOptions) *goai.ClassifierResult {
 	t.Helper()
-	return runLlamaSourceUsing(t, server, model, ctx, opts, goai.Classify)
+	opts.HTTPClient = &http.Client{Transport: server}
+	return runLlamaSourceUsing(t, model, ctx, opts, goai.Classify)
 }
 
 func runOrderedLlamaSource(t *testing.T, server *llamaSourceServer, model *goai.ClassifierModel, ctx goai.ClassifierContext, order goai.LlamaCPPOrder, opts goai.ClassifierOptions) *goai.ClassifierResult {
 	t.Helper()
-	return runLlamaSourceUsing(t, server, model, ctx, opts, func(model *goai.ClassifierModel, ctx goai.ClassifierContext, opts *goai.ClassifierOptions) (*goai.ClassifierResult, error) {
+	opts.HTTPClient = &http.Client{Transport: server}
+	return runLlamaSourceUsing(t, model, ctx, opts, func(model *goai.ClassifierModel, ctx goai.ClassifierContext, opts *goai.ClassifierOptions) (*goai.ClassifierResult, error) {
 		return goai.ClassifyLlamaCPPWithOrder(model, ctx, order, opts)
 	})
 }
 
-func runLlamaSourceUsing(t *testing.T, server *llamaSourceServer, model *goai.ClassifierModel, ctx goai.ClassifierContext, opts goai.ClassifierOptions,
+func runLlamaSourceUsing(t *testing.T, model *goai.ClassifierModel, ctx goai.ClassifierContext, opts goai.ClassifierOptions,
 	classify func(*goai.ClassifierModel, goai.ClassifierContext, *goai.ClassifierOptions) (*goai.ClassifierResult, error),
 ) *goai.ClassifierResult {
 	t.Helper()
-	opts.HTTPClient = &http.Client{Transport: server}
 	if opts.Context == nil {
 		opts.Context = t.Context()
 	}
@@ -313,29 +317,30 @@ func TestSourceV160LlamaCPPClassifier(t *testing.T) {
 		}
 	})
 	t.Run("close-thinking", func(t *testing.T) { // 257
-		server := &llamaSourceServer{template: "<|assistant|>\n<think>"}
-		runLlamaSource(t, server, llamaSourceModel(), llamaSourcePick("Pick"), goai.ClassifierOptions{})
+		server := newLlamaSourceLoopback(t, &llamaSourceServer{template: "<|assistant|>\n<think>"}, llamaLoopbackPrefix())
+		server.classify(t, server.model(), llamaSourcePick("Pick"))
 		if requests := server.matching("/completion"); len(requests) != 1 || requests[0].body["prompt"] != "<|assistant|>\n<think></think>" {
 			t.Errorf("completed prompt: %#v", requests)
 		}
 	})
 	t.Run("single-token-labels", func(t *testing.T) { // 269
-		merging := &llamaSourceServer{tokens: func(content string) []int {
+		merging := newLlamaSourceLoopback(t, &llamaSourceServer{tokens: func(content string) []int {
 			if strings.HasPrefix(content, "\n") && len(content) > 1 {
 				return []int{1000}
 			}
 			return llamaSourceChars(content)
-		}}
-		checkLlamaResult(t, runLlamaSource(t, merging, llamaSourceModel(), llamaSourcePick("Pick"), goai.ClassifierOptions{}), goai.StopReasonStop, "")
-		ctx := goai.ClassifierContext{State: map[string]any{}, Questions: map[string]goai.ClassifierQuestion{"ok": {Type: "bool", Instructions: "OK?", Criteria: goai.ClassifierBoolCriteria{}}}}
-		checkLlamaResult(t, runLlamaSource(t, &llamaSourceServer{}, llamaSourceModel(), ctx, goai.ClassifierOptions{}), goai.StopReasonError, `Label "Yes" is not a single token for qwen`)
+		}}, llamaLoopbackPrefix())
+		checkLlamaResult(t, merging.classify(t, merging.model(), llamaSourcePick("Pick")), goai.StopReasonStop, "")
+		assertLlamaLoopbackTokenInputs(t, merging.matching("/tokenize"), "qwen", []string{"\n", "\n", "\nA", "\nB", "A", "B"})
+		split := newLlamaSourceLoopback(t, &llamaSourceServer{}, llamaLoopbackPrefix())
+		checkLlamaResult(t, split.classify(t, split.model(), llamaSourceBool()), goai.StopReasonError, `Label "Yes" is not a single token for qwen`)
 	})
 	t.Run("token-cache", func(t *testing.T) { // 292
-		server, model := &llamaSourceServer{}, llamaSourceModel()
-		ctx := llamaSourcePick("Pick")
-		runLlamaSource(t, server, model, ctx, goai.ClassifierOptions{})
+		server := newLlamaSourceLoopback(t, &llamaSourceServer{}, llamaLoopbackPrefix())
+		model, ctx := server.model(), llamaSourcePick("Pick")
+		server.classify(t, model, ctx)
 		first := len(server.matching("/tokenize"))
-		runLlamaSource(t, server, model, ctx, goai.ClassifierOptions{})
+		server.classify(t, model, ctx)
 		if total := len(server.matching("/tokenize")); first == 0 || total != first {
 			t.Errorf("tokenizations: first=%d total=%d", first, total)
 		}
@@ -508,4 +513,171 @@ func TestLlamaCPPRejectsMalformedOrderV160(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Use real HTTP without a provider process. The prefix keeps the process-wide
+// cache isolated even if the OS reuses a listener port between test repeats.
+func llamaLoopbackPrefix() string {
+	return fmt.Sprintf("/r36-%d", llamaSourceServerID.Add(1))
+}
+
+type llamaSourceLoopback struct {
+	mu     sync.Mutex
+	fake   *llamaSourceServer
+	http   *httptest.Server
+	prefix string
+}
+
+func newLlamaSourceLoopback(t *testing.T, fake *llamaSourceServer, prefix string) *llamaSourceLoopback {
+	t.Helper()
+	s := &llamaSourceLoopback{fake: fake, prefix: prefix}
+	s.http = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || !strings.HasPrefix(r.URL.Path, prefix+"/") {
+			t.Errorf("unexpected classifier request %s %s", r.Method, r.URL.Path)
+			http.Error(w, "unexpected request", http.StatusBadRequest)
+			return
+		}
+		s.mu.Lock()
+		resp, err := fake.RoundTrip(r)
+		s.mu.Unlock()
+		if err != nil {
+			t.Error(err)
+			http.Error(w, "fixture error", http.StatusBadRequest)
+			return
+		}
+		defer resp.Body.Close()
+		w.Header().Set("Content-Type", resp.Header.Get("Content-Type"))
+		w.WriteHeader(resp.StatusCode)
+		if _, err := io.Copy(w, resp.Body); err != nil {
+			t.Error(err)
+		}
+	}))
+	t.Cleanup(s.http.Close)
+	return s
+}
+
+func (s *llamaSourceLoopback) model() *goai.ClassifierModel {
+	model := llamaSourceModel()
+	model.BaseURL = s.http.URL + s.prefix + "/v1"
+	return model
+}
+
+func (s *llamaSourceLoopback) classify(t *testing.T, model *goai.ClassifierModel, ctx goai.ClassifierContext) *goai.ClassifierResult {
+	t.Helper()
+	return runLlamaSourceUsing(t, model, ctx, goai.ClassifierOptions{HTTPClient: s.http.Client()}, goai.Classify)
+}
+
+func (s *llamaSourceLoopback) matching(path string) []llamaSourceRequest {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.fake.matching(path)
+}
+
+func llamaSourceBool() goai.ClassifierContext {
+	return goai.ClassifierContext{State: map[string]any{}, Questions: map[string]goai.ClassifierQuestion{
+		"ok": {Type: "bool", Instructions: "OK?", Criteria: goai.ClassifierBoolCriteria{}},
+	}}
+}
+
+func assertLlamaLoopbackTokenInputs(t *testing.T, requests []llamaSourceRequest, model string, want []string) {
+	t.Helper()
+	got := make([]string, 0, len(requests))
+	for _, req := range requests {
+		if req.body["model"] != model || req.body["add_special"] != false || req.body["parse_special"] != false || len(req.body) != 4 {
+			t.Errorf("wrong tokenize payload for %q: %v", model, req.body)
+		}
+		content, ok := req.body["content"].(string)
+		if !ok {
+			t.Errorf("non-string tokenization input: %v", req.body["content"])
+		}
+		got = append(got, content)
+	}
+	expected := slices.Clone(want)
+	slices.Sort(got)
+	slices.Sort(expected)
+	if !slices.Equal(got, expected) {
+		t.Errorf("tokenization inputs for %q = %q, want %q", model, got, expected)
+	}
+}
+
+func TestLlamaCPPTokenCacheIsolationV160(t *testing.T) {
+	prefix := llamaLoopbackPrefix()
+	first := newLlamaSourceLoopback(t, &llamaSourceServer{}, prefix)
+	second := newLlamaSourceLoopback(t, &llamaSourceServer{}, prefix)
+	fixture := llamaSourcePick("Pick")
+	model := first.model()
+	inputs := []string{"\n", "\n", "\nA", "\nB"}
+	checkLlamaResult(t, first.classify(t, model, fixture), goai.StopReasonStop, "")
+	firstTokens := first.matching("/tokenize")
+	assertLlamaLoopbackTokenInputs(t, firstTokens, model.ID, inputs)
+
+	sameRoot := *model
+	sameRoot.BaseURL = strings.TrimSuffix(model.BaseURL, "/v1")
+	checkLlamaResult(t, first.classify(t, &sameRoot, fixture), goai.StopReasonStop, "")
+	if got := len(first.matching("/tokenize")); got != len(firstTokens) {
+		t.Fatalf("same normalized root re-tokenized: got %d, want %d", got, len(firstTokens))
+	}
+
+	otherModel := *model
+	otherModel.ID = "other-model"
+	checkLlamaResult(t, first.classify(t, &otherModel, fixture), goai.StopReasonStop, "")
+	assertLlamaLoopbackTokenInputs(t, first.matching("/tokenize")[len(firstTokens):], otherModel.ID, inputs)
+
+	otherServer := *model
+	otherServer.BaseURL = second.model().BaseURL
+	checkLlamaResult(t, second.classify(t, &otherServer, fixture), goai.StopReasonStop, "")
+	assertLlamaLoopbackTokenInputs(t, second.matching("/tokenize"), otherServer.ID, inputs)
+}
+
+// Supplemental adapter contracts, kept separate from the original declarations.
+func TestLlamaCPPSettledTokenCacheV160(t *testing.T) {
+	t.Run("stable-split", func(t *testing.T) {
+		server := newLlamaSourceLoopback(t, &llamaSourceServer{}, llamaLoopbackPrefix())
+		model := server.model()
+		const want = `Label "Yes" is not a single token for qwen`
+		result := server.classify(t, model, llamaSourceBool())
+		checkLlamaResult(t, result, goai.StopReasonError, want)
+		before := server.matching("/tokenize")
+		assertLlamaLoopbackTokenInputs(t, before, model.ID, []string{"\n", "\nYes", "Yes"})
+		checkLlamaResult(t, server.classify(t, model, llamaSourceBool()), goai.StopReasonError, want)
+		if got := len(server.matching("/tokenize")); got != len(before) {
+			t.Errorf("settled split re-tokenized: got %d, want %d", got, len(before))
+		}
+	})
+	t.Run("retry-decode-failure", func(t *testing.T) {
+		fail := true
+		server := newLlamaSourceLoopback(t, &llamaSourceServer{tokens: func(content string) []int {
+			if content == "\nA" && fail {
+				fail = false
+				return nil // JSON null is not a tokenization result.
+			}
+			return llamaSourceChars(content)
+		}}, llamaLoopbackPrefix())
+		model, ctx := server.model(), llamaSourcePick("Pick")
+		checkLlamaResult(t, server.classify(t, model, ctx), goai.StopReasonError, "llama.cpp returned an unexpected tokenization")
+		first := server.matching("/tokenize")
+		assertLlamaLoopbackTokenInputs(t, first, model.ID, []string{"\n", "\nA"})
+		checkLlamaResult(t, server.classify(t, model, ctx), goai.StopReasonStop, "")
+		assertLlamaLoopbackTokenInputs(t, server.matching("/tokenize")[len(first):], model.ID, []string{"\n", "\n", "\nA", "\nB"})
+	})
+	t.Run("duplicate-token", func(t *testing.T) {
+		server := newLlamaSourceLoopback(t, &llamaSourceServer{tokens: func(content string) []int {
+			if content == "\nA" || content == "\nB" {
+				return []int{10, 65}
+			}
+			return llamaSourceChars(content)
+		}}, llamaLoopbackPrefix())
+		model, ctx := server.model(), llamaSourcePick("Pick")
+		for i := 0; i < 2; i++ {
+			got := server.classify(t, model, ctx)
+			const want = "Labels share a token for qwen: A, B"
+			if got.ErrorMessage != want || got.StopReason != goai.StopReasonError || len(got.Answers) != 0 {
+				t.Errorf("attempt %d: stop=%q error=%q answers=%v; want error %q", i, got.StopReason, got.ErrorMessage, got.Answers, want)
+			}
+		}
+		assertLlamaLoopbackTokenInputs(t, server.matching("/tokenize"), model.ID, []string{"\n", "\n", "\nA", "\nB"})
+		if got := len(server.matching("/completion")); got != 0 {
+			t.Errorf("duplicate token IDs reached completion: %d", got)
+		}
+	})
 }
