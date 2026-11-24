@@ -2,6 +2,7 @@ package durable
 
 import (
 	"context"
+	"reflect"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -239,6 +240,10 @@ func TestSourceV160ParkedScopeAgesContext(t *testing.T) {
 		t.Fatal(ctx.Err())
 	}
 	cid := conversation.ID()
+	if task, found, err := h.Task(ctx, id); err != nil || !found || task.State.Status != "sleeping" {
+		t.Fatal("parked receipt", task, found, err)
+	}
+	idle := awaitPendingContextIdleWait(t, ctx, h, conversation)
 	// Source records these via its scheduler idle-state debug symbol. A
 	// committed task is still an idle target while its context has an age.
 	h.session.taskBookkeeping(func() {
@@ -265,7 +270,167 @@ func TestSourceV160ParkedScopeAgesContext(t *testing.T) {
 	if got, err := h.Signal(ctx, id, answer, key.Key, JSON{"text": "go"}); err != nil || got != SignalDelivered {
 		t.Fatalf("wake parked scope = %q, %v", got, err)
 	}
-	if err := conversation.WaitForIdle(ctx); err != nil {
+	if err := watchReceive(t, idle); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A Done-keyed receipt wakes the test as the public call reaches its
+// blocking select. Check registration under the Session line instead of
+// assuming a goroutine that has not returned yet has actually been admitted.
+func awaitPendingContextIdleWait(t *testing.T, ctx context.Context, h *Harness, c *ConversationHandle) <-chan error {
+	t.Helper()
+	progress, result := make(chan struct{}, 16), make(chan error, 1)
+	go func() { result <- c.WaitForIdle(submissionWaitContext{ctx, progress}) }()
+	for {
+		select {
+		case err := <-result:
+			t.Fatalf("public wait returned before registering for scope %d: %v", c.ID(), err)
+		case <-ctx.Done():
+			t.Fatalf("public wait did not register for scope %d: %v", c.ID(), ctx.Err())
+		case <-progress:
+			registered := false
+			h.session.taskBookkeeping(func() {
+				for waiter := range h.scheduler.waiters {
+					if waiter.idleScope != nil && *waiter.idleScope == c.ID() {
+						registered = true
+					}
+				}
+			})
+			if registered {
+				select {
+				case err := <-result:
+					t.Fatalf("public wait settled while scope %d was still busy: %v", c.ID(), err)
+				default:
+					return result
+				}
+			}
+		}
+	}
+}
+
+// harness-idle-scopes.test.ts:347-364. X's last context read is retained
+// while a different conversation Z has one held task. An idle wait for Z
+// must drive expiry without a timer callback or a durable state change.
+func TestSourceV160IdleWaitExpiresContextWithoutCommit(t *testing.T) {
+	ctx, cancel := context.WithTimeout(bg, 8*time.Second)
+	defer cancel()
+	store, err := newTestSQLite(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	retention := int64(1000)
+	armed, stopped := make(chan struct{}, 1), make(chan struct{}, 1)
+	var scheduler atomic.Pointer[taskScheduler]
+	var advanceAfter atomic.Uint64
+	now := func() int64 {
+		// The reader has joined and the second host stays held, so the
+		// public wait advances the epoch. Old passes see the old time.
+		if epoch := advanceAfter.Load(); epoch != 0 && scheduler.Load().epoch.Load() >= epoch {
+			return 2500
+		}
+		return 1000
+	}
+	var xID ID
+	readerJoined := make(chan (<-chan struct{}), 1)
+	reader := taskDefinition(t, "test.idle.context-reader", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+		if _, err := r.ContextView(ctx, xID, 0); err != nil {
+			return err
+		}
+		readerJoined <- r.done
+		return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone(nil), nil })
+	})
+	held, release := make(chan struct{}), make(chan struct{})
+	holder := taskDefinition(t, "test.idle.context-holder", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+		close(held)
+		select {
+		case <-release:
+			return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone(nil), nil })
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	})
+	h := taskTestHarnessOptions(t, store, Options{Now: now, Settings: &HarnessSettings{ContextRetentionMs: &retention},
+		SetTimer: func(_ func(), delay time.Duration, options TimerOptions) func() {
+			if !options.Background || delay != time.Second {
+				return nil
+			}
+			select {
+			case armed <- struct{}{}:
+			default:
+			}
+			// Never fire the supplied callback; the host receipt is only a
+			// barrier for cancellation after the cache actually expires.
+			return func() {
+				select {
+				case stopped <- struct{}{}:
+				default:
+				}
+			}
+		}}, reader, holder)
+	scheduler.Store(h.scheduler)
+	cleanupTaskGates(t, release)
+	x, err := h.Root(ctx, AgentChange{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	xID = x.ID()
+	if _, err := x.Commit(ctx, func(tx *Tx) (any, error) {
+		return tx.AppendEntry(x.ID(), EntryDraft{"kind": "note"})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	z, err := h.CreateConversation(ctx, AgentChange{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := createPublicTask(t, h, reader, nil, TaskOptions{Conversation: z.ID(), Ownership: TaskOwnership{Kind: "conversation"}})
+	waitPublicTask(t, h, r)
+	awaitTaskSignal(t, watchReceive(t, readerJoined))
+	id := createPublicTask(t, h, holder, nil, TaskOptions{Conversation: z.ID(), Ownership: TaskOwnership{Kind: "conversation"}})
+	awaitTaskSignal(t, held)
+	awaitTaskSignal(t, armed)
+	before, found, err := h.Task(ctx, id)
+	if err != nil || !found || before.State.Status != "running" {
+		t.Fatal("held task", before, found, err)
+	}
+	head := readOnlyHarnessSQLiteHead(t, store)
+	h.session.taskBookkeeping(func() {
+		contexts, idleContexts := len(h.session.contextRanges), 0
+		for _, retained := range h.session.contextRanges {
+			if retained.idleSince != nil {
+				idleContexts++
+			}
+		}
+		rangeX := h.session.contextRanges[x.ID()]
+		if contexts != 1 || idleContexts != 1 || rangeX == nil || rangeX.idleSince == nil || *rangeX.idleSince != 1000 {
+			t.Fatalf("before idle review: %d contexts, %d idle; want one of each at age 1000", contexts, idleContexts)
+		}
+		advanceAfter.Store(h.scheduler.epoch.Load() + 1)
+	})
+	idle := awaitPendingContextIdleWait(t, ctx, h, z)
+	select {
+	case <-stopped:
+	case <-ctx.Done():
+		t.Fatalf("no-op review did not expire the idle range: %v", ctx.Err())
+	}
+	h.session.taskBookkeeping(func() {
+		contexts, idleMismatches := len(h.session.contextRanges), 0
+		for conversation, retained := range h.session.contextRanges {
+			if (retained.idleSince == nil) != h.session.contextBusy(conversation) {
+				idleMismatches++
+			}
+		}
+		if contexts != 0 || idleMismatches != 0 {
+			t.Fatalf("after idle review: %d contexts, %d idle mismatches; want both zero", contexts, idleMismatches)
+		}
+	})
+	after, found, err := h.Task(ctx, id)
+	if err != nil || !found || !reflect.DeepEqual(before, after) || readOnlyHarnessSQLiteHead(t, store) != head {
+		t.Fatal("idle review changed task or durable head", after, found, err)
+	}
+	releaseTaskGate(release)
+	if err := watchReceive(t, idle); err != nil {
 		t.Fatal(err)
 	}
 }
