@@ -717,3 +717,11 @@ Three selected unchanged Durable Codemode tests passed. The published worker no 
 A final drain still records and checks the issued count without admitting new work. The portable guest that calls `echo` and immediately returns `1` now runs no echo and creates no child task. A replay that returns before its first saved call now reports `it ended after result 0, where it went on before`. Reverting each change independently reproduced the blocked completion, the extra echo, and the wrong message.
 
 The native deadline test allows three seconds for a cold Node subprocess, then advances the logical clock exactly 100 ms beyond the saved deadline. The unchanged upstream 300 ms case also passed. Focused Durable and QuickJS tests passed twice, and vet and Staticcheck passed.
+
+### Codemode values through all three sandbox setups
+
+All three unchanged namespaced-global sandbox variants passed. Go now drives the archive's standalone `dist/runtime/worker.js` through its real message adapter, in addition to the existing native inline and published portable guest tests. All three compare the exact return value and callback arguments. The standalone worker uses a 512 KiB stack and no poll budget; the Go adapter checks that fingerprint before accepting calls. Replacing the stack value or dropping `null` from a callback made the standalone test fail. This test transport is not a new production launcher.
+
+Three unchanged Durable Codemode tool-result cases passed. In Go, a schema-less nested tool now returns text to the script without its image payload. A rejected schema-less tool carries that text in both the error message and `structuredOutput`. A schema tool still returns its declared value on a nonzero result when it supplied one. If it supplied no value, Go uses its existing error diagnostic, or records bounded failure text when none exists. The new tests run the original scripts through the published portable guest and a real SQLite Harness, and compare the resulting tool output exactly. Reverting either change failed the original result checks.
+
+Focused Go tests passed twice with the verified package offline. Vet, Staticcheck and the Node syntax check passed. The saved-version rewrite, JavaScript object identity and late callback timing remain open.
