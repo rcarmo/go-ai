@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -32,7 +31,7 @@ func TestSourceV160DelayedAbortMutationQueue(t *testing.T) {
 			fs := &abortMutationProbe{
 				Env: LocalEnv(root), fixtureContext: ctx, firstContent: "first\n",
 				firstEntered: make(chan struct{}), firstSettled: make(chan struct{}), releaseFirst: make(chan struct{}),
-				secondEntered: make(chan struct{}), releaseSecond: make(chan struct{}),
+				secondKeyRequested: make(chan struct{}), secondEntered: make(chan struct{}), releaseSecond: make(chan struct{}),
 			}
 			releaseFirst := sync.OnceFunc(func() { close(fs.releaseFirst) })
 			releaseSecond := sync.OnceFunc(func() { close(fs.releaseSecond) })
@@ -73,9 +72,10 @@ func TestSourceV160DelayedAbortMutationQueue(t *testing.T) {
 			awaitPathTool(t, ctx, fs.firstEntered)
 			cancel()
 			canonical := filepath.Join(root, path)
-			checkHeldPathToolKey(t, fs.ID(), canonical)
+			checkHeldPathToolKey(t, fs.Env.ID(), canonical)
 			second := start(ctx, secondArgs)
-			waitForAbortMutationClaim(t, ctx, fs.ID()+"\x00"+canonical, fs.secondEntered)
+			awaitPathTool(t, ctx, fs.secondKeyRequested)
+			checkHeldPathToolKey(t, fs.Env.ID(), canonical)
 			select {
 			case <-fs.secondEntered:
 				t.Error("second mutation reached the host before the first settled")
@@ -112,34 +112,24 @@ func TestSourceV160DelayedAbortMutationQueue(t *testing.T) {
 	}
 }
 
-func waitForAbortMutationClaim(t *testing.T, ctx context.Context, key string, secondEntered <-chan struct{}) {
-	t.Helper()
-	for {
-		mutationLocks.Lock()
-		lock := mutationLocks.m[key]
-		queued := lock != nil && lock.refs == 2
-		mutationLocks.Unlock()
-		if queued {
-			return
-		}
-		select {
-		case <-secondEntered:
-			return // Caller checks that reaching the host is premature.
-		case <-ctx.Done():
-			t.Fatalf("second mutation did not claim the canonical queue: %v", ctx.Err())
-		default:
-			runtime.Gosched()
-		}
-	}
-}
-
 type abortMutationProbe struct {
 	*Env
 	fixtureContext                           context.Context
 	firstContent                             string
 	admittedEdit, secondBeforeSettle         bool
 	firstEntered, firstSettled, releaseFirst chan struct{}
+	secondKeyRequested                       chan struct{}
 	secondEntered, releaseSecond             chan struct{}
+}
+
+func (fs *abortMutationProbe) ID() string {
+	select {
+	case <-fs.firstEntered:
+		// The second tool has resolved the path and reached lock-key construction.
+		close(fs.secondKeyRequested)
+	default:
+	}
+	return fs.Env.ID()
 }
 
 func (fs *abortMutationProbe) WriteFile(ctx context.Context, path string, data []byte) error {
