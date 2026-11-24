@@ -709,3 +709,11 @@ Completing the next frame made the extra entry visible. Using writable SQLite ch
 All 42 unchanged Durable Codemode tests passed. Two published-guest tests now match the pinned diagnostics when a tool call turns into a global call or the first batch shrinks from two calls to one. Each test reopens SQLite and confirms that replay delivers no new results and runs neither the new global nor the follow-up tool. The test guest changes its input on reopen; the saved start and journal are not rewritten. Go reports the call targets and empty argument forms without exposing non-empty argument values. Both rejection checks were already in place; only their diagnostics changed.
 
 All three unchanged namespaced-global sandbox variants passed. The native inline and published portable guest tests both check the exact return value and callback arguments. The ledger still distinguishes the separate Node worker topology from those two Go paths. The saved-version rewrite and JavaScript reference-identity comparisons also remain partial.
+
+### Codemode finishes without waiting on replies the guest abandoned
+
+Three selected unchanged Durable Codemode tests passed. The published worker no longer keeps the transport waiting for an outstanding reply once the guest ends. The Go test sees the script return `1`, with only the quick reply in the journal and at the guest. The slower callback returns after guest shutdown; Go joins it before handing the result to the caller. The source hands out the result before the callback returns and observes JavaScript's `unhandledRejection` event. Those two assertions are partial and unmatched, respectively.
+
+A final drain still records and checks the issued count without admitting new work. The portable guest that calls `echo` and immediately returns `1` now runs no echo and creates no child task. A replay that returns before its first saved call now reports `it ended after result 0, where it went on before`. Reverting each change independently reproduced the blocked completion, the extra echo, and the wrong message.
+
+The native deadline test allows three seconds for a cold Node subprocess, then advances the logical clock exactly 100 ms beyond the saved deadline. The unchanged upstream 300 ms case also passed. Focused Durable and QuickJS tests passed twice, and vet and Staticcheck passed.
