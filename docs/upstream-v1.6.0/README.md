@@ -807,3 +807,7 @@ All 18 unchanged tool-park tests passed. A wrapper can return the park its base 
 ### Image read bytes, advertised formats and minimum cap
 
 The three unchanged [read-contract cases](test-inventory/tools-images-read-contract.md) passed. Go's public `Read` returns the exact PNG and GIF blocks and the pinned PNG diagnostic. Its description lists JPG, PNG, GIF and WebP; processor-enabled reads also list BMP. The difference was confined to registration metadata. The public native processor returns no image or error when the valid 4×4 PNG cannot fit the eight-byte cap; that same PNG passes through at the default cap. Codec choices and worker timing were unchanged.
+
+### Codemode store values are scoped to a fork point
+
+The unchanged fork case passed. The published portable guest produces `1` and `[1]` in the parent. After SQLite closes and reopens, an ownerless fork taken at the first user entry sees `[null]`. A public snapshot confirms `k=1` in the active parent store and an empty active fork store. Forking at the current position leaked `[1]` to the child in a fault control; suppressing the parent write returned `[null]` in its second turn. The earlier inline comparison still passes. No production change was needed.
