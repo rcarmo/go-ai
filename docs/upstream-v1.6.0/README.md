@@ -831,3 +831,5 @@ All 15 unchanged llama.cpp cases passed offline. The native tests now send the e
 ### Chord executes the pinned Schema compiler and declaration tool
 
 All nine unchanged [Chord contract-schema cases](test-inventory/chord-contract-schema.md) passed offline. The witness observed the pinned Schema compiler and byte-length checker evaluate. It also observed native TypeScript 7.0.2 emit the actual 5,796-byte declaration. Removing the byte cap in scratch broke the unchanged bounds case. This is a shared-dependency and declaration fixture result on one host, without native Go mappings.
+
+The integrated code at `f5839626` passed 61 focused top-level Go tests twice, including every selected v1.6.0 comparison against the archived guest and standalone worker. A historical opt-in batching test skipped in both repeats because it requires the exact v1.4.0 package; this is outside the current pin's comparison. Vet and Staticcheck v0.8.2 passed. The Chord compiler receipt and all three image receipt modes reproduced byte for byte. Of 1,665 scoped sites, 1,617 are mapped, 46 are partial and two are unmatched. Twenty-nine of the 214 changed suites have assertion-level links.
