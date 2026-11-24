@@ -14,14 +14,29 @@ import (
 // Source codemode.test.ts:888–911. Compare the returned text block, not an
 // unstructured substring or decoded JSON. The fork precedes the first write.
 func TestSourceV160CodemodeForkScopedStore(t *testing.T) {
-	ctx, cancel := context.WithTimeout(bg, 12*time.Second)
-	defer cancel()
-	engine, err := NewQuickJSSandbox(ctx)
+	engine, err := NewQuickJSSandbox(bg)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer engine.Close(bg)
-	codemode, err := NewCodemodeExtension(engine)
+	checkV160CodemodeForkScopedStore(t, engine, false)
+}
+
+// Also exercise the saved historical entry after reopening SQLite, using
+// the same three source scripts in the verified published portable guest.
+func TestSourceV160CodemodePublishedWorkerForkScopedStore(t *testing.T) {
+	sandbox, remote := newJournalWorkerSandboxV160(t)
+	checkV160CodemodeForkScopedStore(t, sandbox, true)
+	if got := remote.starts.Load(); got != 3 {
+		t.Errorf("portable guest starts = %d; want 3", got)
+	}
+}
+
+func checkV160CodemodeForkScopedStore(t *testing.T, sandbox CodemodeSandbox, reopenBeforeFork bool) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(bg, 15*time.Second)
+	defer cancel()
+	codemode, err := NewCodemodeExtension(sandbox)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,11 +96,6 @@ func TestSourceV160CodemodeForkScopedStore(t *testing.T) {
 		t.Fatal("missing first input entry")
 	}
 	submit(conversation, "second")
-	fork, err := conversation.Fork(ctx, firstUser)
-	if err != nil {
-		t.Fatal(err)
-	}
-	submit(fork, "fork")
 	body := func(c *ConversationHandle, callID string) string {
 		t.Helper()
 		result := v160ToolResult(t, ctx, c, callID)
@@ -99,7 +109,52 @@ func TestSourceV160CodemodeForkScopedStore(t *testing.T) {
 	if !reflect.DeepEqual(got, []string{"1", "[1]"}) {
 		t.Fatalf("parent store results = %q; want [\"1\" \"[1]\"]", got)
 	}
+	if reopenBeforeFork {
+		if err := h.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+		h = openHarness(t, reopenStoreAfterHarnessClose(t, store), options)
+		conversation, err = h.Conversation(ctx, conversation.ID())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := h.Resume(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	fork, err := conversation.Fork(ctx, firstUser)
+	if err != nil {
+		t.Fatal(err)
+	}
+	submit(fork, "fork")
 	if got := body(fork, "fork-read"); got != "[null]" {
 		t.Fatalf("fork store result = %q; want [null]", got)
+	}
+	if got := requests.Load(); got != 6 {
+		t.Errorf("model requests = %d; want 6", got)
+	}
+	// Supplemental: the public state retains independent, rewindable store
+	// documents. The parent still has k; the fork's first read created an
+	// empty store, not a copy of the parent's current value.
+	state, err := h.Snapshot(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[ID]JSON{conversation.ID(): {"values": JSON{"k": 1}}, fork.ID(): {"values": JSON{}}}
+	seen := map[ID]bool{}
+	for _, doc := range state.Documents {
+		if doc.Kind != "pi.codemode.store" {
+			continue
+		}
+		if expected, ok := want[doc.Owner]; !ok || seen[doc.Owner] || !equalJSONValue(doc.Value, expected) || doc.Scope != "conversation" || doc.History != "rewindable" || doc.Fork != "asOf" || doc.Retired {
+			t.Errorf("unexpected store: owner=%d scope=%s history=%s fork=%s retired=%t value=%v", doc.Owner, doc.Scope, doc.History, doc.Fork, doc.Retired, doc.Value)
+		}
+		seen[doc.Owner] = true
+	}
+	if !seen[conversation.ID()] || !seen[fork.ID()] {
+		t.Errorf("store owners = %v; want both parent %d and fork %d", seen, conversation.ID(), fork.ID())
+	}
+	if err := h.Close(ctx); err != nil {
+		t.Fatal(err)
 	}
 }
