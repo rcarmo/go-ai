@@ -94,6 +94,7 @@ type workerReplayChangesV160 struct {
 	guestCode    func(int32, string) string
 	guestStore   func(int32, JSON) JSON
 	globals      []CodemodeGlobal
+	pauseEcho    bool
 	now          func() int64
 	beforeStart  func(*RemoteCodemodeSandbox)
 	beforeResume func(context.Context, Storage, *RemoteCodemodeSandbox)
@@ -124,18 +125,24 @@ func runV160PublishedWorkerNestedReplay(t *testing.T, source string, changes wor
 		inputs = append(inputs, workerReplayInputsV160{clock: start.StartedAt, deadline: start.Deadline, seed: start.Seed})
 		mu.Unlock()
 	}
+	var block atomic.Bool
+	block.Store(true)
+	echoEntered := make(chan struct{})
 	echoes := map[string]int{}
 	echo := wrapRegistration("echo")
 	echo.ReplaySafe = false
-	echo.Execute = func(_ context.Context, raw any, _ *ToolAPI) (ToolResult, error) {
+	echo.Execute = func(ctx context.Context, raw any, _ *ToolAPI) (ToolResult, error) {
 		text, _ := raw.(JSON)["text"].(string)
 		mu.Lock()
 		echoes[text]++
 		mu.Unlock()
+		if changes.pauseEcho && block.Load() {
+			close(echoEntered)
+			<-ctx.Done()
+			return ToolResult{}, ctx.Err()
+		}
 		return ToolResult{Content: "echo " + text}, nil
 	}
-	var block atomic.Bool
-	block.Store(true)
 	held := make(chan struct{})
 	var holds atomic.Int32
 	hold := wrapRegistration("hold")
@@ -197,6 +204,13 @@ func runV160PublishedWorkerNestedReplay(t *testing.T, source string, changes wor
 		t.Fatalf("submission stopped before hold: %q", v160ToolResultText(v160ToolResult(t, ctx, conversation, "s1")))
 	case <-ctx.Done():
 		t.Fatal(ctx.Err())
+	}
+	if changes.pauseEcho {
+		select {
+		case <-echoEntered:
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
 	}
 	state, err := h.Snapshot(ctx)
 	if err != nil {
