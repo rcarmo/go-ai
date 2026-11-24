@@ -6,14 +6,16 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	goai "github.com/rcarmo/go-ai"
-	"github.com/rcarmo/go-ai/durable"
 	"image"
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
 	"io"
 	"os"
+	"strings"
+
+	goai "github.com/rcarmo/go-ai"
+	"github.com/rcarmo/go-ai/durable"
 )
 
 const MaxImageBytes = 8 << 20
@@ -66,7 +68,7 @@ func (e *Env) loadImage(ctx context.Context, path string, limits *ImageLimits) (
 	if limits != nil {
 		prepared, err := PrepareImage(ctx, data, mime, *limits)
 		if err != nil {
-			return goai.ContentBlock{}, nil, err
+			return goai.ContentBlock{}, nil, &imagePreparationError{mime: mime, cause: err}
 		}
 		details := durable.JSON{"path": path, "width": prepared.Width, "height": prepared.Height, "mimeType": prepared.MimeType}
 		if prepared.ConvertedFrom != "" {
@@ -199,18 +201,30 @@ func inlineReadImageResult(ctx context.Context, path string, data []byte, limits
 	return imageReadResult(block, details, vision), nil
 }
 
+type imagePreparationError struct {
+	mime  string
+	cause error
+}
+
+func (e *imagePreparationError) Error() string { return e.cause.Error() }
+func (e *imagePreparationError) Unwrap() error { return e.cause }
+
 // Retain images in the transcript even for text-only models. Provider message
 // transformation supplies placeholders without discarding durable image data.
 func imageReadResult(block goai.ContentBlock, details durable.JSON, vision bool) durable.ToolResult {
 	message := fmt.Sprintf("Read image file [%s]", block.MimeType)
-	convertedFrom, _ := details["convertedFrom"].(string)
-	if convertedFrom != "" {
-		message += fmt.Sprintf(". Converted from %s to %s", convertedFrom, block.MimeType)
-	}
+	prepared := PreparedImage{MimeType: block.MimeType}
+	prepared.ConvertedFrom, _ = details["convertedFrom"].(string)
+	prepared.OriginalWidth, _ = details["originalWidth"].(int)
+	prepared.OriginalHeight, _ = details["originalHeight"].(int)
+	prepared.Width, _ = details["width"].(int)
+	prepared.Height, _ = details["height"].(int)
+	notes := preparedImageNotes(prepared)
 	if !vision {
-		message += ". Image output will be replaced with a text placeholder because the current model does not support image inputs."
-	} else if convertedFrom != "" {
-		message += "."
+		notes = append(notes, "Image output will be replaced with a text placeholder because the current model does not support image inputs.")
+	}
+	if len(notes) > 0 {
+		message += ". " + strings.Join(notes, " ")
 	}
 	return durable.ToolResult{Blocks: []goai.ContentBlock{block}, Details: details, Diagnostics: []durable.ToolDiagnostic{{Severity: "info", Message: message}}}
 }

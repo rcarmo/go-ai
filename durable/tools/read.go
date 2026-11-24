@@ -74,7 +74,11 @@ func readTool(env durable.FileSystem, inlineImages bool, limits *ImageLimits) du
 					if ctx.Err() != nil {
 						return durable.ToolResult{}, ctx.Err()
 					}
-					return durable.ToolResult{Blocks: []goai.ContentBlock{}, IsError: true, Diagnostics: []durable.ToolDiagnostic{{Severity: "error", Code: "unsupported_image", Message: err.Error()}}}, nil
+					var preparation *imagePreparationError
+					if errors.As(err, &preparation) {
+						err = fmt.Errorf("%s is an image (%s) that cannot be prepared for the model", path, preparation.mime)
+					}
+					return imageReadFailure(err), nil
 				}
 				return imageReadResult(block, details, vision), nil
 			}

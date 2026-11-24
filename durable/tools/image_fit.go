@@ -65,6 +65,10 @@ func FitImage(ctx context.Context, bytes []byte, mime string, limits ImageLimits
 		return omitFittedImage(mime, err)
 	}
 	image := goai.ContentBlock{Type: "image", Data: base64.StdEncoding.EncodeToString(prepared.Data), MimeType: prepared.MimeType}
+	return FittedImage{Image: &image, Notes: preparedImageNotes(*prepared)}
+}
+
+func preparedImageNotes(prepared PreparedImage) []string {
 	var notes []string
 	if prepared.ConvertedFrom != "" {
 		notes = append(notes, fmt.Sprintf("Converted from %s to %s.", prepared.ConvertedFrom, prepared.MimeType))
@@ -72,7 +76,7 @@ func FitImage(ctx context.Context, bytes []byte, mime string, limits ImageLimits
 	if prepared.OriginalWidth != 0 && prepared.Width > 0 {
 		notes = append(notes, fmt.Sprintf("Resized from %dx%d to %dx%d. Multiply coordinates by %.2f to map them to the original.", prepared.OriginalWidth, prepared.OriginalHeight, prepared.Width, prepared.Height, float64(prepared.OriginalWidth)/float64(prepared.Width)))
 	}
-	return FittedImage{Image: &image, Notes: notes}
+	return notes
 }
 
 func omitFittedImage(mime string, err error) FittedImage {
