@@ -1,6 +1,6 @@
 # Release acceptance
 
-The active port targets official upstream **v1.6.0**, `faac585884ae2c013a6b1400f3e9e77f10b34bac`. The [verification log](docs/upstream-v1.6.0/README.md) records scoped changes and results, including the [Codex fallback reasoning fix](docs/upstream-v1.6.0/README.md#codex-omits-an-unrequested-summary-from-fallback-reasoning). See the [open gates](docs/upstream-v1.6.0/acceptance-gaps.md). The port is not release-accepted.
+The active port targets official upstream **v1.6.0**, `faac585884ae2c013a6b1400f3e9e77f10b34bac`. The [verification log](docs/upstream-v1.6.0/README.md) records scoped changes and results, including the [Codex fallback reasoning fix](docs/upstream-v1.6.0/README.md#codex-omits-an-unrequested-summary-from-fallback-reasoning) and the [sandbox abort and Close fix](docs/upstream-v1.6.0/README.md#closing-a-sandbox-cancels-its-own-active-scripts). See the [open gates](docs/upstream-v1.6.0/acceptance-gaps.md). The port is not release-accepted.
 
 ## Historical v1.5.0 evidence
 

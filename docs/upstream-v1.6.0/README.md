@@ -1513,3 +1513,11 @@ Five unchanged Codex option cases passed. A separate pinned wire capture confirm
 The scripted native checks preserve explicit `xhigh` and custom summaries, omit reasoning for null-off and non-reasoning models, and retain the configured simple-options request. Seven controls isolated changes to the effort, omission and summary behavior. The raw upstream call on a mid-conversation model still differs from the native default: raw upstream sends effort only without a configuration item or marker; native retains the simple-options behavior. These are source-derived wire comparisons, not new source-test assertions. No live service was called.
 
 The integrated code at `480a65e2` passed 43 focused top-level Go tests twice, without skips. The default published worker returned `50` with eight journal publications both times. Vet and Staticcheck v0.8.2 passed. The inventory at `38d31179` records 2,104 scoped sites: 2,051 mapped, 48 partial and five unmatched. Thirty-seven of the 214 changed suites have assertion-level links. Full parity remains open.
+
+## Round 65: sandbox abort reasons and engine shutdown
+
+### Closing a sandbox cancels its own active scripts
+
+All three unchanged placement variants passed. Native QuickJS previously returned a generic error for a caller-supplied abort reason, and engine Close left the active callback's context uncancelled. The native engine now forwards the explicit `user cancelled` reason and cancels its active execution contexts before releasing its runtime. The held execution reports `Sandbox closed`; the distinct aborted invocation records one cancelled `hang` call, without cancelling the other invocation.
+
+`Execute` still joins its host callbacks before returning. This fix does not change Durable invocation accounting or claim early settlement before callbacks join. Independent scratch controls removed the explicit reason or the Close cancellation, reproducing their separate failures. All 62 QuickJS tests and the store-patch fuzz seeds passed at `72fe67ac` without skips. The exact abort test also passed 50 repeats. No race-detector coverage is claimed.
