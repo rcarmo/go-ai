@@ -1499,3 +1499,9 @@ The integrated code at `74f27964` passed 31 focused top-level Go tests twice, wi
 Both unchanged cases passed on all three original placements. With no VM deadline, native QuickJS waits for a channel-held tool to return `late` even with a one-nanosecond timeout configured. The test itself still has a bounded parent context. After a successful `echo(1)`, a promise that nothing can settle fails as a script error containing `can never settle`, not a timeout. Returning `early` with an unawaited call succeeds; this does not assert when a Durable caller can settle relative to callback cleanup.
 
 Three focused native tests passed twice without skips. A scratch control ignoring `NoDeadline` fails before the held callback enters. Changing the stall message fails the diagnostic assertion. No production code changed for this comparison.
+
+### Prepared Schema resolves relative root and nested IDs once
+
+All 40 unchanged validator cases passed. The existing relative-ID witnesses now also check default prepared resolution, not just one-shot validation. A valid nested resource still checks successfully; unresolved references cannot stand in for the expected invalid values. The same prepared array schema accepts `[2]` and reports `/1`, `unevaluatedItems`, `unexpected item` for `[2,3]`.
+
+Controls reapplying the root ID, ignoring the nested ID and changing the annotation keyword failed separately. Focused repeats, vet and Staticcheck passed. All ten source sites in this slice were already mapped; the stronger observations do not add locators and no production code changed.
