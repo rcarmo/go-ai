@@ -1,0 +1,192 @@
+{
+  "format": 1,
+  "pin": "faac585884ae2c013a6b1400f3e9e77f10b34bac",
+  "evidenceBase": "0ec852038cec8b94d22b6a8c85b00233a9c10b5a",
+  "node": "v26.13.0",
+  "vitest": "4.1.12",
+  "selection": {
+    "file": "packages/durable/test/images-fit.test.ts",
+    "caseNames": [
+      "fitImages is unchanged when every image comes back as it was, and asks the processor only about images"
+    ],
+    "filteredOut": [
+      "fitImage prepares an image from its bytes, as base64 for the model",
+      "fitImage leaves out an image the processor fails on, with the failure in its note",
+      "fitImages scales an image beyond the limits down, keeps the text in place, and says how to map coordinates back",
+      "fitImages re-encodes an image within the dimensions but over the byte limit",
+      "fitImages turns an image upright that fits but carries an EXIF orientation",
+      "fitImages converts a format providers do not take inline to PNG",
+      "fitImages corrects a declared type the bytes contradict, without a note",
+      "fitImages leaves out what cannot be prepared, with a note: damaged images, other bytes, malformed base64",
+      "the fit-images extension fits a tool result's images to the conversation model's limits before it is committed",
+      "the fit-images extension leaves nested calls' results to the program that made them"
+    ]
+  },
+  "result": {
+    "passed": 1,
+    "failed": 0,
+    "selectedSkipped": 0
+  },
+  "sourceDigests": [
+    {
+      "file": "packages/durable/test/images-fit.test.ts",
+      "sha256": "5822be2d2febd24d64c29ee55a9c1898b79955c03a0f73e42ec2eec687ade9ee"
+    },
+    {
+      "file": "packages/durable/src/images/fit.ts",
+      "sha256": "37bf47153d40af332a42d24f62df0ce7bd8575344f08916cec2015696ba1db5f"
+    },
+    {
+      "file": "packages/durable/test/image-fixtures.ts",
+      "sha256": "23f6666f26e55c412de5dcdb2472c4e629215ab4244aadd6aad69082d23c6ce6"
+    },
+    {
+      "file": "packages/durable/src/images/index.ts",
+      "sha256": "dbe59efe444d9816a74088ea27cd74c40b254efbd479e420ea8b723b5d5eeaf3"
+    },
+    {
+      "file": "packages/durable/src/images/node.ts",
+      "sha256": "1450617d47f42a5b56c67af0c45d5a56734e5ca43495cda271915d6b02593406"
+    },
+    {
+      "file": "packages/durable/src/images/node-worker.ts",
+      "sha256": "494cfe3c40c66c32e3b77c2292e743c0d234ccf4972979922d31a548f93b028e"
+    }
+  ],
+  "fixtureBase64": "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAGCAYAAAD+Bd/7AAAAUElEQVR4Ae3AA6AkWZbG8f937o3IzKdyS2Oubdu2bdu2bdu2bWmMnpZKr54yMyLu+Xa3anqmhztr1a9ibPGCUC1eGCovHJUXjsoLR+WF4x8B9TAEF4Sg4YsAAAAASUVORK5CYII=",
+  "photonArchive": {
+    "url": "https://registry.npmjs.org/@silvia-odwyer/photon/-/photon-0.3.3.tgz",
+    "integrity": "sha512-8BhUjEch4slwRe8uXnaA4vcA5uiiOTT90UMsxulOj2gN98X1p0q9Z4Ysk4DkD05uNgbR9XoSqtZ37w+33w4QKQ==",
+    "sha256": "eed5c8f7d10b319d1c58e9bd8eef24646affb9b697cf3792b42b8832fcbf4bae"
+  },
+  "aiArchiveSha256": "d68312ec574bc959cb7fee26da4f4876d067aed9bbbe76e876359e60d2294747",
+  "observed": [
+    {
+      "thread": "image-worker",
+      "kind": "load-js",
+      "api": "node:module load",
+      "entry": "node_modules/@silvia-odwyer/photon/photon_rs.js",
+      "bytes": 139647,
+      "sha256": "d51ba7a7ef9c23fbfec5423e01afd3fa9f6ad9c7ac4c20789aa9e4b3f9e0c157"
+    },
+    {
+      "thread": "image-worker",
+      "kind": "instantiate-wasm",
+      "api": "WebAssembly.Module -> WebAssembly.Instance",
+      "caller": "packages/durable/src/images/node-worker.ts",
+      "bytes": 1880773,
+      "sha256": "06e9f6b245d53b488244e04dfe30e6731c029526101c6400e6490057fcfbdd04"
+    },
+    {
+      "thread": "image-worker",
+      "kind": "worker-request",
+      "id": 0,
+      "mimeType": "image/png",
+      "limits": {
+        "maxWidth": 2000,
+        "maxHeight": 2000,
+        "maxBytes": 4718592
+      },
+      "bytes": 137,
+      "sha256": "574f50c515b65dbe0f1ea3aa4d9ea9a04efa3749d51531713f2b34d2dba81a1e"
+    },
+    {
+      "thread": "image-worker",
+      "kind": "worker-reply",
+      "id": 0,
+      "mimeType": "image/png",
+      "data": {
+        "bytes": 137,
+        "sha256": "574f50c515b65dbe0f1ea3aa4d9ea9a04efa3749d51531713f2b34d2dba81a1e"
+      },
+      "base64": {
+        "bytes": 184,
+        "sha256": "d8bae3aebc1323f2e26a6b50108b7a5897d1ca20e3185d9f1b2764e25fe57bc4"
+      }
+    },
+    {
+      "thread": "test-thread",
+      "kind": "instantiate-wasm",
+      "api": "WebAssembly.Module -> WebAssembly.Instance",
+      "caller": "packages/durable/test/image-fixtures.ts",
+      "bytes": 1880773,
+      "sha256": "06e9f6b245d53b488244e04dfe30e6731c029526101c6400e6490057fcfbdd04"
+    }
+  ],
+  "control": {
+    "change": "start with the changed flag true even when no image changes",
+    "failed": [
+      "fitImages is unchanged when every image comes back as it was, and asks the processor only about images"
+    ],
+    "assertions": [
+      91
+    ],
+    "workerTrace": "identical"
+  },
+  "copiedDependencies": {
+    "roots": [
+      "npm:node_modules/vitest",
+      "npm:node_modules/diff",
+      "npm:node_modules/@silvia-odwyer/photon",
+      "npm:node_modules/quickjs-wasi",
+      "npm:node_modules/partial-json"
+    ],
+    "host": {
+      "os": "linux",
+      "cpu": "arm64",
+      "libc": "glibc"
+    },
+    "placements": [
+      "node_modules/@jridgewell/sourcemap-codec",
+      "node_modules/@oxc-project/types",
+      "node_modules/@rolldown/binding-linux-arm64-gnu",
+      "node_modules/@rolldown/pluginutils",
+      "node_modules/@silvia-odwyer/photon",
+      "node_modules/@standard-schema/spec",
+      "node_modules/@types/chai",
+      "node_modules/@types/deep-eql",
+      "node_modules/@types/estree",
+      "node_modules/@vitest/expect",
+      "node_modules/@vitest/mocker",
+      "node_modules/@vitest/pretty-format",
+      "node_modules/@vitest/runner",
+      "node_modules/@vitest/snapshot",
+      "node_modules/@vitest/spy",
+      "node_modules/@vitest/utils",
+      "node_modules/assertion-error",
+      "node_modules/chai",
+      "node_modules/convert-source-map",
+      "node_modules/detect-libc",
+      "node_modules/diff",
+      "node_modules/es-module-lexer",
+      "node_modules/estree-walker",
+      "node_modules/expect-type",
+      "node_modules/fdir",
+      "node_modules/lightningcss",
+      "node_modules/lightningcss-linux-arm64-gnu",
+      "node_modules/magic-string",
+      "node_modules/nanoid",
+      "node_modules/obug",
+      "node_modules/partial-json",
+      "node_modules/pathe",
+      "node_modules/picocolors",
+      "node_modules/picomatch",
+      "node_modules/postcss",
+      "node_modules/quickjs-wasi",
+      "node_modules/rolldown",
+      "node_modules/siginfo",
+      "node_modules/source-map-js",
+      "node_modules/stackback",
+      "node_modules/std-env",
+      "node_modules/tinybench",
+      "node_modules/tinyexec",
+      "node_modules/tinyglobby",
+      "node_modules/tinyrainbow",
+      "node_modules/vite",
+      "node_modules/vitest",
+      "node_modules/why-is-node-running"
+    ]
+  },
+  "exclusions": [],
+  "scope": "offline-fit-passthrough"
+}
