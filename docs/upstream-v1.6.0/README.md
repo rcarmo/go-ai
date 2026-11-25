@@ -1411,3 +1411,5 @@ The selected unchanged SSE case passed. The native public stream forwards all fi
 ### After-run hooks wait for the real end of a continuation
 
 The selected unchanged case passed. The native SQLite continuation branch emits no after-run hook during the first two yields, then reports one exact summary for the third answer. With a queued steer, the first owned child finishes before the steer is placed and the proposed continuation is dropped. The separate run takes the steer, with two hook calls, exact child labels `run 1` and `run 2` and ordered inputs `go`, `steer`. No production recovery change was needed.
+
+The integrated code at `c5dfd752` passed 24 focused top-level Go tests twice, without skips. The default published worker returned `50` with eight journal publications in both repeats. Vet and Staticcheck v0.8.2 passed. The inventory at `ee298aaf` records 2,049 scoped sites: 1,998 mapped, 46 partial and five unmatched. Thirty-seven of the 214 changed suites have assertion-level links. Full parity remains open.
