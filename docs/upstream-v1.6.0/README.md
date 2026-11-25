@@ -1447,3 +1447,11 @@ All three unchanged placement variants passed. The published hosts return the wr
 Native QuickJS rejects the original literal before output because the script exceeds its existing 1 MiB setup limit. A shorter program that constructs the same data emits both exact blocks. No limit or production code changed. The source-literal assertion remains partial.
 
 The integrated code at `5c800e4a` passed 20 focused top-level Go tests twice, without skips. The default published worker returned `50` with eight journal publications in both repeats. Vet and Staticcheck v0.8.2 passed. The inventory at `63738390` records 2,076 scoped sites: 2,023 mapped, 48 partial and five unmatched. Both new partial sites belong to the native large-script source limit. Thirty-seven of the 214 changed suites have assertion-level links. Full parity remains open.
+
+## Round 62: sandbox output order, Codex headers and task recovery
+
+### Sandbox text, image and console output stay in order
+
+All three unchanged placement variants passed. The published inline, portable and Node worker hosts and native QuickJS return the same ordered text and image blocks. The comparison checks the console marker, object and `undefined` text, all five base64 strings and MIME types, and the final console block's `Error: bad` prefix. The WebP bytes were supplied with a PNG declaration; the detected type is WebP. This is signature detection, not image decoding or stack identity.
+
+Swapping two text calls without changing the block count fails the order assertion in all four comparisons while the final error-block shape stays valid. Seven focused tests passed twice without skips; vet and Staticcheck passed. No production code changed.
