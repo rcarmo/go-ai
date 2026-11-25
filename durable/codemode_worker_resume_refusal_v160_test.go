@@ -71,11 +71,21 @@ func TestV160CodemodePublishedWorkerStartVersionImmutable(t *testing.T) {
 // codemode.test.ts:843–856. Give the cold Node subprocess time to start;
 // advance the public clock 100 ms past the saved deadline, as in the source.
 func TestSourceV160CodemodePublishedWorkerExpiredReplay(t *testing.T) {
+	checkPublishedWorkerExpiredReplay(t, officialWorkerPackageRootV160(t))
+}
+
+func TestSourceV161CodemodePublishedWorkerExpiredReplay(t *testing.T) {
+	checkPublishedWorkerExpiredReplay(t, officialWorkerPackageRoot(t, "GOAI_CODEMODE_V161_PACKAGE_ROOT", "1.6.1"))
+}
+
+const workerReplayDeadlineSource = `// @options: {"timeout_ms": 3000}
+` + v160LateReplayScript
+
+func checkPublishedWorkerExpiredReplay(t *testing.T, packageRoot string) {
+	t.Helper()
 	var now atomic.Int64
 	now.Store(1000)
-	const source = `// @options: {"timeout_ms": 3000}
-` + v160LateReplayScript
-	got := runV160PublishedWorkerNestedReplay(t, source, workerReplayChangesV160{
+	got := runPublishedWorkerNestedReplay(t, packageRoot, workerReplayDeadlineSource, workerReplayChangesV160{
 		now:          now.Load,
 		beforeResume: func(_ context.Context, _ Storage, _ *RemoteCodemodeSandbox) { now.Add(3100) },
 	})
@@ -87,5 +97,21 @@ func TestSourceV160CodemodePublishedWorkerExpiredReplay(t *testing.T) {
 	}
 	if len(got.echoes) != 0 || got.starts != 1 {
 		t.Errorf("echo effects=%v, guest starts=%d; want no echo and one guest", got.echoes, got.starts)
+	}
+}
+
+func TestV161CodemodePublishedWorkerUnexpiredReplay(t *testing.T) {
+	packageRoot := officialWorkerPackageRoot(t, "GOAI_CODEMODE_V161_PACKAGE_ROOT", "1.6.1")
+	var now atomic.Int64
+	now.Store(1000)
+	got := runPublishedWorkerNestedReplay(t, packageRoot, workerReplayDeadlineSource, workerReplayChangesV160{
+		now:          now.Load,
+		beforeResume: func(_ context.Context, _ Storage, _ *RemoteCodemodeSandbox) { now.Add(500) },
+	})
+	if got.isError || got.text != "" || got.starts != 2 || len(got.echoes) != 1 || got.echoes["late"] != 1 {
+		t.Fatalf("unexpired replay = %+v; want one echo and two guest starts", got)
+	}
+	if len(got.inputs) != 2 || now.Load() >= got.inputs[0].deadline || got.inputs[1].deadline != got.inputs[0].deadline {
+		t.Fatalf("unexpired replay changed the saved deadline: starts=%+v now=%d", got.inputs, now.Load())
 	}
 }

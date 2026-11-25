@@ -104,7 +104,12 @@ type workerReplayChangesV160 struct {
 
 func runV160PublishedWorkerNestedReplay(t *testing.T, source string, changes workerReplayChangesV160) workerNestedReplayV160 {
 	t.Helper()
-	sandbox, remote := newJournalWorkerSandboxV160(t)
+	return runPublishedWorkerNestedReplay(t, officialWorkerPackageRootV160(t), source, changes)
+}
+
+func runPublishedWorkerNestedReplay(t *testing.T, packageRoot, source string, changes workerReplayChangesV160) workerNestedReplayV160 {
+	t.Helper()
+	sandbox, remote := newJournalWorkerSandbox(packageRoot)
 	remote.guestCode = changes.guestCode
 	remote.guestStore = changes.guestStore
 	if changes.beforeStart != nil {
