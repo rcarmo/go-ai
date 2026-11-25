@@ -919,3 +919,7 @@ All 18 unchanged tool-park cases passed. Removing the tool after its sleeping re
 The unchanged nested-call case passed. The published portable guest returns exactly `["echo a","echo b"]` and creates two nested tasks. The native fixture reads SQLite at each actual delivery or acknowledgement boundary, before forwarding it. It observes the initial count `1`, the saved `echo a` delivery, its saved count `2`, the saved `echo b` delivery, and its saved count `2`. Omitting either commit broke the corresponding readback.
 
 The unchanged no-count early-return case at L377 also passed upstream. Go can retain a genuine unacknowledged final delivery, but its storage guard cannot retain a later confirmed delivery while an earlier count is missing. The native test does not delete a committed count to reproduce that topology.
+
+### Codemode aborts a running nested call at script completion
+
+The unchanged running-call case passed. The published guest starts `hold` and waits for `echo`; the fixture does not let `echo` return until the hold callback enters. The script returns `1`, the hold runs exactly once and observes cancellation, and its public SQLite task is terminal with outcome `aborted`. Relabelling the actual abort as `completed` failed the terminal-record check. Disabling only one cleanup path did not reproduce a failure, because the other cleanup still ran. No production change was needed.
