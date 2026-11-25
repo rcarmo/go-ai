@@ -967,3 +967,15 @@ All 33 unchanged thread cases passed offline. The first native create sends the 
 The native beta metadata and an older user message's string-versus-block form still differ from the SDK in that supplemental capture. They do not change the pinned suffix assertions. Five fault controls checked the fields, marker normalization, omitted system field and fingerprint retry.
 
 The integrated code at `d7eb4178` passed 22 focused top-level Go tests twice, without skips. The run used the archived portable guest and standalone worker, with CGO disabled and network access restricted to loopback. Vet and Staticcheck v0.8.2 passed. The two Google SDK receipt modes, fitted-image and earlier Photon receipts, and Chord derive-watch receipt reproduced byte for byte. Of 1,779 scoped sites, 1,726 are mapped, 50 are partial and three are unmatched. Thirty-two of the 214 changed suites have assertion-level links.
+
+### Codemode rejects unseen follow-up calls in a divergent replay
+
+The unchanged post-result case passed. The published guest reopens a journal containing the original echo and its count `2`; only the resumed guest input changes. Go rejects the replay, preserves exactly `{a:1}` in the echo record and keeps two nested tasks. The unchanged script fails at the earlier identity check. A separate matching-prefix probe reaches the exact five-versus-two count diagnostic without any new effect. Disabling that count check lets three new echoes run and creates three extra tasks. No production code or saved record changed.
+
+### All JSON inline-leaf vectors match
+
+All 40 unchanged validator cases passed. The independent pinned truth capture and native prepared checks now cover all 64 JSON-representable leaf vectors in four positions, for 256 exact validity comparisons. The two JavaScript `Uint8Array` values remain outside the native comparison; neither was replaced with a JSON value. Removing a constant check, accepting null unconditionally or skipping array item validation changed the expected verdicts. No production change was needed.
+
+### Fitting leaves in-limit and text-only content unchanged
+
+The unchanged [pass-through case](test-inventory/images-fit-passthrough.md) passed. The verified Photon worker receives one PNG and returns the same byte count and digest without resize or conversion. The native fixture passes the exact captured input at the default limits, records one processor request and checks the unchanged result and caller content. Text-only input makes no additional request. Forcing a changed result broke both comparisons. This does not equate different encoders or establish worker scheduling.
