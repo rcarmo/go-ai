@@ -1387,3 +1387,7 @@ The integrated code at `1ff8d0a2` passed 23 focused top-level Go tests twice, wi
 ### The pinned thrown object keeps its compact diagnostic
 
 All three unchanged placement variants passed. Native QuickJS and the published hosts report a script error with the exact message `{"code":7}`. Changing the thrown code to `8` failed the exact diagnostic check in all four comparisons. No production change was needed.
+
+### An after-run child admits its own follow-up after the tasks
+
+The selected unchanged follow-up case passed. The native SQLite child admits `fix the tests` in the same commit as its own write and completion. When the fix request starts, SQLite already records that child as complete. The transcript places the child's write before the follow-up input, and the separate fix run starts from that input and answers `fixed` without changing the original `done` answer. No production change was needed.
