@@ -556,6 +556,123 @@ func testV160CanonicalToolSignalPark(t *testing.T, reopen bool) {
 	}
 }
 
+// harness-tool-parks.test.ts:248-289. The tool parks on its own child, not
+// on a signal directly. Separate receipts identify the committed wait and sleep.
+func TestSourceV160ParkedToolWakesOnOwnedChildAny(t *testing.T) {
+	ctx, cancel := context.WithTimeout(bg, 8*time.Second)
+	defer cancel()
+	native, err := newTestSQLite(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	storage := &toolParkTestStorage{Storage: native, waiting: make(chan TaskRecord, 2), parked: make(chan ID, 2)}
+	token := testSignalAnswer(t)
+	key, err := token.Key("child")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sleeping := make(chan ID, 1)
+	childDef, err := DefineTask(TaskDefinitionOptions{Kind: "test.child", Version: 1,
+		Initial: func(any) (JSON, error) { return JSON{"phase": "sleep"}, nil }, Abort: abortTestSignalTask,
+		Phases: map[string]TaskPhase{
+			"sleep": func(ctx context.Context, task TaskRecord, r *TaskRuntime) error {
+				err := r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) {
+					return &TaskState{Status: "sleeping", Checkpoint: JSON{"phase": "done"}, Signals: []SignalKey{key}}, nil
+				})
+				if err == nil {
+					sleeping <- task.ID
+				}
+				return err
+			},
+			"done": func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+				return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone("child done"), nil })
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var requests atomic.Int32
+	ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
+		ch := make(chan goai.Event, 1)
+		if requests.Add(1) == 1 {
+			ch <- toolAnswer("c1", "spawn", JSON{})
+		} else {
+			ch <- terminal("done")
+		}
+		close(ch)
+		return ch
+	})
+	options.Registry = NewRegistry()
+	if _, err := options.Registry.RegisterTask(childDef); err != nil {
+		t.Fatal(err)
+	}
+	type attempt struct {
+		id   ID
+		wake *WakeReason
+	}
+	runs := make(chan attempt, 4)
+	spawn := wrapRegistration("spawn") // Replay-safe, as in the pinned source.
+	spawn.Execute = func(ctx context.Context, _ any, api *ToolAPI) (ToolResult, error) {
+		runs <- attempt{api.TaskID(), api.Wake}
+		if api.Wake != nil {
+			return ToolResult{Content: "joined"}, nil
+		}
+		child, err := api.CreateTask(ctx, childDef, nil, TaskOptions{Ownership: TaskOwnership{Kind: "task", Task: api.TaskID()}})
+		if err != nil {
+			return ToolResult{}, err
+		}
+		return ToolResult{Park: &ToolPark{Wait: &ToolWait{On: []ID{child}, Policy: "any"}}}, nil
+	}
+	if err := options.Registry.Register(spawn); err != nil {
+		t.Fatal(err)
+	}
+	h := openHarness(t, storage, options)
+	c := root(t, h, ref)
+	sub, err := c.Submit(ctx, Input{Type: "input", Content: "go"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	waiting := watchReceive(t, storage.waiting)
+	child := watchReceive(t, sleeping)
+	if waiting.State.Status != "waiting" || waiting.State.Policy != "any" || !slices.Equal(waiting.State.On, []ID{child}) {
+		t.Fatal("parked tool did not wait for its one child with any", waiting)
+	}
+	stored, found, err := native.Task(ctx, child)
+	if err != nil || !found || stored.Owner != waiting.ID || stored.Conversation != c.ID() || stored.State.Status != "sleeping" || !slices.Equal(stored.State.Signals, []SignalKey{key}) {
+		t.Fatal("wrong stored child owner or sleep", stored, found, err)
+	}
+	live, found, err := c.SnapshotDefinition(ctx, LiveDoc(), nil)
+	if err != nil || !found {
+		t.Fatal(live, found, err)
+	}
+	if slot := canonicalToolSlot(generationObject(live.Copy()), waiting.ID); slot["status"] != "waiting" {
+		t.Fatalf("tool slot after parked receipt = %v, want waiting", slot)
+	}
+	if got, err := h.Signal(ctx, child, token, key.Key, JSON{"text": "go"}); err != nil || got != SignalDelivered {
+		t.Fatalf("wake child = %q, %v", got, err)
+	}
+	if got, err := sub.Wait(ctx); err != nil || got.Record.Status != "done" {
+		t.Fatalf("submission with owned child wait = %+v, %v", got.Record, err)
+	}
+	if len(runs) != 2 {
+		t.Fatalf("tool wait ran %d times, want two", len(runs))
+	}
+	first, second := <-runs, <-runs
+	if first.id != waiting.ID || second.id != waiting.ID || first.wake != nil || !reflect.DeepEqual(second.wake, &WakeReason{Reason: "tasks", Ended: []ID{child}}) {
+		t.Fatalf("owned child wake: first=%+v second=%+v wake=%+v; want [%d]", first, second, second.wake, child)
+	}
+	if done, err := h.WaitForTask(ctx, child); err != nil || done.State.Status != "terminal" || done.State.Outcome == nil || done.State.Outcome.Status != "completed" || done.State.Outcome.Result == nil || !done.State.Outcome.Result.Present || done.State.Outcome.Result.Value != "child done" {
+		t.Fatal("owned child outcome", done, err)
+	}
+	if done, err := h.WaitForTask(ctx, waiting.ID); err != nil || done.State.Status != "terminal" || done.State.Outcome == nil || done.State.Outcome.Status != "completed" {
+		t.Fatal("parked tool outcome", done, err)
+	}
+	if result := v160ToolResult(t, ctx, c, "c1"); result.IsError || v160ToolResultText(result) != "joined" {
+		t.Fatal("parked tool transcript result", result)
+	}
+}
+
 // harness-tool-parks.test.ts:293-342 covers the invalid and reused cases;
 // the timed case retains its separate success-path coverage.
 func TestSourceV160CanonicalToolTimedAndInvalidParks(t *testing.T) {
