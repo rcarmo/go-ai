@@ -1355,3 +1355,7 @@ The integrated code at `09355590` passed 28 focused top-level Go tests twice, wi
 ### Namespaced globals preserve spread argument positions
 
 All three unchanged placement variants passed. Native QuickJS and the published hosts match the ordered namespace keys, the first-only argument rule and the rejected namespace mutation. The spread callbacks receive exactly `["classifier",null,3]` and `[]`. Swapping two inputs failed the argument-position assertion without changing the return value. No production change was needed.
+
+### Standalone PowerShell exposes the bounded nonzero result
+
+The unchanged mock passed. Standalone Go now returns the exact structured result for exit 3: `output: "partial"`, `truncated: false`, `exitCode: 3`, error status and the `exit_code` diagnostic. It still returns the established Go error alongside that object. The clipped-output control verifies the retained tail, true truncation and the spill path. Live progress and Bash behavior are unchanged. The live model receipt still does not expose `structuredOutput`, so the envelope assertion remains partial.
