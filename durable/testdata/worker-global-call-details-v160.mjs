@@ -1,12 +1,17 @@
 import { publishedSandbox } from './published-sandbox-v160.mjs';
 
-const [placement, script] = process.argv.slice(2);
+const [placement, script, mode] = process.argv.slice(2);
 const seen = [];
+const remember = args => void seen.push(args);
+const echo = args => args;
+if (mode !== 'calls' && mode !== 'spread') throw new Error(`Unknown global fixture: ${mode}`);
 const sandbox = publishedSandbox(placement, {
   timeoutMs: 10000,
   memoryLimitBytes: 33554432,
-  tools: [{ name: 'echo', execute: args => args }],
-  globals: [{ name: 'attach', execute: args => void seen.push(args) }],
+  tools: mode === 'calls' ? [{ name: 'echo', execute: echo }] : [],
+  globals: mode === 'calls'
+    ? [{ name: 'attach', execute: remember }]
+    : [{ name: 'models.list', spread: true, execute: remember }, { name: 'models.first', execute: echo }],
 });
 try {
   const result = await sandbox.execute(script);
