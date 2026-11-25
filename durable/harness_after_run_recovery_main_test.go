@@ -215,29 +215,67 @@ func TestMainAfterRunAnsweredFinishRestartLimit(t *testing.T) {
 	t.Run("sqlite", func(t *testing.T) { testAfterRunFinishAfterProcessLoss(t, "restart-limit") })
 }
 
+// harness-after-run.test.ts:956\u2013981. The child alone hits the restart
+// cap; the generation had already answered and was waiting, not interrupted.
 func TestMainAfterRunChildRestartLimitCompletesGeneration(t *testing.T) {
-	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+	t.Run("sqlite", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
+		defer cancel()
 		limit := uint64(1)
-		p := mainAfterRecoverySetup(t, nil, map[int64]chan struct{}{1: make(chan struct{})}, &limit)
-		h, c, settled := mainAfterRecoveryStart(t, p, b.store)
-		awaitTaskSignal(t, p.taskEntered)
-		store := mainAfterRecoveryCrash(t, h, b.store)
-		h, c = mainAfterRecoveryOpen(t, p, store, c.ID())
-		mainAfterRecoveryIdle(t, c)
-		mainAfterRecoveryOutcome(t, h, settled.GenerationID)
-		if live := mainAfterRunLive(t, h, c.ID()); live["runFailure"] != nil || live["run"] != nil {
-			t.Error("child cutoff failed or retained answered run", live)
+		store, witness := afterRunChildSQLiteCutoff(t, ctx, "^TestMainAfterRunChildRestartLimitCompletesGeneration$/^sqlite$", &limit)
+		p := mainAfterRecoverySetup(t, nil, nil, &limit)
+		h, c := mainAfterRecoveryOpen(t, p, store, witness.Conversation)
+		child, found, err := h.Task(ctx, witness.Child)
+		if err != nil || !found || child.Owner != witness.Generation || child.State.Status != "pending" || child.Restarts != 1 || taskCheckpointMap(child.State.Checkpoint)["phase"] != "run" {
+			t.Fatal("resumed child did not reach the restart limit without losing its owner", child, found, err)
+		}
+		parent, found, err := h.Task(ctx, witness.Generation)
+		if err != nil || !found || parent.State.Status != "waiting" || parent.Restarts != 0 || len(parent.State.On) != 1 || parent.State.On[0] != child.ID || h.RestartLimit() != limit {
+			t.Fatal("recovery interrupted the already waiting parent", parent, found, err)
+		}
+		if err := c.WaitForIdle(ctx); err != nil {
+			t.Fatal(err)
+		}
+		parent, found, err = h.Task(ctx, witness.Generation)
+		outcome := parent.State.Outcome
+		if err != nil || !found || parent.State.Status != "terminal" || parent.Restarts != 0 || outcome == nil || outcome.Status != "completed" || outcome.Result == nil || !outcome.Result.Present || !equalJSONValue(outcome.Result.Value, JSON{"entryId": float64(witness.Answer)}) {
+			t.Fatal("child cutoff did not normally complete the original answered generation", parent, found, err)
+		}
+		if live, found, err := c.SnapshotDefinition(ctx, LiveDoc(), nil); err != nil || !found || !equalJSONValue(live.Copy(), JSON{}) {
+			t.Fatal("child cutoff left a live run or a run failure", live, found, err)
+		}
+		if status := mainCutoffStatus(t, h, witness.Submission); status.Status != "done" || status.Answer != witness.Answer {
+			t.Fatal("child cutoff changed the committed answer", status)
+		}
+		child, found, err = h.Task(ctx, witness.Child)
+		outcome = child.State.Outcome
+		message := fmt.Sprintf("Task %d (task.after-recovery) was cut off 1 times without progress", witness.Child)
+		if err != nil || !found || child.Owner != witness.Generation || child.State.Status != "terminal" || child.Restarts != 0 || outcome == nil || outcome.Status != "faulted" || outcome.Error == nil || outcome.Error.Message != message || outcome.Error.Detail == nil || !outcome.Error.Detail.Present || !equalJSONValue(outcome.Error.Detail.Value, JSON{"reason": "restart_limit"}) {
+			t.Fatal("the restarted child did not fault at its limit", child, found, err)
+		}
+		if err := h.Close(ctx); err != nil {
+			t.Fatal(err)
 		}
 		p.mu.Lock()
-		labels := append([]string(nil), p.labels...)
-		p.mu.Unlock()
-		if !reflect.DeepEqual(labels, []string{"run 1"}) {
-			t.Error("cutoff child reran", labels)
+		defer p.mu.Unlock()
+		if p.asks.Load() != 0 || p.calls.Load() != 0 || p.tasks.Load() != 0 || len(p.labels) != 0 {
+			t.Fatal("cutoff reran the hook, provider, or child", p.asks.Load(), p.calls.Load(), p.tasks.Load(), p.labels)
 		}
-		if err := h.Close(bg); err != nil {
-			t.Error(err)
+		faults := 0
+		for _, info := range p.infos {
+			switch info.Type {
+			case "task_faulted":
+				faults++
+				if info.Reason != "restart_limit" || info.Task == nil || info.Task.ID != witness.Child || info.Task.ConversationID != witness.Conversation || info.Task.Kind != "task.after-recovery" || info.Restarts != nil {
+					t.Fatal("wrong attributed restart-limit fault", info)
+				}
+			case "task_interrupted":
+				t.Fatal("exhausted child emitted an interruption report instead of faulting", info)
+			}
 		}
-		mainAfterRecoveryReports(t, p, "task_faulted", "restart_limit", true)
+		if faults != 1 {
+			t.Fatalf("restart-limit fault reports=%d, want one", faults)
+		}
 	})
 }
 
