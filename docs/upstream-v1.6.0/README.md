@@ -1359,3 +1359,7 @@ All three unchanged placement variants passed. Native QuickJS and the published 
 ### Standalone PowerShell exposes the bounded nonzero result
 
 The unchanged mock passed. Standalone Go now returns the exact structured result for exit 3: `output: "partial"`, `truncated: false`, `exitCode: 3`, error status and the `exit_code` diagnostic. It still returns the established Go error alongside that object. The clipped-output control verifies the retained tail, true truncation and the spill path. Live progress and Bash behavior are unchanged. The live model receipt still does not expose `structuredOutput`, so the envelope assertion remains partial.
+
+### GPT-5.5 Pro exposes only the pinned three effort levels
+
+All 58 unchanged effort cases passed. The scoped OpenAI and OpenRouter Pro checks match `medium`, `high`, `xhigh` in order. Their published off, minimal, low and max entries remain explicitly null. The regular GPT-5.5 controls keep off and low on both providers. This checks catalog data and the public effort helpers, not live routing. No generated data or production behavior changed.
