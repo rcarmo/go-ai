@@ -1305,3 +1305,5 @@ All 49 unchanged coercion cases passed. The native baseline did not convert the 
 ### Stop orphans the same unavailable after-run child
 
 All 29 unchanged after-run cases passed. A real SQLite process exit leaves a running after-run child and an answered generation waiting on it. Reopening without the definition reports that child as blocked. The public idle wait stays pending until Stop orphans the original child, clears the live document and leaves the original answer committed. The source simulates host loss; the native comparison performs a real process exit. No production recovery change was needed.
+
+The integrated code at `6fa8f28c` passed 33 focused top-level Go tests twice, without skips. The default published worker returned `50` with eight journal publications in both repeats. Vet and Staticcheck v0.8.2 passed. The inventory at `612682f1` records 1,983 scoped sites: 1,929 mapped, 49 partial and five unmatched. Thirty-six of the 214 changed suites have assertion-level links. Full parity remains open.
