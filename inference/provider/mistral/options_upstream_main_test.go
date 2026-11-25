@@ -9,9 +9,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -159,63 +161,105 @@ func TestUpstreamMainMistralRawStopReasons(t *testing.T) {
 	}
 }
 
+// Source: pi v1.6.0 mistral-tool-schema.test.ts:18–63. TypeBox's symbol
+// keys are tested only in JS; this test observes the exact JSON projection.
 func TestUpstreamMainMistralToolSchema(t *testing.T) {
-	parameters := json.RawMessage(`{"type":"object","properties":{"nested":{"type":"object","properties":{"value":{"type":"string"}},"required":["value"]}},"required":["nested"]}`)
-	transcript := &goai.Context{Messages: []goai.Message{goai.UserMessage("Hi")}, Tools: []goai.Tool{{Name: "inspect_schema", Description: "Inspect the schema", Parameters: parameters, ConstrainedSampling: &goai.ToolConstrainedSampling{Type: "json_schema", Strict: "require"}}}}
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusForbidden) }))
-	defer server.Close()
-	model := upstreamMistralModel("devstral-medium-latest")
-	model.MistralCompat = &goai.MistralConversationsCompat{SupportsStrictMode: true}
-	model.BaseURL = server.URL
-	var captured map[string]any
-	response := upstreamMistralResult(t, context.Background(), model, transcript, &goai.StreamOptions{APIKey: "fake-key", OnPayload: func(value any, _ *goai.Model) (any, error) {
-		var err error
-		captured, err = upstreamMistralPayload(value)
-		return value, err
-	}})
-	if captured == nil {
-		t.Fatal("payload not captured")
-	}
-	tools, ok := captured["tools"].([]any)
-	if !ok || len(tools) != 1 {
-		t.Fatal("tools", captured["tools"])
-	}
-	function := tools[0].(map[string]any)["function"].(map[string]any)
-	if function["strict"] != true {
-		t.Fatal("strict not enabled", function)
-	}
-	schema := function["parameters"].(map[string]any)
-	properties := schema["properties"].(map[string]any)
-	nested := properties["nested"].(map[string]any)
-	if nested["properties"].(map[string]any)["value"].(map[string]any)["type"] != "string" {
-		t.Fatal("nested schema lost", schema)
-	}
-	if response.StopReason != goai.StopReasonError || strings.Contains(response.ErrorMessage, "Input validation failed") {
-		t.Fatalf("response %#v", response)
-	}
+	testMistralToolSchemaWireV160(t, "devstral-medium-latest", true, goai.Tool{
+		Name: "inspect_schema", Description: "Inspect the schema",
+		Parameters:          json.RawMessage(`{"type":"object","properties":{"nested":{"type":"object","properties":{"value":{"type":"string"}},"required":["value"]}},"required":["nested"]}`),
+		ConstrainedSampling: &goai.ToolConstrainedSampling{Type: "json_schema", Strict: "require"},
+	}, `[{
+		"type":"function","function":{
+			"name":"inspect_schema","description":"Inspect the schema","strict":true,
+			"parameters":{"type":"object","required":["nested"],"additionalProperties":false,
+				"properties":{"nested":{"type":"object","required":["value"],"additionalProperties":false,
+					"properties":{"value":{"type":"string"}}}}}
+		}
+	}]`)
 }
 
-// Source: mistral-tool-schema.test.ts, Large 4 defaults to non-strict schemas.
+// Source: pi v1.6.0 mistral-tool-schema.test.ts:66–94. Large 4 leaves limit
+// optional and sends an explicit false strict bit with its default compatibility.
 func TestSourceV160MistralStrictModeIsOptIn(t *testing.T) {
-	parameters := json.RawMessage(`{"type":"object","properties":{"path":{"type":"string"},"limit":{"type":"number"}},"required":["path"]}`)
-	transcript := &goai.Context{Messages: []goai.Message{goai.UserMessage("Hi")}, Tools: []goai.Tool{{Name: "read", Parameters: parameters, ConstrainedSampling: &goai.ToolConstrainedSampling{Type: "json_schema", Strict: "prefer"}}}}
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusForbidden) }))
-	defer server.Close()
-	model := upstreamMistralModel("mistral-large-4")
-	model.BaseURL = server.URL
-	var captured map[string]any
-	_ = upstreamMistralResult(t, context.Background(), model, transcript, &goai.StreamOptions{APIKey: "fake-key", OnPayload: func(value any, _ *goai.Model) (any, error) {
-		var err error
-		captured, err = upstreamMistralPayload(value)
-		return value, err
-	}})
-	tools, ok := captured["tools"].([]any)
-	if !ok || len(tools) != 1 {
-		t.Fatalf("payload tools = %v", captured["tools"])
+	testMistralToolSchemaWireV160(t, "mistral-large-4", false, goai.Tool{
+		Name: "read", Description: "Read a file",
+		Parameters:          json.RawMessage(`{"type":"object","properties":{"path":{"type":"string"},"limit":{"type":"number"}},"required":["path"]}`),
+		ConstrainedSampling: &goai.ToolConstrainedSampling{Type: "json_schema", Strict: "prefer"},
+	}, `[{
+		"type":"function","function":{
+			"name":"read","description":"Read a file","strict":false,
+			"parameters":{"type":"object","required":["path"],
+				"properties":{"path":{"type":"string"},"limit":{"type":"number"}}}
+		}
+	}]`)
+}
+
+type mistralSchemaTransportV160 func(*http.Request) (*http.Response, error)
+
+func (f mistralSchemaTransportV160) RoundTrip(r *http.Request) (*http.Response, error) {
+	return f(r)
+}
+
+func testMistralToolSchemaWireV160(t *testing.T, modelID string, enableStrict bool, tool goai.Tool, wantJSON string) {
+	t.Helper()
+	// The native model registry starts empty until its built-ins are registered.
+	goai.RegisterBuiltinModels()
+	catalogModel := goai.GetModel(goai.ProviderMistral, modelID)
+	if catalogModel == nil || catalogModel.Api != goai.ApiMistralConversations {
+		t.Fatalf("unexpected Mistral catalog model %q: %+v", modelID, catalogModel)
 	}
-	function := tools[0].(map[string]any)["function"].(map[string]any)
-	schema := function["parameters"].(map[string]any)
-	if function["strict"] != false || !reflect.DeepEqual(schema["required"], []any{"path"}) {
-		t.Fatalf("default tool = %v", function)
+	model := *catalogModel
+	// JS appends v1/chat/completions to the base; Go accepts a versioned base.
+	model.BaseURL = "http://127.0.0.1:9/v1"
+	if enableStrict {
+		model.MistralCompat = &goai.MistralConversationsCompat{SupportsStrictMode: true}
+	}
+	var want []any
+	if err := json.Unmarshal([]byte(wantJSON), &want); err != nil {
+		t.Fatal(err)
+	}
+	const responseBody = `{"message":"scripted Mistral rejection"}`
+	var order []string
+	var hook, wire map[string]any
+	transport := mistralSchemaTransportV160(func(r *http.Request) (*http.Response, error) {
+		defer r.Body.Close()
+		order = append(order, "transport")
+		if r.Method != http.MethodPost || r.URL.String() != "http://127.0.0.1:9/v1/chat/completions" || r.Header.Get("Authorization") != "Bearer fake-key" {
+			return nil, fmt.Errorf("unexpected Mistral fixture request %s %s or synthetic auth", r.Method, r.URL)
+		}
+		if err := json.NewDecoder(r.Body).Decode(&wire); err != nil {
+			return nil, err
+		}
+		return &http.Response{StatusCode: http.StatusForbidden, Header: http.Header{"Content-Type": {"application/json"}},
+			Body: io.NopCloser(strings.NewReader(responseBody))}, nil
+	})
+	zero := 0
+	transcript := &goai.Context{Messages: []goai.Message{goai.UserMessage("Hi")}, Tools: []goai.Tool{tool}}
+	var terminal *goai.ErrorEvent
+	events := 0
+	for event := range goai.Stream(t.Context(), &model, transcript, &goai.StreamOptions{
+		APIKey: "fake-key", MaxRetries: &zero, HTTPTransport: transport,
+		OnPayload: func(value any, _ *goai.Model) (any, error) {
+			order = append(order, "hook")
+			var err error
+			hook, err = upstreamMistralPayload(value)
+			return value, err
+		},
+	}) {
+		events++
+		terminal, _ = event.(*goai.ErrorEvent)
+	}
+	if !slices.Equal(order, []string{"hook", "transport"}) {
+		t.Errorf("payload and transport order = %v; want a single hook before one request", order)
+	}
+	if !reflect.DeepEqual(hook["tools"], want) {
+		t.Errorf("hook tools = %#v; want %s", hook["tools"], wantJSON)
+	}
+	if !reflect.DeepEqual(wire["tools"], want) {
+		t.Errorf("wire tools = %#v; want %s", wire["tools"], wantJSON)
+	}
+	if events != 1 || terminal == nil || terminal.Reason != goai.StopReasonError || terminal.Err == nil ||
+		terminal.Err.Error() != "Mistral API error (403): "+responseBody || strings.Contains(terminal.Err.Error(), "Input validation failed") {
+		t.Fatalf("terminal = %+v (%d events), want one scripted 403 error after transport", terminal, events)
 	}
 }
