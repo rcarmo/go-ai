@@ -411,12 +411,15 @@ func mainAfterRunEmpty(t *testing.T, hook bool) {
 	})
 }
 
-// Source538 selected representable requests: unknown/builtin/non-JSON/throwing/
-// bad-start/valid, then a throwing hook. A non-list Tasks value cannot inhabit
-// the typed Go slice and receives no runtime/body-parity credit.
+// harness-after-run.test.ts:539–615 uses upstream MemoryStorage. This SQLite
+// witness covers the representable requests and reports. The TS non-list
+// Tasks value cannot inhabit Go's typed slice; the JSON rejection is generic.
 func TestMainAfterRunRejectedRequestsKeepValidSibling(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
-		probe := &mainAfterRunProbe{started: make(chan struct{})}
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		probe := &mainAfterRunProbe{started: make(chan struct{}), release: make(chan struct{})}
+		defer releaseTaskGate(probe.release)
 		valid := mainAfterRunTask(t, probe)
 		unknown := taskDefinition(t, "test.unknown", func(context.Context, TaskRecord, *TaskRuntime) error { return nil })
 		throwing, err := DefineTask(TaskDefinitionOptions{Kind: "test.throwing", Version: 1, Initial: func(any) (JSON, error) { return nil, errors.New("initial failed") }, Phases: map[string]TaskPhase{"run": func(context.Context, TaskRecord, *TaskRuntime) error { return nil }}, Abort: taskAbort})
@@ -427,10 +430,9 @@ func TestMainAfterRunRejectedRequestsKeepValidSibling(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		builtinToken := &TaskDefinition{constructed: true, options: TaskDefinitionOptions{Kind: "pi.generation"}}
 		registry := NewRegistry()
 		if err := registry.Install(&Extension{Name: "after-run", Tasks: []*TaskDefinition{valid, throwing, bad}, Hooks: GenerationHooks{AfterRun: func(context.Context, RunSummary, *HookAPI) (*AfterRunResult, error) {
-			return &AfterRunResult{Tasks: []RunEndTask{{Task: unknown}, {Task: builtinToken, Input: JSON{}}, {Task: valid, Input: JSON{"label": func() string { return "not JSON" }}}, {Task: throwing}, {Task: bad}, {Task: valid, Input: JSON{"label": "ok"}}}}, nil
+			return &AfterRunResult{Tasks: []RunEndTask{{Task: unknown}, {Task: GenerationTask(), Input: JSON{}}, {Task: valid, Input: JSON{"label": func() string { return "not JSON" }}}, {Task: throwing}, {Task: bad}, {Task: valid, Input: JSON{"label": "ok"}}}}, nil
 		}}}); err != nil {
 			t.Fatal(err)
 		}
@@ -447,27 +449,70 @@ func TestMainAfterRunRejectedRequestsKeepValidSibling(t *testing.T) {
 		})
 		options.Registry = registry
 		var mu sync.Mutex
-		var reports []error
-		var extensions []string
+		type observedReport struct {
+			err  error
+			info ReportInfo
+		}
+		var reports []observedReport
 		options.OnReportWithInfo = func(_ context.Context, e error, info ReportInfo) {
 			mu.Lock()
 			defer mu.Unlock()
-			if info.Type != "extension_error" {
-				t.Error("unexpected report", info, e)
-			}
-			reports = append(reports, e)
-			extensions = append(extensions, info.Extension)
+			reports = append(reports, observedReport{e, info})
 		}
 		h := openHarness(t, b.store, options)
 		c := root(t, h, ref)
-		sub, err := c.Submit(bg, Input{Content: "go"})
+		sub, err := c.Submit(ctx, Input{Content: "go"})
 		if err != nil {
 			t.Fatal(err)
 		}
-		waitSubmission(t, sub)
-		ctx, cancel := context.WithTimeout(bg, 3*time.Second)
-		defer cancel()
-		if err := c.WaitForIdle(ctx); err != nil {
+		answered, err := sub.Wait(ctx)
+		if err != nil || answered.Record.Status != "done" || answered.Record.Answer == 0 {
+			t.Fatal("original answer did not commit", answered.Record, err)
+		}
+		idle := make(chan error, 1)
+		go func() { idle <- c.WaitForIdle(ctx) }()
+		select {
+		case <-probe.started:
+		case err := <-idle:
+			t.Fatal("run ended without executing its valid sibling", err)
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+		live, found, err := c.SnapshotDefinition(ctx, LiveDoc(), nil)
+		if err != nil || !found {
+			t.Fatal("missing live generation at child gate", live, found, err)
+		}
+		run := generationObject(generationObject(live.Copy())["run"])
+		generation := submissionEntryID(run["taskId"])
+		children, _ := generationObject(run["afterRun"])["tasks"].([]any)
+		if generation == 0 || len(children) != 1 {
+			t.Fatal("expected exactly one valid after-run child", run)
+		}
+		childID := submissionEntryID(children[0])
+		child, found, err := h.Task(ctx, childID)
+		if err != nil || !found || child.Owner != generation || child.Kind != valid.Kind() || child.State.Status != "running" || !equalJSONValue(child.Input.Value, JSON{"label": "ok"}) {
+			t.Fatal("wrong child at the actual execution gate", child, found, err)
+		}
+		releaseTaskGate(probe.release)
+		if err := watchReceive(t, idle); err != nil {
+			t.Fatal(err)
+		}
+		page, err := b.store.ScanTasks(ctx, TaskQuery{Conversation: c.ID()}, 8, nil)
+		if err != nil || page.Next != nil || len(page.Items) != 2 {
+			t.Fatal("broken requests published task records", page, err)
+		}
+		child, found, err = h.Task(ctx, childID)
+		if err != nil || !found || child.Owner != generation || child.State.Status != "terminal" || child.State.Outcome == nil || child.State.Outcome.Status != "completed" || child.State.Outcome.Result == nil || !child.State.Outcome.Result.Present || !equalJSONValue(child.State.Outcome.Result.Value, JSON{"label": "ok"}) {
+			t.Fatal("valid sibling did not commit its exact result", child, found, err)
+		}
+		parent, found, err := h.Task(ctx, generation)
+		if err != nil || !found || parent.State.Status != "terminal" || parent.State.Outcome == nil || parent.State.Outcome.Status != "completed" || parent.State.Outcome.Result == nil || !equalJSONValue(parent.State.Outcome.Result.Value, JSON{"entryId": float64(answered.Record.Answer)}) {
+			t.Fatal("broken hooks changed the answered run's outcome", parent, found, err)
+		}
+		if live, found, err := c.SnapshotDefinition(ctx, LiveDoc(), nil); err != nil || !found || !equalJSONValue(live.Copy(), JSON{}) {
+			t.Fatal("run did not leave an empty public LiveDoc", live, found, err)
+		}
+		if err := h.Close(ctx); err != nil {
 			t.Fatal(err)
 		}
 		probe.mu.Lock()
@@ -478,11 +523,17 @@ func TestMainAfterRunRejectedRequestsKeepValidSibling(t *testing.T) {
 		}
 		mu.Lock()
 		defer mu.Unlock()
-		if !reflect.DeepEqual(extensions, []string{"after-run", "broken"}) {
-			t.Fatal("per-hook reports", extensions)
+		if len(reports) != 2 {
+			t.Fatal("expected exactly two representable per-hook reports", reports)
+		}
+		for i, extension := range []string{"after-run", "broken"} {
+			info := reports[i].info
+			if info.Type != "extension_error" || info.Extension != extension || info.Task == nil || info.Task.ID != generation || info.Task.Kind != "pi.generation" || info.Task.ConversationID != c.ID() {
+				t.Fatal("wrong attributed per-hook report", i, info)
+			}
 		}
 		var aggregate interface{ Unwrap() []error }
-		if !errors.As(reports[0], &aggregate) {
+		if !errors.As(reports[0].err, &aggregate) {
 			t.Fatal("request errors not aggregated", reports[0])
 		}
 		var messages []string
@@ -493,11 +544,8 @@ func TestMainAfterRunRejectedRequestsKeepValidSibling(t *testing.T) {
 		if !reflect.DeepEqual(messages, want) {
 			t.Error("ordered request diagnostics", messages, want)
 		}
-		if reports[1].Error() != "hook failed" {
-			t.Error("hook cause", reports[1])
-		}
-		if live := mainAfterRunLive(t, h, c.ID()); len(live) != 0 {
-			t.Error("run did not end", live)
+		if reports[1].err.Error() != "hook failed" {
+			t.Error("hook cause", reports[1].err)
 		}
 	})
 }
