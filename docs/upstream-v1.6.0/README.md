@@ -1055,3 +1055,5 @@ The unchanged [getter-context case](test-inventory/chord-getter-context.md) pass
 ### Sandbox tool rejections remain catchable
 
 All three unchanged variants passed. The native raw engine and both published placements catch `tool exploded` as a JavaScript `Error`, finish the script successfully and record one `fail` call with status `error`. Delivering the failed tool as a success or relabelling its status broke the comparison. The raw engine handles the omitted argument, and the published tool envelope normalizes it to an empty object. Public inline Durable still rejects the omitted form; the separate adapter check supplies `{}`. That argument guard was not changed in this round.
+
+The integrated code at `45ec2b5e` passed 24 focused top-level Go tests twice, without skips. The run used the actual published guest and standalone worker, with CGO disabled and network access restricted to loopback. Vet and Staticcheck v0.8.2 passed. The Chord getter-context and both image receipts reproduced byte for byte. Of 1,846 scoped sites, 1,792 are mapped, 51 are partial and three are unmatched. Thirty-two of the 214 changed suites have assertion-level links.
