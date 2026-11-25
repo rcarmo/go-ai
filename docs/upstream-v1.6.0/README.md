@@ -1339,3 +1339,11 @@ The unchanged equality case passed. Public Go `SchemaEqual` matches all ten outc
 ### Standalone globals run without appearing in tool call records
 
 All three unchanged placement variants passed. Native QuickJS and the published hosts return exactly `["function","function",2]`, record only `echo`, and observe the two global arguments in order. Removing the unawaited call failed the callback assertion while leaving the return value and tool records intact. This is a standalone sandbox comparison; Durable still admits no new effect at its final drain.
+
+### Live PowerShell reports a completed nonzero exit as a tool error result
+
+The unchanged mocked nonzero-exit case passed. The native baseline threw a Go error after exit 3. Through the live ToolAPI, a completed nonzero exit now returns an error result with the exact `exit_code` diagnostic and retains the ordered `partial` output. Standalone PowerShell, spawn fallback, timeouts, cancellation and Bash keep their prior behavior. The Go model receipt still stores details rather than the source `structuredOutput` with `truncated: false`, so the envelope assertion remains partial.
+
+### Opus and Sonnet 5.5 retain the pinned catalog and effort lists
+
+All 58 unchanged effort cases passed. The scoped public native catalog checks match the pinned Opus and Sonnet prices, token limits and managed flags. Both expose exactly `low`, `medium`, `high`, `xhigh`, `max` in that order. The controls separate catalog mistakes from effort-helper mistakes. No generated data or production code changed.
