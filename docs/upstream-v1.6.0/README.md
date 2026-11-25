@@ -1185,3 +1185,13 @@ A real portable guest and SQLite process test places result `b` in the ready que
 The lane's exact 50-result comparison returned `50` and measured 54 journal publications in both repeats, down from 103. The upstream requirement is fewer than ten. The remaining multi-result batching requirements are in [codemode-batching.md](codemode-batching.md).
 
 The integrated code at `19a17e50` passed 43 focused top-level Go tests twice, without skips. The published worker returned `50` with 54 journal publications in both repeats. The runs used CGO-free SQLite and loopback-only networking. Vet and Staticcheck v0.8.2 passed. The inventory at `6328333c` records 1,904 scoped sites: 1,851 mapped, 51 partial and two unmatched. Thirty-two of the 214 changed suites have assertion-level links. Full parity remains open.
+
+## Round 48
+
+### Native QuickJS validates global names and namespace conflicts before worker allocation
+
+All three unchanged global-admission variants passed. The pinned published constructors reject the malformed names, the reserved `tools` and `console` roots, and the `models`/`models.list` collision. Native QuickJS used to allow some malformed names and reserve capacity before rejecting collisions in the prelude. It now checks the name shape and namespace collisions before worker allocation. A valid `models.list` still reaches its callback; a fault that rejected all namespace members failed that check. The Harness's separate built-in global policy is unchanged.
+
+### Prepared Schema reports both paths to the same invalid object
+
+All 40 unchanged validator cases passed. A shared Go map reached through the same reference produces the exact ordered `/a/n` and `/b/n` records. Repairing the shared value clears both on the same prepared validator, and restoring the invalid value restores both records. Dropping paths from the diagnostic memo or reusing its value state across calls failed those checks. No Schema production change was needed.
