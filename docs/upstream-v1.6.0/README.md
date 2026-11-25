@@ -1076,7 +1076,7 @@ All 33 unchanged thread cases passed. The native `thread_already_continued` vari
 
 ### Schema checks required and optional explicit undefined
 
-All 40 unchanged validator cases passed. In the covered declared-property checks, an optional explicit `SchemaUndefined{}` can be treated as absent without deleting the caller's key. A required declaration that rejects the marker reports `missing`. The previously unrepresented property-order input now uses the typed marker and matches. JSON null, actual omission and tool policy remain distinct. Pattern and additional rules still inspect the real key.
+All 40 unchanged validator cases passed. In the covered declared-property checks, an optional explicit `SchemaUndefined{}` can be treated as absent without deleting the caller's key. A required declaration that rejects the marker reports `missing`. The previously unrepresented property-order input now uses the typed marker and matches. JSON null, actual omission and tool policy remain distinct. Pattern and additional rules still inspect the real key. When an explicitly undefined field fails a local annotation rule, the structured explanation also preserves the pinned `unevaluatedProperties` diagnostic. A separate check verifies the exact diagnostics for an undeclared required key and an invalid sibling.
 
 ### Chord fingerprints ignore annotations
 
