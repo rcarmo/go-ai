@@ -118,3 +118,49 @@ func assertV160BigIntCheck(t *testing.T, compiled *goai.CompiledJSONSchema, valu
 		t.Errorf("check(%T %v) = %t, %v; want %t", value, value, got, err, want)
 	}
 }
+
+// validator.test.ts:522–529. The pinned runtime gives the same results with
+// 5 and 0 as representable JSON numeric divisors instead of BigInt literals.
+func TestSourceV160SchemaBigIntRemainders(t *testing.T) {
+	const five = `{"type":"bigint","multipleOf":5}`
+	const zero = `{"multipleOf":0}`
+	const half = `{"multipleOf":0.5}`
+	power := new(big.Int).Exp(big.NewInt(10), big.NewInt(400), nil)
+	for _, tc := range []struct {
+		name, schema string
+		value        *big.Int
+		want         bool
+		issues       string
+	}{
+		{"L524-10-to-the-400th", five, power, true, `[]`},
+		{"L525-10-to-the-400th-plus-one", five, new(big.Int).Add(power, big.NewInt(1)), false, `[{"path":"","keyword":"multipleOf","message":"expected a multiple of 5"}]`},
+		{"L527-zero-divisor", zero, big.NewInt(4), false, `[{"path":"","keyword":"multipleOf","message":"expected a multiple of 0"}]`},
+		{"L528-fractional-divisor", half, big.NewInt(3), false, `[{"path":"","keyword":"multipleOf","message":"expected a multiple of 0.5"}]`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			before := new(big.Int).Set(tc.value)
+			compiled := compileV160LeafSchema(t, tc.schema)
+			assertV160BigIntCheck(t, compiled, tc.value, tc.want)
+			got, err := goai.CheckJSONSchemaValueWithOptions(json.RawMessage(tc.schema), tc.value, goai.JSONSchemaCheckOptions{})
+			if err != nil || got != tc.want {
+				t.Fatalf("standalone check = %t, %v; want %t", got, err, tc.want)
+			}
+			issues, err := compiled.Explain(tc.value)
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertV160StructuredDiagnostics(t, issues, tc.issues)
+			if before.Cmp(tc.value) != 0 {
+				t.Fatal("validation mutated the input")
+			}
+		})
+	}
+
+	// Supplemental contrast: a fractional divisor is valid for an ordinary
+	// JSON number, but zero still fails for both numeric domains.
+	t.Run("ordinary-JSON-numbers", func(t *testing.T) {
+		assertV160BigIntCheck(t, compileV160LeafSchema(t, half), json.RawMessage(`3`), true)
+		assertV160BigIntCheck(t, compileV160LeafSchema(t, half), json.RawMessage(`3.25`), false)
+		assertV160BigIntCheck(t, compileV160LeafSchema(t, zero), json.RawMessage(`4`), false)
+	})
+}
