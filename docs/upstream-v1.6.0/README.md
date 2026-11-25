@@ -1081,3 +1081,9 @@ All 40 unchanged validator cases passed. In the covered declared-property checks
 ### Chord fingerprints ignore annotations
 
 All 13 unchanged [fingerprint cases](test-inventory/chord-fingerprint.md) passed offline. The witness observed the pinned JSON guard accepting the fixture title and both contracts producing the same fingerprint. Keeping annotations in scratch changed only the annotated fingerprint and failed the unchanged equality check. This covers the Chord contract path; it does not verify Durable's callers or native Go correspondence.
+
+### A caller can await its directly owned nested tool across a signal park
+
+All 18 unchanged tool-park cases passed. In the native baseline, a bound caller received `invocation_wait_requires_yield` while its own nested tool waited on a signal. Go now holds that wait only for a directly owned canonical nested tool that is genuinely asleep on a signal. It makes no executor claim while asleep; once signalled, the task goes through normal readiness and capacity checks. Ownership, cycle and cancellation checks are unchanged.
+
+With a deterministic clock jump from 1,000 to 3,000, the caller receives the successful result with exactly 2,000 ms elapsed. The same SQLite task runs twice with the original checkpoint, and its result reaches the parent transcript as `nested passed`. Restoring the previous admission guard or dropping the duration broke the comparison.
