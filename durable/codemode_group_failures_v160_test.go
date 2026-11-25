@@ -9,7 +9,7 @@ import (
 
 // Compare candidate failure handling with the existing default, using the
 // real archived worker and production RunCodemode on a SQLite task.
-func TestDraftV160CodemodeGroupedScriptFailures(t *testing.T) {
+func TestV160CodemodeGroupedScriptFailures(t *testing.T) {
 	for _, tc := range []struct {
 		name, script, outputPrefix, message, frame string
 	}{
@@ -29,7 +29,7 @@ func TestDraftV160CodemodeGroupedScriptFailures(t *testing.T) {
 					t.Fatal(err)
 				}
 				sandbox, remote := newJournalWorkerSandboxV160(t)
-				sandbox.groupJournal = grouped
+				sandbox.legacyJournal = !grouped
 				registry := NewRegistry()
 				type outcome struct {
 					result CodemodeResult

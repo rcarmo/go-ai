@@ -11,14 +11,14 @@ import (
 )
 
 // Source: pi v1.6.0 codemode.test.ts:913–946. The final value is compared
-// exactly. The observer measures the native commit count without requiring
-// the existing per-delivery protocol to match the upstream batch limit.
+// exactly. The observer checks the upstream publication limit for a new
+// run on the default published worker policy.
 func TestSourceV160CodemodePublishedWorkerConcurrentResults(t *testing.T) {
-	testV160ConcurrentResults(t, false)
+	testV160ConcurrentResults(t, true)
 }
 
-func TestDraftV160CodemodeGroupedConcurrentResults(t *testing.T) {
-	testV160ConcurrentResults(t, true)
+func TestV160CodemodeLegacyWorkerConcurrentResults(t *testing.T) {
+	testV160ConcurrentResults(t, false)
 }
 
 func testV160ConcurrentResults(t *testing.T, grouped bool) {
@@ -28,7 +28,7 @@ func testV160ConcurrentResults(t *testing.T, grouped bool) {
 	ctx, cancel := context.WithTimeout(t.Context(), 120*time.Second)
 	defer cancel()
 	sandbox, remote := newJournalWorkerSandboxV160(t)
-	sandbox.groupJournal = grouped
+	sandbox.legacyJournal = !grouped
 	registry := NewRegistry()
 	ext, err := NewCodemodeExtension(sandbox)
 	if err != nil {

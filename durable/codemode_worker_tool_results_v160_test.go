@@ -110,17 +110,17 @@ return [r.exitCode, r.output, e];`, `[1,"no matches",["permission denied",null]]
 
 // Source: pi v1.6.0 codemode.test.ts:1094–1100.
 func TestSourceV160CodemodePublishedWorkerFailureReportsCalls(t *testing.T) {
-	testV160CodemodePublishedWorkerFailureReportsCalls(t, false)
+	testV160CodemodePublishedWorkerFailureReportsCalls(t, true)
 }
 
-func TestDraftV160CodemodeGroupedFailureReportsCalls(t *testing.T) {
-	testV160CodemodePublishedWorkerFailureReportsCalls(t, true)
+func TestV160CodemodeLegacyWorkerFailureReportsCalls(t *testing.T) {
+	testV160CodemodePublishedWorkerFailureReportsCalls(t, false)
 }
 
 func testV160CodemodePublishedWorkerFailureReportsCalls(t *testing.T, grouped bool) {
 	t.Helper()
 	sandbox, remote := newJournalWorkerSandboxV160(t)
-	sandbox.groupJournal = grouped
+	sandbox.legacyJournal = !grouped
 	registry := NewRegistry()
 	ext, err := NewCodemodeExtension(sandbox)
 	if err != nil {

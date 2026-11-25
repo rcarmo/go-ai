@@ -54,7 +54,7 @@ func (f stoppedAfterReplyV160) Execute(ctx context.Context, request CodemodeWork
 // at sandbox.test.ts:841–848. The other case injects a crash frame after a real
 // published guest has received one callback reply. New mode must not pretend
 // the unpositioned crash included a guest delivery watermark.
-func TestDraftV160CodemodeGroupedWorkerStops(t *testing.T) {
+func TestV160CodemodeGroupedWorkerStops(t *testing.T) {
 	for _, tc := range []struct {
 		name, script, message string
 		calls                 int32
@@ -75,7 +75,7 @@ func TestDraftV160CodemodeGroupedWorkerStops(t *testing.T) {
 					t.Fatal(err)
 				}
 				sandbox, worker := newJournalWorkerSandboxV160(t)
-				sandbox.groupJournal = grouped
+				sandbox.legacyJournal = !grouped
 				var calls, frames atomic.Int32
 				if tc.calls == 0 {
 					worker.CodemodeWorkerRemote.Transport = failedWorkerLaunchV160{process: officialWorkerTransport120{root: officialWorkerPackageRootV160(t)}, frames: &frames}

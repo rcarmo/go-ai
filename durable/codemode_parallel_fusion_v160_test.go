@@ -162,7 +162,7 @@ func fusedDrainHarnessV160(t *testing.T, dir string, store *SQLiteStorage, gateD
 	remote, worker := newJournalWorkerSandboxV160(t)
 	// The crash child records legacy mode; the recovered host would choose
 	// grouping for a new run, but must replay the original saved mode.
-	remote.groupJournal = !gateDrain
+	remote.legacyJournal = gateDrain
 	var sandbox CodemodeSandbox = remote
 	var ready chan codemodeCompletedCall
 	var b chan struct{}

@@ -140,7 +140,7 @@ func groupedHarnessV160(t *testing.T, dir string, store *SQLiteStorage, cut bool
 func groupedScenarioV160(t *testing.T, dir string, store *SQLiteStorage, script string, want any, gate, cut bool) (*Harness, *TaskDefinition, *journalWorkerRemoteV160) {
 	t.Helper()
 	remote, worker := newJournalWorkerSandboxV160(t)
-	remote.groupJournal = gate // A later reopen uses the recorded journal policy.
+	remote.legacyJournal = !gate // A later reopen uses the recorded journal policy.
 	var sandbox CodemodeSandbox = remote
 	var ready chan codemodeCompletedCall
 	var gates [2]chan struct{}
@@ -317,7 +317,7 @@ func checkGroupedJournalSealV160(ctx context.Context, store *SQLiteStorage) erro
 	return errors.New("live sealed journal not found")
 }
 
-func TestDraftV160CodemodeGroupedNewCallNeedsDurableCoverage(t *testing.T) {
+func TestV160CodemodeGroupedNewCallNeedsDurableCoverage(t *testing.T) {
 	dir := t.TempDir()
 	ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
 	defer cancel()
