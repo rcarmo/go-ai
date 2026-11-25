@@ -17,7 +17,7 @@ const sandbox = publishedSandbox(placement, {
 });
 try {
   const result = await sandbox.execute(script);
-  process.stdout.write(JSON.stringify({ ok: result.ok, value: result.value, error: result.error, calls: result.calls.map(call => call.name), seen }));
+  process.stdout.write(JSON.stringify({ ok: result.ok, value: result.value, error: result.error, output: result.output, calls: result.calls.map(call => call.name), seen }));
 } finally {
   await sandbox.close();
 }
