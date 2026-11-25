@@ -935,3 +935,7 @@ Both unchanged continuation cases passed with the verified `@google/genai` 2.32.
 The standalone Google credential path still differs: the SDK puts the key in `x-goog-api-key`, while Go uses the query. The wire comparison excludes just that query difference; Vertex's header matches. No live request or SDK object-identity check ran.
 
 The integrated code at `8bf3f6bb` passed 23 focused top-level Go tests twice, plus the separate Google cap-policy test twice, without skips. The run used the archived portable guest and standalone worker, with CGO disabled and network access restricted to loopback. Vet and Staticcheck v0.8.2 passed. The two image receipts, the Chord sender receipt and generated format file reproduced byte for byte. Of 1,745 scoped sites, 1,694 are mapped, 48 are partial and three are unmatched. Thirty of the 214 changed suites have assertion-level links.
+
+### Codemode rejects a held replay batch before a new effect
+
+The unchanged held-batch case passed. The published guest starts from a real SQLite journal with two issued calls and no deliveries. After reopening, a detached change to the guest input makes the replay diverge. Go returns an error, executes no new echo, and retains exactly one nested task: the original hold. An eager-launch fault ran the new echo and created a second task before returning the error. The native diagnostic rejects the first changed target and omits literal arguments, so the original's second-call diagnostic remains partial. No saved record or production guard changed.
