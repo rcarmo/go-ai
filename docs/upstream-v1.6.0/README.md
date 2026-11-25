@@ -1259,3 +1259,7 @@ All 40 unchanged validator cases passed. The detached Go method selects the same
 ### Anthropic keeps each schema in its intended strict mode
 
 All three unchanged strict-tool cases passed. The native payload hook and scripted wire matched the strict and legacy schema projections, preserved both root definition forms and sent no `strict` field for unsupported preferences. The supported preference sends `strict: true`. The tests cover the serialized schemas; SDK query, header metadata and JavaScript object identity were outside the comparison. No live request or production change was needed.
+
+### Grouped replay reports the saved count before the held-call dispute
+
+Both selected unchanged Codemode cases passed. The native baseline rejected the first changed call before reading the drain. On the grouped policy, Go now reports the pinned three-versus-two and five-versus-two count diagnostics. It counts only valid guest frames, never admits an effect from the rejected replay, and leaves the saved journal unchanged. A matching count still causes the existing redacted identity refusal. The old policy keeps its original refusal order when reopened.
