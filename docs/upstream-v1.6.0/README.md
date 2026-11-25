@@ -983,3 +983,7 @@ The unchanged [pass-through case](test-inventory/images-fit-passthrough.md) pass
 ### All 50 Codemode results finish; batching still differs
 
 The unchanged simultaneous-results case passed upstream. The [native published-worker test](../../durable/codemode_worker_concurrent_results_v160_test.go) releases the same 50 callbacks at one barrier and returns exactly `50` without an error. It counts journal changes through the terminal submission publication, without a timing sleep or a snapshot lookup in the observer. The completed baseline recorded 103 journal publications, above the source's limit of fewer than ten. This supersedes the earlier unfinished measurement. The test verifies the final result and records the count; it does not require the current native count as a contract. No production protocol or validation change was made.
+
+### Unsafe woken tools clean up without replay after process loss
+
+All 18 unchanged tool-park cases passed. The native fixture verifies the running unsafe intent, retained output and details in SQLite after a real process loss. After reopening under one writer, cleanup receives the original `first` checkpoint once and no wake, and the executor does not run again. The submission completes with the interruption message and the stored error code `interrupted`. Removing cleanup let the turn finish too early; changing only the stored code failed the receipt check. No production change or rewrite of saved records was needed.
