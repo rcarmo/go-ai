@@ -153,6 +153,12 @@ func (r *TaskRuntime) RunCodemode(ctx context.Context, key, source string, sandb
 
 // Namespace overrides apply to new runs; replay uses persisted metadata.
 func (r *TaskRuntime) runCodemode(ctx context.Context, key, source string, sandbox CodemodeSandbox, namespaces *[]CodemodeNamespace, models *bool, globals *[]CodemodeGlobal, interruptBudget *int) (CodemodeResult, error) {
+	return r.runCodemodeWithCompletionQueue(ctx, key, source, sandbox, namespaces, models, globals, interruptBudget, nil)
+}
+
+// The queue is private to the parallel scheduler; ordinary callers let the
+// scheduler allocate it within the recorded session limits.
+func (r *TaskRuntime) runCodemodeWithCompletionQueue(ctx context.Context, key, source string, sandbox CodemodeSandbox, namespaces *[]CodemodeNamespace, models *bool, globals *[]CodemodeGlobal, interruptBudget *int, completed chan codemodeCompletedCall) (CodemodeResult, error) {
 	if err := r.check(); err != nil {
 		return CodemodeResult{}, err
 	}
@@ -384,7 +390,7 @@ func (r *TaskRuntime) runCodemode(ctx context.Context, key, source string, sandb
 	}
 	var parallelResult *CodemodeResult
 	if run.Start.ParallelCalls {
-		result, err := r.runParallelCodemode(linked, vm, key, run.Start, journalID, &journal, selectedGlobals, allowed, paid)
+		result, err := r.runParallelCodemode(linked, vm, key, run.Start, journalID, &journal, selectedGlobals, allowed, paid, completed)
 		if err != nil {
 			return CodemodeResult{}, err
 		}
@@ -632,17 +638,37 @@ func (r *TaskRuntime) runCodemode(ctx context.Context, key, source string, sandb
 	return CodemodeResult{}, errors.New("codemode serial call budget exhausted")
 }
 func commitCodemodeJournal(ctx context.Context, r *TaskRuntime, id ID, journal codemodeJournalState) error {
-	return r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
+	_, err := commitCodemodeJournalWithReady(ctx, r, id, journal, nil)
+	return err
+}
+
+func commitCodemodeJournalWithReady(ctx context.Context, r *TaskRuntime, id ID, journal codemodeJournalState, preferred *codemodeJournalState) (bool, error) {
+	fused := false
+	err := r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
 		doc, err := tx.documentRecord(id)
 		if err != nil {
 			return nil, err
 		}
-		object, err := dtoObject(journal, tx.limits)
-		if err != nil {
-			return nil, err
+		set := func(state codemodeJournalState) error {
+			object, err := dtoObject(state, tx.limits)
+			if err != nil {
+				return err
+			}
+			return doc.Set(object)
 		}
-		return nil, doc.Set(object)
+		if preferred != nil {
+			if err := set(*preferred); err == nil {
+				fused = true
+				return nil, nil
+			}
+			// DTO validation and Document.Set can reject without staging a
+			// write (for example, on size). Publish just the count, then let
+			// the queued result take the normal validation path. Never retry
+			// an error returned by Commit itself.
+		}
+		return nil, set(journal)
 	})
+	return fused && err == nil, err
 }
 func ownCodemodeResult(result CodemodeResult, l Limits) (CodemodeResult, error) {
 	if err := validateCodemodeImages(result.Images, l); err != nil {

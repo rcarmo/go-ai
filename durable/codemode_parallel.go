@@ -12,7 +12,7 @@ type codemodeCompletedCall struct {
 	err      error
 }
 
-func (r *TaskRuntime) runParallelCodemode(ctx context.Context, vm CodemodeExecution, key string, start CodemodeStart, journalID ID, journal *codemodeJournalState, globals []CodemodeGlobal, allowed map[string]bool, paid bool) (out CodemodeResult, runErr error) {
+func (r *TaskRuntime) runParallelCodemode(ctx context.Context, vm CodemodeExecution, key string, start CodemodeStart, journalID ID, journal *codemodeJournalState, globals []CodemodeGlobal, allowed map[string]bool, paid bool, completed chan codemodeCompletedCall) (out CodemodeResult, runErr error) {
 	divergence := func(message string) (CodemodeResult, error) {
 		if err := r.abortCodemodeChildren(ctx, key, journal); err != nil {
 			return CodemodeResult{}, err
@@ -55,9 +55,13 @@ func (r *TaskRuntime) runParallelCodemode(ctx context.Context, vm CodemodeExecut
 		return CodemodeResult{}, reject("parallel sandbox lacks drains")
 	}
 	l := r.harness.session.limits
-	completed := make(chan codemodeCompletedCall, l.MaxPage)
+	if completed == nil {
+		completed = make(chan codemodeCompletedCall, l.MaxPage)
+	}
 	observed, delivered, launched := 0, 0, 0
 	drainPending := true
+	replayPrefix := len(journal.Deliveries)
+	var held *codemodeCompletedCall
 	deliveredIDs := map[int]bool{}
 	for _, delivery := range journal.Deliveries {
 		deliveredIDs[delivery.Call.ID] = true
@@ -134,8 +138,13 @@ func (r *TaskRuntime) runParallelCodemode(ctx context.Context, vm CodemodeExecut
 				continue
 			}
 			if event.Drain != nil && event.Call == nil && event.Result == nil {
-				err := acknowledgeCodemodeDrain(linked, ack, journal, *event.Drain, observed, delivered, func(ctx context.Context, next codemodeJournalState) error {
-					return commitCodemodeJournal(ctx, r, journalID, next)
+				var ready <-chan codemodeCompletedCall
+				if delivered > replayPrefix && delivered < observed && delivered == len(journal.Deliveries) && launched == observed && !event.Drain.Final {
+					ready = completed
+				}
+				var err error
+				held, err = settleCodemodeDrain(linked, ack, journal, *event.Drain, observed, delivered, ready, func(ctx context.Context, next codemodeJournalState, withDelivery *codemodeJournalState) (bool, error) {
+					return commitCodemodeJournalWithReady(ctx, r, journalID, next, withDelivery)
 				})
 				if err != nil {
 					if linked.Err() == nil && strings.Contains(err.Error(), "codemode drain") {
@@ -173,8 +182,16 @@ func (r *TaskRuntime) runParallelCodemode(ctx context.Context, vm CodemodeExecut
 				drainPending = true
 				continue
 			}
+			var next <-chan codemodeCompletedCall = completed
+			if held != nil {
+				// A failed pre-stage fold leaves the result at the head of
+				// the queue, still competing with terminal events/cancellation.
+				first := make(chan codemodeCompletedCall, 1)
+				first <- *held
+				next, held = first, nil
+			}
 			select {
-			case result := <-completed:
+			case result := <-next:
 				if result.err != nil {
 					return CodemodeResult{}, result.err
 				}
@@ -193,10 +210,7 @@ func (r *TaskRuntime) runParallelCodemode(ctx context.Context, vm CodemodeExecut
 			case <-linked.Done():
 				return CodemodeResult{}, linked.Err()
 			}
-			delivery.Seq = len(journal.Deliveries) + 1
-			if len(journal.Deliveries) > 0 && delivery.Now < journal.Deliveries[len(journal.Deliveries)-1].Now {
-				delivery.Now = journal.Deliveries[len(journal.Deliveries)-1].Now
-			}
+			delivery = nextParallelCodemodeDelivery(*journal, delivery)
 			journal.Deliveries = append(journal.Deliveries, delivery)
 			if err := commitCodemodeJournal(linked, r, journalID, *journal); err != nil {
 				return CodemodeResult{}, err
