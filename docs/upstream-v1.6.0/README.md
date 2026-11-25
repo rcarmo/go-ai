@@ -939,3 +939,15 @@ The integrated code at `8bf3f6bb` passed 23 focused top-level Go tests twice, pl
 ### Codemode rejects a held replay batch before a new effect
 
 The unchanged held-batch case passed. The published guest starts from a real SQLite journal with two issued calls and no deliveries. After reopening, a detached change to the guest input makes the replay diverge. Go returns an error, executes no new echo, and retains exactly one nested task: the original hold. An eager-launch fault ran the new echo and created a second task before returning the error. The native diagnostic rejects the first changed target and omits literal arguments, so the original's second-call diagnostic remains partial. No saved record or production guard changed.
+
+### UTF-16 string lengths through the public tool-call decoder
+
+All 40 unchanged validator cases passed. The six string-length assertions match through the native UTF-16-aware `ToolCall` decoder and both prepared and standalone Schema checks. The test verifies the exact unpaired surrogate units before testing length, so replacement with U+FFFD cannot pass. It also checks a normal surrogate pair and a mixed string. Controls caught losing a surrogate and counting code units or UTF-8 bytes instead of code points. Ordinary JSON decoding behavior was unchanged.
+
+### Fitted image order, size and coordinate note
+
+The unchanged [image-fit case](test-inventory/images-fit-resize.md) passed. With the captured PNG, Go preserves text–image–text order and both text values, decodes the fitted image to 200×50, and emits the exact note with multiplier `2.00`. Changing the formatting to `2.0` failed both runtimes' note checks. JavaScript reference identity, cross-encoder byte equality and worker scheduling are outside this comparison.
+
+### Chord delivers the latest derived value to a busy watcher
+
+All 23 unchanged [derive cases](test-inventory/chord-derive-watch.md) passed offline. The witness observed the pinned `Derive` and `Watch` modules and the actual callback sequence: a busy listener receives `5`, then the replacement value `6`, without receiving the superseded `t threw` failure. Keeping that failure in scratch broke the unchanged assertion. The receipt covers this Chord path; it does not verify Durable's calls or native Go correspondence.
