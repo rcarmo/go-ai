@@ -879,3 +879,13 @@ The unchanged [model-width case](test-inventory/tools-images-model-limits.md) pa
 ### Parked cleanup respects tool removal and a refused park
 
 All 18 unchanged tool-park cases passed. Removing a tool after its sleeping receipt leaves the submission unanswered, invokes no cleanup and reports the missing tool. In the racing case, the actual running task is marked for abort before it attempts to park. No sleeping receipt is published. Cleanup runs once with an uncancelled context, the original `started` checkpoint and no wake, and the task ends aborted. Fault controls caught skipped cleanup, a cancelled cleanup context and the missing report. No production change was needed.
+
+### Codemode reports ordered tool-call details
+
+The unchanged details case passed. The published worker's Go result now lists `echo`, `fails` and `hold` with IDs 1–3, the exact argument previews, and statuses `ok`, `error` and `cancelled`. It reports `permission denied` for the failed call and a nonnegative recorded duration for the first. The model-facing details use one guarded read of the settled journal and nested results. This does not rewrite records or admit effects, and the previews are bounded separately from the result body.
+
+A supplemental check delivers a schema value for a failed nested tool and still labels its row `error`. Reversing row order or classifying only the transport result each failed the corresponding test. These comparisons do not establish JavaScript insertion order for arbitrary argument maps.
+
+### Chord executes the pinned SQLite read plan
+
+All 21 unchanged [Chord read-plan cases](test-inventory/chord-read-plan.md) passed offline. The witness observed the planner and Node SQLite adapter evaluate, and recorded a real SQLite 3.54.0 plan with the owning table searched first. Reversing the `CROSS JOIN` inputs in scratch changed the plan and failed the unchanged assertion. The receipt covers this Chord path on the pinned Node engine; it does not verify Durable's callers or native Go behavior.
