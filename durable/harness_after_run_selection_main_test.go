@@ -32,71 +32,80 @@ func TestMainAfterRunHooksDeselectedBeforeRecoveryFinish(t *testing.T) {
 	})
 }
 
-// Actual f9a26365 harness-after-run.test.ts903: forking at the committed answer
-// while after-run is gated must not copy the active run or queued inbox.
+// harness-after-run.test.ts:904-921. A fork at the committed answer must
+// not copy the held after-run state or the queued input from its parent.
 func TestMainAfterRunForkStartsIdleWithoutParentQueue(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+		ctx, cancel := context.WithTimeout(bg, 8*time.Second)
+		defer cancel()
 		gate := make(chan struct{})
 		p := mainAfterRecoverySetup(t, nil, map[int64]chan struct{}{1: gate}, nil)
 		h, c, settled := mainAfterRecoveryStart(t, p, b.store)
 		cleanupTaskGates(t, gate)
 		watchReceive(t, p.taskEntered)
-		later, err := c.Submit(bg, Input{Content: "later"})
+		later, err := c.Submit(ctx, Input{Type: "input", Content: "later"})
 		if err != nil {
 			t.Fatal(err)
 		}
-		state, err := h.Snapshot(bg)
-		if err != nil {
-			t.Fatal(err)
+		read := func(c *ConversationHandle, definition *DocumentDefinition) JSON {
+			t.Helper()
+			value, found, err := c.SnapshotDefinition(ctx, definition, nil)
+			if err != nil || !found {
+				t.Fatal("fork fixture document", c.ID(), value, found, err)
+			}
+			return generationObject(value.Copy())
 		}
-		queued := false
-		for _, doc := range state.Documents {
-			if !doc.Retired && doc.Owner == c.ID() && doc.Kind == "pi.inbox" {
-				items, _ := doc.Value["items"].([]any)
-				queued = len(items) == 1 && submissionEntryID(generationObject(items[0])["id"]) == later.ID()
+		parentLive := read(c, LiveDoc())
+		run := generationObject(parentLive["run"])
+		generationID := submissionEntryID(run["taskId"])
+		children, _ := generationObject(run["afterRun"])["tasks"].([]any)
+		if generationID == 0 || len(children) != 1 {
+			t.Fatal("expected the parent's one held after-run child", parentLive)
+		}
+		childID := submissionEntryID(children[0])
+		assertParentWork := func() {
+			t.Helper()
+			if child, found, err := h.Task(ctx, childID); err != nil || !found || child.Owner != generationID || child.Conversation != c.ID() || child.State.Status != "running" {
+				t.Fatal("parent lost its held after-run child", child, found, err)
+			}
+			if status, err := later.Status(ctx); err != nil || status.Status != "queued" || status.Entry != 0 {
+				t.Fatal("parent input is not queued behind after-run", status, err)
 			}
 		}
-		if !queued {
-			t.Fatal("parent input was not queued behind after-run")
+		assertParentWork()
+		parentInbox := read(c, InboxDoc())
+		items, _ := parentInbox["items"].([]any)
+		if len(items) != 1 || submissionEntryID(generationObject(items[0])["id"]) != later.ID() {
+			t.Fatal("parent inbox lacks exactly the later input", parentInbox)
 		}
-		fork, err := c.Fork(bg, settled.Record.Answer)
+
+		fork, err := c.Fork(ctx, settled.Record.Answer)
 		if err != nil {
 			t.Fatal(err)
 		}
-		live := mainAfterRunLive(t, h, fork.ID())
-		if live["run"] != nil {
-			t.Error("fork copied active parent run", live)
+		forkLive := read(fork, LiveDoc())
+		if _, present := forkLive["run"]; present {
+			t.Fatal("fork copied active parent run", forkLive)
 		}
-		state, err = h.Snapshot(bg)
-		if err != nil {
-			t.Fatal(err)
+		if inbox := read(fork, InboxDoc()); inbox["items"] != nil && !equalJSONValue(inbox["items"], []any{}) {
+			t.Fatal("fork copied parent inbox", inbox)
 		}
-		count := -1
-		for _, doc := range state.Documents {
-			if !doc.Retired && doc.Owner == fork.ID() && doc.Kind == "pi.inbox" {
-				items, _ := doc.Value["items"].([]any)
-				count = len(items)
-			}
+		if record, found, err := b.store.Conversation(ctx, fork.ID()); err != nil || !found || record.Owner != 0 || record.OwnerConversation != 0 || record.Parent != c.ID() || record.ParentAt != settled.Record.Answer {
+			t.Fatal("expected ownerless fork at the committed answer", record, found, err)
 		}
-		if count != 0 {
-			t.Error("fork copied parent queue or lacks inbox", count)
-		}
-		owner := state.Conversations[fork.ID()].Owner
-		if owner != 0 {
-			t.Error("fork is not ownerless", owner)
-		}
-		ctx, cancel := context.WithTimeout(bg, 3*time.Second)
-		defer cancel()
 		if err := fork.WaitForIdle(ctx); err != nil {
 			t.Fatal("fork did not start idle", err)
 		}
-		// The fork must not consume or release the original host's work.
-		live = mainAfterRunLive(t, h, c.ID())
-		if live["run"] == nil || p.tasks.Load() != 1 || p.calls.Load() != 1 {
-			t.Fatal("fork changed the parent run", live, p.tasks.Load(), p.calls.Load())
+		// A separate public wait for the still-held parent must remain pending.
+		idleParent := awaitPendingContextIdleWait(t, ctx, h, c)
+		assertParentWork()
+		if !equalJSONValue(read(c, LiveDoc()), parentLive) || !equalJSONValue(read(c, InboxDoc()), parentInbox) || p.tasks.Load() != 1 || p.calls.Load() != 1 {
+			t.Fatal("fork changed the parent run or queued input", p.tasks.Load(), p.calls.Load())
 		}
 		releaseTaskGate(gate)
-		mainAfterRecoveryIdle(t, c)
+		if err := watchReceive(t, idleParent); err != nil {
+			t.Fatal(err)
+		}
 		if err := h.Close(bg); err != nil {
 			t.Fatal(err)
 		}
