@@ -1313,3 +1313,7 @@ The integrated code at `6fa8f28c` passed 33 focused top-level Go tests twice, wi
 ### Sandbox diagnostics name the missing namespace member
 
 All three unchanged placement variants passed. Native QuickJS and the published inline, portable and Node Worker hosts report the exact missing-member diagnostic and suggest `models.generateImages`. The missing call executes no callback; the valid member executes one. Replacing the missing call with the valid one failed both checks. No production change was needed.
+
+### Prepared native coercion returns exact BigInts
+
+All 49 unchanged coercion cases passed. Prepared Go coercion now matches the pinned BigInt values, truncates decimals toward zero, and leaves invalid input unchanged. The integer-string control stays exact beyond `2^53`; the pointer control proves that the input and result cannot mutate each other. This applies to explicit native inputs. Raw JSON, old one-shot coercion and tool-input policy remain unchanged.
