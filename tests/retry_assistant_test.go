@@ -43,6 +43,8 @@ func TestRetryAssistantErrorKeepsProviderLimitErrorsNonRetryable(t *testing.T) {
 	}
 }
 
+// Source: retry.test.ts:191–207 (overload and ordinary stop), with separate
+// historical provider wording and stop-class controls.
 func TestRetryAssistantErrorClassifiesAssistantErrorMessages(t *testing.T) {
 	if !goai.IsRetryableAssistantError(retryMessage("overloaded_error")) {
 		t.Fatal("overloaded_error should be retryable")
@@ -56,26 +58,40 @@ func TestRetryAssistantErrorClassifiesAssistantErrorMessages(t *testing.T) {
 	if !goai.IsRetryableAssistantError(retryMessage("HTTP 520 from provider edge")) {
 		t.Fatal("v0.87 HTTP 520 provider error should be retryable")
 	}
-	if goai.IsRetryableAssistantError(&goai.Message{Role: goai.RoleAssistant, StopReason: goai.StopReasonStop}) {
-		t.Fatal("non-error assistant message should not be retryable")
+	if goai.IsRetryableAssistantError(&goai.Message{Role: goai.RoleAssistant, StopReason: goai.StopReasonStop,
+		Content: []goai.ContentBlock{{Type: "text", Text: "not an error"}}}) {
+		t.Fatal("ordinary stopped assistant message should not be retryable")
+	}
+	for _, reason := range []goai.StopReason{goai.StopReasonStop, goai.StopReasonAborted} {
+		t.Run("stop-class-"+string(reason), func(t *testing.T) {
+			message := retryMessage("overloaded_error")
+			message.StopReason = reason
+			if goai.IsRetryableAssistantError(message) {
+				t.Fatalf("%s with transient-looking text is not an assistant error", reason)
+			}
+		})
 	}
 }
 
-// Pinned packages/ai/test/retry.test.ts:159 (#11057): status-like digits
-// inside an identifier or longer number are not retryable status codes.
+// Source: retry.test.ts:196–205 and :209–215 (#11057). The last two rows
+// are supplemental controls for the same status digits and the status range.
 func TestMainRetrySource11057StatusDigitsInsideIdentifiers(t *testing.T) {
-	for _, text := range []string{
-		`401 {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CU503xyz"}`,
-		"400 image exceeds 5 MB maximum: 5316784 bytes > 5242880 bytes",
+	for _, tc := range []struct {
+		name, text string
+		wantRetry  bool
+	}{
+		{"standalone-520", "520 status code (no body)", true},
+		{"standalone-524", "524 status code (no body)", true},
+		{"embedded-503", `401 {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CU503xyz"}`, false},
+		{"embedded-524", "400 image exceeds 5 MB maximum: 5316784 bytes > 5242880 bytes", false},
+		{"standalone-503", "503 status code (no body)", true},
+		{"standalone-525", "525 status code (no body)", false},
 	} {
-		if goai.IsRetryableAssistantError(&goai.Message{StopReason: goai.StopReasonError, ErrorMessage: text}) {
-			t.Errorf("embedded status retried: %q", text)
-		}
-	}
-	for _, text := range []string{"520 status code (no body)", "524 status code (no body)"} {
-		if !goai.IsRetryableAssistantError(&goai.Message{StopReason: goai.StopReasonError, ErrorMessage: text}) {
-			t.Errorf("standalone status not retried: %q", text)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			if got := goai.IsRetryableAssistantError(retryMessage(tc.text)); got != tc.wantRetry {
+				t.Errorf("retry classification of %q = %v; want %v", tc.text, got, tc.wantRetry)
+			}
+		})
 	}
 }
 

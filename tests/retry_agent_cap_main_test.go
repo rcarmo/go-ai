@@ -2,7 +2,9 @@ package goai_test
 
 import (
 	"context"
+	"slices"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	goai "github.com/rcarmo/go-ai"
@@ -59,4 +61,48 @@ func TestMainAssistantRetrySourceDelayCap(t *testing.T) {
 		t.Fatalf("calls=%d result=%+v", calls, result)
 	}
 }
+
+// Source: retry.test.ts:219–224. Observe the exact attempts through the
+// public assistant policy; the virtual clock advances timers without sleeps.
+func TestSourceV160AssistantRetryExactDelayCaps(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		cap  *int
+		want []time.Duration
+	}{
+		{"default", nil, []time.Duration{2 * time.Second, 4 * time.Second, 8 * time.Second, 16 * time.Second, 32 * time.Second, 60 * time.Second}},
+		{"explicit", intPointer(5000), []time.Duration{2 * time.Second, 4 * time.Second, 5 * time.Second, 5 * time.Second, 5 * time.Second}},
+		{"zero", intPointer(0), []time.Duration{0, 0, 0, 0, 0}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				var delays []time.Duration
+				maxRetries := len(tc.want)
+				calls, started := 0, 0
+				result := goai.RetryAssistantCall(t.Context(), func() *goai.Message {
+					calls++
+					if calls > maxRetries {
+						return &goai.Message{StopReason: goai.StopReasonStop}
+					}
+					return retryMessage("overloaded_error")
+				}, &goai.AssistantRetryPolicy{Enabled: true, MaxRetries: maxRetries, BaseDelayMs: 2000, MaxAgentDelayMs: tc.cap}, &goai.AssistantRetryCallbacks{
+					OnRetryScheduled: func(attempt, limit int, delay time.Duration, _ string) {
+						delays = append(delays, delay)
+						if attempt != len(delays) || limit != maxRetries || calls != attempt || started != attempt-1 {
+							t.Errorf("schedule %d/%d at produce %d and %d starts", attempt, limit, calls, started)
+						}
+					},
+					OnRetryAttemptStart: func() { started++ },
+				})
+				if !slices.Equal(delays, tc.want) {
+					t.Errorf("scheduled delays = %v; want %v", delays, tc.want)
+				}
+				if calls != maxRetries+1 || started != maxRetries || result == nil || result.StopReason != goai.StopReasonStop {
+					t.Fatalf("calls=%d starts=%d result=%+v; want %d retries then stop", calls, started, result, maxRetries)
+				}
+			})
+		})
+	}
+}
+
 func intPointer(value int) *int { return &value }
