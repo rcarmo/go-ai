@@ -57,3 +57,15 @@ A separate source-derived failure fixture returns an error from the environment 
 The published chat catalog has 1,696 entries (63 additions, 65 removals and 138 changed records); the 74 image entries are unchanged. The classifier catalog has five additions, five removals and four changed records. These are [archive-to-archive counts](dependencies/README.md#published-catalog-changes), not Go regeneration evidence.
 
 The three [next Durable originals](durable-next.md) passed, covering invalid parks, ordered signal deliveries and late expiry. The next native comparison must distinguish the caller-facing tagged signal result from the unchanged persisted memo. No Go change was made for these cases.
+
+## Round 2: publication, invalid parks, signals and catalog
+
+### The published v1.6.1 worker keeps grouped journal publication
+
+The unchanged batching original passed. The verified v1.6.1 npm worker returns `50` and publishes eight journal changes in each of two native repeats. The legacy policy on the same worker returns `50` with 54 publications in both repeats, so it does not satisfy the grouped threshold. The v1.6.0 artifact still uses its own opt-in version check and returned eight publications twice. The published prelude, portable entry point and worker entry point match across those archives. The new tests select the v1.6.1 package directly without overlaying the v1.6.0 fixture or changing the production policy.
+
+### Invalid parks retain the public failure path
+
+The unchanged v1.6.1 invalid-park original passed. For the three representable Go returns (output with a park, empty sleep and waiting on an unowned task), the SQLite harness completes the submission, sends an invalid-park error to the model and clears the live tool slot. Native checks also retain one `AfterTool` error receipt with the same task and call, and a failed terminal tool task with a committed result entry. The timed park still completes successfully; mixed and reused invalid parks remain separate controls.
+
+The original's raw JavaScript `{kind: "nap"}` cannot inhabit Go's typed sleep/wait result. All four assertions in the original loop remain partial rather than using the old mixed case as a substitute. No production park or storage code changed. At `0e120500`, five focused tests passed twice without skips and vet passed.
