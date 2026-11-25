@@ -69,3 +69,9 @@ The unchanged batching original passed. The verified v1.6.1 npm worker returns `
 The unchanged v1.6.1 invalid-park original passed. For the three representable Go returns (output with a park, empty sleep and waiting on an unowned task), the SQLite harness completes the submission, sends an invalid-park error to the model and clears the live tool slot. Native checks also retain one `AfterTool` error receipt with the same task and call, and a failed terminal tool task with a committed result entry. The timed park still completes successfully; mixed and reused invalid parks remain separate controls.
 
 The original's raw JavaScript `{kind: "nap"}` cannot inhabit Go's typed sleep/wait result. All four assertions in the original loop remain partial rather than using the old mixed case as a substitute. No production park or storage code changed. At `0e120500`, five focused tests passed twice without skips and vet passed.
+
+### Prepared Schema checks own properties without prototype lookup
+
+All 40 unchanged v1.6.1 validator cases passed. The prepared Go checks require an actual `constructor` property, accept it when present, reject the wrong type for the `toString` property, and do not treat `constructor` as a known type. Separate exact explanation checks cover the missing property, the wrong type and the unrecognized type. A valid object with both own properties remains accepted. Three controls isolate those refusals without introducing JavaScript prototype behavior into Go.
+
+The verified v1.6.1 npm archive has the expected release digest and package manifest. Its 43 executable distribution members and all 172 distribution members match the v1.6.0 package by path and bytes. This is artifact identity, not proof of a runtime load. The focused native tests, vet and Staticcheck passed without production changes.
