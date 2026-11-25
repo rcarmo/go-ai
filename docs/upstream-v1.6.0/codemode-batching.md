@@ -1,12 +1,12 @@
 # Codemode journal batching
 
-The complete pinned case at `packages/durable/test/codemode.test.ts:913–946` returns `50` and requires fewer than ten journal publications. The [native published-worker comparison](../../durable/codemode_worker_concurrent_results_v160_test.go) returns the same value after all 50 deliveries. Both recorded repetitions saw 103 journal publications. No batching change is in production.
+The complete pinned case at `packages/durable/test/codemode.test.ts:913–946` returns `50` and requires fewer than ten journal publications. The [native published-worker comparison](../../durable/codemode_worker_concurrent_results_v160_test.go) returns the same value after all 50 deliveries. Round 47 reduced the count from 103 to 54 in both lane repeats. The upstream limit is still unmet.
 
 ## Where the protocols differ
 
 The pinned host's `pump` in `packages/durable/src/codemode/codemode.ts:952–999` puts completed results and pending acknowledgements into one commit. It delivers those results after the commit and uses the committed counts to decide which new calls may launch.
 
-Go's [parallel loop](../../durable/codemode_parallel.go) commits a delivery before passing it to the guest. The [drain handler](../../durable/codemode_drain_commit.go) persists its issued count before acknowledging the drain. The [journal validator](../../durable/codemode_integrity.go) permits a missing count only on the last delivery of an unsettled run. Under that representation, adding several deliveries with counts still unknown cannot be a valid single commit.
+Go's [parallel loop](../../durable/codemode_parallel.go) commits a delivery before passing it to the guest. The [drain handler](../../durable/codemode_drain_commit.go) can now commit a non-final drain and one ready result from an already-admitted call together. The host still waits for the commit before acknowledging the drain or delivering the result. A [real SQLite cutoff test](../../durable/codemode_parallel_fusion_v160_test.go) verifies one publication before acknowledgement and exact replay without repeating either callback. The [journal validator](../../durable/codemode_integrity.go) still permits a missing count only on the last delivery of an unsettled run. A single commit cannot yet add several deliveries with counts still unknown.
 
 ## Requirements for a batched path
 

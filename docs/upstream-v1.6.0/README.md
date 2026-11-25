@@ -1175,3 +1175,11 @@ All 29 unchanged after-run cases passed. The SQLite parent has a real running af
 ### Prepared Schema checks retain exact enum and contains diagnostics
 
 All 40 unchanged validator cases passed. A reusable validator keeps the 20-value diagnostic cap, accepts the 10,000th enum member and preserves the exact `contains` messages across repeated valid and invalid inputs. The checks strengthen eight already mapped sites; they do not add locators or change production behavior.
+
+### Codemode commits a ready result with the preceding drain
+
+The host can now commit a non-final drain count with one ready result from an already-admitted call. It adopts both records before acknowledging the drain or sending the result. A new call count, missing ready result or oversized combined record keeps the original path. This uses the existing journal format and does not change the maximum record size.
+
+A real portable guest and SQLite process test places result `b` in the ready queue before the drain for `a`. At the transport acknowledgement boundary, one durable publication contains `a` with count two and `b` without a count; only `a` has been sent. The child exits at that boundary, without closing storage. Reopen returns `a` and `b` in order and does not rerun either callback. The bounded-record control checks that the first count can still commit alone when the combination does not fit.
+
+The lane's exact 50-result comparison returned `50` and measured 54 journal publications in both repeats, down from 103. The upstream requirement is fewer than ten. The remaining multi-result batching requirements are in [codemode-batching.md](codemode-batching.md).
