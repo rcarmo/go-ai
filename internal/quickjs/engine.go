@@ -206,7 +206,7 @@ func newEngineWithConfig(ctx context.Context, config wazero.RuntimeConfig) (*Eng
 	return &Engine{runtime: r, compiled: compiled}, nil
 }
 
-var errSandboxClosed = errors.New("Sandbox closed")
+var errSandboxClosed = errors.New("sandbox closed")
 
 // Close cancels active scripts before releasing the runtime. Each Execute
 // still joins its own host callbacks before returning.
@@ -541,7 +541,11 @@ func (e *Engine) Execute(ctx context.Context, code string, opts Options) Result 
 // the diagnostic for an ordinary cancellation or parent deadline.
 func executionAbort(ctx context.Context) *Error {
 	message := "Execution aborted"
-	if cause := context.Cause(ctx); cause != nil && cause != context.Canceled && cause != context.DeadlineExceeded {
+	switch cause := context.Cause(ctx); cause {
+	case errSandboxClosed:
+		message = "Sandbox closed" // Pinned sandbox result text.
+	case nil, context.Canceled, context.DeadlineExceeded:
+	default:
 		message = cause.Error()
 	}
 	return &Error{Kind: ErrorAborted, Message: message}
