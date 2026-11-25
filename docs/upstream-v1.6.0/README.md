@@ -1293,3 +1293,7 @@ The integrated code at `71af2dfc` passed 60 focused top-level Go tests twice, wi
 ### Retry matches status tokens and keeps each delay cap
 
 All 52 unchanged retry cases passed. The scoped native checks match overload and standalone 520/524 status errors, but not those digits embedded in a request ID or a larger number. The public retry runner also reports the pinned default, explicit and zero delay caps on a virtual clock. No wall-clock wait, provider request or production change was needed.
+
+### Grouped replay reports the earlier durable conflict with redacted labels
+
+The unchanged held-batch case passed. With a matching saved count and two changed calls, the native baseline reported the first identity conflict. The grouped policy now checks all held identities and reports call two when its earlier nested-call record exists. It preserves the saved journal and admits no new effect. The legacy and global-only controls still select the first redacted identity refusal. The source also prints literal argument values; Go does not, so that assertion remains partial.
