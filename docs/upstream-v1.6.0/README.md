@@ -1119,3 +1119,29 @@ The integrated code at `389b5ef4` passed 21 focused top-level Go tests twice, wi
 ### Sandbox return cancels an unawaited call
 
 All three unchanged variants passed. Native raw QuickJS and the published portable and Node host APIs return `early`, record one `slow` call as cancelled, and observe its callback cancellation before return. The separate public Go and SQLite path returns `early` and records `slow/cancelled` without launching the callback at all. The final-drain guard prevents that effect from being admitted. Removing the call lost the raw cancellation evidence; forcing final-drain admission caused an unexpected native effect. No production change was needed.
+
+## Round 46
+
+### Sandbox store errors and Durable record limits
+
+All six selected unchanged variants passed. Native inline QuickJS and the raw published replies produce the same five error classes for invalid keys, values and oversized writes. The successful raw reply also carries a store patch larger than a native Durable record. The Go adapter rejects it before publishing a value or writes; the record limit is unchanged. For the individual oversized write, all three placements report the exact 307,202-character size and the `image()` guidance. This checks the standalone result separately from Durable's storage boundary.
+
+### BigInt remainder checks stay exact at 401 digits
+
+All 40 unchanged validator cases passed. The prepared and one-shot native checks distinguish `10^400` from `10^400+1` with divisor five. A zero divisor and a fractional divisor reject typed integers as in the pinned cases. Ordinary numbers retain their existing fractional behavior. The tests keep exact diagnostics and do not change schema encoding or coercion.
+
+### Image fitting respects the encoded byte cap
+
+The [pinned 64×64 PNG case](test-inventory/images-fit-byte-cap.md) passed. Under the 8,000-byte base64 limit, Photon returned 7,092 bytes and Go returned 4,404; both included a note. Removing the note failed the corresponding assertion in both runtimes. This compares the cap and note, without requiring the same output codec or bytes.
+
+### Codemode refreshes tool registration between executions
+
+All three unchanged registration variants passed. The published inline, portable and Node Worker hosts report a duplicate registration, list only `echo`, return `a` from one callback, remove the tool, then return `false` for its presence. Native QuickJS compares fresh tool snapshots. Go and SQLite verify that a later submission cannot see an uninstalled tool. These two native tests exercise their own registration boundaries; they do not stand in for the published host's API.
+
+### Chord copies JSON across an object retry
+
+One [unchanged object retry case](test-inventory/chord-json-retry.md) passed. The witness observed `copyJson` preserve `"a"`, and the replacement object read `{items:["a"]}`. Substituting `"b"` failed the original's document assertion. This verifies the pinned Chord runtime path; the related Durable submission path and native Go were outside the probe.
+
+### Aborting only an after-run child preserves the answered generation
+
+All 29 unchanged after-run cases passed. In the native SQLite comparison, a real after-run child holds an already answered generation. Aborting that child runs cleanup once, clears the live document and leaves the same generation `terminal/completed` with its original answer link. The child itself ends `aborted`; no second model request occurs. Changing the generation outcome to `aborted` failed the terminal-state check. No production change was needed.
