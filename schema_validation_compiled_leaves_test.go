@@ -84,8 +84,8 @@ func TestSourceV160SchemaCompiledJSONLeaves(t *testing.T) {
 	}
 }
 
-// validator.test.ts:354–369, excluding the JS undefined value at L367.
-// Each raw input retains the source's key ordering before Go decodes it.
+// validator.test.ts:354–369. Raw inputs retain the source's key ordering
+// before Go decodes them. L367 uses a typed value for the non-JSON case.
 func TestSourceV160SchemaCompiledPropertyOrder(t *testing.T) {
 	const schema = `{"type":"object","properties":{"a":{"const":1},"b":{"type":"string"},"c":{"type":"integer","minimum":0}},"required":["a","c"],"additionalProperties":false}`
 	compiled := compileV160LeafSchema(t, schema)
@@ -108,6 +108,12 @@ func TestSourceV160SchemaCompiledPropertyOrder(t *testing.T) {
 			}
 		})
 	}
+	t.Run("L367-optional-key-with-undefined", func(t *testing.T) {
+		got, err := compiled.Check(map[string]any{"c": 0, "b": goai.SchemaUndefined{}, "a": 1})
+		if err != nil || !got {
+			t.Fatalf("check with optional undefined = %t, %v; want true", got, err)
+		}
+	})
 }
 
 func compileV160LeafSchema(t *testing.T, schema string) *goai.CompiledJSONSchema {

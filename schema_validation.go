@@ -237,8 +237,12 @@ func (m *toolSchemaMembers) hasSchemas() bool {
 }
 
 func (m *toolSchemaMembers) each(key string, visit func(interface{}) bool) bool {
+	return m.eachCheckingDeclared(key, true, visit)
+}
+
+func (m *toolSchemaMembers) eachCheckingDeclared(key string, checkDeclared bool, visit func(interface{}) bool) bool {
 	property, declared := m.properties[key]
-	if declared && !visit(property) {
+	if declared && checkDeclared && !visit(property) {
 		return false
 	}
 	matched := false
@@ -508,9 +512,16 @@ func (v *toolSchemaValidator) diagnosticObjectKeys(object map[string]interface{}
 func (v *toolSchemaValidator) appendObjectIssues(out toolSchemaIssues, object, schema map[string]interface{}, path string, active map[toolSchemaMemoKey]bool, mode toolSchemaDiagnosticMode) toolSchemaIssues {
 	initial := len(out)
 	if required, ok := schema["required"].([]interface{}); ok {
+		properties, _ := schema["properties"].(map[string]interface{})
 		for _, raw := range required {
 			if key, ok := raw.(string); ok {
-				if _, present := object[key]; !present {
+				current, present := object[key]
+				missing := !present
+				if _, undefined := current.(SchemaUndefined); undefined {
+					child, declared := properties[key]
+					missing = !declared || !v.acceptsRaw(current, child)
+				}
+				if missing {
 					out = append(out, JSONSchemaDiagnostic{schemaIssuePath(path, key), "required", "missing"})
 					if mode == diagnosticFirst {
 						return out
@@ -521,7 +532,9 @@ func (v *toolSchemaValidator) appendObjectIssues(out toolSchemaIssues, object, s
 	}
 	members := v.membersFor(schema)
 	for _, key := range v.resourceIndex().keys(members.properties) {
-		if current, present := object[key]; present && !v.acceptsRaw(current, members.properties[key]) {
+		current, present := object[key]
+		_, undefined := current.(SchemaUndefined)
+		if present && !undefined && !v.acceptsRaw(current, members.properties[key]) {
 			out = v.appendIssues(out, current, members.properties[key], schemaIssuePath(path, key), active, mode)
 			if mode == diagnosticFirst && len(out) > initial {
 				return out

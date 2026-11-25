@@ -495,18 +495,27 @@ func (v *toolSchemaValidator) schemaAcceptsValue(value interface{}, schema map[s
 	}
 	switch value := value.(type) {
 	case map[string]interface{}:
-		if required, ok := schema["required"].([]interface{}); ok {
-			for _, raw := range required {
-				if key, ok := raw.(string); ok {
-					if _, present := value[key]; !present {
-						return false
-					}
+		required, _ := schema["required"].([]interface{})
+		for _, raw := range required {
+			if key, ok := raw.(string); ok {
+				if _, present := value[key]; !present {
+					return false
 				}
 			}
 		}
 		members := v.membersFor(schema)
 		for key, current := range value {
-			if !members.each(key, func(raw interface{}) bool { return v.acceptsRaw(current, raw) }) {
+			// An explicit undefined omits the optional declared check when
+			// this node has no unevaluated keyword. Pattern and additional
+			// rules still inspect the actual key and value.
+			checkDeclared := true
+			if _, undefined := current.(SchemaUndefined); undefined {
+				_, unevaluatedProperties := schema["unevaluatedProperties"]
+				_, unevaluatedItems := schema["unevaluatedItems"]
+				annotates := !v.draft7 && (unevaluatedProperties || unevaluatedItems)
+				checkDeclared = annotates || schemaContainsLiteral(required, key)
+			}
+			if !members.eachCheckingDeclared(key, checkDeclared, func(raw interface{}) bool { return v.acceptsRaw(current, raw) }) {
 				return false
 			}
 		}
