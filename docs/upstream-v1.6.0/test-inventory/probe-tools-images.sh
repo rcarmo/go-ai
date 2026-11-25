@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# != 4 && ( $# != 5 || ( $5 != preparation && $5 != read-contract && $5 != changing-read ) ) ]]; then
-  printf 'Usage: bash %s <pinned-git-mirror> <prepared-oracle-dir> <user-npm-cacache> <release-archive-dir> [preparation|read-contract|changing-read]\n' "$0" >&2
+if [[ $# != 4 && ( $# != 5 || ( $5 != preparation && $5 != read-contract && $5 != changing-read && $5 != model-limits ) ) ]]; then
+  printf 'Usage: bash %s <pinned-git-mirror> <prepared-oracle-dir> <user-npm-cacache> <release-archive-dir> [preparation|read-contract|changing-read|model-limits]\n' "$0" >&2
   exit 1
 fi
 mirror=$(realpath -- "$1")
@@ -21,6 +21,7 @@ mode=${5:-read}
 [[ "$mode" != preparation ]] || base=67f9d63a4f79b3e730d14289193f7c147726f08f
 [[ "$mode" != read-contract ]] || base=04a700eb4fba36df946354a6993ec173e8bfc509
 [[ "$mode" != changing-read ]] || base=d2742a93489bf8be895f3d9a86bb4e4b39e6a547
+[[ "$mode" != model-limits ]] || base=c6a6625b2db95221616a118adab10a851032b3d9
 queue=docs/upstream-v1.6.0/test-inventory/primary-queue-r21.jsonl
 test=packages/durable/test/tools-images.test.ts
 adapter=packages/durable/src/tools/read.ts
@@ -101,6 +102,49 @@ show_failure() {
 
 exec 9>/tmp/go-ai/v160-focused-verify.lock
 flock 9
+if [[ "$mode" == model-limits ]]; then
+  processor=packages/durable/src/tools/image-processor.ts
+  selected="read of images, without an image processor applies the model's image limits instead of the defaults"
+  selector="^$selected$"
+  if ! run original; then show_failure original; exit 1; fi
+  jq -e --arg selected "$selected" '
+    .numPassedTests==1 and .numFailedTests==0 and .numPendingTests==33 and .numTodoTests==0 and
+    ([.testResults[].assertionResults[]|select(.status!="skipped")|[.fullName,.status]]==[[$selected,"passed"]]) and
+    ([.testResults[].assertionResults[].fullName]|unique|length)==34
+  ' "$scratch/original.json" > "$scratch/original.check"
+  [[ $(grep -Fc 'maxWidth: resize?.maxWidth ?? DEFAULT_IMAGE_LIMITS.maxWidth,' "$scratch/$processor") == 1 ]]
+  sed -i 's/maxWidth: resize?\.maxWidth ?? DEFAULT_IMAGE_LIMITS.maxWidth,/maxWidth: DEFAULT_IMAGE_LIMITS.maxWidth,/' "$scratch/$processor"
+  if run mutated; then printf 'Ignoring the model width unexpectedly passed\n' >&2; exit 1; fi
+  if ! jq -e --arg selected "$selected" --slurpfile original "$scratch/original.json" '
+    .numPassedTests==0 and .numFailedTests==1 and .numPendingTests==33 and .numTodoTests==0 and
+    ([.testResults[].assertionResults[]|[.fullName,.status]]==[$original[0].testResults[].assertionResults[]|[.fullName,if .status=="passed" then "failed" else .status end]]) and
+    any(.testResults[].assertionResults[]; .fullName==$selected and (.failureMessages|join("\n")|contains("tools-images.test.ts:161:")))
+  ' "$scratch/mutated.json" > "$scratch/mutated.check"; then show_failure mutated; exit 1; fi
+  flock -u 9
+  git -C "$mirror" show "$pin:$processor" > "$scratch/$processor"
+  check_sources
+  for member in "$js" "$wasm"; do cmp "$scratch/$member" "$scratch/$key/$member"; done
+  for file in "${sources[@]}"; do
+    jq -cn --arg file "$file" --arg sha "$(sha256 "$scratch/$file")" '{file:$file,sha256:$sha}'
+  done > "$scratch/sources.jsonl"
+  fixture=docs/upstream-v1.6.0/test-inventory/tools-images-read-contract.json
+  git show "$base:$fixture" | jq -e --arg pin "$pin" --arg test "$test" --arg sha "$sha" '
+    select(.pin==$pin and any(.sourceDigests[]; .file==$test and .sha256==$sha)) | .fixturesBase64.png8x6 | select(type=="string" and length>0)
+  ' > "$scratch/fixture.json"
+  jq -n --arg pin "$pin" --arg base "$base" --arg test "$test" --arg queue "$queue" --arg selector "$selector" --arg selected "$selected" --arg fixture "$fixture" \
+    --arg node "$(node --version)" --arg vitest "$vitest" --arg url "$url" --arg integrity "$integrity" --arg archiveSha "$archive_sha" --arg aiSha "$ai_sha" \
+    --arg jsSha "$(sha256 "$scratch/$js")" --arg wasmSha "$(sha256 "$scratch/$wasm")" \
+    --slurpfile report "$scratch/original.json" --slurpfile sources "$scratch/sources.jsonl" --slurpfile deps "$scratch/copied.json" --slurpfile png "$scratch/fixture.json" '
+    [$report[0].testResults[].assertionResults[]] as $cases |
+    {format:1,pin:$pin,evidenceBase:$base,node:$node,vitest:$vitest,
+     selection:{file:$test,selector:$selector,caseNames:[$selected],filteredOut:[$cases[]|select(.status=="skipped")|.fullName]},
+     result:{passed:1,failed:0,selectedSkipped:0},sourceDigests:$sources,
+     fixture:{file:$fixture,commit:$base,png8x6:$png[0]},
+     photonArchive:{url:$url,integrity:$integrity,sha256:$archiveSha,jsSha256:$jsSha,wasmSha256:$wasmSha},aiArchiveSha256:$aiSha,
+     control:{change:"use the default width instead of the model override",failed:[$selected],assertions:[161],passed:[]},
+     copiedDependencies:$deps[0],priorQueue:{file:$queue,commit:$base},exclusions:[],scope:"offline-invocation-model-image-limits"}'
+  exit 0
+fi
 if [[ "$mode" == changing-read ]]; then
   prefix='read of an image that changes while it is read '
   growing="${prefix}reads it again rather than return a cut-off image, even when it grew"
