@@ -277,6 +277,8 @@ func assertSourceV160ThinkingMetadata(t *testing.T) {
 			t.Errorf("%s/%s base cost = %+v; want %+v", model.Provider, model.ID, actual, expected)
 		}
 	}
+	// Source: supports-xhigh.test.ts:26–57. Separate the published catalog
+	// fields from the runtime's ordered effort list so neither masks the other.
 	for _, tc := range []struct {
 		id   string
 		cost goai.ModelCost
@@ -286,23 +288,50 @@ func assertSourceV160ThinkingMetadata(t *testing.T) {
 	} {
 		t.Run("anthropic-metadata/"+tc.id, func(t *testing.T) {
 			model := requireModelForThinking(t, goai.ProviderAnthropic, tc.id)
-			assertBaseCost(t, model, tc.cost)
-			compat := model.AnthropicCompat
-			if model.ContextWindow != 1_000_000 || model.MaxTokens != 128_000 || compat == nil {
-				t.Fatalf("Anthropic context/cap/compat = %d/%d/%+v", model.ContextWindow, model.MaxTokens, compat)
-			}
-			for key, value := range map[string]*bool{
-				"forceAdaptiveThinking": compat.ForceAdaptiveThinking, "supportsMidConvoEffort": compat.SupportsMidConvoEffort,
-				"supportsMidConvoSystemMessages": compat.SupportsMidConvoSystemMessages, "supportsMidConvoToolChanges": compat.SupportsMidConvoToolChanges,
-			} {
-				if value == nil || !*value {
-					t.Errorf("Anthropic %s = %v; want explicit true", key, value)
+			levels := []string{"low", "medium", "high", "xhigh", "max"}
+			t.Run("catalog", func(t *testing.T) {
+				if model.Provider != goai.ProviderAnthropic || model.ID != tc.id || model.Api != goai.ApiAnthropicMessages || !model.Reasoning {
+					t.Errorf("unexpected Anthropic catalog identity: %s/%s %s, reasoning=%t", model.Provider, model.ID, model.Api, model.Reasoning)
 				}
-			}
-			if tc.id == "claude-sonnet-5-5" && (compat.SupportsTemperature == nil || *compat.SupportsTemperature) {
-				t.Error("Sonnet supportsTemperature must be explicitly false")
-			}
-			assertThinkingLevels(t, model, strings.Fields("low medium high xhigh max"))
+				// The pinned catalog has no price tiers on either entry.
+				if !reflect.DeepEqual(model.Cost, tc.cost) {
+					t.Errorf("catalog cost = %+v; want %+v", model.Cost, tc.cost)
+				}
+				compat := model.AnthropicCompat
+				if model.ContextWindow != 1_000_000 || model.MaxTokens != 128_000 || compat == nil {
+					t.Fatalf("Anthropic context/cap/compat = %d/%d/%+v", model.ContextWindow, model.MaxTokens, compat)
+				}
+				for _, flag := range []struct {
+					name  string
+					value *bool
+				}{
+					{"forceAdaptiveThinking", compat.ForceAdaptiveThinking},
+					{"supportsMidConvoEffort", compat.SupportsMidConvoEffort},
+					{"supportsMidConvoSystemMessages", compat.SupportsMidConvoSystemMessages},
+					{"supportsMidConvoToolChanges", compat.SupportsMidConvoToolChanges},
+				} {
+					if flag.value == nil || !*flag.value {
+						t.Errorf("Anthropic %s must be explicitly true", flag.name)
+					}
+				}
+				// Sonnet asserts this directly; Opus has the same published flag.
+				if compat.SupportsTemperature == nil || *compat.SupportsTemperature {
+					t.Error("supportsTemperature must be explicitly false")
+				}
+				for _, level := range []goai.ModelThinkingLevel{goai.ThinkingOff, goai.ModelThinkingLevel(goai.ThinkingMinimal)} {
+					if value, present := model.ThinkingLevelMap[level]; !present || value != nil {
+						t.Errorf("catalog %s must be present with a null effort mapping", level)
+					}
+				}
+			})
+			t.Run("effort", func(t *testing.T) {
+				assertThinkingLevels(t, model, levels)
+				for _, level := range levels {
+					if mapped, ok := goai.MapThinkingLevel(model, goai.ModelThinkingLevel(level)); !ok || mapped != level {
+						t.Errorf("mapped %s = (%q, %v); want (%q, true)", level, mapped, ok, level)
+					}
+				}
+			})
 		})
 	}
 	for _, tc := range []struct {
