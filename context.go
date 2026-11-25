@@ -479,17 +479,8 @@ func (v *toolSchemaValidator) schemaAcceptsValue(value interface{}, schema map[s
 		}
 	}
 	types := schemaTypes(schema["type"])
-	if len(types) > 0 {
-		matched := false
-		for _, expectedType := range types {
-			if matchesJSONSchemaType(value, expectedType) {
-				matched = true
-				break
-			}
-		}
-		if !matched {
-			return false
-		}
+	if len(types) > 0 && !v.matchesDeclaredTypes(value, types) {
+		return false
 	}
 	if v.constraintIssue(value, schema, "", make(map[toolSchemaMemoKey]bool), true) != nil || schemaNumericBoundsReason(value, schema) != "" || v.stringFormatReason(value, schema) != "" || v.stringPatternReason(value, schema) != "" {
 		return false

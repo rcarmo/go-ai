@@ -74,6 +74,7 @@ type toolSchemaValidator struct {
 	root            map[string]interface{}
 	draft7          bool
 	trackDynamic    bool
+	strictNumbers   bool
 	formatPolicy    schemaFormatPolicy
 	scope           []string
 	scopeKey        string
@@ -368,8 +369,12 @@ func (v *toolSchemaValidator) appendIssues(out toolSchemaIssues, value, raw inte
 		return out
 	}
 	types := schemaTypes(schema["type"])
-	if len(types) > 0 && !anyMatchesJSONSchemaType(value, types) {
-		return append(out, JSONSchemaDiagnostic{path, "type", "expected " + strings.Join(types, " or ") + ", got " + schemaLiteralTypeName(value)})
+	if len(types) > 0 && !v.matchesDeclaredTypes(value, types) {
+		actual := v.rejectedNumberName(value)
+		if actual == "" {
+			actual = schemaLiteralTypeName(value)
+		}
+		return append(out, JSONSchemaDiagnostic{path, "type", "expected " + strings.Join(types, " or ") + ", got " + actual})
 	}
 	if values, ok := schema["enum"].([]interface{}); ok && !schemaContainsLiteral(values, value) {
 		out = append(out, JSONSchemaDiagnostic{path, "enum", "expected one of " + v.literalEnumList(values)})

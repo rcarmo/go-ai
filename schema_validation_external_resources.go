@@ -52,6 +52,7 @@ func CheckJSONSchemaValueWithOptions(schema json.RawMessage, value any, options 
 }
 
 func (v *toolSchemaValidator) checkStandaloneValue(schema, value any) (bool, error) {
+	v.useStandaloneNumericTypes()
 	accepted := v.acceptsRaw(value, schema)
 	if v.patternFailure != nil {
 		return false, fmt.Errorf("pattern checker unavailable: %w", v.patternFailure)
@@ -200,6 +201,7 @@ func standaloneSchemaInput(value any) (any, json.RawMessage, error) {
 }
 
 func (v *toolSchemaValidator) explainSchemaValue(schema, value any, valueRaw json.RawMessage) ([]JSONSchemaDiagnostic, error) {
+	v.useStandaloneNumericTypes()
 	accepted := v.acceptsRaw(value, schema)
 	if v.patternFailure != nil {
 		return nil, fmt.Errorf("pattern checker unavailable: %w", v.patternFailure)

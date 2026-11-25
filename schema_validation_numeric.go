@@ -7,6 +7,36 @@ import (
 	"strings"
 )
 
+// Conversion and the legacy tool path keep their existing numeric rules.
+// A standalone check or parse validation uses the strict source type domain.
+func (v *toolSchemaValidator) useStandaloneNumericTypes() {
+	if !v.strictNumbers {
+		v.strictNumbers = true
+		// Parse can have memoized reference matches during coercion.
+		clear(v.checked)
+	}
+}
+
+func (v *toolSchemaValidator) matchesDeclaredTypes(value any, types []string) bool {
+	return v.rejectedNumberName(value) == "" && anyMatchesJSONSchemaType(value, types)
+}
+
+func (v *toolSchemaValidator) rejectedNumberName(value any) string {
+	if v.strictNumbers {
+		if n, ok := value.(float64); ok {
+			switch {
+			case math.IsNaN(n):
+				return "NaN"
+			case math.IsInf(n, 1):
+				return "Infinity"
+			case math.IsInf(n, -1):
+				return "-Infinity"
+			}
+		}
+	}
+	return ""
+}
+
 // Numeric keywords constrain numbers even without a type declaration. Keep
 // these checks out of conversion: a converted value can fail this branch's
 // bounds but satisfy another branch of the enclosing union.
