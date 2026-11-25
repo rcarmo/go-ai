@@ -1301,3 +1301,7 @@ The unchanged held-batch case passed. With a matching saved count and two change
 ### Prepared native coercion can produce explicit undefined
 
 All 49 unchanged coercion cases passed. The native baseline did not convert the eight pinned inputs to explicit undefined. Prepared Go coercion now returns `SchemaUndefined` for those values and keeps the property present. It leaves `"x"` and other unsupported values unchanged. The typed parse route validates the result; raw JSON, old one-shot coercion and tool-input policy remain unchanged.
+
+### Stop orphans the same unavailable after-run child
+
+All 29 unchanged after-run cases passed. A real SQLite process exit leaves a running after-run child and an answered generation waiting on it. Reopening without the definition reports that child as blocked. The public idle wait stays pending until Stop orphans the original child, clears the live document and leaves the original answer committed. The source simulates host loss; the native comparison performs a real process exit. No production recovery change was needed.
