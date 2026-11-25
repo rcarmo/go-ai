@@ -102,6 +102,44 @@ func TestSourceV160SchemaRecursiveOneOfMessages(t *testing.T) {
 	assertV160MessageRecords(t, filter, value, want)
 }
 
+// validator.test.ts:443–454. Both properties point to the same Go map,
+// so the public explainer sees shared identity rather than two decoded copies.
+func TestSourceV160SchemaSharedReferencePaths(t *testing.T) {
+	const schema = `{
+		"type":"object","properties":{"a":{"$ref":"#/$defs/P"},"b":{"$ref":"#/$defs/P"}},
+		"$defs":{"P":{"type":"object","properties":{"n":{"type":"integer"}}}}
+	}`
+	const both = `[{"path":"/a/n","keyword":"type","message":"expected integer, got string"},{"path":"/b/n","keyword":"type","message":"expected integer, got string"}]`
+	compiled := compileV160LeafSchema(t, schema)
+	shared := map[string]any{"n": "x"}
+	aliased := map[string]any{"a": shared, "b": shared}
+	assert := func(t *testing.T, input map[string]any, valid bool, want string) {
+		t.Helper()
+		got, err := compiled.Check(input)
+		if err != nil || got != valid {
+			t.Fatalf("check(%#v) = %t, %v; want %t", input, got, err, valid)
+		}
+		issues, err := compiled.Explain(input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertV160StructuredDiagnostics(t, issues, want)
+	}
+	t.Run("L450-shared-object-at-both-paths", func(t *testing.T) {
+		assert(t, aliased, false, both)
+	})
+	t.Run("supplemental-reuse-and-independent-branches", func(t *testing.T) {
+		assert(t, map[string]any{"a": shared, "b": map[string]any{"n": 1}}, false,
+			`[{"path":"/a/n","keyword":"type","message":"expected integer, got string"}]`)
+		assert(t, map[string]any{"a": map[string]any{"n": 1}, "b": shared}, false,
+			`[{"path":"/b/n","keyword":"type","message":"expected integer, got string"}]`)
+		shared["n"] = 1
+		assert(t, aliased, true, `[]`)
+		shared["n"] = "x"
+		assert(t, aliased, false, both)
+	})
+}
+
 func encodeV160Schema(t *testing.T, value any) []byte {
 	t.Helper()
 	data, err := json.Marshal(value)
