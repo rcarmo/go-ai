@@ -711,7 +711,9 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 			Display:      "summarized",
 			BlockBinding: &anthropicBlockBinding{PrefixMismatchBehavior: "drop_block"},
 		}
-		req.OutputConfig = &anthropicOutput{Effort: "high"}
+		// Per-message markers set each turn's effort. Keep the cached envelope
+		// fixed at low so an organization effort cap cannot reject it.
+		req.OutputConfig = &anthropicOutput{Effort: "low"}
 	} else if model.Reasoning {
 		if thinkingEnabled {
 			if compat.forceAdaptiveThinking {
@@ -954,10 +956,6 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 		}
 	}
 
-	if useEffortMessages {
-		req.Messages = append(req.Messages, anthropicMessage{Role: "system", Content: []anthropicContentBlock{}, OutputConfig: &anthropicOutput{Effort: anthropicEffortForOptions(model, opts)}})
-	}
-
 	// Convert tools
 	cc := resolveCacheControl(model, opts)
 	compatForTools := getAnthropicCompat(model)
@@ -1010,6 +1008,11 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 				}
 			}
 		}
+	}
+	if useEffortMessages {
+		// The empty effort control is not cacheable content. Append it only
+		// after the existing cache policy has examined the conversation.
+		req.Messages = append(req.Messages, anthropicMessage{Role: "system", Content: []anthropicContentBlock{}, OutputConfig: &anthropicOutput{Effort: anthropicEffortForOptions(model, opts)}})
 	}
 
 	return req

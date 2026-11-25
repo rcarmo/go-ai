@@ -21,8 +21,8 @@ func TestV0850AnthropicMidConversationEffortMarkersAndBinding(t *testing.T) {
 		t.Fatalf("first messages len=%d, want user+marker: %#v", len(first.Messages), first.Messages)
 	}
 	assertV0850EffortMarker(t, first.Messages[1], "low")
-	if first.OutputConfig == nil || first.OutputConfig.Effort != "high" {
-		t.Fatalf("top-level output_config=%#v, want high", first.OutputConfig)
+	if first.OutputConfig == nil || first.OutputConfig.Effort != "low" {
+		t.Fatalf("top-level output_config=%#v, want low", first.OutputConfig)
 	}
 	if first.Thinking == nil || first.Thinking.Type != "adaptive" || first.Thinking.Display != "summarized" || first.Thinking.BlockBinding == nil || first.Thinking.BlockBinding.PrefixMismatchBehavior != "drop_block" {
 		t.Fatalf("thinking=%#v, want adaptive summarized drop_block", first.Thinking)
