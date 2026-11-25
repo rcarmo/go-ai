@@ -409,7 +409,7 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 		compat := getAnthropicCompat(model)
 		threadSession := anthropicThreadSession(model, opts)
 		if !hasAnthropicBetaHeader(model.Headers, optHeaders) {
-			if !compat.forceAdaptiveThinking {
+			if model.Reasoning && anthropicThinkingRequested(opts) && !compat.forceAdaptiveThinking {
 				betas = append(betas, interleavedThinkingBeta)
 			}
 			if !compat.supportsEagerToolInputStreaming && len(convCtx.Tools) > 0 {
@@ -691,7 +691,7 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 	}
 
 	// Temperature: gate on supportsTemperature and not-thinking (upstream parity)
-	thinkingEnabled := opts != nil && opts.Reasoning != nil && *opts.Reasoning != "" && *opts.Reasoning != "off"
+	thinkingEnabled := anthropicThinkingRequested(opts)
 	thinkingDisabled := anthropicThinkingDisabled(model, opts)
 	useEffortMessages := compat.supportsMidConvoEffort && !thinkingDisabled
 	supportsTemp := true
@@ -1034,6 +1034,10 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 	}
 
 	return req
+}
+
+func anthropicThinkingRequested(opts *goai.StreamOptions) bool {
+	return opts != nil && opts.Reasoning != nil && *opts.Reasoning != "" && *opts.Reasoning != "off"
 }
 
 // A nil reasoning option retains managed-effort defaults. An explicit off
