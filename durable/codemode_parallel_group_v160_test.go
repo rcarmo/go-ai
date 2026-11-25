@@ -150,6 +150,11 @@ func groupedHarnessV160(t *testing.T, dir string, store *SQLiteStorage, cut bool
 		if result.Error != "" || !result.HasValue || result.Value != "b" {
 			return fmt.Errorf("recovered result = %+v; want b", result)
 		}
+		if !cut {
+			if err := checkGroupedJournalSealV160(ctx, store); err != nil {
+				return err
+			}
+		}
 		return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone(nil), nil })
 	})
 	if _, err := registry.RegisterTask(def); err != nil {
@@ -258,4 +263,43 @@ func TestV160CodemodeCommittedGroupEarlyTerminalRecovery(t *testing.T) {
 	if worker.starts.Load() != 1 || worker.deliveries.Load() != 2 {
 		t.Fatalf("replay starts=%d outcomes delivered=%d; want 1 and 2", worker.starts.Load(), worker.deliveries.Load())
 	}
+}
+
+// Exercise the real storage reducer with a detached snapshot of the live,
+// sealed SQLite records. The failed candidate never reaches the writer.
+func checkGroupedJournalSealV160(ctx context.Context, store *SQLiteStorage) error {
+	snapshot, err := store.Snapshot(ctx)
+	if err != nil {
+		return err
+	}
+	l := DefaultLimits()
+	for _, doc := range snapshot.Documents {
+		if doc.Kind != codemodeJournalKind || doc.Retired {
+			continue
+		}
+		var journal codemodeJournalState
+		if err := fromObject(doc.Value, &journal, l); err != nil {
+			return err
+		}
+		if len(journal.Deliveries) != 3 || journal.Deliveries[2].IssuedAfter != nil {
+			return errors.New("test needs unused third outcome under a sealed run")
+		}
+		journal.Deliveries[2].IssuedAfter = watermark120(3)
+		altered, err := dtoObject(journal, l)
+		if err != nil {
+			return err
+		}
+		put := doc
+		put.Value, put.DeltasSinceBase = altered, 0
+		delta := DocumentDelta{ID: doc.ID, Version: doc.Version, Ops: []Operation{{"r", map[string]any(altered)}}}
+		for _, write := range []Write{{Op: "put-document", Document: &put}, {Op: "delta-document", Delta: &delta}} {
+			_, err := prepareExplicit(snapshot, commitRecord{Seq: snapshot.Seq + 1, Writes: []Write{write}}, l)
+			var rejected *StorageRejected
+			if !errors.As(err, &rejected) || rejected.Reason != "sealed codemode journal changed" {
+				return fmt.Errorf("%s: %v; want sealed-journal rejection", write.Op, err)
+			}
+		}
+		return nil
+	}
+	return errors.New("live sealed journal not found")
 }

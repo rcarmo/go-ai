@@ -96,6 +96,9 @@ type CodemodeEvent struct {
 	Drain  *CodemodeDrain
 	Call   *CodemodeCall
 	Result *CodemodeResult
+	// scriptEnd comes from a validated worker done frame. It is not part
+	// of the transport wire DTO and does not authorize an effect.
+	scriptEnd *CodemodeWorkerDuring
 }
 type CodemodeCall struct {
 	argumentsDecoded   bool

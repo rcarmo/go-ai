@@ -141,8 +141,8 @@ func (r *CodemodeWorkerRemote) Execute(ctx context.Context, code string, start C
 	// Let RPCs for abandoned calls return after the guest ends. The
 	// transport can join them without waiting for the host to receive the
 	// terminal event, which is deliberately held until the transport returns.
-	finish := func(ctx context.Context, result *CodemodeResult) error {
-		if _, err := exchange(ctx, CodemodeEvent{Result: result}); err != nil {
+	finish := func(ctx context.Context, result *CodemodeResult, scriptEnd *CodemodeWorkerDuring) error {
+		if _, err := exchange(ctx, CodemodeEvent{Result: result, scriptEnd: scriptEnd}); err != nil {
 			return err
 		}
 		terminal = true
@@ -407,7 +407,16 @@ func (r *CodemodeWorkerRemote) Execute(ctx context.Context, code string, start C
 					result.Output, err = formatQuickJSText(formatted)
 				}
 				if err == nil {
-					err = finish(callCtx, &result)
+					var end *CodemodeWorkerDuring
+					if scriptError != nil && start.JournalVersion == codemodeGroupedJournalVersion {
+						// A no-position done frame reached here only for the
+						// verified effect-free syntax-error case above.
+						end = new(CodemodeWorkerDuring)
+						if message.During != nil {
+							*end = *message.During
+						}
+					}
+					err = finish(callCtx, &result, end)
 				}
 			case "crash", "failure":
 				result := CodemodeResult{Images: images, Error: message.Message, WallMs: time.Since(began).Milliseconds()}
@@ -426,7 +435,7 @@ func (r *CodemodeWorkerRemote) Execute(ctx context.Context, code string, start C
 					if result.Error == "" {
 						result.Error = "Remote sandbox failed"
 					}
-					err = finish(callCtx, &result)
+					err = finish(callCtx, &result, nil)
 				}
 			default:
 				err = reject("unknown worker message type")
