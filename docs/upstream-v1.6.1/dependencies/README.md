@@ -8,7 +8,7 @@ The oracle is the Git tree at `ef4a1cfcca62b77ad3558337ff3e1c7f6beeadfe`. Before
 - Six [npm tarballs](package-archives.jsonl) match the npm registry SHA-512 digests. The packed names, versions and dependency fields match their source manifests. The registry metadata does not supply a Git commit attestation.
 - The [lockfile ledger](npm-closure.jsonl) resolves the AI, Codemode, Durable and Schema roots and their linked dependencies: six workspaces, 305 npm placements and 547 edges. Of those edges, 522 resolve and 25 are absent optional peers. The ledger includes development and platform-constrained placements; it is not an installation or native correspondence claim.
 - A workspace-only `npm ci` with lifecycle scripts disabled installed the exact Codemode test scope on Linux arm64 with Node 26.13.0 and Vitest 4.1.12. The locked `quickjs-wasi` 3.6.2 tarball matches its SHA-512 integrity; its WASM matches both the installed module and native embedded bytes (`d4c9375f2b1ca4dc95f72c8aa2982a7a9951ac8011490d79c6582df732b4bbd9`). Installation and byte identity do not establish host parity. The [Durable Node scope](durable-node-tests.md) adds only its pinned runtime packages to that runner.
-- The 43 published provider payloads match the source tarball payloads byte for byte and the schema-v6 catalog's file hashes. The two manifests differ only in `generatedAt`. The published generated model module has SHA-256 `523505cb45698abc4f8073d6e64feefbde471fa7d7586962f95e2af7262d1777`. No Go catalog was regenerated and no generation pin was changed.
+- The 43 published provider payloads match the source tarball payloads byte for byte and the schema-v6 catalog's file hashes. The two manifests differ only in `generatedAt`. The published generated model module has SHA-256 `523505cb45698abc4f8073d6e64feefbde471fa7d7586962f95e2af7262d1777`. This input check does not regenerate the Go catalog.
 
 ## Reproduce the static checks
 
@@ -35,4 +35,4 @@ The [catalog delta](catalog-module-delta.jsonl) compares complete exported recor
 | Image | 74 | 74 | 0 | 0 | 0 |
 | Classifier | 81 | 81 | 5 | 5 | 4 |
 
-Use `bun run docs/upstream-v1.6.1/dependencies/catalog-module-delta.ts "$V160_MODELS_JS" "$V161_MODELS_JS"` with the two verified archives' intact `dist` trees. This compares upstream packages only. Go generation, registry lookup and the v1.6.1 regeneration gate remain unverified.
+Use `bun run docs/upstream-v1.6.1/dependencies/catalog-module-delta.ts "$V160_MODELS_JS" "$V161_MODELS_JS"` with the two verified archives' intact `dist` trees. This compares upstream packages only. The [Round 2 comparison](../README.md#the-go-catalog-regenerates-from-the-verified-v161-archive) separately verifies the native generation, registry and local gate.

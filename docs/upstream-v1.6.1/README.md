@@ -20,7 +20,7 @@ git -C "$PI_MIRROR" diff --name-status --find-renames \
 | Durable | Audit the changed scheduler, parks, signals, live state, transaction and storage paths against the v1.6.1 originals. Retain crash, ownership and publication guarantees. |
 | AI | Reverify provider request and stream changes, including Codex SSE, alongside the model data and catalog regeneration. Do not treat the old wire receipts as a comparison against changed source. |
 | Schema | Standalone `src/` and `test/` are byte-identical; verify its new published artifact and dependencies before carrying forward scoped evidence. |
-| Dependencies | Reconcile `package-lock.json`, the coding-agent install lock, and the release manifests and archives from the new pin. Do not use the v1.6.0 installation as a verified v1.6.1 oracle. The model-regeneration gate and checked-in generated catalog remain at v1.6.0 until the new archives and regeneration are verified. |
+| Dependencies | Reconcile `package-lock.json`, the coding-agent install lock, and the release manifests and archives from the new pin. Do not use the v1.6.0 installation as a verified v1.6.1 oracle. The retarget initially left model regeneration at v1.6.0; the verified Round 2 comparison below moves that gate to v1.6.1. |
 
 ## Evidence and retained gates
 
@@ -81,3 +81,13 @@ The verified v1.6.1 npm archive has the expected release digest and package mani
 Both unchanged v1.6.1 signal originals passed. Native public SQLite outcomes initially returned the right delivery decisions, winning values and deadline wake, but serialized the signal states as `{value: ...}` or `{expired: true}`. `SignalState.MarshalJSON` now emits `{kind: "value", value: ...}` or `{kind: "expired"}`. The Go `Value` and `Expired` fields, delivery protocol and persisted memo formats are unchanged.
 
 A separate real SQLite reopen verifies both legacy memo forms, distinguishes an absent signal from an explicitly delivered null, and checks that mutating a sender or returned value does not mutate the memo. Three controls independently catch a missing value tag, the old expiry view, and a tag leaking into a stored memo. Twelve focused native groups passed twice, and vet and Staticcheck passed.
+
+### The Go catalog regenerates from the verified v1.6.1 archive
+
+The 28 unchanged catalog validation cases and three Claude generation cases passed. The old Go generator accepted the published modular JavaScript but rejected the exact v1.6.1 offline manifest. The offline path now admits that exact schema-v6 manifest, including its 43 file hashes, without dropping the older supported manifests. Both generator paths reproduce identical chat, image and classifier output. The public registries match all 1,851 published records: 1,696 chat, 74 image and 81 classifier. Image output did not change.
+
+The local model-regeneration gate now checks the v1.6.1 archive and manifest. Independent controls reject changed chat, image and classifier metadata, a stale manifest and the wrong archive. Catalog generation is not an approval to publish a release or a claim that every provider API was tested.
+
+### Workers AI preserves the pinned empty versus null replay content
+
+All five unchanged `openai-completions-non-null-assistant-content.test.ts` variants passed, using the verified provider data from the release alongside the unchanged test and API sources. With the old Go catalog, the four models requiring an empty string sent JSON `null`; GLM-5.3 correctly sent `null`. After regeneration, the public request hook captures `""` for the four models and exact JSON `null` for GLM-5.3. All cases retain the exact four role positions and `tool-1` call ID. The hook stops each request before transport, so this is not a live Cloudflare test. No provider runtime code changed.
