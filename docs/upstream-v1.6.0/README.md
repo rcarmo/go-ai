@@ -1273,3 +1273,7 @@ The integrated code at `81abc657` passed 32 focused top-level Go tests twice, wi
 ### Prepared validation returns an unchanged value or ordered diagnostics
 
 All 49 unchanged coercion cases passed. The prepared Go API now has `Validate`, which returns the valid input without converting it or returns the ordered diagnostics for `/count` and `/tags`. On the same handle, `Parse` still converts `"42"` and `"a"` to `42` and `["a"]`. The comparison does not claim JavaScript reference identity or static type equivalence.
+
+### Assistant retry policy distinguishes temporary failures from usage limits
+
+All 52 unchanged retry cases passed. The scoped native checks match missing Responses terminal events, Azure capacity errors and temporary ChatGPT subscription errors as retryable. Quota, subscription and workspace usage limits stay permanent. A scripted Responses stream that ends early also produces the exact assistant error and recovers on one retry. These tests do not make a live request or claim equivalence with provider SDK HTTP retry policy.
