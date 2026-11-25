@@ -111,3 +111,11 @@ The unchanged deadline original passed. Native SQLite reopened with the saved de
 The unexpired control runs the same script and worker with the clock still before the deadline. It opens a second guest, makes one echo call, and keeps the original deadline. The prior v1.6.0 deadline and v1.6.1 lost-commit checks also passed. Four focused Go tests passed twice, plus vet and Staticcheck. No production code changed.
 
 Exact native test code: `cf2199c2`.
+
+### Published worker replay keeps an undefined global result undefined
+
+The unchanged original passed. The published v1.6.1 worker and reopened native SQLite journal preserve the original `[true,true]` result: the global returns undefined before and after the replay boundary. The native test checks the committed no-value delivery and both actual guest starts. A separate control retains a committed explicit-null argument rather than interpreting it as an omitted argument; it does not assert a null result.
+
+Four focused Go tests passed twice, plus vet and Staticcheck. No production code or saved format changed.
+
+Exact native test code: `3dc0c63f`.
