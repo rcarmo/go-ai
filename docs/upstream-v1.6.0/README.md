@@ -1297,3 +1297,7 @@ All 52 unchanged retry cases passed. The scoped native checks match overload and
 ### Grouped replay reports the earlier durable conflict with redacted labels
 
 The unchanged held-batch case passed. With a matching saved count and two changed calls, the native baseline reported the first identity conflict. The grouped policy now checks all held identities and reports call two when its earlier nested-call record exists. It preserves the saved journal and admits no new effect. The legacy and global-only controls still select the first redacted identity refusal. The source also prints literal argument values; Go does not, so that assertion remains partial.
+
+### Prepared native coercion can produce explicit undefined
+
+All 49 unchanged coercion cases passed. The native baseline did not convert the eight pinned inputs to explicit undefined. Prepared Go coercion now returns `SchemaUndefined` for those values and keeps the property present. It leaves `"x"` and other unsupported values unchanged. The typed parse route validates the result; raw JSON, old one-shot coercion and tool-input policy remain unchanged.
