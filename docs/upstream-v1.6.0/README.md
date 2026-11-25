@@ -1287,3 +1287,9 @@ A real SQLite process exit leaves the result committed and the task running. Rec
 The host now counts both keys and JSON values in the retained UTF-16 budget. The native baseline accepted a merge whose values alone were at the limit. The corrected host rejects it. A separate archived guest comparison and the native boundary checks agree at and one unit above the limit, including a key encoded as a surrogate pair.
 
 The integrated code at `71af2dfc` passed 60 focused top-level Go tests twice, without skips. The default published worker returned `50` with eight journal publications in each repeat. Vet and Staticcheck v0.8.2 passed. The inventory at `8252835c` records 1,968 scoped sites: 1,914 mapped, 49 partial and five unmatched. Thirty-six of the 214 changed suites have assertion-level links. Full parity remains open.
+
+## Round 53
+
+### Retry matches status tokens and keeps each delay cap
+
+All 52 unchanged retry cases passed. The scoped native checks match overload and standalone 520/524 status errors, but not those digits embedded in a request ID or a larger number. The public retry runner also reports the pinned default, explicit and zero delay caps on a virtual clock. No wall-clock wait, provider request or production change was needed.
