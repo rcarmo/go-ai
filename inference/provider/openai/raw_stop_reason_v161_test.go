@@ -19,25 +19,34 @@ func TestSourceV161CompletionsRawStopReason(t *testing.T) {
 		raw, diagnostic                 string
 		retry                           bool
 		contentType, content            string
+		repeatFinish                    bool
 	}{
+		{"successful-stop", "chatcmpl-1", "", "stop", "", false, goai.StopReasonStop,
+			"stop", "", false, "", "", false},
 		{"provider-error", "chatcmpl-3", "", "error", "", false, goai.StopReasonError,
-			"error", "Provider finish_reason: error", true, "", ""},
+			"error", "Provider finish_reason: error", true, "", "", false},
 		{"content-filter", "chatcmpl-2", "", "content_filter", "", false, goai.StopReasonError,
-			"content_filter", "Provider finish_reason: content_filter", false, "", ""},
+			"content_filter", "Provider finish_reason: content_filter", false, "", "", false},
 		{"visible-text", "gen-1", `{"content":"Done."}`, "stop", "MALFORMED_RESPONSE", true, goai.StopReasonStop,
-			"stop.MALFORMED_RESPONSE", "", false, "text", "Done."},
+			"stop.MALFORMED_RESPONSE", "", false, "text", "Done.", false},
 		{"reasoning-only", "gen-8", `{"reasoning":"Let me think."}`, "stop", "MALFORMED_RESPONSE", true, goai.StopReasonError,
-			"stop.MALFORMED_RESPONSE", "OpenRouter returned an empty response (native_finish_reason: MALFORMED_RESPONSE)", true, "thinking", "Let me think."},
+			"stop.MALFORMED_RESPONSE", "OpenRouter returned an empty response (native_finish_reason: MALFORMED_RESPONSE)", true, "thinking", "Let me think.", false},
 		{"whitespace-other", "gen-9", `{"content":"  "}`, "stop", "OTHER", true, goai.StopReasonError,
-			"stop.OTHER", "OpenRouter returned an empty response (native_finish_reason: OTHER)", true, "text", "  "},
+			"stop.OTHER", "OpenRouter returned an empty response (native_finish_reason: OTHER)", true, "text", "  ", false},
 		{"clean-stop", "gen-10", "", "stop", "end_turn", true, goai.StopReasonStop,
-			"stop.end_turn", "", false, "", ""},
+			"stop.end_turn", "", false, "", "", false},
 		{"mixed-case-clean-stop", "gen-11", "", "stop", "End_Turn", true, goai.StopReasonStop,
-			"stop.End_Turn", "", false, "", ""},
+			"stop.End_Turn", "", false, "", "", false},
+		{"tool-call", "gen-2", `{"tool_calls":[{"index":0,"id":"call_1","function":{"name":"read","arguments":"{}"}}]}`, "tool_calls", "STOP", true, goai.StopReasonToolUse,
+			"tool_calls.STOP", "", false, "toolCall", "", false},
 		{"native-provider-error", "gen-3", "", "error", "MALFORMED_FUNCTION_CALL", true, goai.StopReasonError,
-			"error.MALFORMED_FUNCTION_CALL", "Provider finish_reason: error (native_finish_reason: MALFORMED_FUNCTION_CALL)", true, "", ""},
+			"error.MALFORMED_FUNCTION_CALL", "Provider finish_reason: error (native_finish_reason: MALFORMED_FUNCTION_CALL)", true, "", "", false},
+		{"trailing-finish", "gen-4", "", "error", "MALFORMED_FUNCTION_CALL", true, goai.StopReasonError,
+			"error.MALFORMED_FUNCTION_CALL", "Provider finish_reason: error (native_finish_reason: MALFORMED_FUNCTION_CALL)", true, "", "", true},
+		{"identical-reasons", "gen-5", "", "stop", "stop", true, goai.StopReasonStop,
+			"stop", "", false, "", "", false},
 		{"non-openrouter", "chatcmpl-6", "", "stop", "MALFORMED_RESPONSE", false, goai.StopReasonStop,
-			"stop", "", false, "", ""},
+			"stop", "", false, "", "", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			model := &goai.Model{ID: "test-model", Name: "Test Model", Provider: goai.ProviderOpenAI, Api: goai.ApiOpenAICompletions,
@@ -54,6 +63,9 @@ func TestSourceV161CompletionsRawStopReason(t *testing.T) {
 				native = fmt.Sprintf(`,"native_finish_reason":%q`, tc.native)
 			}
 			fmt.Fprintf(&body, "data: {\"id\":%q,\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":%q%s}]}\n\n", tc.id, tc.finish, native)
+			if tc.repeatFinish {
+				fmt.Fprintf(&body, "data: {\"id\":%q,\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":%q}]}\n\n", tc.id, tc.finish)
+			}
 			body.WriteString("data: [DONE]\n\n")
 			requests := 0
 			transport := promptCacheTransportV160(func(r *http.Request) (*http.Response, error) {
@@ -85,6 +97,8 @@ func TestSourceV161CompletionsRawStopReason(t *testing.T) {
 			if tc.contentType != "" {
 				if len(message.Content) != 1 || message.Content[0].Type != tc.contentType || message.Content[0].Text+message.Content[0].Thinking != tc.content {
 					t.Errorf("content=%+v, want %s %q", message.Content, tc.contentType, tc.content)
+				} else if tc.contentType == "toolCall" && (message.Content[0].ID != "call_1" || message.Content[0].Name != "read") {
+					t.Errorf("tool call=%+v; want call_1/read", message.Content[0])
 				}
 			}
 		})
