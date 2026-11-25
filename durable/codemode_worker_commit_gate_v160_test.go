@@ -37,6 +37,16 @@ func (s *failNextJournalCommitV160) Commit(ctx context.Context, batches [][]Stor
 // the failed harness to close and join instead of using the source's timer.
 func TestSourceV160CodemodePublishedWorkerResultAfterJournal(t *testing.T) {
 	sandbox, remote := newJournalWorkerSandboxV160(t)
+	checkPublishedWorkerResultAfterJournal(t, sandbox, remote)
+}
+
+func TestSourceV161CodemodePublishedWorkerResultAfterJournal(t *testing.T) {
+	sandbox, remote := newJournalWorkerSandbox(officialWorkerPackageRoot(t, "GOAI_CODEMODE_V161_PACKAGE_ROOT", "1.6.1"))
+	checkPublishedWorkerResultAfterJournal(t, sandbox, remote)
+}
+
+func checkPublishedWorkerResultAfterJournal(t *testing.T, sandbox *RemoteCodemodeSandbox, remote *journalWorkerRemoteV160) {
+	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	store, err := newTestSQLite(t)
