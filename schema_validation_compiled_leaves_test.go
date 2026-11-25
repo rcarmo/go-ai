@@ -8,15 +8,32 @@ import (
 	goai "github.com/rcarmo/go-ai"
 )
 
-// validator.test.ts:345, restricted to the seven JSON-only numeric/string
-// schema rows at L328–334. The pinned standalone and embedded checks all
-// produced the listed verdicts; agreement alone would not detect a shared bug.
+// validator.test.ts:345, restricted to the JSON values of L320–334. The
+// Uint8Array inputs at L325–326 are separate JS values, not JSON arrays or
+// objects. The pinned standalone and embedded checks all produced the listed
+// verdicts; agreement alone would not detect a shared bug.
 func TestSourceV160SchemaCompiledJSONLeaves(t *testing.T) {
 	for _, tc := range []struct {
 		name, schema string
 		values       []string
 		want         []bool
 	}{
+		{"L320-string-const", `{"const":"a"}`,
+			[]string{`"a"`, `"b"`, `1`, `null`}, []bool{true, false, false, false}},
+		{"L321-null-const", `{"const":null}`,
+			[]string{`null`, `0`, `false`, `"null"`}, []bool{true, false, false, false}},
+		{"L322-mixed-enum", `{"enum":["a",1,null]}`,
+			[]string{`"a"`, `1`, `null`, `"b"`, `2`, `true`}, []bool{true, true, true, false, false, false}},
+		{"L323-string-or-null", `{"type":["string","null"]}`,
+			[]string{`"a"`, `null`, `1`, `{}`, `[]`}, []bool{true, true, false, false, false}},
+		{"L324-integer-or-boolean", `{"type":["integer","boolean"]}`,
+			[]string{`1`, `1.5`, `true`, `"1"`}, []bool{true, false, true, false}},
+		{"L325-number-or-array", `{"type":["number","array"]}`,
+			[]string{`1.5`, `2`, `[]`, `{}`}, []bool{true, true, true, false}},
+		{"L326-object-or-bytes", `{"type":["object","bytes"]}`,
+			[]string{`{}`, `[]`, `null`}, []bool{true, false, false}},
+		{"L327-string-or-null-union", `{"anyOf":[{"type":"string"},{"type":"null"}]}`,
+			[]string{`"a"`, `null`, `1`}, []bool{true, true, false}},
 		{"L328-integer-or-long-string", `{"anyOf":[{"type":"integer"},{"type":"string","minLength":2}]}`,
 			[]string{`1`, `1.5`, `"ab"`, `"a"`}, []bool{true, false, true, false}},
 		{"L329-integer-bounds", `{"type":"integer","minimum":1,"exclusiveMaximum":5}`,
