@@ -15,9 +15,9 @@ type JSONSchemaCompileOptions struct {
 	RejectUnresolvedRefs bool
 }
 
-// CompiledJSONSchema is a prepared schema for repeated non-coercing checks
-// and explanations. Its schema and host resource registry belong to it;
-// each call starts with fresh value and dynamic scope state.
+// CompiledJSONSchema is a prepared schema for repeated checks, explanations
+// and coercion. Its schema and host resource registry belong to it; each call
+// starts with fresh value and dynamic scope state.
 type CompiledJSONSchema struct {
 	schema   any
 	prepared *toolSchemaValidator
@@ -63,6 +63,28 @@ func (c *CompiledJSONSchema) Explain(value any) ([]JSONSchemaDiagnostic, error) 
 		return nil, err
 	}
 	return v.explainSchemaValue(c.schema, value, raw)
+}
+
+// Coerce applies the coercion rules without requiring the result to pass
+// validation. It does not modify the input. Pass a decoded JSON value or a
+// json.RawMessage, as for Check.
+func (c *CompiledJSONSchema) Coerce(value any) (any, error) {
+	v, value, _, err := c.call(value)
+	if err != nil {
+		return nil, err
+	}
+	return (standaloneSchemaValue{validator: v, schema: c.schema, value: value}).coerce()
+}
+
+// Parse coerces a value and checks the result. It returns the coerced value
+// with an empty diagnostic slice, or nil with the diagnostics of the coerced
+// value. Errors report input or checker failures.
+func (c *CompiledJSONSchema) Parse(value any) (any, []JSONSchemaDiagnostic, error) {
+	v, value, _, err := c.call(value)
+	if err != nil {
+		return nil, nil, err
+	}
+	return (standaloneSchemaValue{validator: v, schema: c.schema, value: value}).parse()
 }
 
 func (c *CompiledJSONSchema) call(value any) (*toolSchemaValidator, any, json.RawMessage, error) {

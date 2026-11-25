@@ -127,15 +127,7 @@ func ParseJSONSchemaValueWithResources(schema json.RawMessage, value any, resour
 	if err != nil {
 		return nil, nil, err
 	}
-	coerced, err := call.coerce()
-	if err != nil {
-		return nil, nil, err
-	}
-	diagnostics, err := call.validator.explainSchemaValue(call.schema, coerced, nil)
-	if err != nil || len(diagnostics) != 0 {
-		return nil, diagnostics, err
-	}
-	return coerced, diagnostics, nil
+	return call.parse()
 }
 
 type standaloneSchemaValue struct {
@@ -157,6 +149,18 @@ func (call standaloneSchemaValue) coerce() (any, error) {
 		return nil, fmt.Errorf("pattern checker unavailable: %w", v.patternFailure)
 	}
 	return value, nil
+}
+
+func (call standaloneSchemaValue) parse() (any, []JSONSchemaDiagnostic, error) {
+	coerced, err := call.coerce()
+	if err != nil {
+		return nil, nil, err
+	}
+	diagnostics, err := call.validator.explainSchemaValue(call.schema, coerced, nil)
+	if err != nil || len(diagnostics) != 0 {
+		return nil, diagnostics, err
+	}
+	return coerced, diagnostics, nil
 }
 
 func prepareStandaloneSchemaValue(schema json.RawMessage, value any, resources map[string]json.RawMessage, draft []JSONSchemaReferenceDraft) (standaloneSchemaValue, error) {
