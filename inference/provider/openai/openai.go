@@ -1042,10 +1042,11 @@ type sseChunk struct {
 }
 
 type sseChoice struct {
-	Index        int       `json:"index"`
-	Delta        sseDelta  `json:"delta"`
-	FinishReason *string   `json:"finish_reason"`
-	Usage        *sseUsage `json:"usage,omitempty"`
+	Index              int             `json:"index"`
+	Delta              sseDelta        `json:"delta"`
+	FinishReason       *string         `json:"finish_reason"`
+	NativeFinishReason json.RawMessage `json:"native_finish_reason"`
+	Usage              *sseUsage       `json:"usage,omitempty"`
 }
 
 type sseDelta struct {
@@ -1206,6 +1207,8 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 	var thinkingBlockIdx = -1
 	var textBlockIdx = -1
 	var finishReason *string
+	var nativeReason, nativeAtFinish string
+	isOpenRouter := model.Provider == goai.ProviderOpenRouter || strings.Contains(model.BaseURL, "openrouter.ai")
 
 	events := sse.Parse(body)
 	for evt := range events {
@@ -1250,8 +1253,15 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 		}
 		delta := choice.Delta
 
+		if isOpenRouter && len(choice.NativeFinishReason) != 0 {
+			var reported string
+			if json.Unmarshal(choice.NativeFinishReason, &reported) == nil && reported != "" {
+				nativeReason = reported
+			}
+		}
 		if choice.FinishReason != nil {
 			finishReason = choice.FinishReason
+			nativeAtFinish = nativeReason
 			partial.RawStopReason = *choice.FinishReason
 		}
 
@@ -1488,8 +1498,35 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 		}
 	}
 	partial.StopReason = reason
+	if finishReason != nil && nativeAtFinish != "" && nativeAtFinish != *finishReason {
+		partial.RawStopReason = *finishReason + "." + nativeAtFinish
+		if partial.StopReason == goai.StopReasonError && partial.ErrorMessage != "" {
+			partial.ErrorMessage += " (native_finish_reason: " + nativeAtFinish + ")"
+		}
+	}
+	if nativeReason != "" {
+		flagOpenRouterEmptyStop(partial, nativeReason)
+	}
 
-	send(&goai.DoneEvent{Reason: reason, Message: partial})
+	send(&goai.DoneEvent{Reason: partial.StopReason, Message: partial})
+}
+
+func flagOpenRouterEmptyStop(message *goai.Message, nativeReason string) {
+	if message.StopReason != goai.StopReasonStop {
+		return
+	}
+	switch strings.ToLower(nativeReason) {
+	case "stop", "end_turn", "stop_sequence", "eos", "complete", "completed", "pause_turn", "compaction", "end_of_stream":
+		return
+	}
+	// A reasoning block does not make an otherwise failed turn usable.
+	for _, block := range message.Content {
+		if block.Type == "toolCall" || (block.Type == "text" && strings.TrimSpace(block.Text) != "") {
+			return
+		}
+	}
+	message.StopReason = goai.StopReasonError
+	message.ErrorMessage = "OpenRouter returned an empty response (native_finish_reason: " + nativeReason + ")"
 }
 
 func applyUsage(usage *goai.Usage, raw *sseUsage, model *goai.Model) {
