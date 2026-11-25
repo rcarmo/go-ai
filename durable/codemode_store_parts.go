@@ -21,15 +21,15 @@ func codemodeStoreItemKey(key string) string {
 	return fmt.Sprintf("key-%x", sha256.Sum256([]byte(key)))
 }
 
-// The guest limits the sum of each value's JSON UTF-16 length, not
+// The guest limits the UTF-16 length of the keys plus their JSON values, not
 // just this run's writes. Enforce it on the merged authoritative host store:
 // an untrusted guest need not have seen (or honoured) the current snapshot.
 func validateCodemodeLogicalStore(values JSON, l Limits) error {
-	const storedValueUnits = 1 << 20 // MAX_STORE_TOTAL_CHARS, prelude-source.ts.
+	const storedUnits = 1 << 20 // MAX_STORE_TOTAL_CHARS, prelude-source.ts.
 	if len(values) > l.MaxMembers {
 		return reject("codemode store member limit")
 	}
-	remaining := storedValueUnits
+	remaining := storedUnits
 	bytes := min(l.MaxFramePayloadBytes, DefaultLimits().MaxFramePayloadBytes) - 2
 	for key, value := range values {
 		wire, err := encodeBounded(value, l, l.MaxDocumentBytes)
@@ -43,6 +43,15 @@ func validateCodemodeLogicalStore(values JSON, l Limits) error {
 		bytes -= len(name) + len(wire) + 2
 		if bytes < 0 {
 			return reject("codemode logical store exceeds frame limit")
+		}
+		for _, r := range key {
+			remaining--
+			if r > 0xffff {
+				remaining--
+			}
+		}
+		if remaining < 0 {
+			return reject("codemode logical store exceeds retained value limit")
 		}
 		for len(wire) > 0 {
 			r, size := utf8.DecodeRune(wire)
