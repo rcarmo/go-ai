@@ -1,17 +1,17 @@
 import { publishedSandbox } from './published-sandbox-v160.mjs';
 
-const [placement, script] = process.argv.slice(2);
+const [placement, script, casesJSON] = process.argv.slice(2);
 const options = { timeoutMs: 10000, memoryLimitBytes: 33554432 };
 const rejected = {};
 let callbacks = 0;
 const execute = () => { callbacks++; return 'callback'; };
-for (const name of ['store', 'load', 'store.member', 'load.member']) {
+for (const [label, names] of Object.entries(JSON.parse(casesJSON))) {
   let sandbox;
   try {
-    sandbox = publishedSandbox(placement, { ...options, globals: [{ name, execute }] });
-    rejected[name] = null;
+    sandbox = publishedSandbox(placement, { ...options, globals: names.map(name => ({ name, execute })) });
+    rejected[label] = null;
   } catch (error) {
-    rejected[name] = error.message;
+    rejected[label] = error.message;
   } finally {
     await sandbox?.close();
   }

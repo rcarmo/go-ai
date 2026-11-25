@@ -43,18 +43,31 @@ func validateInputs(code string, opts Options) error {
 		}
 	}
 	globals := map[string]bool{}
+	namespaces := map[string]bool{}
 	for _, global := range opts.Globals {
 		if global.Name == "" || ReservedGlobalRoot(global.Name) || globals[global.Name] || global.Execute == nil || !add(global.Name) {
 			return invalid()
 		}
+		root, member, namespaced := strings.Cut(global.Name, ".")
+		if Identifier(root) != root || namespaced && Identifier(member) != member {
+			//lint:ignore ST1005 Keep the pinned setup diagnostic prefix.
+			return errors.New("Invalid global name")
+		}
 		// These built-ins are installed after the injected globals. Reject
 		// their roots before reserving worker capacity, not in the prelude.
-		root, _, _ := strings.Cut(global.Name, ".")
-		if root == "store" || root == "load" {
+		if root == "store" || root == "load" || root == "tools" || root == "console" {
 			//lint:ignore ST1005 Keep the pinned setup diagnostic prefix.
 			return fmt.Errorf("Invalid global name %q", root)
 		}
+		if namespaced {
+			namespaces[root] = true
+		}
 		globals[global.Name] = true
+	}
+	for root := range namespaces {
+		if globals[root] {
+			return errors.New("global conflicts with the namespace")
+		}
 	}
 	for key, value := range opts.Store {
 		if !add(key) || len(value) > int(maxBridgeStringBytes) || !json.Valid(value) || !add(string(value)) {
