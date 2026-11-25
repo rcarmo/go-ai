@@ -1,22 +1,17 @@
 # Codemode journal batching
 
-The complete pinned case at `packages/durable/test/codemode.test.ts:913–946` returns `50` and requires fewer than ten journal publications. The [native published-worker comparison](../../durable/codemode_worker_concurrent_results_v160_test.go) returns the same value after all 50 deliveries. Round 47 reduced the count from 103 to 54 in both lane repeats. The upstream limit is still unmet.
+The pinned case at `packages/durable/test/codemode.test.ts:913–946` returns `50` and requires fewer than ten journal publications. The [native published-worker comparison](../../durable/codemode_worker_concurrent_results_v160_test.go) checks the exact value and the publication limit. The older policy used 103 publications, then 54 after the single-result fold. That policy still applies to its saved runs.
 
-## Where the protocols differ
+## New and saved runs
 
-The pinned host's `pump` in `packages/durable/src/codemode/codemode.ts:952–999` puts completed results and pending acknowledgements into one commit. It delivers those results after the commit and uses the committed counts to decide which new calls may launch.
+New runs on the built-in positioned worker pin a grouped journal in the saved start. Generic Go remotes stay on the earlier policy. Reopening a saved run uses its recorded policy, not the current default.
 
-Go's [parallel loop](../../durable/codemode_parallel.go) commits a delivery before passing it to the guest. The [drain handler](../../durable/codemode_drain_commit.go) can now commit a non-final drain and one ready result from an already-admitted call together. The host still waits for the commit before acknowledging the drain or delivering the result. A [real SQLite cutoff test](../../durable/codemode_parallel_fusion_v160_test.go) verifies one publication before acknowledgement and exact replay without repeating either callback. The [journal validator](../../durable/codemode_integrity.go) still permits a missing count only on the last delivery of an unsettled run. A single commit cannot yet add several deliveries with counts still unknown.
+The host can commit up to 16 ready outcomes in a group. It doesn't wait to fill the group. A preceding non-final drain can commit with the group, and each outcome must already be covered by durable call admission. The host can acknowledge a drain at existing coverage without another write; newly issued effects still need a committed count. If the combined candidate hits an existing limit before staging, the host keeps the original count or single-outcome path. It never retries an uncertain commit or increases a record limit.
 
-## Requirements for a batched path
+The journal records the group boundaries and keeps outcomes in order. An early script return seals its actual delivered prefix alongside the result. It does not erase the committed suffix. A typed worker stop can preserve the failed result without claiming a guest delivery position. Raw put and delta writes cannot change a sealed journal.
 
-A batched path would need an explicit policy pinned on new saved starts. Older records must keep their current validation and replay behavior. These are requirements for a possible implementation, not changes to the current storage format:
+## Recovery checks
 
-- Only include outcomes of calls already admitted by a committed count. Persist every exact value, error and call identity before delivering it.
-- Represent a bounded set of unacknowledged deliveries explicitly. Check identity and cumulative counts in guest order. Until the corresponding acknowledgement commit is durable, do not launch newly issued effects.
-- Handle a script ending with part of a committed batch undelivered. Successful completion must distinguish the delivered prefix from unused results without deleting or rewriting a committed record.
-- Preserve the configured write, document, page and output limits; batching must not create special exemptions for this fixture.
+The native proofs use the actual published guest and writable SQLite. They cover exit before the first grouped delivery, between deliveries, and after the last result before terminal settlement. Reopen returns the saved values without repeating callbacks. The early-return case keeps an unused committed outcome; the new-call check reads the committed count inside the effect. The scoped record-limit test checks both an accepted combined write and rejection after an individually committed prefix, under different configured limits.
 
-## Checks before adoption
-
-Use real published guests and writable SQLite reopens. Cut off after batch commit before delivery, between deliveries, and after the last delivery before acknowledgement commit. The recovered run must replay exact saved values and must not repeat a completed effect or admit a fresh one on divergence. Also check terminal drain and abandonment, rejection of an invalid saved count, and old-start replay. Only then compare the unchanged 50-result case's publication count and final value. A lower observer count alone is insufficient if it comes from moving writes out of the observed journal.
+Other replay differences remain open. See [acceptance gaps](acceptance-gaps.md) for saved-version refusal, delayed callback joins and the other unclosed cases.

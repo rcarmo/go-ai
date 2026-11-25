@@ -1239,3 +1239,11 @@ All 40 unchanged validator cases passed. The native compiler rejects a numeric s
 ### Mistral sends the exact strict and non-strict tool schemas
 
 Both unchanged Mistral cases passed. The native payload hook and scripted transport observed the same strict bit, required arrays and nested schema. With the default Large 4 model, `strict` is explicitly false and `limit` stays optional. The three JavaScript symbol-key assertions remain unmatched: Go's JSON projection cannot demonstrate removing a JavaScript symbol. No live request or production change was needed.
+
+### Published workers batch outcomes on new runs
+
+All 42 unchanged Durable Codemode cases passed. The new built-in worker policy returned `50` with eight and seven journal publications in the focused draft repeats. It still returned `50` with 54 publications when forced onto the older policy; the upstream count assertion failed that control. Existing saved runs retain their recorded policy, and generic remote wrappers do not enable grouping by inheritance.
+
+Each outcome is committed before delivery. A newly issued callback sees its committed count, even when another result is ready. SQLite process cutoffs before the first grouped reply, between replies, and after the last reply before terminal settlement preserve the committed outcomes without repeating callbacks. An early return keeps its unused committed suffix. A typed worker stop reports the failure and leaves the guest position unset.
+
+The grouped record-limit test commits the pair at 24 KiB. At 16 KiB it preserves the prior count, commits and delivers the result that fits, then returns the existing byte-limit error for the last result. No storage limit changed. The sequential nested-call comparison retains the exact legacy idle-count check; a grouped run instead commits the actual terminal position with its result, while preserving commit-before-delivery for both calls.
