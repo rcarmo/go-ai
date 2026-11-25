@@ -833,3 +833,25 @@ All 15 unchanged llama.cpp cases passed offline. The native tests now send the e
 All nine unchanged [Chord contract-schema cases](test-inventory/chord-contract-schema.md) passed offline. The witness observed the pinned Schema compiler and byte-length checker evaluate. It also observed native TypeScript 7.0.2 emit the actual 5,796-byte declaration. Removing the byte cap in scratch broke the unchanged bounds case. This is a shared-dependency and declaration fixture result on one host, without native Go mappings.
 
 The integrated code at `f5839626` passed 61 focused top-level Go tests twice, including every selected v1.6.0 comparison against the archived guest and standalone worker. A historical opt-in batching test skipped in both repeats because it requires the exact v1.4.0 package; this is outside the current pin's comparison. Vet and Staticcheck v0.8.2 passed. The Chord compiler receipt and all three image receipt modes reproduced byte for byte. Of 1,665 scoped sites, 1,617 are mapped, 46 are partial and two are unmatched. Twenty-nine of the 214 changed suites have assertion-level links.
+
+### Deferred Codemode tools stay out of model offers
+
+The unchanged deferred-tool case passed. The published portable guest calls `later` and discovers it in `ALL_TOOLS`, returning `["later ran",true]`. Neither of the two model requests directly offers `later`. The guest executes it once. Removing the guest declaration blocks the call; adding the declaration to the model offer fails the separate offer check.
+
+The earlier first-batch count case also passed upstream. Go still rejects the first changed identity before later call frames or a verified count are available. The count diagnostic stays partial; the rejection fence is unchanged and no fresh effect is admitted.
+
+### Parked tool abort joins cleanup
+
+All 18 unchanged tool-park tests passed. The Go comparisons verify that abort waits for the cleanup callback, which receives the exact checkpoint and `/work` environment. At restart limit 1, the callback runs once, its `cancel failed` panic is reported, and the same task ends aborted. A woken call records execution cancellation before park cleanup, which receives the original checkpoint without a wake. No production change was needed.
+
+### Image reads retry a growing file only once
+
+Both unchanged [changing-read cases](test-inventory/tools-images-changing-read.md) passed. The Go signature probe now requests 32 bytes, so it does not count as a complete read of the 137-byte fixture. On growth, `Read` retries once and returns the complete second image, including the 16 appended bytes. A second change produces the pinned error without returning an image. The fixture and retry controls check the exact read sizes and bytes.
+
+### Prepared schemas coerce and parse JSON values
+
+All 89 unchanged validator and coercion cases passed. Prepared schemas now expose `Coerce` and `Parse` using the same owned registry as `Check` and `Explain`. Parsing an unresolved optional property in reject mode leaves its value uncoerced and returns the ordered `/t` diagnostic. A JSON projection of the TypeBox reference reports the expected `/a` diagnostic. The tests exercise prepared registry ownership and repeated calls. Existing one-shot and tool validation policies are unchanged.
+
+### Chord replays ordered framed deltas without mutating input
+
+All eight unchanged [Chord framed-source cases](test-inventory/chord-framed-delta.md) passed offline. The witness observed `applyImmutable` replay the three ordered operations, producing `{a:2,b:3,c:4}` from the unchanged `{a:1,b:1,c:1}` input. Returning the previous value in scratch failed the replay assertion even though the recorded operations remained correct. The receipt covers this Chord path; it does not map the Durable consumers or native Go behavior.
