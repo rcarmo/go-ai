@@ -1,0 +1,193 @@
+{
+  "format": 1,
+  "pin": "faac585884ae2c013a6b1400f3e9e77f10b34bac",
+  "evidenceBase": "57afb7e680ed227a450aee1f554eada8b52b135b",
+  "node": "v26.13.0",
+  "vitest": "4.1.12",
+  "selection": {
+    "file": "packages/durable/test/images-fit.test.ts",
+    "caseNames": [
+      "fitImages re-encodes an image within the dimensions but over the byte limit"
+    ],
+    "filteredOut": [
+      "fitImage prepares an image from its bytes, as base64 for the model",
+      "fitImage leaves out an image the processor fails on, with the failure in its note",
+      "fitImages is unchanged when every image comes back as it was, and asks the processor only about images",
+      "fitImages scales an image beyond the limits down, keeps the text in place, and says how to map coordinates back",
+      "fitImages turns an image upright that fits but carries an EXIF orientation",
+      "fitImages converts a format providers do not take inline to PNG",
+      "fitImages corrects a declared type the bytes contradict, without a note",
+      "fitImages leaves out what cannot be prepared, with a note: damaged images, other bytes, malformed base64",
+      "the fit-images extension fits a tool result's images to the conversation model's limits before it is committed",
+      "the fit-images extension leaves nested calls' results to the program that made them"
+    ]
+  },
+  "result": {
+    "passed": 1,
+    "failed": 0,
+    "selectedSkipped": 0
+  },
+  "sourceDigests": [
+    {
+      "file": "packages/durable/test/images-fit.test.ts",
+      "sha256": "5822be2d2febd24d64c29ee55a9c1898b79955c03a0f73e42ec2eec687ade9ee"
+    },
+    {
+      "file": "packages/durable/src/images/fit.ts",
+      "sha256": "37bf47153d40af332a42d24f62df0ce7bd8575344f08916cec2015696ba1db5f"
+    },
+    {
+      "file": "packages/durable/test/image-fixtures.ts",
+      "sha256": "23f6666f26e55c412de5dcdb2472c4e629215ab4244aadd6aad69082d23c6ce6"
+    },
+    {
+      "file": "packages/durable/src/images/index.ts",
+      "sha256": "dbe59efe444d9816a74088ea27cd74c40b254efbd479e420ea8b723b5d5eeaf3"
+    },
+    {
+      "file": "packages/durable/src/images/node.ts",
+      "sha256": "1450617d47f42a5b56c67af0c45d5a56734e5ca43495cda271915d6b02593406"
+    },
+    {
+      "file": "packages/durable/src/images/node-worker.ts",
+      "sha256": "494cfe3c40c66c32e3b77c2292e743c0d234ccf4972979922d31a548f93b028e"
+    }
+  ],
+  "fixtureBase64": "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",
+  "photonArchive": {
+    "url": "https://registry.npmjs.org/@silvia-odwyer/photon/-/photon-0.3.3.tgz",
+    "integrity": "sha512-8BhUjEch4slwRe8uXnaA4vcA5uiiOTT90UMsxulOj2gN98X1p0q9Z4Ysk4DkD05uNgbR9XoSqtZ37w+33w4QKQ==",
+    "sha256": "eed5c8f7d10b319d1c58e9bd8eef24646affb9b697cf3792b42b8832fcbf4bae"
+  },
+  "aiArchiveSha256": "d68312ec574bc959cb7fee26da4f4876d067aed9bbbe76e876359e60d2294747",
+  "observed": [
+    {
+      "thread": "image-worker",
+      "kind": "load-js",
+      "api": "node:module load",
+      "entry": "node_modules/@silvia-odwyer/photon/photon_rs.js",
+      "bytes": 139647,
+      "sha256": "d51ba7a7ef9c23fbfec5423e01afd3fa9f6ad9c7ac4c20789aa9e4b3f9e0c157"
+    },
+    {
+      "thread": "image-worker",
+      "kind": "instantiate-wasm",
+      "api": "WebAssembly.Module -> WebAssembly.Instance",
+      "caller": "packages/durable/src/images/node-worker.ts",
+      "bytes": 1880773,
+      "sha256": "06e9f6b245d53b488244e04dfe30e6731c029526101c6400e6490057fcfbdd04"
+    },
+    {
+      "thread": "image-worker",
+      "kind": "worker-request",
+      "id": 0,
+      "mimeType": "image/png",
+      "limits": {
+        "maxWidth": 2000,
+        "maxHeight": 2000,
+        "maxBytes": 8000
+      },
+      "bytes": 16516,
+      "sha256": "ed7743c1dfcc367de5f69917ea0a8325d97aebedea115a72efd78be654520280"
+    },
+    {
+      "thread": "image-worker",
+      "kind": "worker-reply",
+      "id": 0,
+      "mimeType": "image/jpeg",
+      "convertedFrom": "image/png",
+      "data": {
+        "bytes": 5318,
+        "sha256": "d6feeb071e980a3c9ce82e3751e52fc550ca5dc2cb8050bd59a8da9eabfdf6ca"
+      },
+      "base64": {
+        "bytes": 7092,
+        "sha256": "14de363053caea1886b3eaec0cdc90e04ca6f45991d6937cb3fffd92c6c90bb1"
+      }
+    },
+    {
+      "thread": "test-thread",
+      "kind": "instantiate-wasm",
+      "api": "WebAssembly.Module -> WebAssembly.Instance",
+      "caller": "packages/durable/test/image-fixtures.ts",
+      "bytes": 1880773,
+      "sha256": "06e9f6b245d53b488244e04dfe30e6731c029526101c6400e6490057fcfbdd04"
+    }
+  ],
+  "control": {
+    "change": "omit the fitted image notes while keeping the encoding unchanged",
+    "failed": [
+      "fitImages re-encodes an image within the dimensions but over the byte limit"
+    ],
+    "assertions": [
+      120
+    ],
+    "workerTrace": "identical"
+  },
+  "copiedDependencies": {
+    "roots": [
+      "npm:node_modules/vitest",
+      "npm:node_modules/diff",
+      "npm:node_modules/@silvia-odwyer/photon",
+      "npm:node_modules/quickjs-wasi",
+      "npm:node_modules/partial-json"
+    ],
+    "host": {
+      "os": "linux",
+      "cpu": "arm64",
+      "libc": "glibc"
+    },
+    "placements": [
+      "node_modules/@jridgewell/sourcemap-codec",
+      "node_modules/@oxc-project/types",
+      "node_modules/@rolldown/binding-linux-arm64-gnu",
+      "node_modules/@rolldown/pluginutils",
+      "node_modules/@silvia-odwyer/photon",
+      "node_modules/@standard-schema/spec",
+      "node_modules/@types/chai",
+      "node_modules/@types/deep-eql",
+      "node_modules/@types/estree",
+      "node_modules/@vitest/expect",
+      "node_modules/@vitest/mocker",
+      "node_modules/@vitest/pretty-format",
+      "node_modules/@vitest/runner",
+      "node_modules/@vitest/snapshot",
+      "node_modules/@vitest/spy",
+      "node_modules/@vitest/utils",
+      "node_modules/assertion-error",
+      "node_modules/chai",
+      "node_modules/convert-source-map",
+      "node_modules/detect-libc",
+      "node_modules/diff",
+      "node_modules/es-module-lexer",
+      "node_modules/estree-walker",
+      "node_modules/expect-type",
+      "node_modules/fdir",
+      "node_modules/lightningcss",
+      "node_modules/lightningcss-linux-arm64-gnu",
+      "node_modules/magic-string",
+      "node_modules/nanoid",
+      "node_modules/obug",
+      "node_modules/partial-json",
+      "node_modules/pathe",
+      "node_modules/picocolors",
+      "node_modules/picomatch",
+      "node_modules/postcss",
+      "node_modules/quickjs-wasi",
+      "node_modules/rolldown",
+      "node_modules/siginfo",
+      "node_modules/source-map-js",
+      "node_modules/stackback",
+      "node_modules/std-env",
+      "node_modules/tinybench",
+      "node_modules/tinyexec",
+      "node_modules/tinyglobby",
+      "node_modules/tinyrainbow",
+      "node_modules/vite",
+      "node_modules/vitest",
+      "node_modules/why-is-node-running"
+    ]
+  },
+  "exclusions": [],
+  "scope": "offline-fit-byte-cap"
+}

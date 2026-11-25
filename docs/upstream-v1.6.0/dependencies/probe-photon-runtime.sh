@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# != 4 && ( $# -lt 5 || $# -gt 6 || ( $5 != stable-worker && $5 != fit-resize && $5 != fit-passthrough && $5 != fit-omissions && $5 != fit-declared-type && $5 != fit-bmp && $5 != fit-exif ) ) ]]; then
-  printf 'Usage: bash %s <pinned-git-mirror> <prepared-oracle-dir> <user-npm-cacache> <release-archive-dir> [stable-worker|fit-resize|fit-passthrough|fit-omissions|fit-declared-type|fit-bmp|fit-exif [new-fixture-path]]\n' "$0" >&2
+if [[ $# != 4 && ( $# -lt 5 || $# -gt 6 || ( $5 != stable-worker && $5 != fit-resize && $5 != fit-passthrough && $5 != fit-omissions && $5 != fit-declared-type && $5 != fit-bmp && $5 != fit-exif && $5 != fit-byte-cap ) ) ]]; then
+  printf 'Usage: bash %s <pinned-git-mirror> <prepared-oracle-dir> <user-npm-cacache> <release-archive-dir> [stable-worker|fit-resize|fit-passthrough|fit-omissions|fit-declared-type|fit-bmp|fit-exif|fit-byte-cap [new-fixture-path]]\n' "$0" >&2
   exit 1
 fi
 mirror=$(realpath -- "$1")
@@ -36,6 +36,8 @@ elif [[ "$mode" == fit-bmp ]]; then
   selector='fitImages converts a format providers do not take inline to PNG'
 elif [[ "$mode" == fit-exif ]]; then
   selector='fitImages turns an image upright that fits but carries an EXIF orientation'
+elif [[ "$mode" == fit-byte-cap ]]; then
+  selector='fitImages re-encodes an image within the dimensions but over the byte limit'
 fi
 key=node_modules/@silvia-odwyer/photon
 js=photon_rs.js
@@ -122,22 +124,24 @@ run_selected() {
       ]) and any(.[]; .kind=="worker-reply" and .id==0 and .mimeType=="image/jpeg" and
         .convertedFrom=="image/png" and (has("resized")|not) and .data.bytes>0 and .base64.bytes<=4718592)
     ' "$scratch/$tag.trace.jsonl" > "$scratch/$tag.events.check" || { cat "$scratch/$tag.trace.jsonl" >&2; return 1; }
-  elif [[ "$mode" == fit-resize || "$mode" == fit-passthrough || "$mode" == fit-declared-type || "$mode" == fit-bmp || "$mode" == fit-exif ]]; then
-    local width=200 mime=image/png
+  elif [[ "$mode" == fit-resize || "$mode" == fit-passthrough || "$mode" == fit-declared-type || "$mode" == fit-bmp || "$mode" == fit-exif || "$mode" == fit-byte-cap ]]; then
+    local width=200 mime=image/png max_bytes=4718592
     case "$mode" in
       fit-passthrough) width=2000 ;;
       fit-declared-type|fit-exif) width=2000; mime=image/jpeg ;;
       fit-bmp) width=2000; mime=image/bmp ;;
+      fit-byte-cap) width=2000; max_bytes=8000 ;;
     esac
     jq -e '.numPendingTests==10 and .numTodoTests==0' "$scratch/$tag.result.json" > "$scratch/$tag.pending.check"
-    jq -es --arg mode "$mode" --argjson width "$width" --arg mime "$mime" \
+    jq -es --arg mode "$mode" --argjson width "$width" --arg mime "$mime" --argjson cap "$max_bytes" \
       --arg sha "$(sha256 "$scratch/$tag.input.png")" --argjson bytes "$(wc -c < "$scratch/$tag.input.png")" '
       ([.[]|select(.thread=="test-thread")|.kind]==["instantiate-wasm"]) and
       ([.[]|select(.thread=="image-worker")|.kind]==["load-js","instantiate-wasm","worker-request","worker-reply"]) and length==5 and
       ([.[]|select(.kind=="worker-request")|del(.thread,.kind)]==[
-        {id:0,mimeType:$mime,limits:{maxWidth:$width,maxHeight:2000,maxBytes:4718592},sha256:$sha,bytes:$bytes}
-      ]) and any(.[]; .kind=="worker-reply" and .id==0 and .base64.bytes<=4718592 and
+        {id:0,mimeType:$mime,limits:{maxWidth:$width,maxHeight:2000,maxBytes:$cap},sha256:$sha,bytes:$bytes}
+      ]) and any(.[]; .kind=="worker-reply" and .id==0 and .base64.bytes<=$cap and
         (if $mode=="fit-bmp" then .mimeType=="image/png" and .convertedFrom==$mime and (has("resized")|not)
+         elif $mode=="fit-byte-cap" then 4*(($bytes/3)|ceil)>$cap and .data.sha256!=$sha and (has("resized") or has("convertedFrom"))
          else .mimeType==$mime and (has("convertedFrom")|not) and
            (if $mode=="fit-resize" then .resized=={from:{width:400,height:100},to:{width:200,height:50}}
             elif $mode=="fit-exif" then (has("resized")|not) and .data.bytes>0 and .data.sha256!=$sha
@@ -178,7 +182,7 @@ run_selected original
 verify_asset original load-js "$scratch/$js" > "$scratch/js.check"
 verify_asset original instantiate-wasm "$scratch/$wasm" > "$scratch/wasm.check"
 
-if [[ "$mode" == fit-resize || "$mode" == fit-passthrough || "$mode" == fit-omissions || "$mode" == fit-declared-type || "$mode" == fit-bmp || "$mode" == fit-exif ]]; then
+if [[ "$mode" == fit-resize || "$mode" == fit-passthrough || "$mode" == fit-omissions || "$mode" == fit-declared-type || "$mode" == fit-bmp || "$mode" == fit-exif || "$mode" == fit-byte-cap ]]; then
   fixture="$scratch/original.input.png"
   worker_trace=identical
   if [[ "$mode" == fit-resize ]]; then
@@ -222,6 +226,14 @@ if [[ "$mode" == fit-resize || "$mode" == fit-passthrough || "$mode" == fit-omis
     worker_trace='same request and assets; different reply'
     [[ $(grep -Fc 'const orientation = exifOrientation(bytes);' "$scratch/$adapter") == 1 ]]
     sed -i 's/const orientation = exifOrientation(bytes);/const orientation = 3;/' "$scratch/$adapter"
+  elif [[ "$mode" == fit-byte-cap ]]; then
+    base=57afb7e680ed227a450aee1f554eada8b52b135b
+    adapter=packages/durable/src/images/fit.ts
+    assertion=120
+    change='omit the fitted image notes while keeping the encoding unchanged'
+    scope=offline-fit-byte-cap
+    [[ $(grep -Fc 'notes: preparedNotes(prepared)' "$scratch/$adapter") == 1 ]]
+    sed -i 's/notes: preparedNotes(prepared)/notes: []/' "$scratch/$adapter"
   else
     base=3d0a45b2185b7177439d0cfe8ba60b5c23309b81
     adapter=packages/durable/src/images/fit.ts
