@@ -1505,3 +1505,9 @@ Three focused native tests passed twice without skips. A scratch control ignorin
 All 40 unchanged validator cases passed. The existing relative-ID witnesses now also check default prepared resolution, not just one-shot validation. A valid nested resource still checks successfully; unresolved references cannot stand in for the expected invalid values. The same prepared array schema accepts `[2]` and reports `/1`, `unevaluatedItems`, `unexpected item` for `[2,3]`.
 
 Controls reapplying the root ID, ignoring the nested ID and changing the annotation keyword failed separately. Focused repeats, vet and Staticcheck passed. All ten source sites in this slice were already mapped; the stronger observations do not add locators and no production code changed.
+
+### Codex omits an unrequested summary from fallback reasoning
+
+Five unchanged Codex option cases passed. A separate pinned wire capture confirmed that raw calls with no reasoning effort and no configuration update send only the resolved off effort: `none` or the model's mapping. The unchanged native public request failed four comparisons by adding `summary`, including when the caller supplied a summary but no effort. The shared request builder now sends only the off effort for this fallback.
+
+The scripted native checks preserve explicit `xhigh` and custom summaries, omit reasoning for null-off and non-reasoning models, and retain the configured simple-options request. Seven controls isolated changes to the effort, omission and summary behavior. The raw upstream call on a mid-conversation model still differs from the native default: raw upstream sends effort only without a configuration item or marker; native retains the simple-options behavior. These are source-derived wire comparisons, not new source-test assertions. No live service was called.

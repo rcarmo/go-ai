@@ -1,6 +1,10 @@
 # Release acceptance
 
-The sole acceptance target is official upstream **v1.5.0**, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Alignment is unverified. Older entries below are historical receipts, not compatibility requirements or v1.5.0 acceptance. Retained tests and active identity/schema/catalogue/regeneration pins must be reconciled with this release; obsolete behaviour must change.
+The active port targets official upstream **v1.6.0**, `faac585884ae2c013a6b1400f3e9e77f10b34bac`. The [verification log](docs/upstream-v1.6.0/README.md) records scoped changes and results, including the [Codex fallback reasoning fix](docs/upstream-v1.6.0/README.md#codex-omits-an-unrequested-summary-from-fallback-reasoning). See the [open gates](docs/upstream-v1.6.0/acceptance-gaps.md). The port is not release-accepted.
+
+## Historical v1.5.0 evidence
+
+The target for the receipts below was official upstream **v1.5.0**, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Alignment is unverified. Older entries below are historical receipts, not compatibility requirements or v1.5.0 acceptance. Retained tests and active identity/schema/catalogue/regeneration pins must be reconciled with this release; obsolete behaviour must change.
 
 ## Findings and plan reset
 
