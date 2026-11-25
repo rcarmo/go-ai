@@ -14,11 +14,21 @@ import (
 // exactly. The observer measures the native commit count without requiring
 // the existing per-delivery protocol to match the upstream batch limit.
 func TestSourceV160CodemodePublishedWorkerConcurrentResults(t *testing.T) {
+	testV160ConcurrentResults(t, false)
+}
+
+func TestDraftV160CodemodeGroupedConcurrentResults(t *testing.T) {
+	testV160ConcurrentResults(t, true)
+}
+
+func testV160ConcurrentResults(t *testing.T, grouped bool) {
+	t.Helper()
 	const count = 50
 	const script = `return (await Promise.all(Array.from({ length: 50 }, () => wait()))).length`
 	ctx, cancel := context.WithTimeout(t.Context(), 120*time.Second)
 	defer cancel()
 	sandbox, remote := newJournalWorkerSandboxV160(t)
+	sandbox.groupJournal = grouped
 	registry := NewRegistry()
 	ext, err := NewCodemodeExtension(sandbox)
 	if err != nil {
@@ -100,6 +110,9 @@ func TestSourceV160CodemodePublishedWorkerConcurrentResults(t *testing.T) {
 	}
 	if callbacks.Load() != count || remote.deliveries.Load() != count || modelRequests.Load() != 2 {
 		t.Fatalf("callbacks=%d deliveries=%d model requests=%d; want 50, 50, 2", callbacks.Load(), remote.deliveries.Load(), modelRequests.Load())
+	}
+	if grouped && publications.Load() >= 10 {
+		t.Fatalf("grouped run used %d journal publications; want fewer than 10", publications.Load())
 	}
 	if publications.Load() == 0 {
 		t.Fatal("no journal publications observed")
