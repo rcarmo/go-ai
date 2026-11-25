@@ -672,8 +672,8 @@ func TestSourceV160CanonicalToolTimedAndInvalidParks(t *testing.T) {
 	}
 }
 
-// harness-tool-parks.test.ts:345-450, plus racing-park coverage. A durable
-// park receipt or Execute entry gates abort. Registry.Remove disposes the tool.
+// harness-tool-parks.test.ts:345-490. A durable park receipt or Execute
+// entry gates abort. Registry.Remove disposes the tool.
 func TestSourceV160CanonicalToolCancel(t *testing.T) {
 	for _, mode := range []string{"parked", "throws-at-limit", "woken", "removed", "racing-park"} {
 		t.Run(mode, func(t *testing.T) {
@@ -685,7 +685,11 @@ func TestSourceV160CanonicalToolCancel(t *testing.T) {
 			}
 			storage := &toolParkTestStorage{Storage: native, parked: make(chan ID, 4)}
 			token := testSignalAnswer(t)
-			key, err := token.Key("done")
+			keyName := "done"
+			if mode == "racing-park" {
+				keyName = "k"
+			}
+			key, err := token.Key(keyName)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -720,15 +724,35 @@ func TestSourceV160CanonicalToolCancel(t *testing.T) {
 			entered := make(chan ID, 4)
 			cutOff := make(chan string, 1)
 			cleanupStarted, releaseCleanup := make(chan struct{}, 1), make(chan struct{})
+			abortMarked, releasePark := make(chan ID, 1), make(chan struct{})
 			wantCheckpoint := any(JSON{"build": 1})
-			if mode == "woken" {
+			switch mode {
+			case "woken":
 				wantCheckpoint = "first"
+			case "racing-park":
+				wantCheckpoint = "started"
+				var once sync.Once
+				storage.onTool = func(record TaskRecord) {
+					if record.AbortRequested {
+						once.Do(func() { abortMarked <- record.ID })
+					}
+				}
 			}
 			err = options.Registry.Register(ToolRegistration{
 				Definition:     goai.Tool{Name: "ci", Parameters: json.RawMessage(`{"type":"object","properties":{"job":{"type":"string"}},"required":["job"]}`)},
 				Implementation: "test.cancel", Version: 1,
 				Execute: func(run context.Context, _ any, api *ToolAPI) (ToolResult, error) {
-					if api.Wake != nil || mode == "racing-park" {
+					if mode == "racing-park" {
+						entered <- api.TaskID()
+						// Ignore the run cancellation. Return the park only when the
+						// test has read the actual abort-marked running receipt.
+						select {
+						case <-releasePark:
+						case <-ctx.Done():
+							return ToolResult{}, ctx.Err()
+						}
+						cutOff <- "execute"
+					} else if api.Wake != nil {
 						entered <- api.TaskID()
 						select {
 						case <-run.Done():
@@ -736,9 +760,7 @@ func TestSourceV160CanonicalToolCancel(t *testing.T) {
 							return ToolResult{}, ctx.Err()
 						}
 						cutOff <- "execute"
-						if mode != "racing-park" {
-							return ToolResult{}, run.Err()
-						}
+						return ToolResult{}, run.Err()
 					}
 					return ToolResult{Park: &ToolPark{Sleep: &ToolSleep{Signals: []SignalKey{key}, Checkpoint: wantCheckpoint}}}, nil
 				},
@@ -793,6 +815,7 @@ func TestSourceV160CanonicalToolCancel(t *testing.T) {
 				t.Fatal(err)
 			}
 			h := openHarness(t, storage, options)
+			defer releaseTaskGate(releasePark)
 			if mode == "throws-at-limit" && h.RestartLimit() != 1 {
 				t.Fatalf("restart limit = %d, want 1", h.RestartLimit())
 			}
@@ -825,13 +848,35 @@ func TestSourceV160CanonicalToolCancel(t *testing.T) {
 					t.Fatal("tool did not wake", ctx.Err())
 				}
 			case "removed":
+				parked, found, err := h.Task(ctx, id)
+				if err != nil || !found || parked.State.Status != "sleeping" || !slices.Equal(parked.State.Signals, []SignalKey{key}) {
+					t.Fatal("parked before registry removal", parked, found, err)
+				}
 				options.Registry.Remove("ci")
 			case "racing-park":
-				if _, err := h.AbortTask(ctx, id); err != nil {
-					t.Fatal(err)
+				type abortResult struct {
+					mark string
+					err  error
 				}
-				if _, err := h.WaitForTask(ctx, id); err != nil {
-					t.Fatal(err)
+				aborting := make(chan abortResult, 1)
+				go func() {
+					mark, err := h.AbortTask(ctx, id)
+					aborting <- abortResult{mark, err}
+				}()
+				if marked := watchReceive(t, abortMarked); marked != id {
+					t.Fatalf("abort marked task %d, want %d", marked, id)
+				}
+				marked, found, err := h.Task(ctx, id)
+				if err != nil || !found || marked.State.Status != "running" || !marked.AbortRequested {
+					t.Fatal("expected marked running task before park return", marked, found, err)
+				}
+				close(releasePark)
+				if got := watchReceive(t, aborting); got.err != nil || got.mark != "marked" {
+					t.Fatal("task abort result", got)
+				}
+				record, err := h.WaitForTask(ctx, id)
+				if err != nil || record.State.Outcome == nil || record.State.Outcome.Status != "aborted" || len(storage.parked) != 0 {
+					t.Fatalf("refused park persisted or task did not abort: %+v, %v; parked receipts=%d", record, err, len(storage.parked))
 				}
 			}
 			if mode == "parked" || mode == "throws-at-limit" {
