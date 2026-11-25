@@ -1,0 +1,140 @@
+{
+  "format": 1,
+  "pin": "faac585884ae2c013a6b1400f3e9e77f10b34bac",
+  "evidenceBase": "10156a49eca7c5dca47d8a782f30c48c141c33b5",
+  "node": "v26.13.0",
+  "platform": "linux/arm64",
+  "configSha256": "f13c3424afac46e1500bb993c23fabce908f899321fd2c90e3adda5712f3ac9a",
+  "original": {
+    "file": "packages/chord/test/host/host.test.ts",
+    "blob": "1e9eeb2d62ffe6784e1b5cf66d6794441b094011",
+    "sha256": "ae3aca32f547d9d3c546578c10ab25658bc8269cb45e999d0e8b5695c93b35f0",
+    "selection": "getters one cancelled while another waits for the same object: the other gets it, the object lives",
+    "passed": 1,
+    "failed": 0,
+    "unselected": 101,
+    "todo": 0
+  },
+  "runner": {
+    "vitest": "4.1.12",
+    "integrity": "sha512-5eWdz2yb3ajxWF3C8C4TjkXl7FGm3n2E/VlazALrQHzK7nYMSGFnCZto0bbPNl77AwkOZVLk0YnBAejUu0NiWA==",
+    "archiveSha256": "ac79c9561c99eabc1cc29e0a839cbd03d1ff0e45bbecb5a2edfa6c3827c823d1",
+    "evaluatorSha256": "a0b36fb2211d2587d8df68d5855d48141be27e99bdb973378a83f927e03b004e",
+    "copiedDependencies": {
+      "roots": [
+        "npm:node_modules/vitest"
+      ],
+      "host": {
+        "os": "linux",
+        "cpu": "arm64",
+        "libc": "glibc"
+      },
+      "placements": [
+        "node_modules/@jridgewell/sourcemap-codec",
+        "node_modules/@oxc-project/types",
+        "node_modules/@rolldown/binding-linux-arm64-gnu",
+        "node_modules/@rolldown/pluginutils",
+        "node_modules/@standard-schema/spec",
+        "node_modules/@types/chai",
+        "node_modules/@types/deep-eql",
+        "node_modules/@types/estree",
+        "node_modules/@vitest/expect",
+        "node_modules/@vitest/mocker",
+        "node_modules/@vitest/pretty-format",
+        "node_modules/@vitest/runner",
+        "node_modules/@vitest/snapshot",
+        "node_modules/@vitest/spy",
+        "node_modules/@vitest/utils",
+        "node_modules/assertion-error",
+        "node_modules/chai",
+        "node_modules/convert-source-map",
+        "node_modules/detect-libc",
+        "node_modules/es-module-lexer",
+        "node_modules/estree-walker",
+        "node_modules/expect-type",
+        "node_modules/fdir",
+        "node_modules/lightningcss",
+        "node_modules/lightningcss-linux-arm64-gnu",
+        "node_modules/magic-string",
+        "node_modules/nanoid",
+        "node_modules/obug",
+        "node_modules/pathe",
+        "node_modules/picocolors",
+        "node_modules/picomatch",
+        "node_modules/postcss",
+        "node_modules/rolldown",
+        "node_modules/siginfo",
+        "node_modules/source-map-js",
+        "node_modules/stackback",
+        "node_modules/std-env",
+        "node_modules/tinybench",
+        "node_modules/tinyexec",
+        "node_modules/tinyglobby",
+        "node_modules/tinyrainbow",
+        "node_modules/vite",
+        "node_modules/vitest",
+        "node_modules/why-is-node-running"
+      ]
+    }
+  },
+  "primaryReference": {
+    "file": "packages/durable/src/harness/harness.ts",
+    "sha256": "d110de27bb52366cd9b615bac5f701b10a89bc5bc24949a8ab811bdf3e55a4ca",
+    "import": "@earendil-works/chord/context",
+    "importLine": 2,
+    "call": "withAbortSignal",
+    "callLine": 571
+  },
+  "observedModules": [
+    {
+      "kind": "source-evaluated",
+      "api": "node:vm runInThisContext",
+      "file": "packages/chord/src/context/index.ts",
+      "export": "withCancel",
+      "sourceSha256": "fb68a9ad4d1d894b215148eb151cd86415dde8d12fc126d2783c28143b12f126"
+    },
+    {
+      "kind": "source-evaluated",
+      "api": "node:vm runInThisContext",
+      "file": "packages/chord/src/host/host.ts",
+      "export": "createHost",
+      "sourceSha256": "7d5e75806ca939318df0b62904ffed2f7cd3243454f181ded926ef58c0a63ee0"
+    }
+  ],
+  "witness": {
+    "kind": "context-cancelled",
+    "api": "withCancel -> withAbortSignal",
+    "supplied": {
+      "name": "Error",
+      "message": "cancelled"
+    },
+    "childAborted": true,
+    "parentAborted": false,
+    "sameReason": true,
+    "observed": {
+      "name": "Error",
+      "message": "cancelled"
+    }
+  },
+  "control": {
+    "change": "drop-explicit-reason-in-scratch-withCancel",
+    "case": "getters one cancelled while another waits for the same object: the other gets it, the object lives",
+    "failed": 1,
+    "unselected": 101,
+    "observed": {
+      "kind": "context-cancelled",
+      "api": "withCancel -> withAbortSignal",
+      "supplied": {
+        "name": "Error",
+        "message": "cancelled"
+      },
+      "childAborted": true,
+      "parentAborted": false,
+      "sameReason": false,
+      "observed": {
+        "name": "AbortError",
+        "message": "This operation was aborted"
+      }
+    }
+  }
+}
