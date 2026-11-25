@@ -1439,3 +1439,9 @@ Both selected unchanged cases passed. The native payload hook sees the exact 64-
 ### An exhausted after-run child does not change the answered parent
 
 The selected unchanged restart-limit case passed. The real SQLite process cutoff leaves the child running and the answered parent waiting. Reopen faults the original child at limit one without rerunning it; the parent uses no restart, completes with the same answer and clears live state. One `task_faulted` report identifies the child and `restart_limit`; there is no `task_interrupted` report. No production recovery change was needed.
+
+### Sandbox image output keeps the wrapped and large bytes
+
+All three unchanged placement variants passed. The published hosts return the wrapped PNG data without its line breaks and preserve the exact 1,048,588-byte base64 block, MIME and order. The proof checks length and SHA-256, not image decoding. A same-length byte change fails the data comparison.
+
+Native QuickJS rejects the original literal before output because the script exceeds its existing 1 MiB setup limit. A shorter program that constructs the same data emits both exact blocks. No limit or production code changed. The source-literal assertion remains partial.
