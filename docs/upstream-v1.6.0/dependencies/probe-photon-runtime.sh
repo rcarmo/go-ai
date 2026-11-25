@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# != 4 && ( $# -lt 5 || $# -gt 6 || ( $5 != stable-worker && $5 != fit-resize && $5 != fit-passthrough && $5 != fit-omissions ) ) ]]; then
-  printf 'Usage: bash %s <pinned-git-mirror> <prepared-oracle-dir> <user-npm-cacache> <release-archive-dir> [stable-worker|fit-resize|fit-passthrough|fit-omissions [new-fixture-path]]\n' "$0" >&2
+if [[ $# != 4 && ( $# -lt 5 || $# -gt 6 || ( $5 != stable-worker && $5 != fit-resize && $5 != fit-passthrough && $5 != fit-omissions && $5 != fit-declared-type ) ) ]]; then
+  printf 'Usage: bash %s <pinned-git-mirror> <prepared-oracle-dir> <user-npm-cacache> <release-archive-dir> [stable-worker|fit-resize|fit-passthrough|fit-omissions|fit-declared-type [new-fixture-path]]\n' "$0" >&2
   exit 1
 fi
 mirror=$(realpath -- "$1")
@@ -30,6 +30,8 @@ elif [[ "$mode" == fit-passthrough ]]; then
   selector='fitImages is unchanged when every image comes back as it was, and asks the processor only about images'
 elif [[ "$mode" == fit-omissions ]]; then
   selector='fitImages leaves out what cannot be prepared, with a note: damaged images, other bytes, malformed base64'
+elif [[ "$mode" == fit-declared-type ]]; then
+  selector='fitImages corrects a declared type the bytes contradict, without a note'
 fi
 key=node_modules/@silvia-odwyer/photon
 js=photon_rs.js
@@ -116,16 +118,20 @@ run_selected() {
       ]) and any(.[]; .kind=="worker-reply" and .id==0 and .mimeType=="image/jpeg" and
         .convertedFrom=="image/png" and (has("resized")|not) and .data.bytes>0 and .base64.bytes<=4718592)
     ' "$scratch/$tag.trace.jsonl" > "$scratch/$tag.events.check" || { cat "$scratch/$tag.trace.jsonl" >&2; return 1; }
-  elif [[ "$mode" == fit-resize || "$mode" == fit-passthrough ]]; then
-    local width=200
-    if [[ "$mode" == fit-passthrough ]]; then width=2000; fi
+  elif [[ "$mode" == fit-resize || "$mode" == fit-passthrough || "$mode" == fit-declared-type ]]; then
+    local width=200 mime=image/png
+    case "$mode" in
+      fit-passthrough) width=2000 ;;
+      fit-declared-type) width=2000; mime=image/jpeg ;;
+    esac
     jq -e '.numPendingTests==10 and .numTodoTests==0' "$scratch/$tag.result.json" > "$scratch/$tag.pending.check"
-    jq -es --arg mode "$mode" --argjson width "$width" --arg sha "$(sha256 "$scratch/$tag.input.png")" --argjson bytes "$(wc -c < "$scratch/$tag.input.png")" '
+    jq -es --arg mode "$mode" --argjson width "$width" --arg mime "$mime" \
+      --arg sha "$(sha256 "$scratch/$tag.input.png")" --argjson bytes "$(wc -c < "$scratch/$tag.input.png")" '
       ([.[]|select(.thread=="test-thread")|.kind]==["instantiate-wasm"]) and
       ([.[]|select(.thread=="image-worker")|.kind]==["load-js","instantiate-wasm","worker-request","worker-reply"]) and length==5 and
       ([.[]|select(.kind=="worker-request")|del(.thread,.kind)]==[
-        {id:0,mimeType:"image/png",limits:{maxWidth:$width,maxHeight:2000,maxBytes:4718592},sha256:$sha,bytes:$bytes}
-      ]) and any(.[]; .kind=="worker-reply" and .id==0 and .mimeType=="image/png" and
+        {id:0,mimeType:$mime,limits:{maxWidth:$width,maxHeight:2000,maxBytes:4718592},sha256:$sha,bytes:$bytes}
+      ]) and any(.[]; .kind=="worker-reply" and .id==0 and .mimeType==$mime and
         (has("convertedFrom")|not) and .base64.bytes<=4718592 and
         (if $mode=="fit-resize" then .resized=={from:{width:400,height:100},to:{width:200,height:50}}
          else (has("resized")|not) and .data=={bytes:$bytes,sha256:$sha} end))
@@ -164,7 +170,7 @@ run_selected original
 verify_asset original load-js "$scratch/$js" > "$scratch/js.check"
 verify_asset original instantiate-wasm "$scratch/$wasm" > "$scratch/wasm.check"
 
-if [[ "$mode" == fit-resize || "$mode" == fit-passthrough || "$mode" == fit-omissions ]]; then
+if [[ "$mode" == fit-resize || "$mode" == fit-passthrough || "$mode" == fit-omissions || "$mode" == fit-declared-type ]]; then
   fixture="$scratch/original.input.png"
   if [[ "$mode" == fit-resize ]]; then
     base=4db6f2123184ab22e0fe6d09b8e3aa40cfa90183
@@ -182,6 +188,14 @@ if [[ "$mode" == fit-resize || "$mode" == fit-passthrough || "$mode" == fit-omis
     scope=offline-fit-passthrough
     [[ $(grep -Fc 'let changed = false;' "$scratch/$adapter") == 1 ]]
     sed -i 's/let changed = false;/let changed = true;/' "$scratch/$adapter"
+  elif [[ "$mode" == fit-declared-type ]]; then
+    base=10156a49eca7c5dca47d8a782f30c48c141c33b5
+    adapter=packages/durable/src/images/fit.ts
+    assertion=136
+    change='label the fitted block GIF instead of using the prepared MIME'
+    scope=offline-fit-declared-type
+    [[ $(grep -Fc 'mimeType: prepared.mimeType' "$scratch/$adapter") == 1 ]]
+    sed -i 's/mimeType: prepared\.mimeType/mimeType: "image\/gif"/' "$scratch/$adapter"
   else
     base=3d0a45b2185b7177439d0cfe8ba60b5c23309b81
     adapter=packages/durable/src/images/fit.ts
