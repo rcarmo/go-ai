@@ -1529,3 +1529,11 @@ Eight scripted public-call cases passed twice. For an unset effort on the compat
 Generic Go dispatch selects the registered raw callback for nil reasoning and the simple callback for explicit off. Changing the raw callback alone would therefore change existing generic behavior. No provider code changed in this round. A follow-up needs a dispatch decision: preserve the generic configured default while separating the direct raw and simple modes, or change the generic default to raw behavior. The witness is supplemental, not an assertion mapping.
 
 The integrated code at `4c69e623` passed 49 focused top-level Go tests twice, without skips. The default published worker returned `50` with eight journal publications both times. Vet and Staticcheck v0.8.2 passed. The inventory at `4c69e623` records 2,110 scoped sites: 2,057 mapped, 48 partial and five unmatched. Thirty-seven of the 214 changed suites have assertion-level links. Full parity remains open.
+
+## Round 66: sandbox lifetime and after-run request rejection
+
+### Parallel sandboxes keep separate state and report lifetime errors
+
+All nine unchanged variants passed. Native QuickJS starts three modules on one engine and holds their start receipts until all are alive. The same scripts return `a`, `b` and `undefined` in invocation order, without sharing their guest global. The recursion script catches `RangeError` after more than 1,000 calls with the configured 32 MiB heap. Executing after Close gives the native `Result.Error` containing `closed`; that matches the refusal and diagnostic, not JavaScript's promise rejection envelope.
+
+Four focused native tests passed twice without skips. Forcing a shared module name exposed the missing overlap. Raising the recursion fixture's threshold showed that checking only the error name would miss the false depth predicate. Changing the closed-engine diagnostic failed only its substring check. No production code changed for this comparison.
