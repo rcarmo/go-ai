@@ -1407,3 +1407,7 @@ All three unchanged placement variants passed. The published hosts and native Qu
 ### Codex forwards the raw provider event sequence
 
 The selected unchanged SSE case passed. The native public stream forwards all five provider payloads in order, associates them with the supplied model, and returns `Hello` through its public text and terminal events. The scripted request verifies synthetic bearer and account headers, no API-key header, and the adapter's own formatted User-Agent. This does not claim matching the SDK runtime's User-Agent bytes or its GitHub prompt-bootstrap fetch. No production change or live request was needed.
+
+### After-run hooks wait for the real end of a continuation
+
+The selected unchanged case passed. The native SQLite continuation branch emits no after-run hook during the first two yields, then reports one exact summary for the third answer. With a queued steer, the first owned child finishes before the steer is placed and the proposed continuation is dropped. The separate run takes the steer, with two hook calls, exact child labels `run 1` and `run 2` and ordered inputs `go`, `steer`. No production recovery change was needed.
