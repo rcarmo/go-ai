@@ -49,7 +49,8 @@ func readPositional(ctx context.Context, env durable.ExtendedFileSystem, abs, pa
 		if err != nil {
 			return durable.ToolResult{}, err
 		}
-		header, err := reader.Read(ctx, 0, 512)
+		// Probe only the image header; the complete read uses the observed size.
+		header, err := reader.Read(ctx, 0, 32)
 		if err != nil {
 			return durable.ToolResult{}, err
 		}
