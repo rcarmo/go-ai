@@ -909,3 +909,7 @@ All three unchanged [telemetry sender cases](test-inventory/chord-telemetry-send
 ### Opt-in Schema URL and JSON Pointer URI fragment formats
 
 All 40 unchanged validator cases passed. The five pinned format assertions now match in the configured one-shot and prepared Go checks. The new JSON Pointer URI fragment rule rejects a raw space and a missing `#`; the earlier native checks accepted both. The generated expression comes from the pinned TypeBox source. Default and legacy callers retain their prior treatment of the new format, old established formats are unchanged, and the checks do not fetch URLs. Fault controls caught a missing assertion, an assertion leaking into legacy callers and incorrect Unicode folding.
+
+### A woken call retains its details when its tool is gone
+
+All 18 unchanged tool-park cases passed. Removing the tool after its sleeping receipt and then signalling the call leaves the submission done and the tool task terminal with outcome `failed`. The result retains `{build:1}` and the `run 1` information diagnostic, adds the `tool_unavailable` error, and emits the pinned report. The callback runs once. The stored result entry belongs to that task and keeps the diagnostics in order. Dropping the details or changing the stored diagnostic code broke the checks. No production change was needed.
