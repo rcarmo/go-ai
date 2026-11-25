@@ -141,3 +141,9 @@ At `23ec2d6b`, three focused Go tests passed twice, with vet and Staticcheck.
 The four remaining unchanged originals in the v1.6.1 stop-reason file passed. The native public fixture checks a normal successful stop, a tool call with `tool_calls.STOP`, a trailing error frame that preserves the earlier native reason, and equal reasons that do not repeat the suffix. The tool-call fixture also retains the exact call ID and name. No production code changed. The active ledger now covers all 13 declarations in this one upstream test file, not the whole provider suite.
 
 At `4c989882`, 7 focused top-level Go tests passed twice, with vet and Staticcheck.
+
+### The completed reopen retains the nested input and result tags
+
+A follow-up read on the actual reopened SQLite handle finds exactly two committed tool inputs tagged `nested` and confirms that the reused first child's terminal result still has the `nested` tag. The previously partial input-count and result-shape assertions are now directly checked after the turn completes. The unchanged originals are the same three already verified in this round. No production or stored schema changed.
+
+At `1aa3c8e8`, three focused Go tests passed twice, with vet and Staticcheck.
