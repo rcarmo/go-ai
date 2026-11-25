@@ -1455,3 +1455,9 @@ The integrated code at `5c800e4a` passed 20 focused top-level Go tests twice, wi
 All three unchanged placement variants passed. The published inline, portable and Node worker hosts and native QuickJS return the same ordered text and image blocks. The comparison checks the console marker, object and `undefined` text, all five base64 strings and MIME types, and the final console block's `Error: bad` prefix. The WebP bytes were supplied with a PNG declaration; the detected type is WebP. This is signature detection, not image decoding or stack identity.
 
 Swapping two text calls without changing the block count fails the order assertion in all four comparisons while the final error-block shape stays valid. Seven focused tests passed twice without skips; vet and Staticcheck passed. No production code changed.
+
+### Codex SSE honors model and caller header overrides without changing auth
+
+The unchanged original passed. A scripted request through `Complete` carries one `Originator: my-app` from the model and one `User-Agent: my-app/1.0` from the caller. It keeps exactly one provider Bearer token despite a caller Authorization override. The request completed with `stop`; it retained the token-derived account and sent no `X-Api-Key`.
+
+Separate model-only and mixed-case caller-over-model checks passed. Six controls isolated model and caller omission, reversed precedence, lost token or account authority, and duplicate User-Agent. No live service was called and no production code changed.
