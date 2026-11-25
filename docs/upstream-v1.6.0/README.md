@@ -1483,3 +1483,9 @@ The native baseline and four focused Go tests passed; the focused tests passed t
 The unchanged `MemoryStorage` original passed. The native SQLite test checks both phases immediately after public `Abort` returns: `run` and `runFailure` are absent, and the original submission still has the same `done` answer. During finish, the cancelled hook returns its task request but no child runs or is published. During drain, the original owned `run 1` child runs and is aborted exactly once. The comparison covers the five public observations, not a native memory storage placement.
 
 Suppressing the counted abort in the drain probe fails the exact run-and-abort assertion. Five focused groups passed twice; vet and Staticcheck passed. No runtime code changed.
+
+### Codex SSE preserves `xhigh` effort and explicit required tool choice
+
+Both unchanged originals passed. The scripted simple-options request sends exactly `{"effort":"xhigh","summary":"auto"}` for GPT-5.5 with an explicit `xhigh` mapping. A distinct request with `ping` sends `"tool_choice":"required"`. Separate `high` and default tool-choice probes keep the cases distinct. They check decoded request fields and a successful completion, not the whole payload or compression bytes.
+
+Six controls isolated effort demotion, missing and extra reasoning members, ignored and unconditional required choice, and a missing tool. Focused repeats, vet and Staticcheck passed. No live calls or production changes were made.
