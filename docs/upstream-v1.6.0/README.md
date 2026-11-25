@@ -1051,3 +1051,7 @@ All 33 unchanged thread cases passed. The native public client creates the first
 ### Chord getter cancellation preserves the child reason
 
 The unchanged [getter-context case](test-inventory/chord-getter-context.md) passed offline; the other 101 file cases were unselected. The witness observed the host and shared Context modules and preserved the exact supplied cancellation reason on the child without aborting the parent. Substituting the default abort reason failed the unchanged assertion. This does not verify Durable's callers or native Go correspondence.
+
+### Sandbox tool rejections remain catchable
+
+All three unchanged variants passed. The native raw engine and both published placements catch `tool exploded` as a JavaScript `Error`, finish the script successfully and record one `fail` call with status `error`. Delivering the failed tool as a success or relabelling its status broke the comparison. The raw engine handles the omitted argument, and the published tool envelope normalizes it to an empty object. Public inline Durable still rejects the omitted form; the separate adapter check supplies `{}`. That argument guard was not changed in this round.
