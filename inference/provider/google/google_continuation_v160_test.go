@@ -133,20 +133,89 @@ func TestSourceV160GoogleContinuationWire(t *testing.T) {
 		googleContinuationBaseV160 + "/publishers/google/models/test-model:streamGenerateContent?alt=sse",
 	} {
 		got := requests[i]
-		target := got.url
-		if i == 0 {
-			// Standalone Google still uses the query key. This comparison
-			// excludes only that known SDK auth difference, not other query fields.
-			target = strings.TrimSuffix(target, "&key=test-key")
-		} else if !slices.Equal(got.key, []string{"test-key"}) {
-			t.Errorf("Vertex x-goog-api-key = %v, want one test-key", got.key)
+		if !slices.Equal(got.key, []string{"test-key"}) {
+			t.Errorf("request %d x-goog-api-key = %v, want one test-key", i, got.key)
 		}
-		if got.method != http.MethodPost || target != wantURL {
-			t.Errorf("request %d: %s %s, want POST %s", i, got.method, target, wantURL)
+		if got.method != http.MethodPost || got.url != wantURL {
+			t.Errorf("request %d: %s %s, want POST %s", i, got.method, got.url, wantURL)
 		}
 		if want := googleContinuationBodyV160(&tokens); !reflect.DeepEqual(got.body, want) {
 			t.Errorf("request %d continuation body = %#v, want %#v", i, got.body, want)
 		}
+	}
+}
+
+// The pinned standalone SDK uses one key header with the original key bytes.
+// Keep Go callers' header/default/suppression policies while moving auth.
+func TestGoogleGenerativeAIHeaderCredentialPolicyV160(t *testing.T) {
+	guardGoogleContinuationNetworkV160(t)
+	for _, tc := range []struct {
+		name          string
+		model, caller map[string]string
+		suppress      []string
+		want          []string
+	}{
+		{name: "resolved-key", want: []string{"a+b/c="}},
+		{name: "model-default", model: map[string]string{"x-goog-api-key": "model-key"}, want: []string{"model-key"}},
+		{name: "caller-override", model: map[string]string{"x-goog-api-key": "model-key"}, caller: map[string]string{"X-GOOG-API-KEY": "caller-key"}, want: []string{"caller-key"}},
+		{name: "explicit-blank", caller: map[string]string{"x-goog-api-key": ""}, want: []string{""}},
+		{name: "suppressed", suppress: []string{"x-goog-api-key"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var requests []googleContinuationRequestV160
+			model := googleContinuationModelV160(goai.ApiGoogleGenerativeAI)
+			model.Headers = tc.model
+			opts := &goai.StreamOptions{
+				APIKey: "a+b/c=", Headers: tc.caller, SuppressHeaders: tc.suppress,
+				HTTPTransport: googleContinuationTransportV160(&requests),
+			}
+			checkGoogleContinuationEventsV160(t, model.Api, goai.GetApiProvider(model.Api).Stream(t.Context(), model, googleContinuationContextV160(), opts))
+			const wantURL = googleContinuationBaseV160 + "/models/test-model:streamGenerateContent?alt=sse"
+			if len(requests) != 1 || requests[0].method != http.MethodPost || requests[0].url != wantURL {
+				t.Errorf("wire requests = %+v, want a single POST without a query key", requests)
+			}
+			if len(requests) != 1 || !slices.Equal(requests[0].key, tc.want) {
+				t.Errorf("header in %+v, want exactly %q", requests, tc.want)
+			}
+		})
+	}
+}
+
+// Moving the key to a header must not make it follow a redirect to another
+// authority or a downgraded scheme. The transport is entirely offline.
+func TestGoogleGenerativeAICredentialRedirectBoundaryV160(t *testing.T) {
+	guardGoogleContinuationNetworkV160(t)
+	for _, tc := range []struct {
+		name, location string
+		want           []string
+	}{
+		{"same-authority", "https://upstream.test/retry", []string{"test-key"}},
+		{"other-authority", "https://redirect.test/retry", nil},
+		{"changed-scheme", "http://upstream.test/retry", nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var seen []googleContinuationRequestV160
+			opts := &goai.StreamOptions{APIKey: "test-key", HTTPTransport: vertexTokenWireFunc(func(req *http.Request) (*http.Response, error) {
+				defer req.Body.Close()
+				seen = append(seen, googleContinuationRequestV160{method: req.Method, url: req.URL.String(), key: req.Header.Values("X-Goog-Api-Key")})
+				switch len(seen) {
+				case 1:
+					return &http.Response{Request: req, StatusCode: http.StatusTemporaryRedirect, Header: http.Header{"Location": {tc.location}}, Body: http.NoBody}, nil
+				case 2:
+					return &http.Response{Request: req, StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {"text/event-stream"}}, Body: io.NopCloser(strings.NewReader(googleContinuationFrameV160))}, nil
+				default:
+					return nil, fmt.Errorf("unexpected additional request")
+				}
+			})}
+			model := googleContinuationModelV160(goai.ApiGoogleGenerativeAI)
+			checkGoogleContinuationEventsV160(t, model.Api, goai.GetApiProvider(model.Api).Stream(t.Context(), model, googleContinuationContextV160(), opts))
+			if len(seen) != 2 || seen[1].method != http.MethodPost || seen[1].url != tc.location {
+				t.Fatalf("redirect requests = %+v, want the initial request then POST %s", seen, tc.location)
+			}
+			if !slices.Equal(seen[0].key, []string{"test-key"}) || !slices.Equal(seen[1].key, tc.want) {
+				t.Errorf("redirect credential = %q after initial %q; want %q after one key", seen[1].key, seen[0].key, tc.want)
+			}
+		})
 	}
 }
 

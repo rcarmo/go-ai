@@ -7,20 +7,12 @@ import (
 	goai "github.com/rcarmo/go-ai"
 )
 
-func TestBuildStreamURLEscapesPathAndQuery(t *testing.T) {
+func TestBuildStreamURLEscapesPathWithoutQueryKey(t *testing.T) {
 	model := &goai.Model{ID: "models/custom/id", BaseURL: "https://example.test/v1beta/"}
 	got, err := buildStreamURL(model, "a+b/c=", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(got, "v1beta//") {
-		t.Fatalf("base URL was not normalized: %q", got)
-	}
-	if !strings.Contains(got, "/models/models%2Fcustom%2Fid:streamGenerateContent") {
-		t.Fatalf("model ID was not path-escaped: %q", got)
-	}
-	if !strings.Contains(got, "key=a%2Bb%2Fc%3D") {
-		t.Fatalf("API key was not query-escaped: %q", got)
+	const want = "https://example.test/v1beta/models/models%2Fcustom%2Fid:streamGenerateContent?alt=sse"
+	if err != nil || got != want {
+		t.Fatalf("Google URL = %q, err=%v; want escaped path and no credential: %q", got, err, want)
 	}
 }
 

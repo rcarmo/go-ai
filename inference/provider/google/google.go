@@ -122,10 +122,10 @@ func streamGoogle(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 		}
 		goai.ApplyDefaultHeaders(req.Header, model.Headers)
 		goai.ApplyDefaultHeaders(req.Header, goai.RequestIdentityHeaders(model, opts))
-		if vertexKey {
-			// The locked Vertex SDK authenticates with a header, not a URL
-			// query parameter, and leaves explicit headers untouched.
-			const keyHeader = "X-Goog-Api-Key"
+		const keyHeader = "X-Goog-Api-Key"
+		if vertexKey || model.Api != goai.ApiGoogleVertex {
+			// Match the pinned SDK's header authentication and leave explicit
+			// headers untouched. Vertex ADC keeps its separate bearer flow.
 			if _, present := req.Header[keyHeader]; !present {
 				req.Header.Set(keyHeader, apiKey)
 			}
@@ -150,6 +150,19 @@ func streamGoogle(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 
 		retryCfg := googleRetryConfig(opts)
 		client := retryCfg.NewHTTPClient()
+		if model.Api != goai.ApiGoogleVertex {
+			client.CheckRedirect = func(next *http.Request, via []*http.Request) error {
+				if len(via) >= 10 {
+					return fmt.Errorf("stopped after 10 redirects")
+				}
+				// net/http does not treat the Google key header as sensitive.
+				// Do not forward it to a different scheme or authority.
+				if len(via) > 0 && (next.URL.Scheme != via[0].URL.Scheme || !strings.EqualFold(next.URL.Host, via[0].URL.Host)) {
+					next.Header.Del(keyHeader)
+				}
+				return nil
+			}
+		}
 		if opts != nil && opts.HTTPTransport != nil {
 			client.Transport = opts.HTTPTransport
 		} else if _, standard := http.DefaultTransport.(*http.Transport); !standard && http.DefaultTransport != nil {
@@ -238,9 +251,8 @@ func buildStreamURL(model *goai.Model, apiKey string, opts *goai.StreamOptions) 
 	if baseURL == "" {
 		baseURL = "https://generativelanguage.googleapis.com/v1beta"
 	}
-	// REST streaming endpoint. Escape path/query components so unusual model
-	// aliases or API keys containing reserved characters cannot corrupt the URL.
-	return fmt.Sprintf("%s/models/%s:streamGenerateContent?alt=sse&key=%s", strings.TrimRight(baseURL, "/"), url.PathEscape(model.ID), url.QueryEscape(apiKey)), nil
+	// The API key belongs in a header; only the model ID is a path component.
+	return fmt.Sprintf("%s/models/%s:streamGenerateContent?alt=sse", strings.TrimRight(baseURL, "/"), url.PathEscape(model.ID)), nil
 }
 
 var vertexVersionSegment = regexp.MustCompile(`(?:^|/)v\d+(?:beta\d*)?(?:/|$)`)
