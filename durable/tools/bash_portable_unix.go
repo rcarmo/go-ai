@@ -11,10 +11,10 @@ import (
 )
 
 func executePortableBash(ctx context.Context, fs durable.FileSystem, shell durable.Shell, args durable.JSON, api *durable.ToolAPI) (durable.ToolResult, error) {
-	return executePortableCommand(ctx, fs, args, api, shell.Exec)
+	return executePortableCommand(ctx, fs, args, api, false, shell.Exec)
 }
 
-func executePortableCommand(ctx context.Context, fs durable.FileSystem, args durable.JSON, api *durable.ToolAPI, exec func(context.Context, string, durable.ShellExecOptions) (durable.ShellExecResult, error)) (durable.ToolResult, error) {
+func executePortableCommand(ctx context.Context, fs durable.FileSystem, args durable.JSON, api *durable.ToolAPI, reportExitAsResult bool, exec func(context.Context, string, durable.ShellExecOptions) (durable.ShellExecResult, error)) (durable.ToolResult, error) {
 	if err := ctx.Err(); err != nil {
 		return durable.ToolResult{}, err
 	}
@@ -116,8 +116,15 @@ func executePortableCommand(ctx context.Context, fs durable.FileSystem, args dur
 		return result, err
 	}
 	if executed.ExitCode != 0 {
-		//lint:ignore ST1005 Preserve reference model-visible diagnostic wording.
-		return result, fmt.Errorf("Command exited with code %d", executed.ExitCode)
+		message := fmt.Sprintf("Command exited with code %d", executed.ExitCode)
+		if api != nil && reportExitAsResult && ctx.Err() == nil {
+			// A completed PowerShell process is a tool outcome, not a
+			// transport/start failure. The Harness still owns retained output.
+			result.IsError = true
+			result.Diagnostics = []durable.ToolDiagnostic{{Severity: "error", Code: "exit_code", Message: message}}
+			return result, nil
+		}
+		return result, errors.New(message)
 	}
 	return result, nil
 }

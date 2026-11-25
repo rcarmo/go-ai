@@ -26,12 +26,16 @@ type livePowerShellV160 struct {
 	installed string
 	chunks    []string
 	exit      int
+	failure   error
 	accepted  chan struct{}
 	calls     [][]string
 }
 
-func (*livePowerShellV160) Exec(context.Context, string, durable.ShellExecOptions) (durable.ShellExecResult, error) {
-	return durable.ShellExecResult{}, errors.New("expected direct argv without a shell")
+func (e *livePowerShellV160) Exec(ctx context.Context, command string, options durable.ShellExecOptions) (durable.ShellExecResult, error) {
+	if e.installed != "mock-bash" {
+		return durable.ShellExecResult{}, errors.New("expected direct argv without a shell")
+	}
+	return e.ExecArgs(ctx, []string{"mock-bash", command}, options)
 }
 
 func (e *livePowerShellV160) ExecArgs(ctx context.Context, args []string, options durable.ShellExecOptions) (durable.ShellExecResult, error) {
@@ -55,7 +59,7 @@ func (e *livePowerShellV160) ExecArgs(ctx context.Context, args []string, option
 			return durable.ShellExecResult{}, ctx.Err()
 		}
 	}
-	return durable.ShellExecResult{ExitCode: e.exit}, nil
+	return durable.ShellExecResult{ExitCode: e.exit}, e.failure
 }
 
 // Source: tools.test.ts:573–615. Split the exact mocked source text into two
@@ -65,19 +69,27 @@ func TestSourceV160MockPowerShellLiveProgress(t *testing.T) {
 	for _, tc := range []struct {
 		name, installed, command, prefix string
 		chunks, programs                 []string
-		exit                             int
+		exit, drop                       int
+		failure                          error
 		wantErr                          string
 	}{
-		{"pwshUTF8", "pwsh", "Write-Output 'héllo'", "", []string{"hé", "llo\n"}, []string{"pwsh"}, 0, ""},
-		{"pwshFallback", "powershell", "$x", "$x = 1", []string{"o", "k"}, []string{"pwsh", "powershell"}, 0, ""},
-		{"pwshMissing", "", "1", "", nil, []string{"pwsh", "powershell"}, 0, "spawn powershell ENOENT"},
-		{"pwshExit", "pwsh", "exit 3", "", []string{"par", "tial"}, []string{"pwsh"}, 3, "Command exited with code 3"},
+		{"pwshUTF8", "pwsh", "Write-Output 'héllo'", "", []string{"hé", "llo\n"}, []string{"pwsh"}, 0, 0, nil, ""},
+		{"pwshFallback", "powershell", "$x", "$x = 1", []string{"o", "k"}, []string{"pwsh", "powershell"}, 0, 0, nil, ""},
+		{"pwshMissing", "", "1", "", nil, []string{"pwsh", "powershell"}, 0, 0, nil, "spawn powershell ENOENT"},
+		{"pwshExit", "pwsh", "exit 3", "", []string{"par", "tial"}, []string{"pwsh"}, 3, 0, nil, "Command exited with code 3"},
+		{"pwshExitTruncated", "pwsh", "exit 3", "", []string{"gone" + strings.Repeat("x", MaxReadBytes)}, []string{"pwsh"}, 3, 4, nil, "Command exited with code 3"},
+		{"pwshTimeout", "pwsh", "1", "", []string{"before timeout"}, []string{"pwsh"}, 7, 0, &durable.ExecutionError{Code: "timeout"}, "Command timed out after 2 seconds"},
+		{"pwshAborted", "pwsh", "1", "", []string{"before abort"}, []string{"pwsh"}, 7, 0, &durable.ExecutionError{Code: "aborted"}, "Command aborted"},
+		{"bashExitControl", "mock-bash", "exit 3", "", []string{"par", "tial"}, []string{"mock-bash"}, 3, 0, nil, "Command exited with code 3"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 8*time.Second)
 			defer cancel()
-			env := &livePowerShellV160{Env: LocalEnv(t.TempDir()), installed: tc.installed, chunks: tc.chunks, exit: tc.exit, accepted: make(chan struct{})}
+			env := &livePowerShellV160{Env: LocalEnv(t.TempDir()), installed: tc.installed, chunks: tc.chunks, exit: tc.exit, failure: tc.failure, accepted: make(chan struct{})}
 			tool := PowerShell(env, PowerShellOptions{CommandPrefix: tc.prefix})
+			if tc.installed == "mock-bash" {
+				tool = Bash(env)
+			}
 			type returned struct {
 				result durable.ToolResult
 				err    error
@@ -104,7 +116,11 @@ func TestSourceV160MockPowerShellLiveProgress(t *testing.T) {
 				message := &goai.Message{Role: goai.RoleAssistant, StopReason: goai.StopReasonStop, Content: []goai.ContentBlock{{Type: "text", Text: "done"}}}
 				if requests.Add(1) == 1 {
 					message.StopReason = goai.StopReasonToolUse
-					message.Content = []goai.ContentBlock{{Type: "toolCall", ID: callID, Name: "powershell", Arguments: map[string]any{"command": tc.command}}}
+					args := map[string]any{"command": tc.command}
+					if tc.name == "pwshTimeout" {
+						args["timeout"] = 2
+					}
+					message.Content = []goai.ContentBlock{{Type: "toolCall", ID: callID, Name: tool.Definition.Name, Arguments: args}}
 				}
 				result := make(chan goai.Event, 1)
 				result <- &goai.DoneEvent{Reason: message.StopReason, Message: message}
@@ -151,6 +167,10 @@ func TestSourceV160MockPowerShellLiveProgress(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			wantChunks := slices.Clone(tc.chunks)
+			if tc.drop != 0 {
+				wantChunks[0] = wantChunks[0][tc.drop:]
+			}
 			var streamed []string
 			var end *durable.MessageReceipt
 			for end == nil {
@@ -164,7 +184,7 @@ func TestSourceV160MockPowerShellLiveProgress(t *testing.T) {
 						break
 					}
 					change := event.OutputChange
-					if event.Type != "tool_execution_update" || change == nil || change.Set != nil || change.TrimStart != 0 || len(streamed) >= len(tc.chunks) || change.Append != tc.chunks[len(streamed)] {
+					if event.Type != "tool_execution_update" || change == nil || change.Set != nil || change.TrimStart != 0 || len(streamed) >= len(wantChunks) || change.Append != wantChunks[len(streamed)] || event.DroppedBytes != uint64(tc.drop) || event.DroppedLines != 0 {
 						t.Fatalf("unexpected progress after %q: type=%s change=%+v output=%q", streamed, event.Type, change, event.Output)
 					}
 					streamed = append(streamed, change.Append)
@@ -183,8 +203,8 @@ func TestSourceV160MockPowerShellLiveProgress(t *testing.T) {
 					t.Fatalf("watch did not receive required progress: streamed=%q: %v", streamed, ctx.Err())
 				}
 			}
-			if !slices.Equal(streamed, tc.chunks) {
-				t.Fatalf("public streamed chunks=%q; want %q", streamed, tc.chunks)
+			if !slices.Equal(streamed, wantChunks) {
+				t.Fatalf("public streamed chunks=%q; want %q", streamed, wantChunks)
 			}
 			if result, err := submission.Wait(ctx); err != nil || result.Record.Status != "done" {
 				t.Fatal("submission did not settle", result, err)
@@ -198,8 +218,13 @@ func TestSourceV160MockPowerShellLiveProgress(t *testing.T) {
 			case <-ctx.Done():
 				t.Fatal("missing Execute result")
 			}
-			if (tc.wantErr == "" && got.err != nil) || (tc.wantErr != "" && (got.err == nil || got.err.Error() != tc.wantErr)) || got.result.Details["exitCode"] != tc.exit {
-				t.Fatalf("live Execute exit=%v error=%v; want exit=%d, error=%q", got.result.Details["exitCode"], got.err, tc.exit, tc.wantErr)
+			completedNonzero := tc.exit != 0 && tc.failure == nil && tc.installed != "mock-bash"
+			wantReturnedErr := tc.wantErr
+			if completedNonzero {
+				wantReturnedErr = ""
+			}
+			if (wantReturnedErr == "" && got.err != nil) || (wantReturnedErr != "" && (got.err == nil || got.err.Error() != wantReturnedErr)) || got.result.Details["exitCode"] != tc.exit || got.result.IsError != completedNonzero {
+				t.Fatalf("live Execute exit=%v isError=%v err=%v; want exit=%d isError=%v err=%q", got.result.Details["exitCode"], got.result.IsError, got.err, tc.exit, completedNonzero, wantReturnedErr)
 			}
 			command := "try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n"
 			if tc.prefix != "" {
@@ -208,22 +233,35 @@ func TestSourceV160MockPowerShellLiveProgress(t *testing.T) {
 			command += tc.command
 			var wantArgv [][]string
 			for _, program := range tc.programs {
-				wantArgv = append(wantArgv, []string{program, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", command})
+				if program == "mock-bash" {
+					wantArgv = append(wantArgv, []string{program, tc.command})
+				} else {
+					wantArgv = append(wantArgv, []string{program, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", command})
+				}
 			}
 			if !reflect.DeepEqual(env.calls, wantArgv) {
 				t.Errorf("argv=%q; want %q", env.calls, wantArgv)
 			}
-			// Source returns structuredOutput and an exit_code diagnostic. Go
-			// returns the execution error and puts exitCode in receipt details;
-			// its Harness retains output and renders the generic tool_error.
+			// Source returns structuredOutput. The native model receipt has
+			// separate content, details and diagnostics, not that channel.
 			var wantText []string
-			if len(tc.chunks) != 0 {
-				wantText = append(wantText, strings.Join(tc.chunks, ""))
+			if len(wantChunks) != 0 {
+				wantText = append(wantText, strings.Join(wantChunks, ""))
 			}
 			var wantDiagnostics []durable.ToolDiagnostic
 			if tc.wantErr != "" {
-				wantText = append(wantText, "<harness>\n[error] "+tc.wantErr+"\n</harness>")
-				wantDiagnostics = []durable.ToolDiagnostic{{Severity: "error", Code: "tool_error", Message: tc.wantErr}}
+				code := "tool_error"
+				if completedNonzero {
+					code = "exit_code"
+				}
+				wantDiagnostics = []durable.ToolDiagnostic{{Severity: "error", Code: code, Message: tc.wantErr}}
+				rendered := "<harness>\n[error] " + tc.wantErr
+				if tc.drop != 0 {
+					message := fmt.Sprintf("Output truncated to its end: 0 lines, %d bytes dropped", tc.drop)
+					wantDiagnostics = append(wantDiagnostics, durable.ToolDiagnostic{Severity: "warn", Code: "truncated", Message: message})
+					rendered += "\n[warn] " + message
+				}
+				wantText = append(wantText, rendered+"\n</harness>")
 			}
 			var text []string
 			for _, block := range end.Content {
@@ -237,5 +275,19 @@ func TestSourceV160MockPowerShellLiveProgress(t *testing.T) {
 				t.Fatalf("native receipt: content=%q isError=%v details=%v diagnostics=%+v returnedStructured=%v", text, end.IsError, end.Details, end.Diagnostics, got.result.HasStructuredOutput)
 			}
 		})
+	}
+}
+
+func TestPowerShellCancelledBeforeStartDoesNotTryPrograms(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	env := &livePowerShellV160{Env: LocalEnv(t.TempDir()), installed: "pwsh"}
+	tool := PowerShell(env, PowerShellOptions{Prepare: func(context.Context, *BashExecution, *durable.ToolAPI) error {
+		cancel()
+		return nil
+	}})
+	got, err := tool.Execute(ctx, durable.JSON{"command": "1"}, nil)
+	if !errors.Is(err, context.Canceled) || len(env.calls) != 0 || got.IsError || len(got.Diagnostics) != 0 {
+		t.Fatalf("cancellation became an exit outcome: argv=%q result=%+v err=%v", env.calls, got, err)
 	}
 }

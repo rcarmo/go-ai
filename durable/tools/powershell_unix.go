@@ -65,7 +65,7 @@ func PowerShell(env durable.FileSystem, options ...PowerShellOptions) durable.To
 				prepared[k] = v
 			}
 			prepared["command"], prepared["cwd"], prepared["executionEnv"], prepared["inheritEnv"] = execution.Command, execution.Cwd, execution.Env, execution.InheritEnv
-			return executePortableCommand(ctx, fs, prepared, api, func(ctx context.Context, command string, opts durable.ShellExecOptions) (durable.ShellExecResult, error) {
+			return executePortableCommand(ctx, fs, prepared, api, true, func(ctx context.Context, command string, opts durable.ShellExecOptions) (durable.ShellExecResult, error) {
 				var result durable.ShellExecResult
 				var err error = errors.New("no PowerShell program to run")
 				for _, program := range programs {
