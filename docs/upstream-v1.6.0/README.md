@@ -1089,3 +1089,11 @@ All 18 unchanged tool-park cases passed. In the native baseline, a bound caller 
 With a deterministic clock jump from 1,000 to 3,000, the caller receives the successful result with exactly 2,000 ms elapsed. The same SQLite task runs twice with the original checkpoint, and its result reaches the parent transcript as `nested passed`. Restoring the previous admission guard or dropping the duration broke the comparison.
 
 The integrated code at `52098ac4` passed 26 focused top-level Go tests twice, without skips. The run used the actual published guest and standalone worker, with CGO disabled and network access restricted to loopback. Vet and Staticcheck v0.8.2 passed. The Chord fingerprint and both image receipts reproduced byte for byte. The separate `TestTaskSchedulerCapacityToolChildHoldOne/sqlite` still fails with `decided receipt lost`, both before and after the scheduler change. Of 1,871 scoped sites, 1,818 are mapped, 51 are partial and two are unmatched. Thirty-two of the 214 changed suites have assertion-level links.
+
+### Sandbox failures keep earlier output and reject a non-serializable value
+
+All six selected unchanged variants passed. Native inline QuickJS, the published portable guest and the standalone worker preserve the sole `partial` output before the script fails. Returning `10n` produces a script `TypeError` in each placement. The native worker test checks both the raw published frames and the Go projection. No production change was needed.
+
+### Image fitting applies EXIF orientation before measuring dimensions
+
+The unchanged [EXIF fit case](test-inventory/images-fit-exif.md) passed. Under the same limits, Photon and public Go `FitImages` both decode the fitted EXIF-6 input at 30×40. Forcing orientation 3 broke the dimension comparison in both runtimes. This is a dimension check; pixel placement, encoder bytes and worker timing are outside its scope.
