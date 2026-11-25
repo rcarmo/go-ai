@@ -1,0 +1,169 @@
+{
+  "format": 1,
+  "pin": "faac585884ae2c013a6b1400f3e9e77f10b34bac",
+  "evidenceBase": "60dfad60f69141e5f7932714982a93de2f37411d",
+  "node": "v26.13.0",
+  "platform": "linux/arm64",
+  "configSha256": "f13c3424afac46e1500bb993c23fabce908f899321fd2c90e3adda5712f3ac9a",
+  "original": {
+    "file": "packages/chord/test/remote/provider.test.ts",
+    "blob": "d88ae4189afc30fd4ff9c66b8e0f2162e36ea542",
+    "sha256": "26b358073d13341a799f6e913c63f5e24f94ff6648a36a3c77a117092185ac01",
+    "selection": "the window at the provider holds at most two unacknowledged bound and state messages; what waits goes out folded, encoded once",
+    "caseNames": [
+      "binary codec the window at the provider holds at most two unacknowledged bound and state messages; what waits goes out folded, encoded once",
+      "text codec the window at the provider holds at most two unacknowledged bound and state messages; what waits goes out folded, encoded once"
+    ],
+    "passed": 2,
+    "failed": 0,
+    "unselected": 134,
+    "todo": 0
+  },
+  "runner": {
+    "vitest": "4.1.12",
+    "integrity": "sha512-5eWdz2yb3ajxWF3C8C4TjkXl7FGm3n2E/VlazALrQHzK7nYMSGFnCZto0bbPNl77AwkOZVLk0YnBAejUu0NiWA==",
+    "archiveSha256": "ac79c9561c99eabc1cc29e0a839cbd03d1ff0e45bbecb5a2edfa6c3827c823d1",
+    "evaluatorSha256": "a0b36fb2211d2587d8df68d5855d48141be27e99bdb973378a83f927e03b004e",
+    "copiedDependencies": {
+      "roots": [
+        "npm:node_modules/vitest"
+      ],
+      "host": {
+        "os": "linux",
+        "cpu": "arm64",
+        "libc": "glibc"
+      },
+      "placements": [
+        "node_modules/@jridgewell/sourcemap-codec",
+        "node_modules/@oxc-project/types",
+        "node_modules/@rolldown/binding-linux-arm64-gnu",
+        "node_modules/@rolldown/pluginutils",
+        "node_modules/@standard-schema/spec",
+        "node_modules/@types/chai",
+        "node_modules/@types/deep-eql",
+        "node_modules/@types/estree",
+        "node_modules/@vitest/expect",
+        "node_modules/@vitest/mocker",
+        "node_modules/@vitest/pretty-format",
+        "node_modules/@vitest/runner",
+        "node_modules/@vitest/snapshot",
+        "node_modules/@vitest/spy",
+        "node_modules/@vitest/utils",
+        "node_modules/assertion-error",
+        "node_modules/chai",
+        "node_modules/convert-source-map",
+        "node_modules/detect-libc",
+        "node_modules/es-module-lexer",
+        "node_modules/estree-walker",
+        "node_modules/expect-type",
+        "node_modules/fdir",
+        "node_modules/lightningcss",
+        "node_modules/lightningcss-linux-arm64-gnu",
+        "node_modules/magic-string",
+        "node_modules/nanoid",
+        "node_modules/obug",
+        "node_modules/pathe",
+        "node_modules/picocolors",
+        "node_modules/picomatch",
+        "node_modules/postcss",
+        "node_modules/rolldown",
+        "node_modules/siginfo",
+        "node_modules/source-map-js",
+        "node_modules/stackback",
+        "node_modules/std-env",
+        "node_modules/tinybench",
+        "node_modules/tinyexec",
+        "node_modules/tinyglobby",
+        "node_modules/tinyrainbow",
+        "node_modules/vite",
+        "node_modules/vitest",
+        "node_modules/why-is-node-running"
+      ]
+    }
+  },
+  "primaryReference": {
+    "file": "packages/durable/src/session/session.ts",
+    "sha256": "39ee7d179a505c4fa44b83e46b2aa3d805b21d2e7992c0320ea593fe1caf9978",
+    "import": "@earendil-works/chord/delta",
+    "importLine": 2,
+    "call": "PendingOps.push",
+    "callLine": 1233
+  },
+  "observedModules": [
+    {
+      "kind": "source-evaluated",
+      "api": "node:vm runInThisContext",
+      "file": "packages/chord/src/delta/pending.ts",
+      "export": "PendingOps",
+      "sourceSha256": "b15938f7e7f775f4b872ec7ca5bfe0963da6b49e8f6748d93684f5d8d378e2a2"
+    },
+    {
+      "kind": "source-evaluated",
+      "api": "node:vm runInThisContext",
+      "file": "packages/chord/src/remote/provider.ts",
+      "export": "ProviderSide",
+      "sourceSha256": "0e8bfd9e9462b8b2e7a6734729fe66f5e44346efb506709e4a954071e57309c6"
+    }
+  ],
+  "witness": [
+    {
+      "kind": "queue-take",
+      "pushed": [
+        2,
+        3,
+        4
+      ],
+      "result": {
+        "kind": "ops",
+        "ops": [
+          [
+            "r",
+            4
+          ]
+        ]
+      }
+    },
+    {
+      "kind": "queue-take",
+      "pushed": [
+        2,
+        3,
+        4
+      ],
+      "result": {
+        "kind": "ops",
+        "ops": [
+          [
+            "r",
+            4
+          ]
+        ]
+      }
+    }
+  ],
+  "control": {
+    "change": "retain-first-root-replacement-in-scratch-pending-ops",
+    "case": "binary codec the window at the provider holds at most two unacknowledged bound and state messages; what waits goes out folded, encoded once",
+    "failed": 1,
+    "unselected": 135,
+    "observed": [
+      {
+        "kind": "queue-take",
+        "pushed": [
+          2,
+          3,
+          4
+        ],
+        "result": {
+          "kind": "ops",
+          "ops": [
+            [
+              "r",
+              2
+            ]
+          ]
+        }
+      }
+    ]
+  }
+}
