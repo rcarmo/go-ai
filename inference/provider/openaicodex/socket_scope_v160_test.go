@@ -67,10 +67,10 @@ func TestSourceV160CodexSocketScope(t *testing.T) {
 				for {
 					_, data, err := conn.Read(ctx)
 					if err != nil {
-						closed <- codexScopeClose{connection: id, err: err}
 						if id == 1 {
 							close(firstPeerClosed)
 						}
+						closed <- codexScopeClose{connection: id, err: err}
 						return
 					}
 					var body map[string]json.RawMessage
@@ -245,15 +245,17 @@ func TestSourceV160CodexSocketScope(t *testing.T) {
 					timer.Stop()
 				}
 				cancelRead := entry.cancelRead
+				cancelReadObserved := make(chan bool, 1)
 				entry.cancelRead = func() {
 					cancelRead()
-					// Let the peer observe the cancellation if it is performed
-					// first. This exposes the cancellation/close race without
-					// guessing which goroutine runs first.
+					// Let the peer observe cancellation if it ran before the
+					// close handshake. Report to the test, not to testing.T:
+					// an asynchronous retirement can finish after a failure.
 					select {
 					case <-firstPeerClosed:
+						cancelReadObserved <- true
 					case <-ctx.Done():
-						t.Error("reader cancellation did not reach the peer")
+						cancelReadObserved <- false
 					}
 				}
 				codexWebSocketSessionsMu.Unlock()
@@ -271,6 +273,15 @@ func TestSourceV160CodexSocketScope(t *testing.T) {
 					t.Errorf("eviction stats = %+v; want two created, zero reused", stats)
 				}
 				assertCloseReason(first.connection, readCloses(1)[first.connection], reason)
+				// The peer receipt does not join the detached age-cap closer.
+				select {
+				case observed := <-cancelReadObserved:
+					if !observed {
+						t.Error("reader cancellation did not reach the peer")
+					}
+				case <-ctx.Done():
+					t.Fatal("retired reader cancellation probe did not finish")
+				}
 			case "active-close": // Supplemental: public cleanup while a cached reader owns a lease.
 				opts := &goai.StreamOptions{APIKey: accountJWT("account-a"), SessionID: target, Transport: goai.TransportWebSocketCached}
 				var events []string
