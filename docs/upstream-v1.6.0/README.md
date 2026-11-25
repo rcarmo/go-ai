@@ -1195,3 +1195,7 @@ All three unchanged global-admission variants passed. The pinned published const
 ### Prepared Schema reports both paths to the same invalid object
 
 All 40 unchanged validator cases passed. A shared Go map reached through the same reference produces the exact ordered `/a/n` and `/b/n` records. Repairing the shared value clears both on the same prepared validator, and restoring the invalid value restores both records. Dropping paths from the diagnostic memo or reusing its value state across calls failed those checks. No Schema production change was needed.
+
+### Removing an after-run hook before reopen prevents a second ask
+
+All 29 unchanged after-run cases passed. The native SQLite fixture kills a real writer during the first held hook after the answer commits. On reopen without the extension, the hook is not asked again, no child runs and the live document is empty. The retained-extension control asks again and runs one child from the same saved finish checkpoint. Both paths complete the original generation without a new model request. The source fixture simulates process loss by parking storage; the native comparison performs a real process exit.
