@@ -29,7 +29,7 @@ func TestSourceV160SchemaRelativeRootReference(t *testing.T) {
 		"$defs":{"count":{"type":"integer"}}
 	}`
 	t.Run("L211-relative-root-check", func(t *testing.T) {
-		assertV160SchemaCheck(t, schema, `{"count":2}`, nil, "", false, true)
+		assertV160CompiledCheck(t, compileV160LeafSchema(t, schema), `{"count":2}`, true)
 	})
 	compiled := compileV160RejectingRefs(t, schema)
 	t.Run("L213-relative-root-in-reject-mode", func(t *testing.T) {
@@ -75,7 +75,11 @@ func TestSourceV160SchemaRelativeRootAnnotations(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		// Reuse the default-mode validator to distinguish a leftover item
+		// from a failure to resolve the prefix item's $ref.
+		assertV160CompiledCheck(t, compiled, `[2]`, true)
 		assertV160CompiledCheck(t, compiled, `[2,3]`, false)
+		assertV160PreparedMessageRecords(t, compiled, `[2,3]`, `[{"path":"/1","keyword":"unevaluatedItems","message":"unexpected item"}]`)
 	})
 }
 
@@ -92,11 +96,18 @@ func TestSourceV160SchemaNestedRelativeDiagnostics(t *testing.T) {
 		"anyOf":[{"$id":"a/b.json","$ref":"#/$defs/n","$defs":{"n":{"type":"integer"}}},{"type":"boolean"}]
 	}`
 	t.Run("L257-nested-unevaluated-resource", func(t *testing.T) {
-		assertV160MessageRecords(t, cloned, `{"count":2,"extra":1}`,
+		compiled := compileV160LeafSchema(t, cloned)
+		assertV160CompiledCheck(t, compiled, `{"count":2}`, true)
+		assertV160CompiledCheck(t, compiled, `{"count":2,"extra":1}`, false)
+		assertV160PreparedMessageRecords(t, compiled, `{"count":2,"extra":1}`,
 			`[{"path":"/extra","keyword":"unevaluatedProperties","message":"unknown field"}]`)
 	})
 	t.Run("L264-nested-branch-type", func(t *testing.T) {
-		assertV160MessageRecords(t, branch, `{}`, `[{"path":"","keyword":"type","message":"expected integer, got object"}]`)
+		compiled := compileV160LeafSchema(t, branch)
+		assertV160CompiledCheck(t, compiled, `1`, true)
+		assertV160CompiledCheck(t, compiled, `true`, true)
+		assertV160CompiledCheck(t, compiled, `{}`, false)
+		assertV160PreparedMessageRecords(t, compiled, `{}`, `[{"path":"","keyword":"type","message":"expected integer, got object"}]`)
 	})
 }
 
