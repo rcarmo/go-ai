@@ -1335,3 +1335,7 @@ The integrated code at `233b3439` passed 33 focused top-level Go tests twice, wi
 ### Schema equality matches the pinned structural truth vector
 
 The unchanged equality case passed. Public Go `SchemaEqual` matches all ten outcomes in source order and with operands reversed. Object field order does not affect equality, while array position and the distinction between null, explicit undefined and a missing key do. The source checks the vector with a one-line loop; the ledger records this as supplemental evidence rather than adding a direct assertion locator. No production change was needed.
+
+### Standalone globals run without appearing in tool call records
+
+All three unchanged placement variants passed. Native QuickJS and the published hosts return exactly `["function","function",2]`, record only `echo`, and observe the two global arguments in order. Removing the unawaited call failed the callback assertion while leaving the return value and tool records intact. This is a standalone sandbox comparison; Durable still admits no new effect at its final drain.
