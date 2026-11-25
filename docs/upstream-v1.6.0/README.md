@@ -913,3 +913,9 @@ All 40 unchanged validator cases passed. The five pinned format assertions now m
 ### A woken call retains its details when its tool is gone
 
 All 18 unchanged tool-park cases passed. Removing the tool after its sleeping receipt and then signalling the call leaves the submission done and the tool task terminal with outcome `failed`. The result retains `{build:1}` and the `run 1` information diagnostic, adds the `tool_unavailable` error, and emits the pinned report. The callback runs once. The stored result entry belongs to that task and keeps the diagnostics in order. Dropping the details or changing the stored diagnostic code broke the checks. No production change was needed.
+
+### Codemode commits nested replies before delivery
+
+The unchanged nested-call case passed. The published portable guest returns exactly `["echo a","echo b"]` and creates two nested tasks. The native fixture reads SQLite at each actual delivery or acknowledgement boundary, before forwarding it. It observes the initial count `1`, the saved `echo a` delivery, its saved count `2`, the saved `echo b` delivery, and its saved count `2`. Omitting either commit broke the corresponding readback.
+
+The unchanged no-count early-return case at L377 also passed upstream. Go can retain a genuine unacknowledged final delivery, but its storage guard cannot retain a later confirmed delivery while an earlier count is missing. The native test does not delete a committed count to reproduce that topology.
