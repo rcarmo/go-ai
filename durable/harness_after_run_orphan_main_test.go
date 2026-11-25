@@ -2,107 +2,149 @@ package durable
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"slices"
+	"syscall"
 	"testing"
 	"time"
 )
 
-// Actual f9a26365 harness-after-run.test.ts785: reopen without the extension
-// while a real after-run child is running. It remains blocked/busy until Stop
-// orphans it, clearing the already answered run without runFailure.
+// harness-after-run.test.ts:786–816 uses a storage gate to simulate loss
+// while a real after-run child is in flight. The native SQLite writer dies
+// inside that child's held invocation, so reopen needs no record mutation.
 func TestMainAfterRunMissingDefinitionStopOrphans(t *testing.T) {
-	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
-		p := mainAfterRecoverySetup(t, nil, map[int64]chan struct{}{1: make(chan struct{})}, nil)
-		h, c, settled := mainAfterRecoveryStart(t, p, b.store)
-		watchReceive(t, p.taskEntered)
-		live := mainAfterRunLive(t, h, c.ID())
-		run := generationObject(live["run"])
-		after := generationObject(run["afterRun"])
-		tasks, ok := after["tasks"].([]any)
-		if !ok || len(tasks) != 1 {
-			t.Fatal("real after-run child missing", live)
-		}
-		childID := submissionEntryID(tasks[0])
-		parentID := submissionEntryID(run["taskId"])
-		if parentID != settled.GenerationID {
-			t.Fatal("wrong generation owner", parentID, settled)
-		}
-		child, ok, err := h.Task(bg, childID)
-		if err != nil || !ok || child.Owner != parentID || child.State.Status != "running" {
-			t.Fatal("real child must be running before crash", child, ok, err)
-		}
-		store := mainAfterRecoveryCrash(t, h, b.store)
-		bare := p.options
-		bare.Registry = NewRegistry()
-		h, c = mainSalvageOpen(t, store, bare, c.ID())
-		if err := h.Resume(bg); err != nil {
-			t.Fatal(err)
-		}
-		live = mainAfterRunLive(t, h, c.ID())
-		run = generationObject(live["run"])
-		after = generationObject(run["afterRun"])
-		tasks, ok = after["tasks"].([]any)
-		if !ok || len(tasks) != 1 || submissionEntryID(tasks[0]) != childID || submissionEntryID(run["taskId"]) != parentID {
-			t.Fatal("lost after-run ownership on reopen", live)
-		}
-		ctx, cancel := context.WithTimeout(bg, 3*time.Second)
-		defer cancel()
-		// Inspect derives definition fit without scheduling or migration;
-		// the missing definition is directly blocked after reopen.
-		view, err := h.Inspect(ctx)
+	const childDir = "GOAI_TEST_AFTER_RUN_ORPHAN_CRASH"
+	ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
+	defer cancel()
+	type cutoff struct {
+		Conversation, Generation, Child, Submission, Answer ID
+	}
+	if dir := os.Getenv(childDir); dir != "" {
+		store, err := openSQLiteTestDirectory(filepath.Join(dir, "db"), SQLiteOptions{})
 		if err != nil {
 			t.Fatal(err)
 		}
-		blocked := false
-		for _, item := range view.Tasks {
-			if item.Record.ID == childID && item.Kind == "blocked" {
-				blocked = true
-			}
-		}
-		if !blocked {
-			t.Fatal("missing-definition child not inspected blocked", view)
-		}
-		// A bounded caller cancellation witnesses that public WaitForIdle remains
-		// unsettled; it must not clear or fault the blocked run.
-		waiting, stopWaiting := context.WithTimeout(ctx, 25*time.Millisecond)
-		err = c.WaitForIdle(waiting)
-		stopWaiting()
-		if !errors.Is(err, context.DeadlineExceeded) {
-			t.Fatal("blocked after-run became idle", err)
-		}
-		live = mainAfterRunLive(t, h, c.ID())
-		if live["run"] == nil || live["runFailure"] != nil {
-			t.Fatal("blocked run changed before Stop", live)
-		}
-		if err := c.Abort(ctx); err != nil {
-			t.Fatal(err)
-		}
-		if err := c.WaitForIdle(ctx); err != nil {
-			t.Fatal("Stop did not release the answered run", err)
-		}
-		live = mainAfterRunLive(t, h, c.ID())
-		if live["run"] != nil || live["runFailure"] != nil || live["failedRun"] != nil {
-			t.Error("answered Stop retained run/failure", live)
-		}
-		child, ok, err = h.Task(ctx, childID)
-		if err != nil || !ok || child.State.Status != "terminal" || child.State.Outcome == nil || child.State.Outcome.Status != "orphaned" {
-			t.Error("missing-definition child not orphaned", child, ok, err)
-		}
-		// generation.abort returns aborted; the already answered input stays
-		// done. Source785 asserts the child's orphaned outcome and no failure.
-		parent, found, err := h.Task(ctx, parentID)
-		if err != nil || !found || parent.State.Outcome == nil || parent.State.Outcome.Status != "aborted" {
-			t.Error("answered Stop task outcome", parent, err)
-		}
-		status := mainCutoffStatus(t, h, settled.Record.ID)
-		if status.Status != "done" || status.Answer != settled.Record.Answer {
-			t.Error("Stop unsettled committed answer", status, settled)
+		p := mainAfterRecoverySetup(t, nil, map[int64]chan struct{}{1: make(chan struct{})}, nil)
+		h, c, answered := mainAfterRecoveryStart(t, p, store)
+		watchReceive(t, p.taskEntered)
+		live := mainAfterRunLive(t, h, c.ID())
+		run := generationObject(live["run"])
+		tasks, _ := generationObject(run["afterRun"])["tasks"].([]any)
+		if len(tasks) != 1 || submissionEntryID(run["taskId"]) != answered.GenerationID || answered.Record.Status != "done" || answered.Record.Answer == 0 {
+			t.Fatal("original answered generation did not own one live after-run child", live, answered)
 		}
 		if p.asks.Load() != 1 || p.calls.Load() != 1 || p.tasks.Load() != 1 {
-			t.Error("reopened host redispatched", p.asks.Load(), p.calls.Load(), p.tasks.Load())
+			t.Fatal("wrong original hook, provider, or child count", p.asks.Load(), p.calls.Load(), p.tasks.Load())
 		}
-		if err := h.Close(ctx); err != nil {
+		witness := cutoff{c.ID(), answered.GenerationID, submissionEntryID(tasks[0]), answered.Record.ID, answered.Record.Answer}
+		data, err := json.Marshal(witness)
+		if err != nil {
 			t.Fatal(err)
 		}
-	})
+		if err := os.WriteFile(filepath.Join(dir, "cutoff.json"), data, 0600); err != nil {
+			t.Fatal(err)
+		}
+		t.Fatal("SIGKILL did not stop the original writer", syscall.Kill(os.Getpid(), syscall.SIGKILL))
+	}
+
+	dir := t.TempDir()
+	cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestMainAfterRunMissingDefinitionStopOrphans$")
+	cmd.Env = append(os.Environ(), childDir+"="+dir)
+	output, err := cmd.CombinedOutput()
+	var exit *exec.ExitError
+	if !errors.As(err, &exit) || ctx.Err() != nil {
+		t.Fatalf("original writer did not reach cutoff: %v\n%s", err, output)
+	}
+	if status, ok := exit.Sys().(syscall.WaitStatus); !ok || !status.Signaled() || status.Signal() != syscall.SIGKILL {
+		t.Fatalf("original writer did not exit via SIGKILL: %v\n%s", err, output)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "cutoff.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var witness cutoff
+	if err := json.Unmarshal(data, &witness); err != nil || witness.Child == 0 {
+		t.Fatal("invalid original cutoff receipt", witness, err)
+	}
+	store, err := openSQLiteTestDirectory(filepath.Join(dir, "db"), SQLiteOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close(bg) })
+	child, found, err := store.Task(ctx, witness.Child)
+	if err != nil || !found || child.Owner != witness.Generation || child.Conversation != witness.Conversation || child.Kind != "task.after-recovery" || child.State.Status != "running" || child.Restarts != 0 {
+		t.Fatal("SQLite lacked the held child after process loss", child, found, err)
+	}
+	parent, found, err := store.Task(ctx, witness.Generation)
+	checkpoint := taskCheckpointMap(parent.State.Checkpoint)
+	if err != nil || !found || parent.State.Status != "waiting" || !slices.Equal(parent.State.On, []ID{witness.Child}) || checkpoint["phase"] != "drain" || submissionEntryID(checkpoint["answer"]) != witness.Answer {
+		t.Fatal("SQLite lacked the original generation waiting for its child and holding its answer", parent, found, err)
+	}
+
+	p := mainAfterRecoverySetup(t, nil, nil, nil)
+	p.options.Registry = NewRegistry()
+	h, c := mainAfterRecoveryOpen(t, p, store, witness.Conversation)
+	if err := h.Resume(ctx); err != nil {
+		t.Fatal(err)
+	}
+	live, found, err := c.SnapshotDefinition(ctx, LiveDoc(), nil)
+	if err != nil || !found {
+		t.Fatal("missing LiveDoc on reopen", live, found, err)
+	}
+	contents := generationObject(live.Copy())
+	run := generationObject(contents["run"])
+	tasks, _ := generationObject(run["afterRun"])["tasks"].([]any)
+	if len(tasks) != 1 || submissionEntryID(tasks[0]) != witness.Child || submissionEntryID(run["taskId"]) != witness.Generation || contents["runFailure"] != nil {
+		t.Fatal("lost after-run ownership on reopen", contents)
+	}
+	// The persisted child is pending after public recovery; the inspection
+	// derives blocked/missing_task from the currently installed definitions.
+	view, err := h.Inspect(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var blocked []TaskInspection
+	for _, item := range view.Tasks {
+		if item.Kind == "blocked" {
+			blocked = append(blocked, item)
+		}
+	}
+	if len(blocked) != 1 || blocked[0].Record.ID != witness.Child || blocked[0].Record.Owner != witness.Generation || blocked[0].Reason != "missing_task" || blocked[0].Record.State.Status != "pending" || blocked[0].Record.Restarts != 1 {
+		t.Fatal("unavailable child not inspected as the sole blocked task", blocked)
+	}
+	idle := awaitPendingContextIdleWait(t, ctx, h, c)
+	if err := c.Abort(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := watchReceive(t, idle); err != nil {
+		t.Fatal("Stop did not release the registered public idle wait", err)
+	}
+	live, found, err = c.SnapshotDefinition(ctx, LiveDoc(), nil)
+	if err != nil || !found || !equalJSONValue(live.Copy(), JSON{}) {
+		t.Fatal("answered Stop retained live run or failure", live, found, err)
+	}
+	child, found, err = h.Task(ctx, witness.Child)
+	if err != nil || !found || child.Owner != witness.Generation || child.State.Status != "terminal" || child.State.Outcome == nil || child.State.Outcome.Status != "orphaned" || child.State.Outcome.Reason != "missing_task" {
+		t.Fatal("Stop did not orphan the original unavailable child", child, found, err)
+	}
+	// Stop aborts the generation's outstanding work, not the already
+	// committed answer. No after-run task body executes on the new host.
+	parent, found, err = h.Task(ctx, witness.Generation)
+	if err != nil || !found || parent.State.Status != "terminal" || parent.State.Outcome == nil || parent.State.Outcome.Status != "aborted" {
+		t.Fatal("wrong answered Stop generation outcome", parent, found, err)
+	}
+	status := mainCutoffStatus(t, h, witness.Submission)
+	if status.Status != "done" || status.Answer != witness.Answer {
+		t.Fatal("Stop changed the committed answer", status, witness)
+	}
+	if err := h.Close(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if p.asks.Load() != 0 || p.calls.Load() != 0 || p.tasks.Load() != 0 {
+		t.Fatal("reopened host redispatched the hook, provider, or child", p.asks.Load(), p.calls.Load(), p.tasks.Load())
+	}
 }
