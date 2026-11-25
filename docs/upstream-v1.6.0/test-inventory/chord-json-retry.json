@@ -1,0 +1,120 @@
+{
+  "format": 1,
+  "pin": "faac585884ae2c013a6b1400f3e9e77f10b34bac",
+  "evidenceBase": "57afb7e680ed227a450aee1f554eada8b52b135b",
+  "node": "v26.13.0",
+  "platform": "linux/arm64",
+  "configSha256": "f13c3424afac46e1500bb993c23fabce908f899321fd2c90e3adda5712f3ac9a",
+  "original": {
+    "file": "packages/chord/test/host/object.test.ts",
+    "blob": "40b3bf597dc92915de081895b74571204fdf7e3c",
+    "sha256": "dc6673b9ba2db5f2ea355412e69a4fdd83ed54ca8a5d38931969d9f89e45b321",
+    "selection": "a live object failing (slice 6a §1.4) is recovered by ref.retry(): a new attempt, the documents as they were",
+    "passed": 1,
+    "failed": 0,
+    "unselected": 81,
+    "todo": 0
+  },
+  "runner": {
+    "vitest": "4.1.12",
+    "integrity": "sha512-5eWdz2yb3ajxWF3C8C4TjkXl7FGm3n2E/VlazALrQHzK7nYMSGFnCZto0bbPNl77AwkOZVLk0YnBAejUu0NiWA==",
+    "archiveSha256": "ac79c9561c99eabc1cc29e0a839cbd03d1ff0e45bbecb5a2edfa6c3827c823d1",
+    "evaluatorSha256": "a0b36fb2211d2587d8df68d5855d48141be27e99bdb973378a83f927e03b004e",
+    "copiedDependencies": {
+      "roots": [
+        "npm:node_modules/vitest"
+      ],
+      "host": {
+        "os": "linux",
+        "cpu": "arm64",
+        "libc": "glibc"
+      },
+      "placements": [
+        "node_modules/@jridgewell/sourcemap-codec",
+        "node_modules/@oxc-project/types",
+        "node_modules/@rolldown/binding-linux-arm64-gnu",
+        "node_modules/@rolldown/pluginutils",
+        "node_modules/@standard-schema/spec",
+        "node_modules/@types/chai",
+        "node_modules/@types/deep-eql",
+        "node_modules/@types/estree",
+        "node_modules/@vitest/expect",
+        "node_modules/@vitest/mocker",
+        "node_modules/@vitest/pretty-format",
+        "node_modules/@vitest/runner",
+        "node_modules/@vitest/snapshot",
+        "node_modules/@vitest/spy",
+        "node_modules/@vitest/utils",
+        "node_modules/assertion-error",
+        "node_modules/chai",
+        "node_modules/convert-source-map",
+        "node_modules/detect-libc",
+        "node_modules/es-module-lexer",
+        "node_modules/estree-walker",
+        "node_modules/expect-type",
+        "node_modules/fdir",
+        "node_modules/lightningcss",
+        "node_modules/lightningcss-linux-arm64-gnu",
+        "node_modules/magic-string",
+        "node_modules/nanoid",
+        "node_modules/obug",
+        "node_modules/pathe",
+        "node_modules/picocolors",
+        "node_modules/picomatch",
+        "node_modules/postcss",
+        "node_modules/rolldown",
+        "node_modules/siginfo",
+        "node_modules/source-map-js",
+        "node_modules/stackback",
+        "node_modules/std-env",
+        "node_modules/tinybench",
+        "node_modules/tinyexec",
+        "node_modules/tinyglobby",
+        "node_modules/tinyrainbow",
+        "node_modules/vite",
+        "node_modules/vitest",
+        "node_modules/why-is-node-running"
+      ]
+    }
+  },
+  "primaryReference": {
+    "file": "packages/durable/src/harness/submissions.ts",
+    "sha256": "2e16071ee80af2d799d2596cf8fdb7057a3bfb8b8e89e24048ca723cae3076a3",
+    "import": "@earendil-works/chord/json",
+    "importLine": 2,
+    "call": "copyJson",
+    "callLine": 286
+  },
+  "observedModules": [
+    {
+      "kind": "source-evaluated",
+      "api": "node:vm runInThisContext",
+      "file": "packages/chord/src/delta/tracker.ts",
+      "export": "track",
+      "sourceSha256": "26afccb6fc63af8f92aac31f267803956f2e8bf60080f06fbfe8367f89d1d68b"
+    },
+    {
+      "kind": "source-evaluated",
+      "api": "node:vm runInThisContext",
+      "file": "packages/chord/src/json.ts",
+      "export": "copyJson",
+      "sourceSha256": "d3a115dde2afa8e79c987b0fb188ec0bdba03939192859a20198a23b2892bb60"
+    }
+  ],
+  "witness": {
+    "kind": "json-copy",
+    "input": "a",
+    "output": "a"
+  },
+  "control": {
+    "change": "substitute-one-string-in-scratch-copyJson",
+    "case": "a live object failing (slice 6a §1.4) is recovered by ref.retry(): a new attempt, the documents as they were",
+    "failed": 1,
+    "unselected": 81,
+    "observed": {
+      "kind": "json-copy",
+      "input": "a",
+      "output": "b"
+    }
+  }
+}
