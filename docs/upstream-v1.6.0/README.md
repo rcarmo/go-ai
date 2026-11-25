@@ -1491,3 +1491,11 @@ Both unchanged originals passed. The scripted simple-options request sends exact
 Six controls isolated effort demotion, missing and extra reasoning members, ignored and unconditional required choice, and a missing tool. Focused repeats, vet and Staticcheck passed. No live calls or production changes were made.
 
 The integrated code at `74f27964` passed 31 focused top-level Go tests twice, without skips. The default published worker returned `50` with eight journal publications both times. Vet and Staticcheck v0.8.2 passed. The inventory at `87e7cc30` records 2,101 scoped sites: 2,048 mapped, 48 partial and five unmatched. Thirty-seven of the 214 changed suites have assertion-level links. Full parity remains open.
+
+## Round 64: no-deadline settlement, Codex default reasoning and relative Schema IDs
+
+### Removing the sandbox deadline does not hide a stalled promise
+
+Both unchanged cases passed on all three original placements. With no VM deadline, native QuickJS waits for a channel-held tool to return `late` even with a one-nanosecond timeout configured. The test itself still has a bounded parent context. After a successful `echo(1)`, a promise that nothing can settle fails as a script error containing `can never settle`, not a timeout. Returning `early` with an unawaited call succeeds; this does not assert when a Durable caller can settle relative to callback cleanup.
+
+Three focused native tests passed twice without skips. A scratch control ignoring `NoDeadline` fails before the held callback enters. Changing the stall message fails the diagnostic assertion. No production code changed for this comparison.
