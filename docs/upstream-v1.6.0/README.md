@@ -1427,3 +1427,5 @@ All three selected unchanged cases passed. The native scripted request sends the
 ### Lowering the restart limit does not interrupt an invocation that completes
 
 Both selected unchanged cases passed. After a real process exit and SQLite reopen, the worker and the answered generation's finish hook each resume with one restart under limit five. Lowering the live limit to one while the retry is held does not interrupt it. The worker completes with explicit null; the generation keeps its original answer and only the retried hook's child runs. Neither case emits `task_interrupted`. No production recovery change was needed.
+
+The integrated code at `17436f85` passed 23 focused top-level Go tests twice, without skips. The default published worker returned `50` with eight journal publications in both repeats. Vet and Staticcheck v0.8.2 passed. The inventory at `6d5f2bf0` records 2,066 scoped sites: 2,015 mapped, 46 partial and five unmatched. Thirty-seven of the 214 changed suites have assertion-level links. Full parity remains open.
