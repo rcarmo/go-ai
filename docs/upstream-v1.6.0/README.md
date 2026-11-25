@@ -1375,3 +1375,7 @@ All three unchanged placement variants passed. Native QuickJS and the published 
 ### Assistant retry preserves final results and exact attempt counts
 
 All 52 unchanged retry cases passed. The scoped native runner returns a successful result immediately, does not retry aborted or quota failures, and returns the last transient error after exactly three retries. It reports the exact schedule and final callback on a virtual clock. A distinct-final-error control catches stale results. No real wait, HTTP retry or live provider call is claimed by this comparison.
+
+### A queued reset follows the after-run child write
+
+The selected unchanged reset case passed. The native SQLite test queues a reset while a real after-run child is held. No reset enters the transcript until the child releases. The committed suffix is exactly `test.tests` then `pi.reset`, with increasing commit sequences. A real reopen preserves that order and the same marker. No production recovery change was needed.
