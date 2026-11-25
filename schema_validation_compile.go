@@ -67,6 +67,18 @@ func (c *CompiledJSONSchema) Explain(value any) ([]JSONSchemaDiagnostic, error) 
 	return v.explainSchemaValue(c.schema, value, raw)
 }
 
+// Validate checks a value without coercion. It returns the supplied value
+// with an empty diagnostic slice, or nil with the diagnostics of the invalid
+// value. A json.RawMessage is decoded before checking. Errors report input
+// or checker failures.
+func (c *CompiledJSONSchema) Validate(value any) (any, []JSONSchemaDiagnostic, error) {
+	v, value, raw, err := c.call(value)
+	if err != nil {
+		return nil, nil, err
+	}
+	return (standaloneSchemaValue{validator: v, schema: c.schema, value: value, valueRaw: raw}).validate()
+}
+
 // Coerce applies the coercion rules without requiring the result to pass
 // validation. It does not modify the input. Pass a decoded JSON value or a
 // json.RawMessage, as for Check.

@@ -153,16 +153,21 @@ func (call standaloneSchemaValue) coerce() (any, error) {
 	return value, nil
 }
 
+func (call standaloneSchemaValue) validate() (any, []JSONSchemaDiagnostic, error) {
+	diagnostics, err := call.validator.explainSchemaValue(call.schema, call.value, call.valueRaw)
+	if err != nil || len(diagnostics) != 0 {
+		return nil, diagnostics, err
+	}
+	return call.value, diagnostics, nil
+}
+
 func (call standaloneSchemaValue) parse() (any, []JSONSchemaDiagnostic, error) {
 	coerced, err := call.coerce()
 	if err != nil {
 		return nil, nil, err
 	}
-	diagnostics, err := call.validator.explainSchemaValue(call.schema, coerced, nil)
-	if err != nil || len(diagnostics) != 0 {
-		return nil, diagnostics, err
-	}
-	return coerced, diagnostics, nil
+	call.value, call.valueRaw = coerced, nil
+	return call.validate()
 }
 
 func prepareStandaloneSchemaValue(schema json.RawMessage, value any, resources map[string]json.RawMessage, draft []JSONSchemaReferenceDraft) (standaloneSchemaValue, error) {
