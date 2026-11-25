@@ -1537,3 +1537,9 @@ The integrated code at `4c69e623` passed 49 focused top-level Go tests twice, wi
 All nine unchanged variants passed. Native QuickJS starts three modules on one engine and holds their start receipts until all are alive. The same scripts return `a`, `b` and `undefined` in invocation order, without sharing their guest global. The recursion script catches `RangeError` after more than 1,000 calls with the configured 32 MiB heap. Executing after Close gives the native `Result.Error` containing `closed`; that matches the refusal and diagnostic, not JavaScript's promise rejection envelope.
 
 Four focused native tests passed twice without skips. Forcing a shared module name exposed the missing overlap. Raising the recursion fixture's threshold showed that checking only the error name would miss the false depth predicate. Changing the closed-engine diagnostic failed only its substring check. No production code changed for this comparison.
+
+### Broken after-run requests do not suppress a valid child
+
+The unchanged `MemoryStorage` original passed. Native SQLite runs the valid `ok` child once under the original generation, retains the parent's committed answer, reports the failing hook as `hook failed`, and leaves an empty public `LiveDoc`. The report probe checks real parent attribution and the five aggregate reasons in order. Dropping valid siblings when any request fails instead leaves the run idle without its child, which fails the test.
+
+Two sites remain partial. Go's typed task slice cannot carry the original `tasks: "x"`, so it reports two representable hook results, not three. Four aggregate messages match verbatim; Go reports an unsupported JSON value rather than naming the function value. No production code changed. Five focused groups passed twice, and vet and Staticcheck passed.
