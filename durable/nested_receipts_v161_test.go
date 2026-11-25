@@ -175,6 +175,20 @@ func TestSourceV161NestedHookAndReopenReceipts(t *testing.T) {
 			if len(tasks) != 3 {
 				t.Fatal("expected only caller and two nested tasks", tasks)
 			}
+			if mode != "hooks" {
+				nested, firstResultNested := 0, false
+				for _, task := range tasks {
+					if task.Input != nil && task.Input.Present && generationObject(task.Input.Value)["kind"] == "nested" {
+						nested++
+					}
+					if task.ID == first.firstID && task.State.Status == "terminal" && task.State.Outcome != nil && task.State.Outcome.Result != nil {
+						firstResultNested = generationObject(task.State.Outcome.Result.Value)["kind"] == "nested"
+					}
+				}
+				if nested != 2 || !firstResultNested {
+					t.Fatalf("after reopen: nested inputs=%d, first result nested=%v; want two nested inputs and the saved nested result", nested, firstResultNested)
+				}
+			}
 			mu.Lock()
 			defer mu.Unlock()
 			if mode == "hooks" {
