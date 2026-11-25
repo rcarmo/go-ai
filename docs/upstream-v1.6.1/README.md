@@ -127,3 +127,11 @@ All 13 unchanged originals in the selected Completions stop-reason file passed. 
 The full provider package on the unchanged base also exposed four stale tests after catalog regeneration: one active Qwen field expectation and three tests that look up removed historical Groq or OpenCode IDs. This slice did not hide those failures or change their tests. The scoped OpenAI and retry checks passed; the broader catalog-test reconciliation is separate.
 
 At `4b4a0641`, 7 focused top-level Go tests passed twice without skips. Vet and Staticcheck passed. The ledger maps 27 sites across the nine compared originals; the other four passing originals are not mapped here.
+
+### Nested callers reuse the rewritten result without altering the raw model message
+
+All three unchanged nested-tool originals passed. In native SQLite, the hook sees the actual parent task and call, one nested call is blocked, and the other returns the rewritten structured value. The raw caller result stays a separate tool-result message. A same-key retry returns the saved value without another child execution; conflicting arguments appear as an error to the model.
+
+After reopening SQLite, the replay-safe caller reuses the first committed child and starts a distinct second child. The raw model result is `run 2: echo a, echo b`. A separate rewritten-receipt probe confirms that the saved rewrite is reused without calling the child or hook again. The native test checks the total task count and the first child's nested outcome before close. It does not reread both input discriminants and the first outcome discriminator after the completed reopen, so those two representation assertions remain partial. No runtime or storage code changed.
+
+At `23ec2d6b`, three focused Go tests passed twice, with vet and Staticcheck.
