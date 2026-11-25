@@ -1469,3 +1469,11 @@ The unchanged original passed. Two real SIGKILLs against the same SQLite databas
 The crash assertions run in `testAfterRunTwoSQLiteCutoffsV160`, called by the `/sqlite` test. The durable records and owner are inspected before and after each cutoff, not fabricated. Skipping the reask leaves the run idle without its child. Reasking during drain fails the crash and orderly-close comparisons. Both witnesses passed six repeats; no runtime code changed.
 
 The integrated code at `5741b091` passed 25 focused top-level Go tests twice, without skips. The default published worker returned `50` with eight journal publications both times. Vet and Staticcheck v0.8.2 passed. The inventory at `c8017680` records 2,089 scoped sites: 2,036 mapped, 48 partial and five unmatched. Thirty-seven of the 214 changed suites have assertion-level links. Full parity remains open.
+
+## Round 63: sandbox output limits, Codex request options and after-run Stop
+
+### Sandbox output limits end a script even when it catches the error
+
+All three unchanged placement variants passed. Native QuickJS runs the same text, console and image loops with a 32 MiB heap. Each ends with a script `RangeError` containing `script output exceeded`. The retained ASCII output is above 14 MiB and at most 16 MiB. The empty-text loop stops at exactly 100,000 blocks with a `RangeError`. This checks the pinned ASCII and item-count boundaries, not Unicode accounting or Durable output spilling.
+
+The native baseline and four focused Go tests passed; the focused tests passed twice without skips. In scratch overlays, a 12 MiB guest character limit failed all three retained-length lower bounds without changing the error shape. A 99,999-item limit failed only the empty-block count. No production limit changed.
