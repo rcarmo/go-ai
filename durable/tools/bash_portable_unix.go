@@ -117,12 +117,22 @@ func executePortableCommand(ctx context.Context, fs durable.FileSystem, args dur
 	}
 	if executed.ExitCode != 0 {
 		message := fmt.Sprintf("Command exited with code %d", executed.ExitCode)
-		if api != nil && reportExitAsResult && ctx.Err() == nil {
+		if reportExitAsResult && ctx.Err() == nil {
 			// A completed PowerShell process is a tool outcome, not a
-			// transport/start failure. The Harness still owns retained output.
+			// transport/start failure. The Harness still owns live output.
 			result.IsError = true
-			result.Diagnostics = []durable.ToolDiagnostic{{Severity: "error", Code: "exit_code", Message: message}}
-			return result, nil
+			result.Diagnostics = append(result.Diagnostics, durable.ToolDiagnostic{Severity: "error", Code: "exit_code", Message: message})
+			if api != nil {
+				return result, nil
+			}
+			// Standalone calls already have the bounded capture. Expose that
+			// exact value, while preserving the established Go error below.
+			truncated, _ := result.Details["truncated"].(bool)
+			structured := durable.JSON{"output": result.Content, "truncated": truncated, "exitCode": executed.ExitCode}
+			if executed.SpillPath != "" {
+				structured["fullOutputPath"] = executed.SpillPath
+			}
+			result.StructuredOutput, result.HasStructuredOutput = structured, true
 		}
 		return result, errors.New(message)
 	}

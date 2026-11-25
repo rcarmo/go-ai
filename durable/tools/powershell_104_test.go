@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
@@ -97,9 +98,9 @@ func TestSourceV160MockPowerShell(t *testing.T) {
 			t.Errorf("output=%q argv=%#v error=%v", got.Content, env.calls, err)
 		}
 		missing := newEnv(t, "", "", 0)
-		_, err = PowerShell(missing).Execute(t.Context(), durable.JSON{"command": "1"}, nil)
+		got, err = PowerShell(missing).Execute(t.Context(), durable.JSON{"command": "1"}, nil)
 		const want = "spawn powershell ENOENT"
-		if err == nil || err.Error() != want || len(missing.failures) != 2 || !errors.Is(err, missing.failures[1]) || errors.Is(err, missing.failures[0]) {
+		if err == nil || err.Error() != want || got.HasStructuredOutput || got.StructuredOutput != nil || len(missing.failures) != 2 || !errors.Is(err, missing.failures[1]) || errors.Is(err, missing.failures[0]) {
 			t.Errorf("error=%v; want %q preserving only the last start failure", err, want)
 		}
 	})
@@ -110,6 +111,35 @@ func TestSourceV160MockPowerShell(t *testing.T) {
 		if err == nil || err.Error() != "Command exited with code 3" || got.Content != "partial" || got.Details["exitCode"] != 3 || truncated || !slices.Equal(env.programs(), []string{"pwsh"}) {
 			t.Errorf("output=%q details=%v programs=%v error=%v", got.Content, got.Details, env.programs(), err)
 		}
+		wantStructured := durable.JSON{"output": "partial", "truncated": false, "exitCode": 3}
+		wantDiagnostics := []durable.ToolDiagnostic{{Severity: "error", Code: "exit_code", Message: "Command exited with code 3"}}
+		if !got.IsError || !got.HasStructuredOutput || !reflect.DeepEqual(got.StructuredOutput, wantStructured) || !slices.Equal(got.Diagnostics, wantDiagnostics) {
+			t.Fatalf("standalone nonzero result: isError=%v structured=%#v present=%v diagnostics=%+v", got.IsError, got.StructuredOutput, got.HasStructuredOutput, got.Diagnostics)
+		}
+	})
+	t.Run("nonzero-exit-truncated", func(t *testing.T) {
+		tail := strings.Repeat("x", MaxReadBytes)
+		env := newEnv(t, "pwsh", "drop"+tail, 3)
+		env.spillPath = filepath.Join(env.Cwd(), "full-output.log")
+		if err := env.WriteFile(t.Context(), env.spillPath, []byte(env.output)); err != nil {
+			t.Fatal(err)
+		}
+		got, err := PowerShell(env).Execute(t.Context(), durable.JSON{"command": "exit 3"}, nil)
+		wantStructured := durable.JSON{"output": tail, "truncated": true, "exitCode": 3, "fullOutputPath": env.spillPath}
+		wantDiagnostics := []durable.ToolDiagnostic{
+			{Severity: "info", Code: "full_output", Message: "Full output: " + env.spillPath},
+			{Severity: "error", Code: "exit_code", Message: "Command exited with code 3"},
+		}
+		if err == nil || err.Error() != "Command exited with code 3" || !got.IsError || !got.HasStructuredOutput || got.Content != tail || got.Details["truncated"] != true || !reflect.DeepEqual(got.StructuredOutput, wantStructured) || !slices.Equal(got.Diagnostics, wantDiagnostics) {
+			t.Fatalf("standalone truncated exit did not retain the exact bounded tail and spill: bytes=%d details=%v isError=%v structured present=%v diagnostics=%+v error=%v", len(got.Content), got.Details, got.IsError, got.HasStructuredOutput, got.Diagnostics, err)
+		}
+	})
+	t.Run("bash-exit-control", func(t *testing.T) {
+		env := &livePowerShellV160{Env: LocalEnv(t.TempDir()), installed: "mock-bash", exit: 3}
+		got, err := Bash(env).Execute(t.Context(), durable.JSON{"command": "exit 3"}, nil)
+		if err == nil || err.Error() != "Command exited with code 3" || got.IsError || got.HasStructuredOutput || got.StructuredOutput != nil || len(got.Diagnostics) != 0 {
+			t.Fatalf("standalone Bash exit result changed: %+v; %v", got, err)
+		}
 	})
 }
 
@@ -117,6 +147,7 @@ type sourcePowerShellEnv struct {
 	*Env
 	installed, output string
 	exit              int
+	spillPath         string
 	calls             [][]string
 	failures          []*durable.ExecutionError
 }
@@ -139,7 +170,7 @@ func (e *sourcePowerShellEnv) ExecArgs(ctx context.Context, args []string, optio
 	if err := options.OnOutputInfo(ctx, e.output, durable.ShellOutputInfo{Stream: "stdout"}); err != nil {
 		return durable.ShellExecResult{}, err
 	}
-	return durable.ShellExecResult{ExitCode: e.exit}, nil
+	return durable.ShellExecResult{ExitCode: e.exit, SpillPath: e.spillPath}, nil
 }
 
 func (e *sourcePowerShellEnv) programs() []string {
