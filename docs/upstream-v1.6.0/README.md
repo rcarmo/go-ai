@@ -1114,6 +1114,8 @@ All 40 unchanged validator cases passed. Standalone Go checks now accept explici
 
 All 33 unchanged thread cases passed. The native 404 variant sends the suffix, receives `thread_not_found`, recreates from the full request, and continues the next fresh message from `msg_3`. It calls the payload hook once and reports exactly one fallback diagnostic with the matching reason. The previously checked 400 variant still passes. The two other retry variants remain unindexed, and SDK metadata and historical string-versus-block differences stay separate. No production change was needed.
 
+The integrated code at `389b5ef4` passed 21 focused top-level Go tests twice, without skips, including the corrected capacity-one fixture. The run used the actual published guest and standalone worker, with CGO disabled and network access restricted to loopback. Vet and Staticcheck v0.8.2 passed. Both image receipts and the Chord pending-ops receipt reproduced byte for byte. Of 1,882 scoped sites, 1,829 are mapped, 51 are partial and two are unmatched. Thirty-two of the 214 changed suites have assertion-level links.
+
 ### Sandbox return cancels an unawaited call
 
 All three unchanged variants passed. Native raw QuickJS and the published portable and Node host APIs return `early`, record one `slow` call as cancelled, and observe its callback cancellation before return. The separate public Go and SQLite path returns `early` and records `slow/cancelled` without launching the callback at all. The final-drain guard prevents that effect from being admitted. Removing the call lost the raw cancellation evidence; forcing final-drain admission caused an unexpected native effect. No production change was needed.
