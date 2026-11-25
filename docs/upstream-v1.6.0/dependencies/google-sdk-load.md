@@ -18,3 +18,18 @@ cmp "$ledger/google-sdk-load.json" /tmp/pi-v160-google-sdk-load.json
 The probe uses the retained Oracle installation and the already verified provider archive. It checks the lock, the archive's compressed integrity, and exact pinned test, configuration and provider source bytes. It copies the relevant workspace and dependency tree to disposable scratch and serializes both focused runs with the shared lock. The test receives a scrubbed environment and Node's permission model without network permission. No installs, shared-cache changes, or real provider requests are needed. The wrong-digest control is expected to print one rejection on stderr.
 
 This proves one loader input for this run only. It does not reconstruct earlier loads, enumerate transitive modules, establish the OpenAI load path, or extend native parity or release acceptance.
+
+## Standalone credential header
+
+The supplemental [auth-wire receipt](google-sdk-auth-wire.json) uses the pinned continuation fixture's model and verified SDK module in disposable scratch. It checks one POST with only `alt=sse` in the query and the exact dummy key in `x-goog-api-key`. No provider request is sent.
+
+```sh
+ledger=docs/upstream-v1.6.0/dependencies
+actual=$(mktemp)
+trap 'rm -f -- "$actual"' EXIT
+unshare -Un bash "$ledger/probe-google-sdk-load.sh" "$pinned_git_mirror" "$oracle" \
+  "$retained_archive_dir" auth-wire > "$actual"
+cmp "$ledger/google-sdk-auth-wire.json" "$actual"
+```
+
+The supplemental mode and the original loader mode both reproduce byte for byte. The supplemental case is separate from the unchanged upstream run.

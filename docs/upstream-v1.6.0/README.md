@@ -955,3 +955,13 @@ All 23 unchanged [derive cases](test-inventory/chord-derive-watch.md) passed off
 ### Replay-safe parked work keeps details after a real crash
 
 All 18 unchanged tool-park cases passed. The native fixture cuts off the woken process with SIGKILL and verifies the interrupted output, details and diagnostic in SQLite before the new writable Harness opens. The next execution sees the same wake and checkpoint with the old output already cleared. The single replay completes the original task and retains `{build:1}` and the exact `parked` diagnostic. Fault controls caught stale output and lost diagnostics before the replayed effect. No production change or record rewrite was needed.
+
+### Standalone Google keeps the key out of the URL
+
+Both unchanged continuation originals passed. The supplemental [SDK wire receipt](dependencies/google-sdk-auth-wire.json) verifies the actual pinned module and one POST containing the exact dummy key in `x-goog-api-key`, with only `alt=sse` in the query. Go now matches that credential placement; the earlier query normalization is gone from the comparison. The native tests preserve model and caller defaults, an explicitly empty header and suppression. The normal native redirect path retains the key for the same authority and scheme and drops it when either changes. Vertex key and bearer behavior are unchanged. Fault controls caught a query key, a lost override and a cross-authority key. No live key or provider request was used.
+
+### Anthropic threads send only the new message suffix
+
+All 33 unchanged thread cases passed offline. The first native create sends the system, tools and cached first user message; the continuation sends just its cached suffix. A tool-call reply continues with one plain `tool_result`, using `content:"result"` and `is_error:false`. The separate wire witness records the fixture's synthetic fingerprint-mismatch `400` and the full recreate that follows. Plain unannotated text results now use a newline-joined string; annotated results, images, tool references, cache markers and authorization stay intact.
+
+The native beta metadata and an older user message's string-versus-block form still differ from the SDK in that supplemental capture. They do not change the pinned suffix assertions. Five fault controls checked the fields, marker normalization, omitted system field and fingerprint retry.
