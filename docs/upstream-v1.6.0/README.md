@@ -1027,3 +1027,27 @@ All 12 unchanged [text-codec cases](test-inventory/chord-text-codec.md) passed o
 All 18 unchanged tool-park cases passed. The native invalid cases produce the pinned `invalid_park` diagnostic, call `afterTool` once, and retain the hook's details in the error receipt. The submission finishes, the task ends failed, and no live tool slot remains. In the reused-wake case, the two runs belong to the same task and the second park is refused with `it already woke a wait`. Real SQLite entries retain the diagnostic. Controls caught a missing hook, a wrong stored code and the wrong consumed-wake message. No production change was needed.
 
 The integrated code at `a9358b9d` passed 22 focused top-level Go tests twice, without skips. A separate control reversed the two output items and failed all three non-finite sandbox comparisons. The run used the actual published guest and standalone worker, with CGO disabled and network access restricted to loopback. Vet and Staticcheck v0.8.2 passed. The two image-fit and Chord text-codec receipts reproduced byte for byte. Of 1,819 scoped sites, 1,765 are mapped, 51 are partial and three are unmatched. Thirty-two of the 214 changed suites have assertion-level links.
+
+### Published Codemode errors retain script frames
+
+All nine unchanged syntax, throw and stack variants passed. Native inline QuickJS and both published placements report the correct script-error class and `codemode.js` line. The Go adapter now retains bounded script frames in its projected error and excludes host and prelude frames. A published syntax failure arrives after the fingerprint but before a drain position exists. Go accepts that effect-free terminal error only before calls, drains, output, a value or a store patch. Other positionless outcomes remain rejected.
+
+### Standalone Schema distinguishes explicit undefined from null and absence
+
+All 40 unchanged validator cases passed. A caller can pass the existing non-marshallable `SchemaUndefined{}` marker to a declared `undefined` schema. The tests distinguish presence, missing required keys, JSON null and an ordinary string, including the exact `/principalId` diagnostics. The marker also works through a resolved reference. JSON decoding and tool-input policy are unchanged. Later optional-property omission and broader JavaScript-only types remain open.
+
+### A parked tool wakes for its owned child
+
+All 18 unchanged tool-park cases passed. The public native slot shows `waiting` after SQLite records an `any` wait on the exact owned child. Completing that child wakes the same tool with exactly its child ID, and the submission finishes `done`. Both tasks complete and the transcript contains `joined`. Controls caught a stale running slot and a lost ended-child field. The source case has one child and does not distinguish policies across several children.
+
+### Fitting corrects the image type without re-encoding
+
+The unchanged [declared-type case](test-inventory/images-fit-declared-type.md) passed. Both runtimes correct a PNG declaration to `image/jpeg`, preserve every one of the 719 captured bytes and add no note. Relabelling the output GIF breaks the comparison. This is a type correction check, not a comparison of encoder output or worker timing.
+
+### Anthropic recreates a thread when the prefix has no suffix
+
+All 33 unchanged thread cases passed. The native public client creates the first thread and sends a second full create for the exact stored prefix without an empty continuation. A separate SDK capture and native third turn confirm that the next new user message continues from `msg_2`, not the original head. Controls caught an empty continue and retaining the obsolete head. No production change was needed.
+
+### Chord getter cancellation preserves the child reason
+
+The unchanged [getter-context case](test-inventory/chord-getter-context.md) passed offline; the other 101 file cases were unselected. The witness observed the host and shared Context modules and preserved the exact supplied cancellation reason on the child without aborting the parent. Substituting the default abort reason failed the unchanged assertion. This does not verify Durable's callers or native Go correspondence.
