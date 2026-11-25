@@ -11,18 +11,20 @@ import (
 // replay. Here both live nested calls are admitted, but left blocked, so the
 // native journal has a real initial watermark and no confirmed deliveries.
 func TestSourceV160CodemodePublishedWorkerBatchRetryFence(t *testing.T) {
+	const changedPrefix = `const k = load("k");
+		tools.echo({ text: k ?? "a" });
+		if (k) tools.echo({ text: "new" });
+		await tools.hold({});`
 	for _, tc := range []struct {
 		name, code, diagnostic string
+		legacy                 bool
 	}{
 		{
-			// L558 and L561–562 use the unchanged script. Native also
-			// records issued identities, so it rejects call 1 before the
-			// source's count-only diagnostic at L560 can be selected.
-			name: "changed-prefix",
-			code: `const k = load("k");
-			tools.echo({ text: k ?? "a" });
-			if (k) tools.echo({ text: "new" });
-			await tools.hold({});`,
+			name: "changed-prefix", code: changedPrefix,
+			diagnostic: "its first run made 3 calls, where it had made 2", // L560
+		},
+		{
+			name: "legacy-changed-prefix", code: changedPrefix, legacy: true,
 			diagnostic: "sandbox call replay divergence: call 1 is tools.echo",
 		},
 		{
@@ -40,7 +42,12 @@ func TestSourceV160CodemodePublishedWorkerBatchRetryFence(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got := runV160PublishedWorkerNestedReplay(t, tc.code, workerReplayChangesV160{
-				pauseEcho: true,
+				pauseEcho:        true,
+				unchangedJournal: true,
+				beforeStart:      func(sandbox *RemoteCodemodeSandbox) { sandbox.legacyJournal = tc.legacy },
+				beforeResume: func(_ context.Context, _ Storage, sandbox *RemoteCodemodeSandbox) {
+					sandbox.legacyJournal = false
+				},
 				guestStore: func(run int32, store JSON) JSON {
 					if run == 2 {
 						return JSON{"k": "x"}
@@ -109,8 +116,7 @@ func TestSourceV160CodemodePublishedWorkerPostResultAdmissionFence(t *testing.T)
 			const extra = load("k") ?? 0;
 			for (let i = 0; i < extra; i++) tools.echo({ text: "extra" + i });
 			await tools.hold({});`,
-			// Native replay rejects the earlier issued identity mismatch.
-			diagnostic: "call 2 is tools.echo",
+			diagnostic: "after result 1 it had made 5 calls, where it had made 2",
 		},
 		{
 			name: "matching-prefix-extra-calls",
@@ -126,6 +132,7 @@ func TestSourceV160CodemodePublishedWorkerPostResultAdmissionFence(t *testing.T)
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got := runV160PublishedWorkerNestedReplay(t, tc.source, workerReplayChangesV160{
+				unchangedJournal: true,
 				guestStore: func(run int32, store JSON) JSON {
 					if run == 2 {
 						return JSON{"k": 3}

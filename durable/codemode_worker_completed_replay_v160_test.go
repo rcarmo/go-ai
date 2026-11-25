@@ -91,14 +91,15 @@ type workerNestedReplayV160 struct {
 }
 
 type workerReplayChangesV160 struct {
-	guestCode    func(int32, string) string
-	guestStore   func(int32, JSON) JSON
-	globals      []CodemodeGlobal
-	pauseEcho    bool
-	stopAtEcho   bool // cut off before the first echo reply, without waiting for hold
-	now          func() int64
-	beforeStart  func(*RemoteCodemodeSandbox)
-	beforeResume func(context.Context, Storage, *RemoteCodemodeSandbox)
+	guestCode        func(int32, string) string
+	guestStore       func(int32, JSON) JSON
+	globals          []CodemodeGlobal
+	pauseEcho        bool
+	stopAtEcho       bool // cut off before the first echo reply, without waiting for hold
+	unchangedJournal bool // replay refusal must not adopt a new call or count
+	now              func() int64
+	beforeStart      func(*RemoteCodemodeSandbox)
+	beforeResume     func(context.Context, Storage, *RemoteCodemodeSandbox)
 }
 
 func runV160PublishedWorkerNestedReplay(t *testing.T, source string, changes workerReplayChangesV160) workerNestedReplayV160 {
@@ -223,10 +224,12 @@ func runV160PublishedWorkerNestedReplay(t *testing.T, source string, changes wor
 	}
 	var beforeClose []CodemodeDelivery
 	var firstIssued *int
+	var beforeJournal Document
 	journals := 0
 	for _, doc := range state.Documents {
 		if doc.Kind == codemodeJournalKind {
 			journals++
+			beforeJournal = doc
 			var journal codemodeJournalState
 			if err := decodeDocumentValue(doc, DefaultLimits(), &journal); err != nil {
 				t.Fatal(err)
@@ -271,6 +274,16 @@ func runV160PublishedWorkerNestedReplay(t *testing.T, source string, changes wor
 	}
 	if requests.Load() != 2 {
 		t.Errorf("model requests = %d; want 2", requests.Load())
+	}
+	if changes.unchangedJournal {
+		final, err := next.Snapshot(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		after, found := final.Documents[beforeJournal.ID]
+		if !found || !equalJSONValue(beforeJournal.Value, after.Value) {
+			t.Fatal("replay refusal changed the saved journal", found)
+		}
 	}
 	page, err := next.Commit(ctx, func(tx *Tx) (any, error) {
 		return tx.ScanTasks(TaskQuery{Kind: "pi.tool"}, 100, nil)

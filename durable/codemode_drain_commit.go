@@ -18,26 +18,26 @@ func acknowledgeCodemodeDrain(ctx context.Context, vm CodemodeDrainExecution, jo
 	return err
 }
 
-// prepareCodemodeDrain checks replay counts or returns a detached journal with
-// the newly observed count, without publishing or releasing the transport.
-func prepareCodemodeDrain(journal *codemodeJournalState, drain CodemodeDrain, observed, delivered int) (*codemodeJournalState, error) {
-	if drain.Issued < 0 || drain.Issued != observed || observed > len(journal.Issued) || drain.DeliveryID < 0 {
-		return nil, reject("codemode drain issued count divergence")
+// checkCodemodeDrain verifies only the frame and a saved observation. A
+// rejected replay can compare counts without adopting any of its calls.
+func checkCodemodeDrain(journal *codemodeJournalState, drain CodemodeDrain, observed, delivered int) (int, *int, error) {
+	if drain.Issued < 0 || drain.Issued != observed || drain.DeliveryID < 0 {
+		return -1, nil, reject("codemode drain issued count divergence")
 	}
 	var recorded *int
 	deliveryIndex := -1
 	if delivered == 0 {
 		if drain.DeliveryID != 0 {
-			return nil, reject("codemode initial drain identity mismatch")
+			return -1, nil, reject("codemode initial drain identity mismatch")
 		}
 		recorded = journal.FirstIssued
 	} else {
 		if journal.FirstIssued == nil || delivered < 1 || delivered > len(journal.Deliveries) {
-			return nil, reject("codemode drain delivery missing")
+			return -1, nil, reject("codemode drain delivery missing")
 		}
 		deliveryIndex = delivered - 1
 		if journal.Deliveries[deliveryIndex].Call.ID != drain.DeliveryID {
-			return nil, reject("codemode drain delivery identity mismatch")
+			return -1, nil, reject("codemode drain delivery identity mismatch")
 		}
 		recorded = journal.Deliveries[deliveryIndex].IssuedAfter
 	}
@@ -46,7 +46,7 @@ func prepareCodemodeDrain(journal *codemodeJournalState, drain CodemodeDrain, ob
 			const reason = "codemode drain replay count divergence"
 			if !drain.Final && delivered < len(journal.Deliveries) {
 				if next := journal.Deliveries[delivered].Call.ID; next > observed {
-					return nil, reject(fmt.Sprintf("%s: it waits without making call %d, which it made before", reason, next))
+					return -1, nil, reject(fmt.Sprintf("%s: it waits without making call %d, which it made before", reason, next))
 				}
 			}
 			seq := 0
@@ -54,13 +54,28 @@ func prepareCodemodeDrain(journal *codemodeJournalState, drain CodemodeDrain, ob
 				seq = journal.Deliveries[deliveryIndex].Seq
 			}
 			if drain.Final && observed < *recorded {
-				return nil, reject(fmt.Sprintf("%s: it ended after result %d, where it went on before", reason, seq))
+				return -1, nil, reject(fmt.Sprintf("%s: it ended after result %d, where it went on before", reason, seq))
 			}
 			if deliveryIndex >= 0 {
-				return nil, reject(fmt.Sprintf("%s: after result %d it had made %d calls, where it had made %d", reason, seq, observed, *recorded))
+				return -1, nil, reject(fmt.Sprintf("%s: after result %d it had made %d calls, where it had made %d", reason, seq, observed, *recorded))
 			}
-			return nil, reject(fmt.Sprintf("%s: its first run made %d calls, where it had made %d", reason, observed, *recorded))
+			return -1, nil, reject(fmt.Sprintf("%s: its first run made %d calls, where it had made %d", reason, observed, *recorded))
 		}
+	}
+	return deliveryIndex, recorded, nil
+}
+
+// prepareCodemodeDrain checks replay counts or returns a detached journal with
+// the newly observed count, without publishing or releasing the transport.
+func prepareCodemodeDrain(journal *codemodeJournalState, drain CodemodeDrain, observed, delivered int) (*codemodeJournalState, error) {
+	if observed > len(journal.Issued) {
+		return nil, reject("codemode drain issued count divergence")
+	}
+	deliveryIndex, recorded, err := checkCodemodeDrain(journal, drain, observed, delivered)
+	if err != nil {
+		return nil, err
+	}
+	if recorded != nil {
 		return nil, nil
 	}
 	next := *journal
