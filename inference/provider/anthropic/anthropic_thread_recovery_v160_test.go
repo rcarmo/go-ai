@@ -14,10 +14,19 @@ import (
 )
 
 // Source: pi v1.6.0 packages/ai/test/anthropic-message-threads.test.ts:350–382,
-// the thread_already_continued variant only.
+// the thread_already_continued variant (line 352).
 func TestSourceV160AnthropicThreadAlreadyContinuedWire(t *testing.T) {
-	const session = "thread-pinned-already-continued"
-	const errorCode = "thread_already_continued"
+	testSourceV160AnthropicThreadRecoveryWire(t, "thread_already_continued", http.StatusBadRequest, "invalid_request_error")
+}
+
+// Source: the thread_not_found variant of the same declaration (line 351).
+func TestSourceV160AnthropicThreadNotFoundWire(t *testing.T) {
+	testSourceV160AnthropicThreadRecoveryWire(t, "thread_not_found", http.StatusNotFound, "not_found_error")
+}
+
+func testSourceV160AnthropicThreadRecoveryWire(t *testing.T, errorCode string, rejectedStatus int, rejectedType string) {
+	t.Helper()
+	session := "thread-pinned-recovery-" + errorCode
 	if err := goai.CleanupSessionResources(session); err != nil {
 		t.Fatal(err)
 	}
@@ -57,8 +66,8 @@ func TestSourceV160AnthropicThreadAlreadyContinuedWire(t *testing.T) {
 		status, contentType := http.StatusOK, "text/event-stream"
 		response := anthropicThreadReplyV160(fmt.Sprintf("msg_%d", len(requests)), false)
 		if len(requests) == 2 {
-			status, contentType = http.StatusBadRequest, "application/json"
-			response = `{"type":"error","error":{"type":"invalid_request_error","message":"thread rejected","details":{"error_code":"` + errorCode + `"}}}`
+			status, contentType = rejectedStatus, "application/json"
+			response = fmt.Sprintf(`{"type":"error","error":{"type":%q,"message":"thread rejected","details":{"error_code":%q}}}`, rejectedType, errorCode)
 		}
 		statuses = append(statuses, status)
 		return &http.Response{StatusCode: status, Header: http.Header{"Content-Type": {contentType}}, Body: io.NopCloser(strings.NewReader(response))}, nil
@@ -104,8 +113,9 @@ func TestSourceV160AnthropicThreadAlreadyContinuedWire(t *testing.T) {
 	if len(hooks) != 1 {
 		t.Fatalf("recovery hook calls = %d, want 1", len(hooks))
 	}
-	if len(requests) != 3 || !slices.Equal(statuses, []int{200, 400, 200}) {
-		t.Fatalf("recovery requests = %d statuses = %v, want 3/[200 400 200]", len(requests), statuses)
+	wantStatuses := []int{http.StatusOK, rejectedStatus, http.StatusOK}
+	if len(requests) != 3 || !slices.Equal(statuses, wantStatuses) {
+		t.Fatalf("recovery requests = %d statuses = %v, want %d/%v", len(requests), statuses, len(wantStatuses), wantStatuses)
 	}
 	if betas[2] != betas[1] {
 		t.Errorf("recreated beta = %q, want %q", betas[2], betas[1])
@@ -147,8 +157,9 @@ func TestSourceV160AnthropicThreadAlreadyContinuedWire(t *testing.T) {
 	checkBody(2, replay)
 
 	turn("third", "msg_4", opts)
-	if len(requests) != 4 || !slices.Equal(statuses, []int{200, 400, 200, 200}) {
-		t.Fatalf("recovered-head requests = %d statuses = %v, want 4/[200 400 200 200]", len(requests), statuses)
+	wantStatuses = append(wantStatuses, http.StatusOK)
+	if len(requests) != 4 || !slices.Equal(statuses, wantStatuses) {
+		t.Fatalf("recovered-head requests = %d statuses = %v, want %d/%v", len(requests), statuses, len(wantStatuses), wantStatuses)
 	}
 	checkBody(3, anthropicThreadWireBodyV160(`[`+thirdCached+`]`, `{"type":"continue","previous_message_id":"msg_3"}`, false))
 }
