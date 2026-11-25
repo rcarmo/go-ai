@@ -2,6 +2,7 @@ package durable
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -54,13 +55,19 @@ func TestSourceV160CodemodeSandboxStoreBounds(t *testing.T) {
 			if !done.OK || done.Value == nil || *done.Value != classes {
 				t.Fatalf("published worker result ok=%v value=%v; want %s", done.OK, done.Value, classes)
 			}
-			// The raw sandbox can return a retained patch larger than a
-			// native Durable record. Do not relax the Go adapter's limit.
+			// The raw sandbox returns a patch larger than a native record.
+			// The adapter owns the five distinct writes as bounded values.
 			if done.Writes == nil || len(*done.Writes) <= DefaultLimits().MaxRecordBytes {
 				t.Fatal("expected the actual script to leave a patch larger than a native record")
 			}
-			if err == nil || !strings.Contains(err.Error(), "worker JSON exceeds limit") || result.HasValue || len(result.StoreWrites) != 0 {
-				t.Fatalf("oversized patch projection: error=%v value=%v writes=%d; want rejected before result publication", err, result.HasValue, len(result.StoreWrites))
+			if err != nil || !result.HasValue || !equalJSONValue(result.Value, []any{"TypeError", "TypeError", "TypeError", "RangeError", "RangeError"}) || len(result.StoreWrites) != 5 || len(result.StoreDeletes) != 0 {
+				t.Fatalf("bounded patch projection: error=%v value=%v writes=%d deletes=%d", err, result.Value, len(result.StoreWrites), len(result.StoreDeletes))
+			}
+			value := strings.Repeat("x", 200<<10)
+			for i := 0; i < 5; i++ {
+				if result.StoreWrites[fmt.Sprintf("k%d", i)] != value {
+					t.Fatalf("wrong store value for k%d", i)
+				}
 			}
 			_, failed, projected := executeV160StandaloneScript(t, process, placement.launcher, placement.identity, oversized)
 			if failed.Type != "done" || failed.OK || projected.Error == "" {

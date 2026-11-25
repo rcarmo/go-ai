@@ -69,6 +69,12 @@ func (s *RemoteCodemodeSandbox) Start(ctx context.Context, code string, start Co
 	linked, cancel := context.WithCancelCause(ctx)
 	e := &remoteCodemodeExecution{ctx: linked, cancel: cancel, events: make(chan remoteCodemodeEvent, 1), replies: make(chan CodemodeRemoteReply), done: make(chan struct{}), deliveries: make(chan CodemodeDelivery), lastNow: start.StartedAt}
 	// Detach all configuration before handing it to a transport implementation.
+	store, err := ownCodemodeStoreValues(start.Store, DefaultLimits())
+	if err != nil {
+		cancel(nil)
+		return nil, err
+	}
+	start.Store = nil
 	object, err := dtoObject(start, DefaultLimits())
 	if err != nil {
 		cancel(nil)
@@ -79,6 +85,7 @@ func (s *RemoteCodemodeSandbox) Start(ctx context.Context, code string, start Co
 		cancel(nil)
 		return nil, err
 	}
+	owned.Store = store
 	go func() {
 		defer close(e.done)
 		terminal := false
@@ -123,6 +130,19 @@ func (s *RemoteCodemodeSandbox) Start(ctx context.Context, code string, start Co
 			// normal document limit after projection/spill on the caller.
 			limits.MaxDocumentBytes = 6*MaxCodemodeFullOutputBytes + MaxCodemodeImagesBytes + 65536
 			limits.MaxRecordBytes = limits.MaxDocumentBytes
+			var writes JSON
+			var deletes []string
+			if event.Result != nil {
+				result := *event.Result
+				var err error
+				writes, err = ownCodemodeStoreValues(result.StoreWrites, DefaultLimits())
+				if err != nil {
+					return CodemodeRemoteReply{}, err
+				}
+				deletes = append([]string(nil), result.StoreDeletes...)
+				result.StoreWrites, result.StoreDeletes = nil, nil
+				event.Result = &result
+			}
 			value, err := dtoObject(event, limits)
 			if err != nil {
 				return CodemodeRemoteReply{}, err
@@ -130,6 +150,9 @@ func (s *RemoteCodemodeSandbox) Start(ctx context.Context, code string, start Co
 			var detached CodemodeEvent
 			if err := fromObject(value, &detached, limits); err != nil {
 				return CodemodeRemoteReply{}, err
+			}
+			if detached.Result != nil {
+				detached.Result.StoreWrites, detached.Result.StoreDeletes = writes, deletes
 			}
 			if event.scriptEnd != nil || event.workerStopped {
 				if owned.JournalVersion != codemodeGroupedJournalVersion || detached.Result == nil || detached.Result.Error == "" || !s.supportsGroupedCodemodeJournal() || event.scriptEnd != nil && event.workerStopped {

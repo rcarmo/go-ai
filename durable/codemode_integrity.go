@@ -1,5 +1,7 @@
 package durable
 
+import "slices"
+
 func validateCodemodeDocuments(s Snapshot, doc Document, l Limits) error {
 	if doc.Scope != "task" || !doc.Family || doc.Version != 1 || !validNestedKey(doc.Key) {
 		return reject("invalid codemode document identity")
@@ -98,6 +100,31 @@ func validateCodemodeDocuments(s Snapshot, doc Document, l Limits) error {
 			return err
 		}
 	}
+	if len(run.StoreStartParts) > 0 {
+		if run.Start.Store != nil {
+			return reject("codemode start has inline and split store values")
+		}
+		if !doc.Retired {
+			if _, err := readCodemodeStoreParts(s, doc.Owner, doc.Key, codemodeStoreStartKind, run.StoreStartParts, l); err != nil {
+				return err
+			}
+		}
+	}
+	if len(run.StoreResultParts) > 0 {
+		if run.Result == nil || run.Result.Error != "" || len(run.Result.StoreWrites) != 0 {
+			return reject("codemode store parts lack exclusive successful result")
+		}
+		if !doc.Retired {
+			values, err := readCodemodeStoreParts(s, doc.Owner, doc.Key, codemodeStoreResultKind, run.StoreResultParts, l)
+			if err != nil {
+				return err
+			}
+			patch := CodemodeResult{StoreWrites: values, StoreDeletes: run.Result.StoreDeletes}
+			if err := validateCodemodeStorePatch(patch, l); err != nil {
+				return err
+			}
+		}
+	}
 	if run.Result != nil {
 		if len(run.ValueChunks) > 0 && !doc.Retired {
 			if !run.Result.HasValue || run.Result.Value != "" {
@@ -139,7 +166,7 @@ func validateCodemodeReplacement(old, next Document, l Limits) error {
 		if err != nil {
 			return err
 		}
-		if a.Source != b.Source || !equalJSONValue(aStart, bStart) {
+		if a.Source != b.Source || !equalJSONValue(aStart, bStart) || !slices.Equal(a.StoreStartParts, b.StoreStartParts) {
 			return reject("codemode start identity changed")
 		}
 		if a.OutputDir != "" && (a.OutputDir != b.OutputDir || a.OutputFS != b.OutputFS) {
@@ -154,7 +181,7 @@ func validateCodemodeReplacement(old, next Document, l Limits) error {
 			if err != nil {
 				return err
 			}
-			if !equalJSONValue(av, bv) || !equalJSONValue(a.ImageRefs, b.ImageRefs) || !equalJSONValue(a.ValueChunks, b.ValueChunks) || !sameCodemodeTerminal(a.Terminal, b.Terminal) {
+			if !equalJSONValue(av, bv) || !equalJSONValue(a.ImageRefs, b.ImageRefs) || !equalJSONValue(a.ValueChunks, b.ValueChunks) || !slices.Equal(a.StoreResultParts, b.StoreResultParts) || !sameCodemodeTerminal(a.Terminal, b.Terminal) {
 				return reject("settled codemode result changed")
 			}
 		}

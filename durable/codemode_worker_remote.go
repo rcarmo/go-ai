@@ -361,35 +361,7 @@ func (r *CodemodeWorkerRemote) Execute(ctx context.Context, code string, start C
 						err = reject("worker done lacks writes")
 						break
 					}
-					var writes [][]json.RawMessage
-					err = decodeWorkerJSON([]byte(*message.Writes), limits, limits.MaxRecordBytes, &writes)
-					if err != nil {
-						break
-					}
-					result.StoreWrites = JSON{}
-					for _, write := range writes {
-						if len(write) < 1 || len(write) > 2 {
-							err = reject("invalid worker store patch")
-							break
-						}
-						var key string
-						if err = json.Unmarshal(write[0], &key); err != nil {
-							break
-						}
-						if len(write) == 1 {
-							result.StoreDeletes = append(result.StoreDeletes, key)
-						} else {
-							var encoded string
-							if err = json.Unmarshal(write[1], &encoded); err != nil {
-								break
-							}
-							var value any
-							if err = decodeWorkerJSON([]byte(encoded), limits, limits.MaxRecordBytes, &value); err != nil {
-								break
-							}
-							result.StoreWrites[key] = value
-						}
-					}
+					result.StoreWrites, result.StoreDeletes, err = decodeCodemodeWorkerStorePatch(*message.Writes, limits)
 				} else {
 					result.Error = scriptError.Message
 				}

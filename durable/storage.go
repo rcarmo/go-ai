@@ -590,6 +590,9 @@ func prepareRecord(s Snapshot, r commitRecord, l Limits, final, explicit, contig
 			if !ok {
 				return Snapshot{}, reject("delta document root must be object")
 			}
+			if (v.Kind == codemodeStoreStartKind || v.Kind == codemodeStoreResultKind) && !equalJSONValue(v.Value, JSON(object)) {
+				return Snapshot{}, reject("codemode store part changed")
+			}
 			if v.Kind == codemodeRunKind || v.Kind == codemodeJournalKind || v.Kind == codemodeImageChunkKind {
 				next := v
 				next.Value = JSON(object)
@@ -638,6 +641,9 @@ func prepareRecord(s Snapshot, r commitRecord, l Limits, final, explicit, contig
 				return Snapshot{}, err
 			}
 			if old, ok := n.Documents[id]; ok {
+				if (old.Kind == codemodeStoreStartKind || old.Kind == codemodeStoreResultKind) && !equalJSONValue(old.Value, v.Value) {
+					return Snapshot{}, reject("codemode store part changed")
+				}
 				if old.Kind == codemodeRunKind || old.Kind == codemodeJournalKind || old.Kind == codemodeImageChunkKind {
 					if err := validateGroupedCodemodeJournalSeal(n, old, v, l); err != nil {
 						return Snapshot{}, err
@@ -892,6 +898,11 @@ func validateState(candidate *Snapshot, l Limits, final bool, prior Snapshot, wr
 			}
 		default:
 			return reject("invalid scope")
+		}
+		if final && (v.Kind == codemodeStoreStartKind || v.Kind == codemodeStoreResultKind) {
+			if err := validateCodemodeStorePart(s, v, l); err != nil {
+				return err
+			}
 		}
 		if final && !metadataOnly && (v.Kind == codemodeRunKind || v.Kind == codemodeJournalKind) {
 			if err := validateCodemodeDocuments(s, v, l); err != nil {

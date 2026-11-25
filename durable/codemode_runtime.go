@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	goai "github.com/rcarmo/go-ai"
@@ -134,14 +135,16 @@ type CodemodeDelivery struct {
 	Properties  JSON         `json:"properties,omitempty"`
 }
 type codemodeRunState struct {
-	OutputDir   string             `json:"outputDir,omitempty"`
-	OutputFS    string             `json:"outputFS,omitempty"`
-	Source      string             `json:"source"`
-	Start       CodemodeStart      `json:"start"`
-	Result      *CodemodeResult    `json:"result,omitempty"`
-	ImageRefs   []codemodeImageRef `json:"imageRefs,omitempty"`
-	ValueChunks []ID               `json:"valueChunks,omitempty"`
-	Terminal    *codemodeTerminal  `json:"terminal,omitempty"`
+	OutputDir        string             `json:"outputDir,omitempty"`
+	OutputFS         string             `json:"outputFS,omitempty"`
+	Source           string             `json:"source"`
+	Start            CodemodeStart      `json:"start"`
+	Result           *CodemodeResult    `json:"result,omitempty"`
+	ImageRefs        []codemodeImageRef `json:"imageRefs,omitempty"`
+	ValueChunks      []ID               `json:"valueChunks,omitempty"`
+	StoreStartParts  []ID               `json:"storeStartParts,omitempty"`
+	StoreResultParts []ID               `json:"storeResultParts,omitempty"`
+	Terminal         *codemodeTerminal  `json:"terminal,omitempty"`
 }
 type codemodeJournalState struct {
 	FirstIssued *int               `json:"firstIssued,omitempty"`
@@ -268,6 +271,7 @@ func (r *TaskRuntime) runCodemodeWithCompletionQueue(ctx context.Context, key, s
 	}
 	var runID, journalID ID
 	var run codemodeRunState
+	var vmStore JSON
 	var journal codemodeJournalState
 	err = r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
 		for _, doc := range tx.state.Documents {
@@ -294,6 +298,11 @@ func (r *TaskRuntime) runCodemodeWithCompletionQueue(ctx context.Context, key, s
 			if run.Start.RuntimeIdentity != identity {
 				return nil, reject("the script cannot resume: the sandbox changed since it started")
 			}
+			if run.Result == nil && len(run.StoreStartParts) > 0 {
+				var err error
+				vmStore, err = readCodemodeStoreParts(tx.state, r.taskID, key, codemodeStoreStartKind, run.StoreStartParts, l)
+				return nil, err
+			}
 			return nil, nil
 		}
 		if journalID != 0 {
@@ -303,19 +312,22 @@ func (r *TaskRuntime) runCodemodeWithCompletionQueue(ctx context.Context, key, s
 		if err != nil {
 			return nil, err
 		}
-		stored, err := store.Get()
+		values, _, err := codemodeStoreValues(tx, r.conversation, store)
 		if err != nil {
 			return nil, err
 		}
-		values, ok := stored["values"].(map[string]any)
-		if !ok {
-			return nil, reject("codemode store shape")
-		}
-		start.Store, err = copyObject(JSON(values), l)
-		if err != nil {
-			return nil, err
-		}
+		start.Store = values
 		run = codemodeRunState{Source: source, Start: start}
+		if _, err := dtoObject(run, l); err != nil {
+			if len(values) == 0 || !strings.Contains(err.Error(), "encoded JSON byte limit") {
+				return nil, err
+			}
+			run.StoreStartParts, err = createCodemodeStoreParts(tx, r.taskID, key, codemodeStoreStartKind, values)
+			if err != nil {
+				return nil, err
+			}
+			run.Start.Store, vmStore = nil, values
+		}
 		journal = codemodeJournalState{Issued: []CodemodeCall{}, Deliveries: []CodemodeDelivery{}, Version: start.JournalVersion}
 		for _, item := range []struct {
 			kind  string
@@ -363,6 +375,15 @@ func (r *TaskRuntime) runCodemodeWithCompletionQueue(ctx context.Context, key, s
 				return CodemodeResult{}, err
 			}
 		}
+		if len(run.StoreResultParts) != 0 {
+			if err := r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
+				var err error
+				result.StoreWrites, err = readCodemodeStoreParts(tx.state, r.taskID, key, codemodeStoreResultKind, run.StoreResultParts, l)
+				return nil, err
+			}); err != nil {
+				return CodemodeResult{}, err
+			}
+		}
 		return ownCodemodeResult(result, l)
 	}
 	if run.Start.JournalVersion != 0 && (!supportsGroups || !grouped.supportsGroupedCodemodeJournal()) {
@@ -389,6 +410,12 @@ func (r *TaskRuntime) runCodemodeWithCompletionQueue(ctx context.Context, key, s
 	var vmStart CodemodeStart
 	if err = fromObject(startObject, &vmStart, l); err != nil {
 		return CodemodeResult{}, err
+	}
+	if len(run.StoreStartParts) > 0 {
+		vmStart.Store, err = ownCodemodeStoreValues(vmStore, l)
+		if err != nil {
+			return CodemodeResult{}, err
+		}
 	}
 	vm, err := startCodemodeSandbox(linked, sandbox, parsed.Code, vmStart)
 	if err != nil {
@@ -528,25 +555,7 @@ func (r *TaskRuntime) runCodemodeWithCompletionQueue(ctx context.Context, key, s
 					return nil, err
 				}
 				if result.Error == "" && (len(result.StoreWrites) > 0 || len(result.StoreDeletes) > 0) {
-					store, err := tx.AcquireDocument(codemodeStoreDefinition(), r.conversation, nil, nil)
-					if err != nil {
-						return nil, err
-					}
-					stored, err := store.Get()
-					if err != nil {
-						return nil, err
-					}
-					values, ok := stored["values"].(map[string]any)
-					if !ok {
-						return nil, reject("codemode store shape")
-					}
-					for _, key := range result.StoreDeletes {
-						delete(values, key)
-					}
-					for key, value := range result.StoreWrites {
-						values[key] = value
-					}
-					if err = store.Set(stored); err != nil {
+					if err := applyCodemodeStore(tx, r.conversation, result); err != nil {
 						return nil, err
 					}
 				}
@@ -586,11 +595,22 @@ func (r *TaskRuntime) runCodemodeWithCompletionQueue(ctx context.Context, key, s
 				run.Result = &stored
 				run.ImageRefs = imageRefs
 				object, err := dtoObject(run, l)
+				if err != nil && stored.Error == "" && len(stored.StoreWrites) != 0 && strings.Contains(err.Error(), "encoded JSON byte limit") {
+					run.StoreResultParts, err = createCodemodeStoreParts(tx, r.taskID, key, codemodeStoreResultKind, stored.StoreWrites)
+					if err != nil {
+						return nil, err
+					}
+					stored.StoreWrites = nil
+					object, err = dtoObject(run, l)
+				}
 				if err != nil {
 					return nil, err
 				}
 				return nil, doc.Set(object)
 			})
+			if err != nil && (len(result.StoreWrites) > 0 || len(result.StoreDeletes) > 0) {
+				return CodemodeResult{}, err
+			}
 			return result, err
 		}
 		if index == l.MaxPage {
@@ -711,6 +731,15 @@ func ownCodemodeResult(result CodemodeResult, l Limits) (CodemodeResult, error) 
 	if err := validateCodemodeImages(result.Images, l); err != nil {
 		return CodemodeResult{}, err
 	}
+	if err := validateCodemodeStorePatch(result, l); err != nil {
+		return CodemodeResult{}, err
+	}
+	writes, err := ownCodemodeStoreValues(result.StoreWrites, l)
+	if err != nil {
+		return CodemodeResult{}, err
+	}
+	deletes := append([]string(nil), result.StoreDeletes...)
+	result.StoreWrites, result.StoreDeletes = nil, nil
 	images := append([]goai.ImageContent(nil), result.Images...)
 	result.Images = nil
 	fullOutput := result.Output
@@ -738,6 +767,7 @@ func ownCodemodeResult(result CodemodeResult, l Limits) (CodemodeResult, error) 
 	if err = validateCodemodeResult(owned, l); err != nil {
 		return CodemodeResult{}, err
 	}
+	owned.StoreWrites, owned.StoreDeletes = writes, deletes
 	owned.Images = images
 	owned.Output = fullOutput
 	if large {
