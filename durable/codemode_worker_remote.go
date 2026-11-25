@@ -320,7 +320,27 @@ func (r *CodemodeWorkerRemote) Execute(ctx context.Context, code string, start C
 					err = drain(callCtx, message.Seq, message.Issued, false)
 				}
 			case "done":
-				if !started || message.During == nil || message.During.Issued != issued || message.During.Seq < lastDrain || message.During.Seq > lastDrain+1 {
+				if !started {
+					err = reject("worker done lacks deterministic position")
+					break
+				}
+				var scriptError *quickjs.Error
+				if !message.OK {
+					scriptError, err = decodeWorkerScriptError(message.Error, limits)
+					if err != nil {
+						break
+					}
+				}
+				if message.During == nil {
+					// The published VM reports a compile failure after the
+					// fingerprint but before it has a drain position. Accept
+					// only this effect-free error, never a successful result.
+					if scriptError == nil || scriptError.Name != "SyntaxError" || scriptError.Stack == "" ||
+						issued != 0 || lastDrain != -1 || len(outputItems) != 0 || len(images) != 0 || message.Value != nil || message.Writes != nil {
+						err = reject("worker done lacks deterministic position")
+						break
+					}
+				} else if message.During.Issued != issued || message.During.Seq < lastDrain || message.During.Seq > lastDrain+1 {
 					err = reject("worker done lacks deterministic position")
 					break
 				}
@@ -371,26 +391,15 @@ func (r *CodemodeWorkerRemote) Execute(ctx context.Context, code string, start C
 						}
 					}
 				} else {
-					var scriptError string
-					err = json.Unmarshal(message.Error, &scriptError)
-					if err == nil {
-						var detail struct {
-							Message string `json:"message"`
-						}
-						err = json.Unmarshal([]byte(scriptError), &detail)
-						result.Error = detail.Message
-						if result.Error == "" {
-							result.Error = "Script failed"
-						}
-					}
+					result.Error = scriptError.Message
 				}
 				if err == nil {
 					formatted := quickjs.Result{OK: message.OK, Output: outputItems}
 					if message.OK && message.Value != nil {
 						formatted.Value = json.RawMessage(*message.Value)
 					}
-					if !message.OK {
-						formatted.Error = &quickjs.Error{Kind: "script", Message: result.Error}
+					if scriptError != nil {
+						formatted.Error = scriptError
 						formatted.Calls = calls
 					}
 					result.Output, err = formatQuickJSText(formatted)

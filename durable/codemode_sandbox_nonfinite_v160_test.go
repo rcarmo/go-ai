@@ -36,14 +36,10 @@ func TestSourceV160CodemodeNonFiniteAcrossSandboxPlacements(t *testing.T) {
 		}
 	})
 
-	const nodeIdentity = "quickjs-wasi 3.6.2, quickjs 0.17.0, prelude 4dce1bde, deterministic 1, stack 524288, heap 33554432, budget none"
-	for _, tc := range []struct{ name, launcher, identity string }{
-		{"remote", "worker-remote-120.mjs", officialWorkerFingerprintV160},
-		{"worker", "worker-node-v160.mjs", nodeIdentity},
-	} {
+	for _, tc := range v160StandaloneWorkerPlacements() {
 		t.Run(tc.name, func(t *testing.T) {
 			process := officialWorkerTransport120{root: officialWorkerPackageRootV160(t)}
-			logged, done, result := executeV160NonFiniteWorker(t, process, tc.launcher, tc.identity, log)
+			logged, done, result := executeV160StandaloneScript(t, process, tc.launcher, tc.identity, log)
 			want := []CodemodeWorkerOutput{{Type: "text", Text: console, Console: true}, {Type: "text", Text: "NaN"}}
 			if !done.OK || !reflect.DeepEqual(logged, want) {
 				t.Fatalf("worker items = %+v, done=%+v; want %+v", logged, done, want)
@@ -51,7 +47,7 @@ func TestSourceV160CodemodeNonFiniteAcrossSandboxPlacements(t *testing.T) {
 			if result.Error != "" || result.Output != "NaN\n<console_output>\n"+console+"\n</console_output>" {
 				t.Fatalf("Go output projection = %+v", result)
 			}
-			_, thrown, result := executeV160NonFiniteWorker(t, process, tc.launcher, tc.identity, failure)
+			_, thrown, result := executeV160StandaloneScript(t, process, tc.launcher, tc.identity, failure)
 			var encoded string
 			var detail struct{ Message string }
 			if thrown.Type != "done" || thrown.OK || json.Unmarshal(thrown.Error, &encoded) != nil || json.Unmarshal([]byte(encoded), &detail) != nil || detail.Message != "NaN" || result.Error != "NaN" {
@@ -61,20 +57,30 @@ func TestSourceV160CodemodeNonFiniteAcrossSandboxPlacements(t *testing.T) {
 	}
 }
 
+func v160StandaloneWorkerPlacements() []struct{ name, launcher, identity string } {
+	const nodeIdentity = "quickjs-wasi 3.6.2, quickjs 0.17.0, prelude 4dce1bde, deterministic 1, stack 524288, heap 33554432, budget none"
+	return []struct{ name, launcher, identity string }{
+		{"remote", "worker-remote-120.mjs", officialWorkerFingerprintV160},
+		{"worker", "worker-node-v160.mjs", nodeIdentity},
+	}
+}
+
 // Observe the raw published frames while still running them through the Go
 // adapter. No tools or globals are registered in this fixture.
-func executeV160NonFiniteWorker(t *testing.T, process officialWorkerTransport120, launcher, identity, code string) ([]CodemodeWorkerOutput, CodemodeWorkerMessage, CodemodeResult) {
+func executeV160StandaloneScript(t *testing.T, process officialWorkerTransport120, launcher, identity, code string) ([]CodemodeWorkerOutput, CodemodeWorkerMessage, CodemodeResult) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
 	defer cancel()
 	var mu sync.Mutex
 	var output []CodemodeWorkerOutput
+	var frameTypes []string
 	var done CodemodeWorkerMessage
 	var final CodemodeResult
 	remote := &CodemodeWorkerRemote{Fingerprint: identity, Transport: workerTransport120(func(ctx context.Context, req CodemodeWorkerRequest, exchange func(context.Context, []CodemodeWorkerMessage) (*CodemodeWorkerReply, error)) error {
 		return process.executeProcess(ctx, launcher, req, func(ctx context.Context, frames []CodemodeWorkerMessage) (*CodemodeWorkerReply, error) {
 			mu.Lock()
 			for _, frame := range frames {
+				frameTypes = append(frameTypes, frame.Type)
 				if frame.Type == "output" && frame.Item != nil {
 					output = append(output, *frame.Item)
 				}
@@ -106,7 +112,7 @@ func executeV160NonFiniteWorker(t *testing.T, process officialWorkerTransport120
 		return CodemodeDelivery{}, ctx.Err()
 	})
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("worker relay: %v; frames=%v, terminal ok=%t position=%+v error=%s", err, frameTypes, done.OK, done.During, done.Error)
 	}
 	return output, done, final
 }
