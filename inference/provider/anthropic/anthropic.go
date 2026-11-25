@@ -765,6 +765,7 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 	deferredPlan := goai.PlanDeferredTools(convCtx, compatForDeferred.supportsToolReferences, canonicalizeOAuthTools)
 	toolCallIDMap := make(map[string]string) // original → normalized
 	toolResultGroup := -1
+	var pendingInlineUpdates []anthropicMessage
 	for _, m := range transformed {
 		if m.Role != goai.RoleToolResult {
 			toolResultGroup = -1
@@ -795,7 +796,14 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 				}
 			}
 			if len(blocks) > 0 {
-				req.Messages = append(req.Messages, anthropicMessage{Role: "system", Content: blocks})
+				update := anthropicMessage{Role: "system", Content: blocks}
+				if nativeToolChanges {
+					// Keep native updates before the next reply, not before
+					// the user or tool results that precede that reply.
+					pendingInlineUpdates = append(pendingInlineUpdates, update)
+				} else {
+					req.Messages = append(req.Messages, update)
+				}
 			}
 
 		case goai.RoleUser:
@@ -869,6 +877,10 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 						Input: inputJSON,
 					})
 				}
+			}
+			if len(blocks) > 0 && len(pendingInlineUpdates) > 0 {
+				req.Messages = append(req.Messages, pendingInlineUpdates...)
+				pendingInlineUpdates = pendingInlineUpdates[:0]
 			}
 			if useEffortMessages && m.Api == goai.ApiAnthropicMessages && m.Provider == model.Provider && isAnthropicEffort(m.ProviderThinkingLevel) && len(blocks) > 0 {
 				req.Messages = append(req.Messages, anthropicMessage{Role: "system", Content: []anthropicContentBlock{}, OutputConfig: &anthropicOutput{Effort: m.ProviderThinkingLevel}})
@@ -955,6 +967,7 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 			req.Messages[toolResultGroup].Content = append(req.Messages[toolResultGroup].Content.([]anthropicContentBlock), trailing...)
 		}
 	}
+	req.Messages = append(req.Messages, pendingInlineUpdates...)
 
 	// Convert tools
 	cc := resolveCacheControl(model, opts)
@@ -993,7 +1006,12 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 	}
 
 	if nativeToolChanges {
-		req.Tools = append(req.Tools, anthropicTool{Name: "__pi_deferred_placeholder__", InputSchema: json.RawMessage(`{"type":"object","properties":{}}`), DeferLoading: true})
+		req.Tools = append(req.Tools, anthropicTool{
+			Name:         "__pi_deferred_placeholder__",
+			Description:  "Reserved placeholder. Never available. Never call this.",
+			InputSchema:  json.RawMessage(`{"type":"object","properties":{},"required":[]}`),
+			DeferLoading: true,
+		})
 	}
 
 	// Cache the final eligible user/system content block, never an inline tool definition.
