@@ -28,6 +28,10 @@ type QuickJSSandbox struct {
 }
 
 func (*QuickJSSandbox) RuntimeIdentity() string { return quickjs.Identity() }
+
+// SupportsInlineOmittedToolArguments advertises the projection for new starts.
+func (*QuickJSSandbox) SupportsInlineOmittedToolArguments() bool { return true }
+
 func NewQuickJSSandbox(ctx context.Context) (*QuickJSSandbox, error) {
 	engine, err := quickjs.NewEngine(ctx)
 	if err != nil {
@@ -68,6 +72,8 @@ func (s *QuickJSSandbox) Start(ctx context.Context, code string, start CodemodeS
 	if start.RuntimeIdentity != "" && start.RuntimeIdentity != s.RuntimeIdentity() {
 		return nil, reject("QuickJS runtime identity mismatch")
 	}
+	// Version zero is a direct standalone call rather than a saved start.
+	allowOmittedToolArgs := start.Version == 0 || start.InlineOmittedToolArguments
 	linked, cancel := context.WithCancel(ctx)
 	execution := &quickjsExecution{ctx: linked, cancel: cancel, events: make(chan CodemodeEvent, 1), deliveries: make(chan CodemodeDelivery), done: make(chan struct{}), lastNow: start.StartedAt}
 	var clock atomic.Int64
@@ -130,7 +136,7 @@ func (s *QuickJSSandbox) Start(ctx context.Context, code string, start CodemodeS
 				return nil, errors.New("parallel codemode calls unsupported")
 			}
 			defer execution.pending.Store(false)
-			arguments, undefined, err := decodeQuickJSCallArguments(args, global)
+			arguments, undefined, err := decodeQuickJSCallArguments(args, global, allowOmittedToolArgs)
 			if err != nil {
 				return nil, err
 			}
@@ -182,7 +188,7 @@ func (s *QuickJSSandbox) Start(ctx context.Context, code string, start CodemodeS
 	}
 	if start.ParallelCalls {
 		opts.PrepareCall = func(ctx context.Context, id int, global bool, name string, args json.RawMessage) (func(context.Context) (json.RawMessage, error), error) {
-			arguments, undefined, err := decodeQuickJSCallArguments(args, global)
+			arguments, undefined, err := decodeQuickJSCallArguments(args, global, allowOmittedToolArgs)
 			if err != nil {
 				return nil, err
 			}
@@ -369,13 +375,15 @@ func (e *quickjsExecution) Deliver(ctx context.Context, delivery CodemodeDeliver
 }
 func (e *quickjsExecution) Close() error { e.cancel(); <-e.done; return nil }
 
-func decodeQuickJSCallArguments(raw []byte, global bool) (JSON, bool, error) {
+func decodeQuickJSCallArguments(raw []byte, global, allowOmittedToolArgs bool) (JSON, bool, error) {
+	if raw == nil && (global || allowOmittedToolArgs) {
+		return JSON{}, global, nil
+	}
 	if !global {
+		// Explicit null, numbers, arrays and malformed JSON still do not
+		// meet the Durable tool-object argument contract.
 		arguments, err := decodeQuickJSToolArguments(raw)
 		return arguments, false, err
-	}
-	if raw == nil {
-		return JSON{}, true, nil
 	}
 	var value any
 	if err := decodeQuickJSValue(raw, &value); err != nil {

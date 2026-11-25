@@ -34,6 +34,7 @@ type CodemodeSandboxDrains interface{ SupportsDrainAcknowledgements() bool }
 // Only new runs persist this capability. Replay uses the stored flag.
 type codemodeWorkerArgumentPresence interface{ SupportsWorkerArgumentPresence() bool }
 type codemodeWorkerDiscovery interface{ SupportsWorkerDiscovery() bool }
+type codemodeInlineOmittedToolArguments interface{ SupportsInlineOmittedToolArguments() bool }
 
 // DefaultCodemodeInterruptBudget matches pi-codemode 1.2.0 inline execution.
 const DefaultCodemodeInterruptBudget = 100000
@@ -64,6 +65,9 @@ type CodemodeStart struct {
 	// WorkerDiscovery pins the three catalogue-only globals on portable guests.
 	// An absent bit preserves starts recorded before those globals were exposed.
 	WorkerDiscovery bool `json:"workerDiscovery,omitempty"`
+	// InlineOmittedToolArguments pins the empty-object projection for an
+	// omitted inline tool argument. Older starts retain strict decoding.
+	InlineOmittedToolArguments bool `json:"inlineOmittedToolArguments,omitempty"`
 }
 type CodemodeExecution interface {
 	Next(context.Context) (CodemodeEvent, error)
@@ -221,6 +225,9 @@ func (r *TaskRuntime) runCodemode(ctx context.Context, key, source string, sandb
 	}
 	if worker, ok := sandbox.(codemodeWorkerDiscovery); ok {
 		start.WorkerDiscovery = worker.SupportsWorkerDiscovery()
+	}
+	if inline, ok := sandbox.(codemodeInlineOmittedToolArguments); ok {
+		start.InlineOmittedToolArguments = inline.SupportsInlineOmittedToolArguments()
 	}
 	if drains, ok := sandbox.(CodemodeSandboxDrains); ok {
 		start.DrainAcknowledgements = drains.SupportsDrainAcknowledgements()

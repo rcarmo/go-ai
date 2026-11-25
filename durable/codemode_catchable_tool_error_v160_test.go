@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"reflect"
-	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -49,19 +48,15 @@ func TestSourceV160CodemodeInlineEngineCatchableToolError(t *testing.T) {
 	}
 }
 
-// Run the original script in both published placements through the public
-// Go harness. The supplemental inline application check passes {} explicitly.
+// Run the original omitted-argument script through the public Go harness
+// in the native inline and both published placements.
 func TestSourceV160CodemodeCatchableToolError(t *testing.T) {
-	for _, placement := range []string{"inline-object", "portable", "node-worker"} {
+	for _, placement := range []string{"inline", "portable", "node-worker"} {
 		t.Run(placement, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 			defer cancel()
 			var sandbox CodemodeSandbox
-			source := v160CatchableToolErrorScript
-			if placement == "inline-object" {
-				// The inline application's object decoder does not accept
-				// omission. Keep that boundary distinct from the raw engine.
-				source = strings.Replace(source, "tools.fail()", "tools.fail({})", 1)
+			if placement == "inline" {
 				engine, err := NewQuickJSSandbox(ctx)
 				if err != nil {
 					t.Fatal(err)
@@ -81,7 +76,7 @@ func TestSourceV160CodemodeCatchableToolError(t *testing.T) {
 				}
 				sandbox = worker
 			}
-			checkV160CatchableToolError(t, ctx, sandbox, source)
+			checkV160CatchableToolError(t, ctx, sandbox, v160CatchableToolErrorScript)
 		})
 	}
 }
@@ -150,6 +145,25 @@ func checkV160CatchableToolError(t *testing.T, ctx context.Context, sandbox Code
 	}
 	if failed.Load() != 1 || requests.Load() != 2 {
 		t.Errorf("nested callbacks=%d model requests=%d; want 1 and 2", failed.Load(), requests.Load())
+	}
+	if _, inline := sandbox.(*QuickJSSandbox); inline {
+		state, err := h.Snapshot(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		starts := 0
+		for _, doc := range state.Documents {
+			if doc.Kind == codemodeRunKind {
+				starts++
+				start := generationObject(doc.Value["start"])
+				if start["inlineOmittedToolArguments"] != true {
+					t.Fatal("new inline start did not persist its argument policy")
+				}
+			}
+		}
+		if starts != 1 {
+			t.Fatalf("inline starts = %d, want one", starts)
+		}
 	}
 	if err := h.Close(ctx); err != nil {
 		t.Fatal(err)
