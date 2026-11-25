@@ -103,3 +103,11 @@ The unchanged `codemode.test.ts` commit-before-delivery case passed. The same sc
 The v1.6.0 worker's existing fence and v1.6.1 successful grouped delivery ran as controls. Three focused Go tests passed twice without skips; vet and Staticcheck passed. No production code changed.
 
 Exact native test code: `cd76b19d`.
+
+### The v1.6.1 worker cannot restart past the saved deadline
+
+The unchanged deadline original passed. Native SQLite reopened with the saved deadline already 100 ms in the past. It returned an error containing `deadline passed`, without a new guest start or echo effect. The native fixture allows 3,000 ms for cold worker startup; this compares the saved-deadline behavior, not the original's 300 ms wall-clock window.
+
+The unexpired control runs the same script and worker with the clock still before the deadline. It opens a second guest, makes one echo call, and keeps the original deadline. The prior v1.6.0 deadline and v1.6.1 lost-commit checks also passed. Four focused Go tests passed twice, plus vet and Staticcheck. No production code changed.
+
+Exact native test code: `cf2199c2`.
