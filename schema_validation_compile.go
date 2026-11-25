@@ -38,7 +38,7 @@ func CompileJSONSchema(schema json.RawMessage, options JSONSchemaCompileOptions)
 		return nil, err
 	}
 	v := call.validator
-	v.ignoreFormats = !options.AssertFormats
+	v.formatPolicy = configuredSchemaFormats(options.AssertFormats)
 	if err := v.preflightSchemaReferences(call.schema, options.RejectUnresolvedRefs); err != nil {
 		return nil, err
 	}
@@ -97,7 +97,7 @@ func (c *CompiledJSONSchema) call(value any) (*toolSchemaValidator, any, json.Ra
 	}
 	p := c.prepared
 	v := newToolSchemaValidator(p.root)
-	v.draft7, v.trackDynamic, v.ignoreFormats = p.draft7, p.trackDynamic, p.ignoreFormats
+	v.draft7, v.trackDynamic, v.formatPolicy = p.draft7, p.trackDynamic, p.formatPolicy
 	v.resources = p.resources
 	v.refs, v.refBases = maps.Clone(p.refs), maps.Clone(p.refBases)
 	if r := p.resources; len(r.external) > 0 {

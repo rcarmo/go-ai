@@ -7,6 +7,21 @@ import (
 	"github.com/rcarmo/go-ai/internal/quickjs"
 )
 
+type schemaFormatPolicy uint8
+
+const (
+	schemaFormatsLegacy schemaFormatPolicy = iota // Keep existing tool and legacy checks.
+	schemaFormatsAnnotation
+	schemaFormatsConfigured
+)
+
+func configuredSchemaFormats(assert bool) schemaFormatPolicy {
+	if assert {
+		return schemaFormatsConfigured
+	}
+	return schemaFormatsAnnotation
+}
+
 type toolSchemaRegexResult struct {
 	valid bool
 	err   error
@@ -16,7 +31,7 @@ type toolSchemaRegexResult struct {
 // failures. Keep this predicate non-coercing: it participates in whole-union
 // membership as well as the final check, not in primitive conversion.
 func (v *toolSchemaValidator) stringFormatReason(value interface{}, schema map[string]interface{}) string {
-	if v.ignoreFormats {
+	if v.formatPolicy == schemaFormatsAnnotation {
 		return ""
 	}
 	text, ok := schemaStringValue(value)
@@ -24,6 +39,9 @@ func (v *toolSchemaValidator) stringFormatReason(value interface{}, schema map[s
 		return ""
 	}
 	name, _ := schema["format"].(string)
+	if v.formatPolicy == schemaFormatsLegacy && name == "json-pointer-uri-fragment" {
+		return ""
+	}
 	var valid bool
 	switch name {
 	case "regex":

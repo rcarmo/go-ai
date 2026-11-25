@@ -46,7 +46,7 @@ func CheckJSONSchemaValueWithOptions(schema json.RawMessage, value any, options 
 		return false, err
 	}
 	v := call.validator
-	v.ignoreFormats = !options.AssertFormats
+	v.formatPolicy = configuredSchemaFormats(options.AssertFormats)
 	return v.checkStandaloneValue(call.schema, call.value)
 }
 
