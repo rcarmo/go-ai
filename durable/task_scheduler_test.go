@@ -496,9 +496,11 @@ func TestTaskSchedulerCapacityToolChildHoldOne(t *testing.T) {
 			}
 			releaseTaskGate(releaseTool)
 			awaitTaskSignal(t, childEntered)
-			held := observeTaskState(t, h, toolID, "completing")
-			if held.State.Outcome.Status != "completed" {
-				t.Fatal(held)
+			// With capacity one the child can enter only after the tool
+			// returns its permit. The held result must already be committed.
+			held, found, err := h.Task(bg, toolID)
+			if err != nil || !found || held.State.Status != "completing" || held.State.Outcome == nil || held.State.Outcome.Status != "completed" {
+				t.Fatal("tool did not hold its decided outcome", held, found, err)
 			}
 			raw, err := h.Snapshot(bg)
 			if err != nil {
@@ -508,9 +510,24 @@ func TestTaskSchedulerCapacityToolChildHoldOne(t *testing.T) {
 			if raw.Documents[docID].Value["sum"] != json.Number("1") || appCallbacks.Load() != 1 || requests.Load() != 1 {
 				t.Fatal("Hold app/spend/continuation timing", raw.Documents[docID], appCallbacks.Load(), requests.Load())
 			}
-			var cp toolCheckpoint
-			if err := fromObject(raw.Tasks[toolID].Checkpoint, &cp, h.session.limits); err != nil || cp.Result == nil || cp.Result.Details["result"] != "persisted" || cp.Result.Usage.TotalTokens != 1 {
-				t.Fatal("decided receipt lost", cp, err)
+			// Pinned tool.ts:1196-1220 links a model outcome to its
+			// result entry; scheduler.ts:2566-2580 holds that outcome,
+			// not an executor checkpoint, until the children finish.
+			result := held.State.Outcome.Result
+			if result == nil || !result.Present || held.State.Checkpoint != nil {
+				t.Fatal("missing canonical decided receipt", held.State)
+			}
+			entryID := submissionEntryID(generationObject(result.Value)["entryId"])
+			if entryID == 0 || !equalJSONValue(result.Value, JSON{"kind": "model", "entryId": float64(entryID)}) {
+				t.Fatal("invalid canonical model result link", result.Value)
+			}
+			stored, found, err := store.Entry(bg, entryID)
+			if err != nil || !found || stored.CommitSeq == 0 || stored.Entry.Conversation != conv.ID() || stored.Entry.ByTask != toolID || stored.Entry.Kind != toolResultEntryKind || len(stored.Entry.Model) != 1 {
+				t.Fatal("decided tool result entry was not committed while held", stored, found, err)
+			}
+			receipt := stored.Entry.Model[0]
+			if receipt.Role != goai.RoleToolResult || receipt.ToolName != "delegate" || receipt.IsError || v160ToolResultText(receipt) != "child admitted" || !equalJSONValue(receipt.Details, JSON{"result": "persisted"}) || receipt.Usage == nil || receipt.Usage.Output != 1 || receipt.Usage.TotalTokens != 1 {
+				t.Fatal("decided result lost output, details or usage", receipt)
 			}
 			releaseTaskGate(releaseChild)
 			settled := waitSubmission(t, sub)
@@ -522,6 +539,13 @@ func TestTaskSchedulerCapacityToolChildHoldOne(t *testing.T) {
 				t.Fatal(err)
 			}
 			assertTaskToolSpend(t, final, conv.ID(), "delegate", 1)
+			terminal, err := h.WaitForTask(bg, toolID)
+			if err != nil || terminal.State.Status != "terminal" || terminal.State.Outcome == nil || terminal.State.Outcome.Status != "completed" || terminal.State.Outcome.Result == nil || !terminal.State.Outcome.Result.Present || !equalJSONValue(terminal.State.Outcome.Result.Value, result.Value) {
+				t.Fatal("tool did not retain the decided receipt across the join", terminal, err)
+			}
+			if entry, found, err := store.Entry(bg, entryID); err != nil || !found || entry.CommitSeq != stored.CommitSeq {
+				t.Fatal("join changed the committed result entry", entry, found, err)
+			}
 			if err := h.Close(bg); err != nil {
 				t.Fatal(err)
 			}
