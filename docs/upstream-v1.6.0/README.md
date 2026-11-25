@@ -1235,3 +1235,7 @@ The integrated code at `6b0eaf00` passed 44 focused top-level Go tests twice, wi
 ### Prepared Schema checks shape without changing the caller's input
 
 All 40 unchanged validator cases passed. The native compiler rejects a numeric schema member before returning a validator, while boolean members retain their own validity rules. The exact JSON from the TypeBox object compiles and reports the invalid array value at `/tags/0`. The frozen-schema comparison uses caller-owned Go bytes and verifies that compilation and checks leave them unchanged. No JavaScript freeze emulation or production change is needed for these cases.
+
+### Mistral sends the exact strict and non-strict tool schemas
+
+Both unchanged Mistral cases passed. The native payload hook and scripted transport observed the same strict bit, required arrays and nested schema. With the default Large 4 model, `strict` is explicitly false and `limit` stays optional. The three JavaScript symbol-key assertions remain unmatched: Go's JSON projection cannot demonstrate removing a JavaScript symbol. No live request or production change was needed.
