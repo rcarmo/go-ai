@@ -47,6 +47,7 @@ func TestSourceV160CodemodePublishedGlobalCallDetails(t *testing.T) {
 type v160PublishedGlobalFixtureResult struct {
 	OK    bool
 	Value json.RawMessage
+	Error *quickjs.Error
 	Calls []string
 	Seen  []json.RawMessage
 }
