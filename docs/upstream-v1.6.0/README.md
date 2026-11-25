@@ -1371,3 +1371,7 @@ The integrated code at `249bcee9` passed 24 focused top-level Go tests twice, wi
 ### Sandbox errors preserve the pinned string form of a numeric message
 
 All three unchanged placement variants passed. Native QuickJS and the published hosts report a script `Error` with message `"42"` when the thrown error's message is the number `42`. Changing only the number failed the exact diagnostic check in all four comparisons. The selected case does not change the error name. No production change was needed.
+
+### Assistant retry preserves final results and exact attempt counts
+
+All 52 unchanged retry cases passed. The scoped native runner returns a successful result immediately, does not retry aborted or quota failures, and returns the last transient error after exactly three retries. It reports the exact schedule and final callback on a virtual clock. A distinct-final-error control catches stale results. No real wait, HTTP retry or live provider call is claimed by this comparison.
