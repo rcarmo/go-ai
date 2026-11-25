@@ -1249,3 +1249,13 @@ Each outcome is committed before delivery. A newly issued callback sees its comm
 The grouped record-limit test commits the pair at 24 KiB. At 16 KiB it preserves the prior count, commits and delivers the result that fits, then returns the existing byte-limit error for the last result. No storage limit changed. The sequential nested-call comparison retains the exact legacy idle-count check; a grouped run instead commits the actual terminal position with its result, while preserving commit-before-delivery for both calls.
 
 The integrated code at `2a959319` passed 79 focused top-level Go tests twice, without skips. The default published worker returned `50` with seven and eight journal publications. Both legacy controls remained at 54. Vet and Staticcheck v0.8.2 passed, and the round 21 and 33 audits reproduced byte for byte. The inventory at `728a5d44` records 1,948 scoped sites: 1,893 mapped, 50 partial and five unmatched. Thirty-four of the 214 changed suites have assertion-level links. The three newly unmatched sites observe JavaScript symbol removal; they are not native regressions. Full parity remains open.
+
+## Round 51
+
+### Prepared Schema checks work when detached from the validator
+
+All 40 unchanged validator cases passed. The detached Go method selects the same values in the same order and rechecks an object after it changes. The read-schema check accepts explicit undefined for the optional offset, rejects it for the required path, and keeps JSON null distinct. No production change was needed.
+
+### Anthropic keeps each schema in its intended strict mode
+
+All three unchanged strict-tool cases passed. The native payload hook and scripted wire matched the strict and legacy schema projections, preserved both root definition forms and sent no `strict` field for unsupported preferences. The supported preference sends `strict: true`. The tests cover the serialized schemas; SDK query, header metadata and JavaScript object identity were outside the comparison. No live request or production change was needed.
