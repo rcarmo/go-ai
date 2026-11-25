@@ -893,3 +893,9 @@ All 21 unchanged [Chord read-plan cases](test-inventory/chord-read-plan.md) pass
 ### llama.cpp request roots and classifier values
 
 All 15 unchanged classifier originals passed again. Each URL fixture sends the exact six requests to its loopback server and keeps the configured scheme and prefix while removing the version suffix. The temperature case checks both named probabilities and equal public results for pre-scaled logits. The choice cases return confidence 0 and 1 exactly and match 0.835 within the stated numerical tolerance, without a score field. The score result contains exactly type, score and confidence, with 1.3 and 0.25 within the same tolerance. This completes assertion indexing for the file; the private JavaScript helper array and renderer fields still have partial comparisons.
+
+### Codemode repairs a missing acknowledgement on replay
+
+The unchanged watermark case passed. The native test cuts off a real portable guest after its drain is emitted but before the host accepts it. The saved first delivery has no `IssuedAfter` count. After reopening SQLite, the replayed hold callback sees the saved count `2`; a second reopen completes the same submission. Removing persistence before acknowledgement let the hold run without the count and failed the test. The fixture never deletes a committed acknowledgement.
+
+The unchanged simultaneous-results case also passed upstream. A separate native probe released 50 callbacks together and observed 59 journal publications by its 29th delivery, before the test deadline. It already exceeded the source's limit of fewer than ten publications, and the final result of 50 was not observed. Go's per-delivery acknowledgement fence remains unchanged.
