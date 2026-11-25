@@ -71,35 +71,54 @@ func TestSourceV160CodemodePublishedWorkerBatchRetryFence(t *testing.T) {
 	}
 }
 
-// codemode.test.ts:632–661. Replay the exact script against the original
-// immutable start/journal; only the test guest's replay input gets k=true.
+// codemode.test.ts:632–661. The two mismatches have the same saved count.
+// Only the changed hold has an earlier durable nested-call record.
 func TestSourceV160CodemodePublishedWorkerHeldBatchBeforeLaunch(t *testing.T) {
 	const source = `const k = load("k");
 		if (k) tools.echo({ text: "new" }); else forever();
 		await tools.hold({ id: k ? 2 : 1 });`
-	got := runV160PublishedWorkerNestedReplay(t, source, workerReplayChangesV160{
-		guestStore: workerReplayStoreWithKV160,
-		globals: []CodemodeGlobal{{Name: "forever", Version: 1, Execute: func(ctx context.Context, _ any) (any, error) {
-			<-ctx.Done()
-			return nil, nil
-		}}},
-	})
-	if got.firstIssued == nil || *got.firstIssued != 2 || len(got.beforeClose) != 0 {
-		t.Fatalf("live journal must have 2 issued calls and no deliveries: count=%v deliveries=%+v", got.firstIssued, got.beforeClose)
-	}
-	if !got.isError { // L656
-		t.Errorf("replay accepted the changed batch: %q", got.text)
-	}
-	if len(got.echoes) != 0 || got.nested != 1 { // L658–659
-		t.Errorf("echo effects=%v, nested tasks=%d; want no echo and only the original hold", got.echoes, got.nested)
-	}
-	// L657 intentionally differs: the pinned call-1 identity is enough to
-	// reject, and the tool label excludes literal arguments.
-	if !strings.Contains(got.text, "call 1 is tools.echo(…), but was forever()") || strings.Contains(got.text, `"new"`) {
-		t.Errorf("replay diagnostic=%q; want first target mismatch without arguments", got.text)
-	}
-	if got.starts != 2 || got.replies != 0 {
-		t.Errorf("guest starts=%d, guest deliveries=%d; want 2 starts and 0 deliveries", got.starts, got.replies)
+	const identityFirst = "call 1 is tools.echo(…), but was forever()"
+	for _, tc := range []struct {
+		name, diagnostic       string
+		legacy, sameSecondCall bool
+	}{
+		{"grouped", "call 2 is tools.hold(…), but was tools.hold(…)", false, false},
+		{"legacy", identityFirst, true, false},
+		{"grouped-global-only", identityFirst, false, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			code := source
+			if tc.sameSecondCall {
+				code = strings.Replace(code, "id: k ? 2 : 1", "id: 1", 1)
+			}
+			got := runV160PublishedWorkerNestedReplay(t, code, workerReplayChangesV160{
+				unchangedJournal: true,
+				guestStore:       workerReplayStoreWithKV160,
+				beforeStart:      func(sandbox *RemoteCodemodeSandbox) { sandbox.legacyJournal = tc.legacy },
+				beforeResume: func(_ context.Context, _ Storage, sandbox *RemoteCodemodeSandbox) {
+					sandbox.legacyJournal = false
+				},
+				globals: []CodemodeGlobal{{Name: "forever", Execute: func(ctx context.Context, _ any) (any, error) {
+					<-ctx.Done()
+					return nil, nil
+				}, Version: 1}},
+			})
+			if got.firstIssued == nil || *got.firstIssued != 2 || len(got.beforeClose) != 0 {
+				t.Fatalf("live journal must have 2 issued calls and no deliveries: count=%v deliveries=%+v", got.firstIssued, got.beforeClose)
+			}
+			if !got.isError { // L656
+				t.Errorf("replay accepted the changed batch: %q", got.text)
+			}
+			if len(got.echoes) != 0 || got.nested != 1 { // L658–659
+				t.Errorf("echo effects=%v, nested tasks=%d; want no echo and only the original hold", got.echoes, got.nested)
+			}
+			if !strings.Contains(got.text, tc.diagnostic) || strings.Contains(got.text, `"new"`) || strings.Contains(got.text, `"id":`) {
+				t.Errorf("replay diagnostic=%q; want %q without literal arguments", got.text, tc.diagnostic)
+			}
+			if got.starts != 2 || got.replies != 0 {
+				t.Errorf("guest starts=%d, guest deliveries=%d; want 2 starts and 0 deliveries", got.starts, got.replies)
+			}
+		})
 	}
 }
 

@@ -65,6 +65,7 @@ func (r *TaskRuntime) runParallelCodemode(ctx context.Context, vm CodemodeExecut
 	var group *codemodeGroupReady
 	var terminal *codemodeTerminal
 	var replayMismatch string
+	var replayNestedConflicts []codemodeReplayNestedConflict
 	if start.JournalVersion == codemodeGroupedJournalVersion {
 		group = &codemodeGroupReady{}
 	}
@@ -155,10 +156,6 @@ func (r *TaskRuntime) runParallelCodemode(ctx context.Context, vm CodemodeExecut
 				if err != nil {
 					return CodemodeResult{}, err
 				}
-				if replayMismatch != "" {
-					observed++
-					continue // Count this validated frame without adopting its call.
-				}
 				if observed < len(journal.Issued) {
 					old := journal.Issued[observed]
 					if call.ID != old.ID || call.Name != old.Name || call.Global != old.Global || !codemodeArgumentModeCompatible(call, old) || !equalJSONValue(call.Arguments, old.Arguments) {
@@ -173,13 +170,19 @@ func (r *TaskRuntime) runParallelCodemode(ctx context.Context, vm CodemodeExecut
 						// mismatch before inspecting held call identities. Keep
 						// earlier journals on their original fail-fast policy.
 						if group != nil && codemodeHasRecordedDrain(*journal, delivered) {
-							replayMismatch = mismatch
+							if replayMismatch == "" {
+								replayMismatch = mismatch
+							}
+							if !old.Global {
+								message := fmt.Sprintf("sandbox call replay divergence: call %d is %s, but was %s; the script took a different path when resumed after a restart", call.ID, codemodeReplayCallLabel(call), codemodeReplayCallLabel(old))
+								replayNestedConflicts = append(replayNestedConflicts, codemodeReplayNestedConflict{key: fmt.Sprintf("%s.c%d", key, call.ID), message: message})
+							}
 							observed++
 							continue
 						}
 						return divergence(mismatch)
 					}
-				} else {
+				} else if replayMismatch == "" {
 					journal.Issued = append(journal.Issued, call)
 				}
 				observed++
@@ -190,7 +193,11 @@ func (r *TaskRuntime) runParallelCodemode(ctx context.Context, vm CodemodeExecut
 					if _, _, err := checkCodemodeDrain(journal, *event.Drain, observed, delivered); err != nil {
 						return divergence(err.Error())
 					}
-					return divergence(replayMismatch)
+					message, err := r.codemodeReplayConflictMessage(linked, replayMismatch, replayNestedConflicts)
+					if err != nil {
+						return CodemodeResult{}, err
+					}
+					return divergence(message)
 				}
 				var ready <-chan codemodeCompletedCall
 				if delivered > replayPrefix && delivered < observed && delivered == len(journal.Deliveries) && launched == observed && !event.Drain.Final {
