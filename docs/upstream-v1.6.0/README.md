@@ -1229,3 +1229,9 @@ All 29 unchanged after-run cases passed. The native SQLite test kills the first 
 The separate opt-in draft `12b35d41` preserves positioned script errors and the effect-free positionless syntax error, with the original output and completed-tool report. A newly issued callback sees its persisted admission count. Both directions of saved-policy reopen pass; raw put and delta refuse a change to the sealed suffix. Three controls caught an incorrect script position, a bypassed seal and premature callback admission. The draft returned `50` with eight publications twice, while both legacy controls remained at 54. Unpositioned worker stops still need a separate check before activation.
 
 The integrated code at `6b0eaf00` passed 44 focused top-level Go tests twice, without skips. Vet and Staticcheck v0.8.2 passed. The inventory at `1f3c5c46` records 1,930 scoped sites: 1,877 mapped, 51 partial and two unmatched. Thirty-three of the 214 changed suites have assertion-level links. Full parity remains open.
+
+## Round 50
+
+### Prepared Schema checks shape without changing the caller's input
+
+All 40 unchanged validator cases passed. The native compiler rejects a numeric schema member before returning a validator, while boolean members retain their own validity rules. The exact JSON from the TypeBox object compiles and reports the invalid array value at `/tags/0`. The frozen-schema comparison uses caller-owned Go bytes and verifies that compilation and checks leave them unchanged. No JavaScript freeze emulation or production change is needed for these cases.
