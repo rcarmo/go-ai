@@ -24,3 +24,15 @@ bun run docs/upstream-v1.6.1/dependencies/verify-source.ts "$PI_MIRROR" "$PI_ORA
 bun run docs/upstream-v1.6.1/dependencies/generate.ts "$PI_MIRROR" "$PI_ORACLE" "$PI_NPM_ARCHIVES" \
   | cmp - docs/upstream-v1.6.1/dependencies/npm-closure.jsonl
 ```
+
+## Published catalog changes
+
+The [catalog delta](catalog-module-delta.jsonl) compares complete exported records from the verified v1.6.0 and v1.6.1 npm modules by provider and ID, separately for each model type. The comparison ignores object key order but preserves array order and values. Repeating it on two copies of the v1.6.1 module finds no changes.
+
+| Model type | v1.6.0 | v1.6.1 | Added | Removed | Changed |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Chat | 1,698 | 1,696 | 63 | 65 | 138 |
+| Image | 74 | 74 | 0 | 0 | 0 |
+| Classifier | 81 | 81 | 5 | 5 | 4 |
+
+Use `bun run docs/upstream-v1.6.1/dependencies/catalog-module-delta.ts "$V160_MODELS_JS" "$V161_MODELS_JS"` with the two verified archives' intact `dist` trees. This compares upstream packages only. Go generation, registry lookup and the v1.6.1 regeneration gate remain unverified.

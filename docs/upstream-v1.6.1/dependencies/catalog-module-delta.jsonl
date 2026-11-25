@@ -1,0 +1,3 @@
+{"kind":"MODELS","previous":1698,"current":1696,"added":63,"removed":65,"changed":138,"changedProviders":["amazon-bedrock","azure","baseten","cloudflare-ai-gateway","cloudflare-workers-ai","fireworks","github-copilot","google","groq","huggingface","mistral","nvidia","openai","opencode","opencode-go","openrouter","qwen-token-plan","qwen-token-plan-cn","radius","together","vercel-ai-gateway","zai","zai-coding-cn"]}
+{"kind":"IMAGE_MODELS","previous":74,"current":74,"added":0,"removed":0,"changed":0,"changedProviders":[]}
+{"kind":"CLASSIFIER_MODELS","previous":81,"current":81,"added":5,"removed":5,"changed":4,"changedProviders":["github-copilot","openai","openrouter","vercel-ai-gateway"]}
