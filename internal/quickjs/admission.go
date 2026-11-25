@@ -3,6 +3,8 @@ package quickjs
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"strings"
 	"unicode/utf8"
 )
 
@@ -44,6 +46,13 @@ func validateInputs(code string, opts Options) error {
 	for _, global := range opts.Globals {
 		if global.Name == "" || ReservedGlobalRoot(global.Name) || globals[global.Name] || global.Execute == nil || !add(global.Name) {
 			return invalid()
+		}
+		// These built-ins are installed after the injected globals. Reject
+		// their roots before reserving worker capacity, not in the prelude.
+		root, _, _ := strings.Cut(global.Name, ".")
+		if root == "store" || root == "load" {
+			//lint:ignore ST1005 Keep the pinned setup diagnostic prefix.
+			return fmt.Errorf("Invalid global name %q", root)
 		}
 		globals[global.Name] = true
 	}
