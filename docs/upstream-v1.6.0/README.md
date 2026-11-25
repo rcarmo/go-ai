@@ -951,3 +951,7 @@ The unchanged [image-fit case](test-inventory/images-fit-resize.md) passed. With
 ### Chord delivers the latest derived value to a busy watcher
 
 All 23 unchanged [derive cases](test-inventory/chord-derive-watch.md) passed offline. The witness observed the pinned `Derive` and `Watch` modules and the actual callback sequence: a busy listener receives `5`, then the replacement value `6`, without receiving the superseded `t threw` failure. Keeping that failure in scratch broke the unchanged assertion. The receipt covers this Chord path; it does not verify Durable's calls or native Go correspondence.
+
+### Replay-safe parked work keeps details after a real crash
+
+All 18 unchanged tool-park cases passed. The native fixture cuts off the woken process with SIGKILL and verifies the interrupted output, details and diagnostic in SQLite before the new writable Harness opens. The next execution sees the same wake and checkpoint with the old output already cleared. The single replay completes the original task and retains `{build:1}` and the exact `parked` diagnostic. Fault controls caught stale output and lost diagnostics before the replayed effect. No production change or record rewrite was needed.
