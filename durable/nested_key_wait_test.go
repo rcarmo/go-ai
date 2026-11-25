@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+
+	goai "github.com/rcarmo/go-ai"
 )
 
 func nestedKeyToolTasks(t *testing.T, c *ConversationHandle) []TaskRecord {
@@ -31,8 +33,8 @@ func completeNestedKeyTurn(t *testing.T, c *ConversationHandle) {
 	}
 }
 
-// harness-nested-tools.test.ts:301-322. A key returns the same result;
-// a conflicting call reaches the model as the caller's error result.
+// v1.6.1 harness-nested-tools.test.ts:305–326. A key returns the nested
+// structured value; a conflicting call reaches the model as a raw error.
 func TestSourceV160NestedKeyReuseAndConflict(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var runs atomic.Int64
@@ -59,12 +61,12 @@ func TestSourceV160NestedKeyReuseAndConflict(t *testing.T) {
 		if got := runs.Load(); got != 1 {
 			t.Fatalf("echo ran %d times, want one", got)
 		}
-		if got := watchReceive(t, reuse); got.StructuredOutput != "echo a" {
+		if got := watchReceive(t, reuse); got.IsError || !got.HasStructuredOutput || got.StructuredOutput != "echo a" {
 			t.Fatal("reused echo", got)
 		}
 		result := v160ToolResult(t, bg, c, "c1")
-		if message := v160ToolResultText(result); !strings.Contains(message, "Nested call c1/k was already made with another tool or other arguments") {
-			t.Fatalf("tool result missing expected key conflict: %q", message)
+		if message := v160ToolResultText(result); result.Role != goai.RoleToolResult || !result.IsError || !strings.Contains(message, "Nested call c1/k was already made with another tool or other arguments") {
+			t.Fatalf("model tool result missing expected key conflict: role=%s isError=%v %q", result.Role, result.IsError, message)
 		}
 	})
 }
