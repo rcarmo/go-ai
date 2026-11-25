@@ -32,6 +32,12 @@ func TestSourceV160AnthropicThreadContinueInFlightWire(t *testing.T) {
 	testSourceV160AnthropicThreadRecoveryWire(t, "thread_continue_in_flight", http.StatusBadRequest, "invalid_request_error")
 }
 
+// Source: the thread_fingerprint_mismatch variant (line 354). The fixture
+// queues the rejection; it does not change any fixed request field.
+func TestSourceV160AnthropicThreadFingerprintMismatchWire(t *testing.T) {
+	testSourceV160AnthropicThreadRecoveryWire(t, "thread_fingerprint_mismatch", http.StatusBadRequest, "invalid_request_error")
+}
+
 func testSourceV160AnthropicThreadRecoveryWire(t *testing.T, errorCode string, rejectedStatus int, rejectedType string) {
 	t.Helper()
 	session := "thread-pinned-recovery-" + errorCode
