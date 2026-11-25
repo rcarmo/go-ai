@@ -135,3 +135,9 @@ All three unchanged nested-tool originals passed. In native SQLite, the hook see
 After reopening SQLite, the replay-safe caller reuses the first committed child and starts a distinct second child. The raw model result is `run 2: echo a, echo b`. A separate rewritten-receipt probe confirms that the saved rewrite is reused without calling the child or hook again. The native test checks the total task count and the first child's nested outcome before close. It does not reread both input discriminants and the first outcome discriminator after the completed reopen, so those two representation assertions remain partial. No runtime or storage code changed.
 
 At `23ec2d6b`, three focused Go tests passed twice, with vet and Staticcheck.
+
+### Completions preserves tool and trailing finish reasons
+
+The four remaining unchanged originals in the v1.6.1 stop-reason file passed. The native public fixture checks a normal successful stop, a tool call with `tool_calls.STOP`, a trailing error frame that preserves the earlier native reason, and equal reasons that do not repeat the suffix. The tool-call fixture also retains the exact call ID and name. No production code changed. The active ledger now covers all 13 declarations in this one upstream test file, not the whole provider suite.
+
+At `4c989882`, 7 focused top-level Go tests passed twice, with vet and Staticcheck.
