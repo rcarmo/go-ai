@@ -556,6 +556,162 @@ func testV160CanonicalToolSignalPark(t *testing.T, reopen bool) {
 	}
 }
 
+// harness-tool-parks.test.ts:204-244. Advance the public clock only once the
+// nested call's sleeping claim is committed and visible to the caller.
+func TestSourceV160NestedSignalParkIncludesElapsedDuration(t *testing.T) {
+	ctx, cancel := context.WithTimeout(bg, 8*time.Second)
+	defer cancel()
+	native, err := newTestSQLite(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	storage := &toolParkTestStorage{Storage: native, parked: make(chan ID, 4)}
+	token := testSignalAnswer(t)
+	key, err := token.Key("done")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var clock atomic.Int64
+	clock.Store(1000)
+	var requests atomic.Int32
+	ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
+		ch := make(chan goai.Event, 1)
+		if requests.Add(1) == 1 {
+			ch <- toolAnswer("c1", "outer", JSON{})
+		} else {
+			ch <- terminal("done")
+		}
+		close(ch)
+		return ch
+	})
+	options.Now, options.Registry = clock.Load, NewRegistry()
+	interval, window := int64(0), float64(0)
+	options.Settings = &HarnessSettings{Progress: &ProgressSettings{OutputIntervalMs: &interval, PersistWithinMs: &window}}
+	type attempt struct {
+		id     ID
+		wake   *WakeReason
+		value  any
+		joined <-chan struct{}
+	}
+	runs := make(chan attempt, 4)
+	inner := wrapRegistration("ci")
+	inner.Execute = func(ctx context.Context, _ any, api *ToolAPI) (ToolResult, error) {
+		runs <- attempt{api.TaskID(), api.Wake, api.Checkpoint, api.runtime.done}
+		signal, err := api.ReadSignal(ctx, token, key.Key)
+		if err != nil {
+			return ToolResult{}, err
+		}
+		if signal != nil {
+			return ToolResult{Content: fmt.Sprint(generationObject(signal.Value)["text"])}, nil
+		}
+		// Make the details commit the first progress write. With the clock
+		// held, later paced output/diagnostics are carried by the park commit.
+		if err := api.Details(JSON{"build": 1}); err != nil {
+			return ToolResult{}, err
+		}
+		if err := api.Diagnostic(ToolDiagnostic{Severity: "info", Message: "run 1"}); err != nil {
+			return ToolResult{}, err
+		}
+		if err := api.Output("started\n"); err != nil {
+			return ToolResult{}, err
+		}
+		return ToolResult{Park: &ToolPark{Sleep: &ToolSleep{Signals: []SignalKey{key}, Checkpoint: JSON{"build": 1}}}}, nil
+	}
+	parentStarted := make(chan ID, 1)
+	type nestedReturn struct {
+		result ToolResult
+		err    error
+	}
+	returned := make(chan nestedReturn, 1)
+	outer := wrapRegistration("outer")
+	outer.Execute = func(ctx context.Context, _ any, api *ToolAPI) (ToolResult, error) {
+		parentStarted <- api.TaskID()
+		result, err := api.CallTool(ctx, "ci", "ci", JSON{})
+		returned <- nestedReturn{result, err}
+		if err != nil {
+			return ToolResult{}, err
+		}
+		return ToolResult{Content: fmt.Sprint(result.StructuredOutput)}, nil
+	}
+	for _, registration := range []ToolRegistration{inner, outer} {
+		if err := options.Registry.Register(registration); err != nil {
+			t.Fatal(err)
+		}
+	}
+	h := openHarness(t, storage, options)
+	c := root(t, h, ref)
+	sub, err := c.Submit(ctx, Input{Type: "input", Content: "go"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	parentID := watchReceive(t, parentStarted)
+	var childID ID
+	select {
+	case childID = <-storage.parked:
+	case early := <-returned:
+		t.Fatalf("nested call returned without parking: %+v, %v", early.result, early.err)
+	case <-ctx.Done():
+		t.Fatal("nested call did not park", ctx.Err())
+	}
+	first := watchReceive(t, runs)
+	// Wait for publication and the actual invocation join, not just the
+	// Storage receipt, before reading the Session's cached live slot.
+	awaitTaskSignal(t, first.joined)
+	parked, found, err := native.Task(ctx, childID)
+	if err != nil || !found || parked.Owner != parentID || parked.State.Status != "sleeping" || !slices.Equal(parked.State.Signals, []SignalKey{key}) || parked.StartedAt == nil || *parked.StartedAt != 1000 {
+		t.Fatal("wrong stored nested park", parked, found, err)
+	}
+	live, found, err := c.SnapshotDefinition(ctx, LiveDoc(), nil)
+	if err != nil || !found {
+		t.Fatal(live, found, err)
+	}
+	slots, _ := generationObject(live.Copy())["nestedTools"].([]any)
+	if len(slots) != 1 {
+		t.Fatal("expected the only live nested slot", slots)
+	}
+	slot := generationObject(slots[0])
+	if slot["status"] != "sleeping" || submissionEntryID(slot["taskId"]) != childID || submissionEntryID(slot["parentTaskId"]) != parentID {
+		t.Fatal("nested sleeping slot with original ownership", slot)
+	}
+	select {
+	case early := <-returned:
+		t.Fatalf("parent returned before its nested wake: %+v, %v", early.result, early.err)
+	default:
+	}
+	clock.Store(3000)
+	if got, err := h.Signal(ctx, childID, token, key.Key, JSON{"text": "nested passed"}); err != nil || got != SignalDelivered {
+		t.Fatalf("nested signal delivery = %q, %v", got, err)
+	}
+	if got, err := sub.Wait(ctx); err != nil || got.Record.Status != "done" {
+		t.Fatalf("submission with nested park = %+v, %v", got.Record, err)
+	}
+	call := watchReceive(t, returned)
+	if call.err != nil {
+		t.Fatal("nested call failed after signal", call.err)
+	}
+	result := call.result
+	if result.IsError || !result.HasStructuredOutput || result.StructuredOutput != "nested passed" {
+		t.Fatal("nested result did not reach caller", result)
+	}
+	if result.DurationMs == nil || *result.DurationMs != 2000 {
+		t.Fatalf("caller duration = %v, want exactly 2000 ms across park", result.DurationMs)
+	}
+	if transcript := v160ToolResult(t, ctx, c, "c1"); transcript.IsError || v160ToolResultText(transcript) != "nested passed" {
+		t.Fatal("nested output did not reach caller's transcript entry", transcript)
+	}
+	if len(runs) != 1 {
+		t.Fatalf("nested runs = %d, want two", 1+len(runs))
+	}
+	second := <-runs
+	if first.id != childID || second.id != childID || first.wake != nil || first.value != nil || !reflect.DeepEqual(second.wake, &WakeReason{Reason: "signal", Signal: key.Signal, Key: key.Key}) || !equalJSONValue(second.value, JSON{"build": 1}) {
+		t.Fatalf("nested wake/checkpoint: first=%+v second=%+v, wake=%+v", first, second, second.wake)
+	}
+	child, err := h.WaitForTask(ctx, childID)
+	if err != nil || child.State.Status != "terminal" || child.State.Outcome == nil || child.State.Outcome.Status != "completed" || child.EndedAt == nil || *child.EndedAt != 3000 {
+		t.Fatal("nested task terminal timing", child, err)
+	}
+}
+
 // harness-tool-parks.test.ts:248-289. The tool parks on its own child, not
 // on a signal directly. Separate receipts identify the committed wait and sleep.
 func TestSourceV160ParkedToolWakesOnOwnedChildAny(t *testing.T) {

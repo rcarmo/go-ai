@@ -1710,6 +1710,18 @@ func (s *taskScheduler) admitBoundTargets(state Snapshot, wait *taskWait, target
 			return nil
 		}
 		if !s.runnable(state, task) {
+			// A caller may await its directly owned nested tool across a
+			// signal park. No executor is needed yet; when the signal is
+			// published, refreshBoundWaits plans the runnable target again.
+			// Other blocked dependency frontiers must still yield.
+			if targetID == id && task.Status == "sleeping" && task.Owner == caller.taskID && canonicalToolRecord(task) &&
+				!taskAborted(task) && !taskBelowCancelled(state, task) && !taskSelectedFailFastCancellation(state, task.ID) {
+				native := task.Execution.Native
+				if native.Input != nil && generationObject(native.Input.Value)["kind"] == "nested" &&
+					taskCheckpointMap(native.State.Checkpoint)["phase"] == "parked" && len(native.State.Signals) > 0 && !nativeSleepDue(native, s.h.session.now()) {
+					return nil
+				}
+			}
 			return &InvocationWaitRequiresYield{Task: id}
 		}
 		if task.Execution != nil && task.Execution.Native != nil {
