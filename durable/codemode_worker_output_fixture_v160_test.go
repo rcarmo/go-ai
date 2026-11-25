@@ -15,6 +15,12 @@ import (
 // introducing an import cycle between this package and durable/tools.
 func CheckV160PublishedWorkerOutput(t *testing.T, script string, fs FileSystem, wantDeliveries int32, registrations ...ToolRegistration) (string, MessageReceipt) {
 	t.Helper()
+	_, text, result := runV160PublishedWorkerOutput(t, script, fs, wantDeliveries, registrations...)
+	return text, result
+}
+
+func runV160PublishedWorkerOutput(t *testing.T, script string, fs FileSystem, wantDeliveries int32, registrations ...ToolRegistration) (*Harness, string, MessageReceipt) {
+	t.Helper()
 	sandbox, remote := newJournalWorkerSandboxV160(t)
 	registry := NewRegistry()
 	ext, err := NewCodemodeExtension(sandbox)
@@ -65,7 +71,7 @@ func CheckV160PublishedWorkerOutput(t *testing.T, script string, fs FileSystem, 
 		}
 		t.Fatalf("error=%v starts=%d deliveries=%d text=%q; want successful guest output and %d deliveries", result.IsError, remote.starts.Load(), remote.deliveries.Load(), text, wantDeliveries)
 	}
-	return text, result
+	return h, text, result
 }
 
 func TestCodemodeWorkerOutputDecoderBoundsV160(t *testing.T) {
