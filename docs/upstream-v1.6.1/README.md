@@ -91,3 +91,5 @@ The local model-regeneration gate now checks the v1.6.1 archive and manifest. In
 ### Workers AI preserves the pinned empty versus null replay content
 
 All five unchanged `openai-completions-non-null-assistant-content.test.ts` variants passed, using the verified provider data from the release alongside the unchanged test and API sources. With the old Go catalog, the four models requiring an empty string sent JSON `null`; GLM-5.3 correctly sent `null`. After regeneration, the public request hook captures `""` for the four models and exact JSON `null` for GLM-5.3. All cases retain the exact four role positions and `tool-1` call ID. The hook stops each request before transport, so this is not a live Cloudflare test. No provider runtime code changed.
+
+The integrated code at `47f5e092` passed 17 focused top-level Go tests twice, without skips. Vet, Staticcheck v0.8.2, the exact model-regeneration gate and its negative self-test passed. The active v1.6.1 ledger validates 36 scoped sites: 32 mapped and four partial. These are development comparisons, not full parity or release acceptance.
