@@ -24,7 +24,7 @@ func TestSourceV160CompletionsGroqEffort(t *testing.T) {
 		{"openai/gpt-oss-20b", "medium"},
 	} {
 		t.Run(tc.id, func(t *testing.T) {
-			model := promptCacheCatalogueV160(t, goai.ProviderGroq, tc.id)
+			model := completionsCatalogueWitnessV160(t, goai.ProviderGroq, tc.id)
 			got := captureCompletionsEffortV160(t, model, completionsChoiceContextV160("Hi"), goai.ThinkingMedium)
 			got.field(t, "reasoning_effort", tc.want)
 		})

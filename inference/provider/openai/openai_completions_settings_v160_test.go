@@ -42,7 +42,7 @@ func TestSourceV160CompletionsKimiThinkingSettings(t *testing.T) {
 		{goai.ProviderMoonshotAICN, "kimi-k2.6", "off", "disabled", ""},
 	} {
 		t.Run(string(tc.provider)+"/"+tc.id+"/"+tc.label, func(t *testing.T) {
-			model := promptCacheCatalogueV160(t, tc.provider, tc.id)
+			model := completionsCatalogueWitnessV160(t, tc.provider, tc.id)
 			got := captureCompletionsEffortV160(t, model, conv, tc.level)
 			var want any
 			if tc.thinking != "" {
@@ -109,7 +109,7 @@ func TestSourceV160CompletionsOpenCodeAndZAIMaxTokens(t *testing.T) {
 		{goai.ProviderZAI, "glm-5-turbo"}, {goai.ProviderZAI, "glm-5.2"},
 	} {
 		t.Run(string(tc.provider)+"/"+tc.id, func(t *testing.T) {
-			assertCompletionsMaxTokensV160(t, promptCacheCatalogueV160(t, tc.provider, tc.id), true)
+			assertCompletionsMaxTokensV160(t, completionsCatalogueWitnessV160(t, tc.provider, tc.id), true)
 		})
 	}
 }

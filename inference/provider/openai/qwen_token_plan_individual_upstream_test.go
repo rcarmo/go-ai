@@ -2,6 +2,7 @@ package openai
 
 import (
 	"encoding/json"
+	"reflect"
 	"testing"
 
 	goai "github.com/rcarmo/go-ai"
@@ -11,12 +12,12 @@ func TestQwenTokenPlanIndividualRequestFields(t *testing.T) {
 	goai.RegisterBuiltinModels()
 
 	for _, tc := range []struct {
-		modelID          string
-		reasoning        goai.ThinkingLevel
-		wantEnable       bool
-		wantEffort       string
-		wantHasEffort    bool
-		wantThinkingKeys map[goai.ModelThinkingLevel]*string
+		modelID            string
+		reasoning          goai.ThinkingLevel
+		wantEnable         bool
+		wantEffort         string
+		wantHasEffort      bool
+		wantThinkingLevels map[goai.ModelThinkingLevel]*string
 	}{
 		{
 			modelID:       "deepseek-v4-pro",
@@ -24,7 +25,8 @@ func TestQwenTokenPlanIndividualRequestFields(t *testing.T) {
 			wantEnable:    true,
 			wantEffort:    "high",
 			wantHasEffort: true,
-			wantThinkingKeys: map[goai.ModelThinkingLevel]*string{
+			wantThinkingLevels: map[goai.ModelThinkingLevel]*string{
+				goai.ThinkingOff: nil,
 				goai.ModelThinkingLevel(goai.ThinkingMinimal): nil,
 				goai.ModelThinkingLevel(goai.ThinkingLow):     nil,
 				goai.ModelThinkingLevel(goai.ThinkingMedium):  nil,
@@ -39,7 +41,8 @@ func TestQwenTokenPlanIndividualRequestFields(t *testing.T) {
 			wantEnable:    true,
 			wantEffort:    "xhigh",
 			wantHasEffort: true,
-			wantThinkingKeys: map[goai.ModelThinkingLevel]*string{
+			wantThinkingLevels: map[goai.ModelThinkingLevel]*string{
+				goai.ThinkingOff: nil,
 				goai.ModelThinkingLevel(goai.ThinkingMinimal): nil,
 				goai.ModelThinkingLevel(goai.ThinkingLow):     strPtrTest("low"),
 				goai.ModelThinkingLevel(goai.ThinkingMedium):  strPtrTest("medium"),
@@ -60,20 +63,19 @@ func TestQwenTokenPlanIndividualRequestFields(t *testing.T) {
 			if model == nil {
 				t.Fatalf("missing qwen-token-plan-individual/%s", tc.modelID)
 			}
-			if model.Api != goai.ApiOpenAICompletions || model.BaseURL != "https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1" {
-				t.Fatalf("unexpected Individual metadata: %#v", model)
+			// Published v1.6.1 qwen-token-plan-individual.json; absence of the
+			// Flash map is distinct from the explicit nulls on the other models.
+			if model.Api != goai.ApiOpenAICompletions || model.BaseURL != "https://token-plan.maas.qwencloudapi.com/compatible-mode/v1" {
+				t.Fatalf("unexpected Individual metadata: api=%q baseURL=%q", model.Api, model.BaseURL)
 			}
-			if model.CompletionsCompat == nil || model.CompletionsCompat.ThinkingFormat != "qwen" {
-				t.Fatalf("missing qwen thinking compat: %#v", model.CompletionsCompat)
+			strict, store := true, false
+			wantCompat := &goai.OpenAICompletionsCompat{ThinkingFormat: "qwen", SupportsStrictMode: &strict,
+				SupportsStore: &store, SupportsReasoningEffort: &tc.wantHasEffort}
+			if !reflect.DeepEqual(model.CompletionsCompat, wantCompat) {
+				t.Fatalf("qwen compat=%#v, want %#v", model.CompletionsCompat, wantCompat)
 			}
-			for level, want := range tc.wantThinkingKeys {
-				got, ok := model.ThinkingLevelMap[level]
-				if !ok {
-					t.Fatalf("thinking level %s missing from map %#v", level, model.ThinkingLevelMap)
-				}
-				if (got == nil) != (want == nil) || (got != nil && *got != *want) {
-					t.Fatalf("thinking level %s=%v, want %v", level, got, want)
-				}
+			if !reflect.DeepEqual(model.ThinkingLevelMap, tc.wantThinkingLevels) {
+				t.Fatalf("thinking levels=%#v, want %#v", model.ThinkingLevelMap, tc.wantThinkingLevels)
 			}
 			req := buildRequestBody(model, &goai.Context{Messages: []goai.Message{goai.UserMessage("Hi")}}, &goai.StreamOptions{APIKey: "test", Reasoning: &tc.reasoning})
 			payload := marshalChatRequestMap(t, req)
