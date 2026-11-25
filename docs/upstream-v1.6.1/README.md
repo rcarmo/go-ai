@@ -51,3 +51,9 @@ Five unchanged v1.6.1 originals passed in the [pinned Durable Node test scope](d
 The published v1.6.1 worker matches the small text and image successes and the reopened spill path. The file paths appear in the model-facing result, the saved text and PNG bytes match exactly, the image block remains present, and reopening keeps one `output.txt` in the same directory. Eight native tests passed twice without skips at `9853e82c`. For the published subset, a test-only overlay changes just the opt-in environment name and expected package version in `durable/codemode_worker_published_v160_test.go`. The worker is extracted from the verified `pi-codemode` 1.6.1 tarball and uses the verified, unchanged `quickjs-wasi` 3.6.2 dependency. Native production code did not change for this comparison.
 
 A separate source-derived failure fixture returns an error from the environment writer. Upstream keeps a successful script result, omits the text spill path, retains the image bytes and includes the writer's message in both failure labels. The existing native failure controls still keep output bounded, retain images, omit a failed spill path and redact writer error details. That message difference remains open; it is not part of the 19 mapped success and replay assertions.
+
+## Next verified inputs
+
+The published chat catalog has 1,696 entries (63 additions, 65 removals and 138 changed records); the 74 image entries are unchanged. The classifier catalog has five additions, five removals and four changed records. These are [archive-to-archive counts](dependencies/README.md#published-catalog-changes), not Go regeneration evidence.
+
+The three [next Durable originals](durable-next.md) passed, covering invalid parks, ordered signal deliveries and late expiry. The next native comparison must distinguish the caller-facing tagged signal result from the unchanged persisted memo. No Go change was made for these cases.
