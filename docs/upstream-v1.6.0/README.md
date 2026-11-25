@@ -867,3 +867,11 @@ Both unchanged image cases passed. The published guest saves the pinned PNG byte
 The runtime derives the structured value from detached content. It validates ordinary model image attachments without copying them into a second bounded JSON record. The original nested record limit is unchanged; oversized structured images remain outside this comparison. Schema-less tools still return text, and an explicit schema value still takes precedence over derived content.
 
 The integrated code at `ce16b6d5` passed 32 focused top-level Go tests twice, without skips. The two compiled controls caught loss of the read schema and an attempt to process a large ordinary model attachment as bounded structured JSON. Vet and Staticcheck v0.8.2 passed. The Chord framed-delta and both selected image receipts reproduced byte for byte. Of 1,692 scoped sites, 1,644 are mapped, 46 are partial and two are unmatched. Twenty-nine of the 214 changed suites have assertion-level links.
+
+### Compiled JSON leaves and property order
+
+All 40 unchanged validator cases passed. The prepared Go checks match 31 pinned numeric and string vectors in each of four positions: standalone, closed object property, open object property and array item. The source case's title mentions pattern properties; its second object uses `properties` with a required peer. The larger matrix remains partial. Seven raw JSON inputs also match the source's varied property order, bounds, type and required-field checks. An explicitly present JavaScript `undefined` has no native comparison in this slice. No production change was needed.
+
+### Image reads use the active model's width limit
+
+The unchanged [model-width case](test-inventory/tools-images-model-limits.md) passed with the pinned 8×6 PNG. A real Durable model lookup supplies a width of four and retains the default height limit of 2,000. Without preparation, the read refuses the 8×6 image with the expected dimensions in its diagnostic. With preparation, it returns an image that decodes to 4×3. Ignoring the model width broke both native checks. Cross-encoder bytes and worker behavior are outside this comparison.
