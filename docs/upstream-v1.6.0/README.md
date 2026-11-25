@@ -1423,3 +1423,7 @@ All three unchanged placement variants passed. Native QuickJS and the published 
 ### Codex SSE preserves the scoped session-affinity fields
 
 All three selected unchanged cases passed. The native scripted request sends the two exact session-affinity headers and `prompt_cache_key` when enabled, omits them rather than sending empty values when retention is `none`, and clamps the 67-character ASCII session ID to 64. Synthetic authentication remains unchanged. The comparison covers the scoped headers and body fields, not SDK metadata or compressed byte identity. No production change or live request was needed.
+
+### Lowering the restart limit does not interrupt an invocation that completes
+
+Both selected unchanged cases passed. After a real process exit and SQLite reopen, the worker and the answered generation's finish hook each resume with one restart under limit five. Lowering the live limit to one while the retry is held does not interrupt it. The worker completes with explicit null; the generation keeps its original answer and only the retried hook's child runs. Neither case emits `task_interrupted`. No production recovery change was needed.
