@@ -71,7 +71,13 @@ func prepareCodemodeDrain(journal *codemodeJournalState, drain CodemodeDrain, ob
 	} else {
 		next.Deliveries[deliveryIndex].IssuedAfter = &count
 	}
-	if err := validateCodemodeWatermarks(CodemodeStart{DrainAcknowledgements: true}, next, false); err != nil {
+	start := CodemodeStart{DrainAcknowledgements: true}
+	if next.Version != 0 {
+		start.JournalVersion, start.ParallelCalls = next.Version, true
+		if err := validateGroupedCodemodeJournal(start, next, nil, false); err != nil {
+			return nil, err
+		}
+	} else if err := validateCodemodeWatermarks(start, next, false); err != nil {
 		return nil, err
 	}
 	return &next, nil

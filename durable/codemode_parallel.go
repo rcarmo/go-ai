@@ -12,7 +12,7 @@ type codemodeCompletedCall struct {
 	err      error
 }
 
-func (r *TaskRuntime) runParallelCodemode(ctx context.Context, vm CodemodeExecution, key string, start CodemodeStart, journalID ID, journal *codemodeJournalState, globals []CodemodeGlobal, allowed map[string]bool, paid bool, completed chan codemodeCompletedCall) (out CodemodeResult, runErr error) {
+func (r *TaskRuntime) runParallelCodemode(ctx context.Context, vm CodemodeExecution, key string, start CodemodeStart, journalID ID, journal *codemodeJournalState, globals []CodemodeGlobal, allowed map[string]bool, paid bool, completed chan codemodeCompletedCall, terminalOut *codemodeTerminal) (out CodemodeResult, runErr error) {
 	divergence := func(message string) (CodemodeResult, error) {
 		if err := r.abortCodemodeChildren(ctx, key, journal); err != nil {
 			return CodemodeResult{}, err
@@ -62,6 +62,11 @@ func (r *TaskRuntime) runParallelCodemode(ctx context.Context, vm CodemodeExecut
 	drainPending := true
 	replayPrefix := len(journal.Deliveries)
 	var held *codemodeCompletedCall
+	var group *codemodeGroupReady
+	var terminal *codemodeTerminal
+	if start.JournalVersion == codemodeGroupedJournalVersion {
+		group = &codemodeGroupReady{}
+	}
 	deliveredIDs := map[int]bool{}
 	for _, delivery := range journal.Deliveries {
 		deliveredIDs[delivery.Call.ID] = true
@@ -111,6 +116,13 @@ func (r *TaskRuntime) runParallelCodemode(ctx context.Context, vm CodemodeExecut
 			if err != nil {
 				return CodemodeResult{}, err
 			}
+			if terminal != nil {
+				if event.Result == nil || event.Result.Error != "" || event.Call != nil || event.Drain != nil {
+					return divergence("codemode terminal position lacks successful result")
+				}
+				*terminalOut = *terminal
+				return *event.Result, nil
+			}
 			if event.Call != nil && event.Drain == nil && event.Result == nil {
 				call := *event.Call
 				if observed >= l.MaxPage || call.ID != observed+1 || !call.Global && !allowed[call.Name] || call.Global && !codemodeGlobalAllowed(start, call) {
@@ -142,15 +154,23 @@ func (r *TaskRuntime) runParallelCodemode(ctx context.Context, vm CodemodeExecut
 				if delivered > replayPrefix && delivered < observed && delivered == len(journal.Deliveries) && launched == observed && !event.Drain.Final {
 					ready = completed
 				}
-				var err error
-				held, err = settleCodemodeDrain(linked, ack, journal, *event.Drain, observed, delivered, ready, func(ctx context.Context, next codemodeJournalState, withDelivery *codemodeJournalState) (bool, error) {
+				commit := func(ctx context.Context, next codemodeJournalState, withDelivery *codemodeJournalState) (bool, error) {
 					return commitCodemodeJournalWithReady(ctx, r, journalID, next, withDelivery)
-				})
+				}
+				var err error
+				if group == nil {
+					held, err = settleCodemodeDrain(linked, ack, journal, *event.Drain, observed, delivered, ready, commit)
+				} else {
+					terminal, err = settleGroupedCodemodeDrain(linked, ack, start, journal, *event.Drain, observed, delivered, group, ready, commit)
+				}
 				if err != nil {
 					if linked.Err() == nil && strings.Contains(err.Error(), "codemode drain") {
 						return divergence(err.Error())
 					}
 					return CodemodeResult{}, err
+				}
+				if terminal != nil {
+					continue // The next event is the terminal result, not a suffix delivery.
 				}
 				drainPending = false
 				// Admit effects only after replay catches up to a live drain.
@@ -159,6 +179,9 @@ func (r *TaskRuntime) runParallelCodemode(ctx context.Context, vm CodemodeExecut
 					launch(observed)
 				}
 			} else if event.Result != nil && event.Call == nil && event.Drain == nil {
+				if group != nil {
+					return divergence("grouped codemode ended without terminal position")
+				}
 				if observed != len(journal.Issued) || delivered != len(journal.Deliveries) {
 					return divergence("sandbox ended before replay journal")
 				}
@@ -183,7 +206,11 @@ func (r *TaskRuntime) runParallelCodemode(ctx context.Context, vm CodemodeExecut
 				continue
 			}
 			var next <-chan codemodeCompletedCall = completed
-			if held != nil {
+			if group != nil && len(group.pending) > 0 {
+				first := make(chan codemodeCompletedCall, 1)
+				first <- group.pending[0]
+				next = first
+			} else if held != nil {
 				// A failed pre-stage fold leaves the result at the head of
 				// the queue, still competing with terminal events/cancellation.
 				first := make(chan codemodeCompletedCall, 1)
@@ -196,12 +223,18 @@ func (r *TaskRuntime) runParallelCodemode(ctx context.Context, vm CodemodeExecut
 					return CodemodeResult{}, result.err
 				}
 				delivery = result.delivery
+				if group != nil && len(group.pending) == 0 {
+					group.pending = append(group.pending, result)
+				}
 			case received := <-events:
 				if received.err != nil {
 					return CodemodeResult{}, received.err
 				}
 				if received.event.Result == nil || received.event.Call != nil || received.event.Drain != nil {
 					return CodemodeResult{}, reject("unexpected event before delivery")
+				}
+				if group != nil {
+					return divergence("grouped codemode ended without terminal position")
 				}
 				if observed != len(journal.Issued) || delivered != len(journal.Deliveries) {
 					return divergence("sandbox ended before replay journal")
@@ -210,10 +243,32 @@ func (r *TaskRuntime) runParallelCodemode(ctx context.Context, vm CodemodeExecut
 			case <-linked.Done():
 				return CodemodeResult{}, linked.Err()
 			}
-			delivery = nextParallelCodemodeDelivery(*journal, delivery)
-			journal.Deliveries = append(journal.Deliveries, delivery)
-			if err := commitCodemodeJournal(linked, r, journalID, *journal); err != nil {
-				return CodemodeResult{}, err
+			if group == nil {
+				delivery = nextParallelCodemodeDelivery(*journal, delivery)
+				journal.Deliveries = append(journal.Deliveries, delivery)
+				if err := commitCodemodeJournal(linked, r, journalID, *journal); err != nil {
+					return CodemodeResult{}, err
+				}
+			} else {
+				group.collect(completed)
+				first, n := group.candidate(*journal, observed, 1)
+				if first == nil {
+					return CodemodeResult{}, reject("group completion outside admitted calls")
+				}
+				preferred, more := group.candidate(*journal, observed, len(group.pending))
+				if more == 1 {
+					preferred = nil
+				}
+				fused, err := commitCodemodeJournalWithReady(linked, r, journalID, *first, preferred)
+				if err != nil {
+					return CodemodeResult{}, err
+				}
+				if fused {
+					first, n = preferred, more
+				}
+				*journal = *first
+				group.consume(n)
+				delivery = journal.Deliveries[delivered]
 			}
 		}
 		if delivery.Seq != delivered+1 {

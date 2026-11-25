@@ -20,11 +20,21 @@ type CodemodeRemoteReply struct {
 // RemoteCodemodeSandbox runs only the VM remotely. Identity must identify the
 // server's actual runtime/assets; it is persisted and checked on replay.
 type RemoteCodemodeSandbox struct {
-	Remote   CodemodeRemote
-	Identity string
+	Remote       CodemodeRemote
+	Identity     string
+	groupJournal bool // local opt-in; a saved policy is authoritative on replay
 }
 
-func (s *RemoteCodemodeSandbox) RuntimeIdentity() string           { return s.Identity }
+func (s *RemoteCodemodeSandbox) RuntimeIdentity() string { return s.Identity }
+func (s *RemoteCodemodeSandbox) supportsGroupedCodemodeJournal() bool {
+	_, ok := s.Remote.(interface{ positionedCodemodeWorker() })
+	return ok
+}
+
+func (s *RemoteCodemodeSandbox) selectGroupedCodemodeJournal() bool {
+	return s.groupJournal && s.supportsGroupedCodemodeJournal()
+}
+
 func (*RemoteCodemodeSandbox) SupportsParallelCalls() bool         { return true }
 func (*RemoteCodemodeSandbox) SupportsDrainAcknowledgements() bool { return true }
 

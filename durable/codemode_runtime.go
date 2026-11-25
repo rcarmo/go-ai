@@ -58,6 +58,7 @@ type CodemodeStart struct {
 	StartedAt             int64                       `json:"startedAt"`
 	Seed                  uint64                      `json:"seed"`
 	Tools                 []CodemodeToolDescription   `json:"tools"`
+	JournalVersion        int                         `json:"journalVersion,omitempty"`
 
 	// WorkerArgumentPresence pins worker decoding of non-spread globals. An
 	// absent flag in a stored start retains the legacy worker projection.
@@ -136,11 +137,14 @@ type codemodeRunState struct {
 	Result      *CodemodeResult    `json:"result,omitempty"`
 	ImageRefs   []codemodeImageRef `json:"imageRefs,omitempty"`
 	ValueChunks []ID               `json:"valueChunks,omitempty"`
+	Terminal    *codemodeTerminal  `json:"terminal,omitempty"`
 }
 type codemodeJournalState struct {
 	FirstIssued *int               `json:"firstIssued,omitempty"`
 	Issued      []CodemodeCall     `json:"issued"`
 	Deliveries  []CodemodeDelivery `json:"deliveries"`
+	Version     int                `json:"journalVersion,omitempty"`
+	BatchEnds   []int              `json:"batchEnds,omitempty"`
 }
 
 // RunCodemode persists a serial deterministic replay boundary in caller-owned
@@ -244,6 +248,13 @@ func (r *TaskRuntime) runCodemodeWithCompletionQueue(ctx context.Context, key, s
 			start.DrainAcknowledgements = true
 		}
 	}
+	grouped, supportsGroups := sandbox.(interface {
+		supportsGroupedCodemodeJournal() bool
+		selectGroupedCodemodeJournal() bool
+	})
+	if supportsGroups && grouped.selectGroupedCodemodeJournal() {
+		start.JournalVersion = codemodeGroupedJournalVersion
+	}
 	selectedGlobals := r.harness.options.CodemodeGlobals
 	if globals != nil {
 		selectedGlobals = *globals
@@ -301,7 +312,7 @@ func (r *TaskRuntime) runCodemodeWithCompletionQueue(ctx context.Context, key, s
 			return nil, err
 		}
 		run = codemodeRunState{Source: source, Start: start}
-		journal = codemodeJournalState{Issued: []CodemodeCall{}, Deliveries: []CodemodeDelivery{}}
+		journal = codemodeJournalState{Issued: []CodemodeCall{}, Deliveries: []CodemodeDelivery{}, Version: start.JournalVersion}
 		for _, item := range []struct {
 			kind  string
 			value any
@@ -350,6 +361,9 @@ func (r *TaskRuntime) runCodemodeWithCompletionQueue(ctx context.Context, key, s
 		}
 		return ownCodemodeResult(result, l)
 	}
+	if run.Start.JournalVersion != 0 && (!supportsGroups || !grouped.supportsGroupedCodemodeJournal()) {
+		return CodemodeResult{}, reject("saved codemode group requires a positioned worker")
+	}
 	current, err := r.Now()
 	if err != nil {
 		return CodemodeResult{}, err
@@ -389,8 +403,9 @@ func (r *TaskRuntime) runCodemodeWithCompletionQueue(ctx context.Context, key, s
 		allowed[tool.Name] = true
 	}
 	var parallelResult *CodemodeResult
+	var groupTerminal codemodeTerminal
 	if run.Start.ParallelCalls {
-		result, err := r.runParallelCodemode(linked, vm, key, run.Start, journalID, &journal, selectedGlobals, allowed, paid, completed)
+		result, err := r.runParallelCodemode(linked, vm, key, run.Start, journalID, &journal, selectedGlobals, allowed, paid, completed, &groupTerminal)
 		if err != nil {
 			return CodemodeResult{}, err
 		}
@@ -546,6 +561,24 @@ func (r *TaskRuntime) runCodemodeWithCompletionQueue(ctx context.Context, key, s
 					stored.Value = ""
 				}
 				run.ValueChunks = valueChunks
+				if run.Start.JournalVersion == codemodeGroupedJournalVersion {
+					// Persist terminal-only calls and seal their position in this result commit.
+					if err := validateGroupedCodemodeJournal(run.Start, journal, &groupTerminal, true); err != nil {
+						return nil, err
+					}
+					handle, err := tx.documentRecord(journalID)
+					if err != nil {
+						return nil, err
+					}
+					value, err := dtoObject(journal, l)
+					if err != nil {
+						return nil, err
+					}
+					if err := handle.Set(value); err != nil {
+						return nil, err
+					}
+					run.Terminal = &groupTerminal
+				}
 				run.Result = &stored
 				run.ImageRefs = imageRefs
 				object, err := dtoObject(run, l)

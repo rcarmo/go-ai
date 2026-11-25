@@ -36,8 +36,17 @@ func validateCodemodeDocuments(s Snapshot, doc Document, l Limits) error {
 	if run.Start.ParallelCalls && !run.Start.DrainAcknowledgements {
 		return reject("parallel codemode requires drain admission")
 	}
-	if err := validateCodemodeWatermarks(run.Start, journal, run.Result != nil && (!run.Start.ParallelCalls || run.Result.Error == "")); err != nil {
-		return err
+	if run.Start.JournalVersion != 0 {
+		if err := validateGroupedCodemodeJournal(run.Start, journal, run.Terminal, run.Result != nil); err != nil {
+			return err
+		}
+	} else {
+		if journal.Version != 0 || len(journal.BatchEnds) != 0 || run.Terminal != nil {
+			return reject("legacy codemode journal contains group state")
+		}
+		if err := validateCodemodeWatermarks(run.Start, journal, run.Result != nil && (!run.Start.ParallelCalls || run.Result.Error == "")); err != nil {
+			return err
+		}
 	}
 	if err := validateCodemodeGlobalDescriptions(run.Start.Globals, l); err != nil {
 		return err
@@ -142,7 +151,7 @@ func validateCodemodeReplacement(old, next Document, l Limits) error {
 			if err != nil {
 				return err
 			}
-			if !equalJSONValue(av, bv) || !equalJSONValue(a.ImageRefs, b.ImageRefs) || !equalJSONValue(a.ValueChunks, b.ValueChunks) {
+			if !equalJSONValue(av, bv) || !equalJSONValue(a.ImageRefs, b.ImageRefs) || !equalJSONValue(a.ValueChunks, b.ValueChunks) || !sameCodemodeTerminal(a.Terminal, b.Terminal) {
 				return reject("settled codemode result changed")
 			}
 		}
@@ -154,6 +163,14 @@ func validateCodemodeReplacement(old, next Document, l Limits) error {
 	}
 	if err := fromObject(next.Value, &b, l); err != nil {
 		return err
+	}
+	if a.Version != b.Version || len(b.BatchEnds) < len(a.BatchEnds) {
+		return reject("codemode batch identity changed")
+	}
+	for i, end := range a.BatchEnds {
+		if b.BatchEnds[i] != end {
+			return reject("codemode batch identity changed")
+		}
 	}
 	if len(b.Issued) < len(a.Issued) || len(b.Deliveries) < len(a.Deliveries) {
 		return reject("codemode journal truncated")

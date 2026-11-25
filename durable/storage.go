@@ -593,6 +593,9 @@ func prepareRecord(s Snapshot, r commitRecord, l Limits, final, explicit, contig
 			if v.Kind == codemodeRunKind || v.Kind == codemodeJournalKind || v.Kind == codemodeImageChunkKind {
 				next := v
 				next.Value = JSON(object)
+				if err := validateGroupedCodemodeJournalSeal(n, v, next, l); err != nil {
+					return Snapshot{}, err
+				}
 				if err := validateCodemodeReplacement(v, next, l); err != nil {
 					return Snapshot{}, err
 				}
@@ -636,6 +639,9 @@ func prepareRecord(s Snapshot, r commitRecord, l Limits, final, explicit, contig
 			}
 			if old, ok := n.Documents[id]; ok {
 				if old.Kind == codemodeRunKind || old.Kind == codemodeJournalKind || old.Kind == codemodeImageChunkKind {
+					if err := validateGroupedCodemodeJournalSeal(n, old, v, l); err != nil {
+						return Snapshot{}, err
+					}
 					if err := validateCodemodeReplacement(old, v, l); err != nil {
 						return Snapshot{}, err
 					}
