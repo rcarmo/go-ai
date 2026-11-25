@@ -160,6 +160,9 @@ func checkFusedDrainSnapshotV160(snapshot Snapshot) error {
 func fusedDrainHarnessV160(t *testing.T, dir string, store *SQLiteStorage, gateDrain, bounded bool) (*Harness, *TaskDefinition, *journalWorkerRemoteV160) {
 	t.Helper()
 	remote, worker := newJournalWorkerSandboxV160(t)
+	// The crash child records legacy mode; the recovered host would choose
+	// grouping for a new run, but must replay the original saved mode.
+	remote.groupJournal = !gateDrain
 	var sandbox CodemodeSandbox = remote
 	var ready chan codemodeCompletedCall
 	var b chan struct{}
@@ -277,6 +280,13 @@ func TestV160CodemodeFusedDrainProcessRecovery(t *testing.T) {
 		t.Fatal("missing original task")
 	}
 	h, _, worker := fusedDrainHarnessV160(t, dir, store, false, false)
+	policy := make(chan int, 1)
+	worker.observeStart = func(start CodemodeStart) {
+		select {
+		case policy <- start.JournalVersion:
+		default:
+		}
+	}
 	if err := h.Resume(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -288,6 +298,26 @@ func TestV160CodemodeFusedDrainProcessRecovery(t *testing.T) {
 	}
 	if worker.starts.Load() != 1 || worker.deliveries.Load() != 2 {
 		t.Fatalf("replayed starts=%d deliveries=%d; want 1 and 2", worker.starts.Load(), worker.deliveries.Load())
+	}
+	select {
+	case version := <-policy:
+		if version != 0 {
+			t.Fatalf("legacy replay started with journal policy %d", version)
+		}
+	default:
+		t.Fatal("missing legacy replay start receipt")
+	}
+	finished, err := store.Snapshot(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, doc := range finished.Documents {
+		if doc.Owner != id {
+			continue
+		}
+		if doc.Kind == codemodeJournalKind && (doc.Value["journalVersion"] != nil || doc.Value["batchEnds"] != nil) || doc.Kind == codemodeRunKind && doc.Value["terminal"] != nil {
+			t.Fatal("legacy journal gained grouped state after reopen", doc.Value)
+		}
 	}
 }
 

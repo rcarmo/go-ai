@@ -22,6 +22,7 @@ type groupedSandboxV160 struct {
 	gates [2]chan struct{}
 	store *SQLiteStorage
 	sent  *journalWorkerRemoteV160
+	crash bool
 }
 
 func (s groupedSandboxV160) Start(ctx context.Context, code string, start CodemodeStart) (CodemodeExecution, error) {
@@ -83,8 +84,10 @@ func (e *groupedExecutionV160) AcknowledgeDrain(ctx context.Context, drain Codem
 		fmt.Fprintf(os.Stderr, "before ack: %v; delivered=%d\n", err, e.harness.sent.deliveries.Load())
 		os.Exit(74)
 	}
-	os.Exit(73) // No Ack, further delivery, graceful close, or defer.
-	return nil
+	if e.harness.crash {
+		os.Exit(73) // No Ack, further delivery, graceful close, or defer.
+	}
+	return e.ack.AcknowledgeDrain(ctx, drain)
 }
 
 func checkGroupedSnapshotV160(s Snapshot, sealed bool) error {
@@ -131,26 +134,31 @@ func checkGroupedSnapshotV160(s Snapshot, sealed bool) error {
 
 func groupedHarnessV160(t *testing.T, dir string, store *SQLiteStorage, cut bool) (*Harness, *TaskDefinition, *journalWorkerRemoteV160) {
 	t.Helper()
+	return groupedScenarioV160(t, dir, store, groupedScriptV160, "b", cut, cut)
+}
+
+func groupedScenarioV160(t *testing.T, dir string, store *SQLiteStorage, script string, want any, gate, cut bool) (*Harness, *TaskDefinition, *journalWorkerRemoteV160) {
+	t.Helper()
 	remote, worker := newJournalWorkerSandboxV160(t)
-	remote.groupJournal = cut // Reopen must use the recorded journal policy.
+	remote.groupJournal = gate // A later reopen uses the recorded journal policy.
 	var sandbox CodemodeSandbox = remote
 	var ready chan codemodeCompletedCall
 	var gates [2]chan struct{}
-	if cut {
-		ready = make(chan codemodeCompletedCall, 3)
+	if gate {
+		ready = make(chan codemodeCompletedCall, 4)
 		gates = [2]chan struct{}{make(chan struct{}), make(chan struct{})}
-		sandbox = groupedSandboxV160{RemoteCodemodeSandbox: remote, ready: ready, gates: gates, store: store, sent: worker}
+		sandbox = groupedSandboxV160{RemoteCodemodeSandbox: remote, ready: ready, gates: gates, store: store, sent: worker, crash: cut}
 	}
 	registry := NewRegistry()
 	def := taskDefinition(t, "batch-drain-process-v160", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
-		result, err := r.runCodemodeWithCompletionQueue(ctx, "run", groupedScriptV160, sandbox, nil, nil, nil, nil, ready)
+		result, err := r.runCodemodeWithCompletionQueue(ctx, "run", script, sandbox, nil, nil, nil, nil, ready)
 		if err != nil {
 			return err
 		}
-		if result.Error != "" || !result.HasValue || result.Value != "b" {
-			return fmt.Errorf("recovered result = %+v; want b", result)
+		if result.Error != "" || !result.HasValue || !equalJSONValue(result.Value, want) {
+			return fmt.Errorf("group result = %+v; want %v", result, want)
 		}
-		if !cut {
+		if !cut && script == groupedScriptV160 {
 			if err := checkGroupedJournalSealV160(ctx, store); err != nil {
 				return err
 			}
@@ -162,10 +170,15 @@ func groupedHarnessV160(t *testing.T, dir string, store *SQLiteStorage, cut bool
 	}
 	globals := []CodemodeGlobal{{Name: "receipt", Version: 1, Execute: func(ctx context.Context, arg any) (any, error) {
 		value, ok := arg.(string)
-		if !ok || len(value) != 1 || value[0] < 'a' || value[0] > 'c' {
+		if !ok || len(value) != 1 || value[0] < 'a' || value[0] > 'd' || value == "d" && script == groupedScriptV160 {
 			return nil, fmt.Errorf("unexpected callback %v", arg)
 		}
-		if cut && value != "a" {
+		if value == "d" {
+			if err := checkNewGroupedCallCoverage(ctx, store); err != nil {
+				return nil, err
+			}
+		}
+		if gate && (value == "b" || value == "c") {
 			select {
 			case <-gates[value[0]-'b']:
 			case <-ctx.Done():
@@ -302,4 +315,54 @@ func checkGroupedJournalSealV160(ctx context.Context, store *SQLiteStorage) erro
 		return nil
 	}
 	return errors.New("live sealed journal not found")
+}
+
+func TestDraftV160CodemodeGroupedNewCallNeedsDurableCoverage(t *testing.T) {
+	dir := t.TempDir()
+	ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
+	defer cancel()
+	store, err := newTestSQLite(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const script = `const a=receipt("a"), b=receipt("b"), c=receipt("c"); await a; const second=await b; const fourth=await receipt("d"); return [second, await c, fourth]`
+	h, def, remote := groupedScenarioV160(t, dir, store, script, []any{"b", "c", "d"}, true, false)
+	id := createPublicTask(t, h, def, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
+	if err := h.Resume(ctx); err != nil {
+		t.Fatal(err)
+	}
+	row, err := h.WaitForTask(ctx, id)
+	if err != nil || row.State.Outcome == nil || row.State.Outcome.Status != "completed" {
+		if row.State.Outcome != nil && row.State.Outcome.Error != nil {
+			t.Fatal(row.State.Outcome.Error.Message)
+		}
+		t.Fatalf("grouped execution outcome=%+v err=%v", row.State.Outcome, err)
+	}
+	if effects, err := os.ReadFile(filepath.Join(dir, "effects")); err != nil || string(effects) != "abcd" {
+		t.Fatalf("ordered effects=%q err=%v; want abcd", effects, err)
+	}
+	if remote.starts.Load() != 1 || remote.deliveries.Load() != 4 {
+		t.Fatal("unexpected starts or deliveries", remote.starts.Load(), remote.deliveries.Load())
+	}
+}
+
+func checkNewGroupedCallCoverage(ctx context.Context, store *SQLiteStorage) error {
+	snapshot, err := store.Snapshot(ctx)
+	if err != nil {
+		return err
+	}
+	for _, doc := range snapshot.Documents {
+		if doc.Kind != codemodeJournalKind {
+			continue
+		}
+		var state codemodeJournalState
+		if err := fromObject(doc.Value, &state, DefaultLimits()); err != nil {
+			return err
+		}
+		if len(state.Issued) != 4 || state.Issued[3].ID != 4 || state.Issued[3].Name != "receipt" || len(state.Deliveries) != 3 || state.Deliveries[1].IssuedAfter == nil || *state.Deliveries[1].IssuedAfter != 4 {
+			return errors.New("fourth callback ran without the durable post-b count")
+		}
+		return nil
+	}
+	return errors.New("fourth callback ran without a persisted journal")
 }
