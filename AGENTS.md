@@ -1,6 +1,6 @@
 ## Active port target
 
-The active target is the official pi v1.6.0 release at `faac585884ae2c013a6b1400f3e9e77f10b34bac`. This supersedes the v1.5.0 target references below; older pins and receipts are historical evidence only. Use [the v1.6.0 crosswalk](docs/upstream-v1.6.0/README.md) and the editable plan for execution scope and evidence. Verify unchanged pinned originals before changing the native port or its tests. Keep scoped work separate from the acceptance, profiling and publishing gates, which require explicit authorisation.
+The active target is the official pi v1.6.1 release at `ef4a1cfcca62b77ad3558337ff3e1c7f6beeadfe`. This supersedes the v1.6.0 and older targets; their pins and receipts are historical evidence only. Use [the v1.6.1 crosswalk](docs/upstream-v1.6.1/README.md) and the editable plan for execution scope and evidence. Verify unchanged pinned originals before changing the native port or its tests. Keep scoped work separate from the acceptance, profiling and publishing gates, which require explicit authorisation.
 
 <!-- RUI-PROFILE-LIFECYCLE-20261005 -->
 ## Current profiling and cleanup rule — supersedes older text below

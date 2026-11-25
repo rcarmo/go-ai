@@ -1,5 +1,7 @@
 # pi v1.6.0 parity target
 
+> Historical verification log. The active target is [pi v1.6.1](../upstream-v1.6.1/README.md). Nothing below is a v1.6.1 test result.
+
 The upstream target is [pi v1.6.0](https://github.com/earendil-works/pi/releases/tag/v1.6.0) at `faac585884ae2c013a6b1400f3e9e77f10b34bac`. The prior [v1.5.2 notes](../../notes/upstream-v1.5.2-restart.md) and [v1.5.0 acceptance evidence](../upstream-v1.5.0/) are historical. The model-regeneration gate is pinned to v1.6.0. The repo-wide acceptance gate has not been switched. See [what still blocks a parity claim](acceptance-gaps.md) for checks that need access or approval and the unresolved behavior differences.
 
 ## Verified inputs

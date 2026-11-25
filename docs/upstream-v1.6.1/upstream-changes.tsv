@@ -1,0 +1,591 @@
+M	.github/APPROVED_CONTRIBUTORS
+M	AGENTS.md
+M	apps/p2/docs/p2-notes.md
+M	apps/p2/docs/p2-tui-port.md
+M	apps/p2/package.json
+M	apps/p2/plugins/artifacts/artifacts.css
+M	apps/p2/plugins/artifacts/panes.tsx
+M	apps/p2/plugins/backup/chunked-remote.ts
+M	apps/p2/plugins/backup/contract.ts
+R054	apps/p2/plugins/sync/radius-remote.ts	apps/p2/plugins/backup/radius-remote.ts
+M	apps/p2/plugins/backup/server.ts
+A	apps/p2/plugins/backup/target.ts
+A	apps/p2/plugins/backup/uploader.ts
+A	apps/p2/plugins/backup/uploads.ts
+M	apps/p2/plugins/backup/worker.ts
+M	apps/p2/plugins/chat/web.tsx
+M	apps/p2/plugins/discord/bot.ts
+M	apps/p2/plugins/discord/worker.ts
+M	apps/p2/plugins/locations/tool.ts
+M	apps/p2/plugins/login/contract.ts
+M	apps/p2/plugins/login/logins.ts
+M	apps/p2/plugins/login/server.ts
+M	apps/p2/plugins/login/tui.ts
+M	apps/p2/plugins/mcp/server.ts
+M	apps/p2/plugins/mcp/sign-in.ts
+M	apps/p2/plugins/mcp/tools.ts
+M	apps/p2/plugins/models/fake.ts
+M	apps/p2/plugins/radius/brain.ts
+M	apps/p2/plugins/radius/server.ts
+M	apps/p2/plugins/search/worker.ts
+M	apps/p2/plugins/send-file/activity.tsx
+M	apps/p2/plugins/sessions/sidebar/Row.tsx
+M	apps/p2/plugins/sessions/sidebar/Sidebar.tsx
+M	apps/p2/plugins/sessions/tui-location.ts
+M	apps/p2/plugins/sessions/tui-move.ts
+M	apps/p2/plugins/sessions/tui.ts
+M	apps/p2/plugins/settings/commands.tsx
+M	apps/p2/plugins/settings/web.tsx
+M	apps/p2/plugins/sharing/web.tsx
+M	apps/p2/plugins/subagents/contract.worker.ts
+A	apps/p2/plugins/subagents/model-list.ts
+M	apps/p2/plugins/subagents/tools.ts
+M	apps/p2/plugins/telemetry/web.tsx
+M	apps/p2/plugins/terminals/main.ts
+M	apps/p2/plugins/terminals/protocol.ts
+M	apps/p2/plugins/terminals/service.ts
+M	apps/p2/plugins/terminals/tool.ts
+M	apps/p2/plugins/views/contract.ts
+M	apps/p2/plugins/voice/barge-in.ts
+M	apps/p2/plugins/voice/engine.ts
+M	apps/p2/plugins/voice/policy.ts
+M	apps/p2/plugins/workspace/server.ts
+M	apps/p2/plugins/workspace/worker.ts
+M	apps/p2/scripts/migrate-durable.ts
+M	apps/p2/scripts/migrate-files.ts
+M	apps/p2/src/api/v1/node.ts
+M	apps/p2/src/api/v1/web.ts
+M	apps/p2/src/hosts/server.ts
+M	apps/p2/src/hosts/tui-actions.ts
+M	apps/p2/src/hosts/tui-clipboard.ts
+M	apps/p2/src/hosts/tui-prefs-save.ts
+M	apps/p2/src/runtime/backup.ts
+M	apps/p2/src/runtime/chord.ts
+M	apps/p2/src/runtime/location.ts
+M	apps/p2/src/runtime/tui.ts
+M	apps/p2/src/runtime/worker.ts
+M	apps/p2/src/tui/components/mermaid.ts
+M	apps/p2/src/tui/components/transcript.ts
+M	apps/p2/src/web/Chat.tsx
+M	apps/p2/src/web/Code.tsx
+M	apps/p2/src/web/CostPanel.tsx
+M	apps/p2/src/web/SettingsNav.tsx
+M	apps/p2/src/web/Viewer.tsx
+M	apps/p2/src/web/activity/model.ts
+M	apps/p2/src/web/command-menu/keys.ts
+M	apps/p2/src/web/elanor-markdown.css
+A	apps/p2/src/web/highlight-lines.ts
+M	apps/p2/src/web/style.css
+M	apps/p2/src/web/use-chat-scroll.ts
+A	apps/p2/test/fixtures/lines-block.ts
+M	apps/p2/test/fixtures/optimistic.ts
+M	apps/p2/test/p2/backup-radius.test.ts
+M	apps/p2/test/p2/backup-upload.test.ts
+M	apps/p2/test/p2/backup.test.ts
+M	apps/p2/test/p2/discord.test.ts
+M	apps/p2/test/p2/helpers.ts
+A	apps/p2/test/p2/highlight-lines.test.ts
+M	apps/p2/test/p2/login-owners.test.ts
+M	apps/p2/test/p2/login.test.ts
+M	apps/p2/test/p2/mcp-tools.test.ts
+M	apps/p2/test/p2/mcp-worker.test.ts
+M	apps/p2/test/p2/prompt.test.ts
+M	apps/p2/test/p2/radius-fixture.ts
+M	apps/p2/test/p2/radius.test.ts
+M	apps/p2/test/p2/sandboxes.test.ts
+M	apps/p2/test/p2/search.test.ts
+A	apps/p2/test/p2/subagent-models.test.ts
+M	apps/p2/test/p2/subagents.test.ts
+M	apps/p2/test/p2/sync-radius-remote.test.ts
+M	apps/p2/test/p2/terminal-agent-host.test.ts
+A	apps/p2/test/p2/terminal-protocol.test.ts
+M	apps/p2/test/p2/tui-location.test.ts
+M	apps/p2/test/p2/tui-mermaid.test.ts
+M	apps/p2/test/p2/tui-projects.test.ts
+M	apps/p2/test/p2/tui-quiet-tools.test.ts
+M	apps/p2/test/p2/tui-settings.test.ts
+M	apps/p2/test/p2/ui-agents.test.ts
+A	apps/p2/test/p2/ui-artifact-reading.test.ts
+A	apps/p2/test/p2/ui-hidden-transcript.test.ts
+A	apps/p2/test/p2/ui-lines-block.test.ts
+M	apps/p2/test/p2/ui-optimistic.test.ts
+A	apps/p2/test/p2/ui-sent-files.test.ts
+A	apps/p2/test/p2/voice-barge-in.test.ts
+M	apps/p2/test/p2/voice.test.ts
+M	apps/p3/README.md
+A	apps/p3/bench/skeleton.ts
+M	apps/p3/docs/README.md
+M	apps/p3/docs/chord-practices.md
+M	apps/p3/docs/performance.md
+M	apps/p3/docs/process.md
+M	apps/p3/docs/testing.md
+R100	apps/p3/bench/slice-1.ts	apps/p3/old/bench/slice-1.ts
+A	apps/p3/old/src/app.ts
+R100	apps/p3/src/ask.ts	apps/p3/old/src/ask.ts
+R100	apps/p3/src/bootstrap/bin.ts	apps/p3/old/src/bootstrap/bin.ts
+R100	apps/p3/src/bootstrap/server.ts	apps/p3/old/src/bootstrap/server.ts
+R100	apps/p3/src/bootstrap/supervisor.ts	apps/p3/old/src/bootstrap/supervisor.ts
+R100	apps/p3/src/bootstrap/worker.ts	apps/p3/old/src/bootstrap/worker.ts
+R100	apps/p3/src/commands.ts	apps/p3/old/src/commands.ts
+A	apps/p3/old/src/install.ts
+R100	apps/p3/src/kit/app.ts	apps/p3/old/src/kit/app.ts
+R100	apps/p3/src/kit/config.ts	apps/p3/old/src/kit/config.ts
+R100	apps/p3/src/kit/contribute.ts	apps/p3/old/src/kit/contribute.ts
+R100	apps/p3/src/kit/forward.ts	apps/p3/old/src/kit/forward.ts
+R100	apps/p3/src/kit/identity.ts	apps/p3/old/src/kit/identity.ts
+R100	apps/p3/src/kit/info.ts	apps/p3/old/src/kit/info.ts
+R100	apps/p3/src/kit/layout.ts	apps/p3/old/src/kit/layout.ts
+R100	apps/p3/src/kit/owner.ts	apps/p3/old/src/kit/owner.ts
+R100	apps/p3/src/kit/running.ts	apps/p3/old/src/kit/running.ts
+R100	apps/p3/src/kit/secrets.ts	apps/p3/old/src/kit/secrets.ts
+R100	apps/p3/src/kit/session-workers.ts	apps/p3/old/src/kit/session-workers.ts
+R100	apps/p3/src/kit/sign-ins.ts	apps/p3/old/src/kit/sign-ins.ts
+R100	apps/p3/src/kit/start-server.ts	apps/p3/old/src/kit/start-server.ts
+R100	apps/p3/src/kit/stop.ts	apps/p3/old/src/kit/stop.ts
+R100	apps/p3/src/kit/worker.ts	apps/p3/old/src/kit/worker.ts
+A	apps/p3/old/src/minimum-node.ts
+A	apps/p3/old/src/pi.ts
+A	apps/p3/old/src/principals.ts
+R100	apps/p3/src/session-route.ts	apps/p3/old/src/session-route.ts
+R100	apps/p3/test/api.test.ts	apps/p3/old/test/api.test.ts
+R100	apps/p3/test/app.test.ts	apps/p3/old/test/app.test.ts
+R100	apps/p3/test/build-release.test.ts	apps/p3/old/test/build-release.test.ts
+R100	apps/p3/test/client.ts	apps/p3/old/test/client.ts
+R100	apps/p3/test/commands.test.ts	apps/p3/old/test/commands.test.ts
+R100	apps/p3/test/commands.ts	apps/p3/old/test/commands.ts
+R100	apps/p3/test/end-to-end.ts	apps/p3/old/test/end-to-end.ts
+R100	apps/p3/test/gate.ts	apps/p3/old/test/gate.ts
+R100	apps/p3/test/install.test.ts	apps/p3/old/test/install.test.ts
+R100	apps/p3/test/kit/config.test.ts	apps/p3/old/test/kit/config.test.ts
+R100	apps/p3/test/kit/contribute.test.ts	apps/p3/old/test/kit/contribute.test.ts
+R100	apps/p3/test/kit/forward.test.ts	apps/p3/old/test/kit/forward.test.ts
+R100	apps/p3/test/kit/identity.test.ts	apps/p3/old/test/kit/identity.test.ts
+R100	apps/p3/test/kit/info.test.ts	apps/p3/old/test/kit/info.test.ts
+R100	apps/p3/test/kit/layout.test.ts	apps/p3/old/test/kit/layout.test.ts
+R100	apps/p3/test/kit/owner.test.ts	apps/p3/old/test/kit/owner.test.ts
+R100	apps/p3/test/kit/running.test.ts	apps/p3/old/test/kit/running.test.ts
+R100	apps/p3/test/kit/secrets.test.ts	apps/p3/old/test/kit/secrets.test.ts
+R100	apps/p3/test/kit/session-workers.test.ts	apps/p3/old/test/kit/session-workers.test.ts
+R100	apps/p3/test/kit/sign-ins.test.ts	apps/p3/old/test/kit/sign-ins.test.ts
+R100	apps/p3/test/kit/start-server.test.ts	apps/p3/old/test/kit/start-server.test.ts
+R100	apps/p3/test/kit/stop.test.ts	apps/p3/old/test/kit/stop.test.ts
+R100	apps/p3/test/kit/support.ts	apps/p3/old/test/kit/support.ts
+R100	apps/p3/test/launched.test.ts	apps/p3/old/test/launched.test.ts
+R100	apps/p3/test/launched.ts	apps/p3/old/test/launched.ts
+R100	apps/p3/test/memory/server.ts	apps/p3/old/test/memory/server.ts
+R100	apps/p3/test/memory/session.ts	apps/p3/old/test/memory/session.ts
+R100	apps/p3/test/memory/stub.ts	apps/p3/old/test/memory/stub.ts
+R100	apps/p3/test/memory/worker.ts	apps/p3/old/test/memory/worker.ts
+R100	apps/p3/test/minimum-node.test.ts	apps/p3/old/test/minimum-node.test.ts
+R100	apps/p3/test/no-signals.ts	apps/p3/old/test/no-signals.ts
+R100	apps/p3/test/old-node.ts	apps/p3/old/test/old-node.ts
+R100	apps/p3/test/pi.test.ts	apps/p3/old/test/pi.test.ts
+A	apps/p3/old/test/plans.test.ts
+R100	apps/p3/test/release-local.test.ts	apps/p3/old/test/release-local.test.ts
+R100	apps/p3/test/release/memory.test.ts	apps/p3/old/test/release/memory.test.ts
+A	apps/p3/old/test/release/release.test.ts
+R100	apps/p3/test/sessions.test.ts	apps/p3/old/test/sessions.test.ts
+A	apps/p3/old/test/topology.ts
+A	apps/p3/old/test/until.ts
+M	apps/p3/package.json
+A	apps/p3/plugins/control/package.json
+A	apps/p3/plugins/control/server.ts
+A	apps/p3/plugins/runner/local-runner.ts
+A	apps/p3/plugins/runner/package.json
+A	apps/p3/plugins/runner/runner.test.ts
+A	apps/p3/plugins/runner/server.ts
+A	apps/p3/plugins/runner/worker-process.ts
+A	apps/p3/plugins/runner/worker.ts
+M	apps/p3/plugins/sessions/contract.server.ts
+M	apps/p3/plugins/sessions/contract.ts
+M	apps/p3/plugins/sessions/server.ts
+M	apps/p3/plugins/sessions/sessions.test.ts
+M	apps/p3/plugins/sessions/worker.ts
+A	apps/p3/plugins/sign-in/contract.ts
+A	apps/p3/plugins/sign-in/owner.ts
+A	apps/p3/plugins/sign-in/package.json
+A	apps/p3/plugins/sign-in/secrets.ts
+A	apps/p3/plugins/sign-in/server.ts
+A	apps/p3/plugins/sign-in/sign-ins.ts
+M	apps/p3/scripts/build-release.ts
+M	apps/p3/scripts/release-local.ts
+A	apps/p3/src/api/v1/contribute.ts
+A	apps/p3/src/api/v1/control.ts
+A	apps/p3/src/api/v1/forward.ts
+M	apps/p3/src/api/v1/index.ts
+M	apps/p3/src/api/v1/server.ts
+M	apps/p3/src/api/v1/worker.ts
+M	apps/p3/src/app.ts
+A	apps/p3/src/bin.ts
+A	apps/p3/src/files.ts
+M	apps/p3/src/install.ts
+M	apps/p3/src/minimum-node.ts
+A	apps/p3/src/modules-server.ts
+A	apps/p3/src/modules-worker.ts
+M	apps/p3/src/pi.ts
+A	apps/p3/src/records.ts
+A	apps/p3/src/server-core.ts
+A	apps/p3/src/server.ts
+A	apps/p3/src/supervisor.ts
+A	apps/p3/src/worker-core.ts
+A	apps/p3/src/worker.ts
+A	apps/p3/test/command.test.ts
+M	apps/p3/test/plans.test.ts
+A	apps/p3/test/plugins/probe/contract.ts
+R060	apps/p2/plugins/sync/package.json	apps/p3/test/plugins/probe/package.json
+A	apps/p3/test/plugins/probe/worker.ts
+M	apps/p3/test/release/release.test.ts
+A	apps/p3/test/skeleton.test.ts
+A	apps/p3/test/support.ts
+A	apps/p3/test/topology.test.ts
+M	apps/p3/test/topology.ts
+M	apps/p3/tsconfig.build.json
+M	nix/model-catalog.json
+M	package-lock.json
+M	packages/agent/CHANGELOG.md
+M	packages/agent/package.json
+M	packages/agent/src/proxy.ts
+M	packages/ai/CHANGELOG.md
+M	packages/ai/README.md
+M	packages/ai/catalog/build.ts
+M	packages/ai/catalog/families/anthropic.ts
+M	packages/ai/catalog/families/openai.ts
+M	packages/ai/catalog/providers/anthropic.ts
+M	packages/ai/catalog/providers/cloudflare-workers-ai.ts
+M	packages/ai/catalog/providers/github-copilot.ts
+M	packages/ai/catalog/providers/groq.ts
+M	packages/ai/catalog/providers/mistral.ts
+M	packages/ai/catalog/providers/openai.ts
+M	packages/ai/catalog/providers/opencode.ts
+M	packages/ai/catalog/sources/models-dev.ts
+M	packages/ai/package.json
+M	packages/ai/src/api/anthropic-messages.ts
+M	packages/ai/src/api/azure-openai-responses.ts
+M	packages/ai/src/api/bedrock-converse-stream.ts
+M	packages/ai/src/api/classifier-shared.ts
+M	packages/ai/src/api/google-generative-ai.ts
+M	packages/ai/src/api/google-shared.ts
+M	packages/ai/src/api/google-vertex.ts
+M	packages/ai/src/api/llama-cpp-classify.ts
+M	packages/ai/src/api/mistral-conversations.ts
+M	packages/ai/src/api/openai-codex-responses.ts
+M	packages/ai/src/api/openai-completions.ts
+M	packages/ai/src/api/openai-responses-shared.ts
+M	packages/ai/src/api/openai-responses.ts
+M	packages/ai/src/api/openrouter-images.ts
+A	packages/ai/src/api/pi-decision.lazy.ts
+A	packages/ai/src/api/pi-decision.ts
+M	packages/ai/src/api/pi-messages.ts
+M	packages/ai/src/api/system-one-shared.ts
+M	packages/ai/src/api/typesafe-system-one.ts
+M	packages/ai/src/auth/oauth/github-copilot.ts
+M	packages/ai/src/index.ts
+M	packages/ai/src/models.ts
+M	packages/ai/src/providers/compat-schema.ts
+M	packages/ai/src/providers/github-copilot.ts
+M	packages/ai/src/providers/model-schema.ts
+M	packages/ai/src/providers/radius-config.ts
+M	packages/ai/src/providers/radius.ts
+M	packages/ai/src/types.ts
+M	packages/ai/src/utils/openrouter-cost.ts
+A	packages/ai/src/utils/openrouter-finish-reason.ts
+M	packages/ai/src/utils/overflow.ts
+M	packages/ai/src/utils/provider-retry.ts
+M	packages/ai/src/utils/retry.ts
+A	packages/ai/src/utils/sse.ts
+M	packages/ai/src/utils/version.ts
+M	packages/ai/test/abort.test.ts
+M	packages/ai/test/anthropic-strict-tool-fallback.test.ts
+M	packages/ai/test/anthropic-strict-tool-schema.test.ts
+M	packages/ai/test/bedrock-credentials.test.ts
+A	packages/ai/test/bedrock-proxy-credentials.test.ts
+M	packages/ai/test/cache-retention.test.ts
+M	packages/ai/test/classifier-models.test.ts
+A	packages/ai/test/claude-model-generation.test.ts
+M	packages/ai/test/constrained-sampling.test.ts
+M	packages/ai/test/context-overflow.test.ts
+M	packages/ai/test/cross-provider-handoff.test.ts
+M	packages/ai/test/empty.test.ts
+M	packages/ai/test/github-copilot-anthropic.test.ts
+M	packages/ai/test/github-copilot-oauth.test.ts
+M	packages/ai/test/google-shared-convert-tools.test.ts
+M	packages/ai/test/google-shared-gemini3-unsigned-tool-call.test.ts
+M	packages/ai/test/google-shared-image-tool-result-routing.test.ts
+M	packages/ai/test/google-shared-retry.test.ts
+A	packages/ai/test/google-stream-errors.test.ts
+M	packages/ai/test/google-thinking-level-map.test.ts
+M	packages/ai/test/image-tool-result.test.ts
+M	packages/ai/test/llama-cpp-classify.test.ts
+M	packages/ai/test/max-thinking.test.ts
+M	packages/ai/test/mistral-raw-stop-reason.test.ts
+M	packages/ai/test/mistral-tool-schema.test.ts
+M	packages/ai/test/models-runtime.test.ts
+M	packages/ai/test/openai-codex-stream.test.ts
+M	packages/ai/test/openai-completions-non-null-assistant-content.test.ts
+M	packages/ai/test/openai-completions-raw-stop-reason.test.ts
+M	packages/ai/test/openai-completions-tool-choice.test.ts
+M	packages/ai/test/openai-decisions.test.ts
+A	packages/ai/test/openai-responses-tool-call-replay.test.ts
+M	packages/ai/test/overflow.test.ts
+A	packages/ai/test/pi-decision.test.ts
+M	packages/ai/test/pi-messages.test.ts
+A	packages/ai/test/provider-error-response.test.ts
+M	packages/ai/test/provider-retry.test.ts
+M	packages/ai/test/providers.test.ts
+M	packages/ai/test/radius-provider.test.ts
+M	packages/ai/test/responseid.test.ts
+M	packages/ai/test/retry.test.ts
+A	packages/ai/test/sse.test.ts
+M	packages/ai/test/stream.test.ts
+M	packages/ai/test/tokens.test.ts
+M	packages/ai/test/tool-call-without-result.test.ts
+M	packages/ai/test/total-tokens.test.ts
+M	packages/ai/test/typesafe-system-one.test.ts
+M	packages/ai/test/unicode-surrogate.test.ts
+M	packages/chord/CHANGELOG.md
+M	packages/chord/docs/decisions.md
+M	packages/chord/docs/design.md
+M	packages/chord/docs/guide-plugins-hosts/book.md
+M	packages/chord/docs/plugin-authoring.md
+M	packages/chord/docs/tutorial/book.md
+M	packages/chord/package.json
+M	packages/chord/src/data/args.ts
+M	packages/chord/src/link/binary.ts
+M	packages/chord/src/link/internal.ts
+M	packages/chord/src/link/message.ts
+M	packages/chord/src/link/text.ts
+M	packages/chord/src/node/app/README.md
+M	packages/chord/src/node/http/admission.ts
+M	packages/chord/src/node/plugins/README.md
+M	packages/chord/src/node/plugins/build.ts
+M	packages/chord/src/node/plugins/install.ts
+M	packages/chord/src/node/plugins/plugins.ts
+M	packages/chord/src/node/plugins/stack.ts
+M	packages/chord/src/node/surfaces/published.ts
+M	packages/chord/src/node/surfaces/surface-build.ts
+M	packages/chord/src/node/workers/README.md
+M	packages/chord/src/node/workers/control.ts
+M	packages/chord/src/node/workers/main.ts
+M	packages/chord/src/node/workers/workers.ts
+M	packages/chord/src/remote/consumer.ts
+M	packages/chord/src/remote/host-link.ts
+M	packages/chord/src/store/expression.ts
+M	packages/chord/src/store/jsonl.ts
+M	packages/chord/src/store/open-query.ts
+M	packages/chord/src/store/store.ts
+M	packages/chord/src/surfaces/active-language.ts
+M	packages/chord/src/sync/batch.ts
+M	packages/chord/src/sync/client.ts
+M	packages/chord/src/sync/index.ts
+M	packages/chord/src/sync/remote.ts
+M	packages/chord/test/examples/06-natives.ts
+M	packages/chord/test/examples/35-plugins/main.ts
+M	packages/chord/test/examples/38-watch-and-rollout/main.ts
+M	packages/chord/test/examples/43-rollout/main.ts
+M	packages/chord/test/examples/44-http-wraps/plugins/audit/server.ts
+M	packages/chord/test/examples/61-tutorial/main.ts
+M	packages/chord/test/host/host-data.test.ts
+M	packages/chord/test/host/named-query.test.ts
+M	packages/chord/test/host/query-reader.test.ts
+M	packages/chord/test/node/app/app.test.ts
+M	packages/chord/test/node/fixtures/reload/app.ts
+M	packages/chord/test/node/http/admission.test.ts
+M	packages/chord/test/node/http/headers.test.ts
+M	packages/chord/test/node/plugins/install.test.ts
+M	packages/chord/test/node/plugins/plugins.test.ts
+M	packages/chord/test/node/surfaces/web.test.ts
+M	packages/chord/test/node/workers/workers.test.ts
+M	packages/chord/test/remote/hold.test.ts
+M	packages/chord/test/store/import.test.ts
+M	packages/chord/test/store/live-query.test.ts
+M	packages/chord/test/store/store.test.ts
+M	packages/chord/test/sync/sync.test.ts
+M	packages/codemode/CHANGELOG.md
+M	packages/codemode/package.json
+M	packages/coding-agent/CHANGELOG.md
+M	packages/coding-agent/docs/cli.md
+M	packages/coding-agent/docs/codemode.md
+M	packages/coding-agent/docs/extensions.md
+M	packages/coding-agent/docs/llama-cpp.md
+M	packages/coding-agent/docs/message-types.md
+M	packages/coding-agent/docs/models-configuration.md
+M	packages/coding-agent/docs/models.md
+M	packages/coding-agent/docs/providers.md
+M	packages/coding-agent/docs/rpc-commands.md
+M	packages/coding-agent/docs/settings.md
+M	packages/coding-agent/docs/shell-aliases.md
+M	packages/coding-agent/docs/windows.md
+M	packages/coding-agent/examples/extensions/subagent/index.ts
+M	packages/coding-agent/examples/rpc-extension-ui.ts
+M	packages/coding-agent/install-lock/package-lock.json
+M	packages/coding-agent/install-lock/package.json
+M	packages/coding-agent/package.json
+M	packages/coding-agent/schemas/models.schema.json
+M	packages/coding-agent/schemas/settings.schema.json
+M	packages/coding-agent/src/cli/project-trust.ts
+M	packages/coding-agent/src/cli/startup-ui.ts
+M	packages/coding-agent/src/core/agent-session.ts
+M	packages/coding-agent/src/core/auth-storage.ts
+M	packages/coding-agent/src/core/bash-executor.ts
+M	packages/coding-agent/src/core/extensions/runner.ts
+M	packages/coding-agent/src/core/extensions/types.ts
+M	packages/coding-agent/src/core/messages.ts
+M	packages/coding-agent/src/core/model-resolver.ts
+M	packages/coding-agent/src/core/model-runtime.ts
+M	packages/coding-agent/src/core/project-trust.ts
+M	packages/coding-agent/src/core/provider-composer.ts
+M	packages/coding-agent/src/core/resolve-config-value.ts
+M	packages/coding-agent/src/core/session-manager.ts
+M	packages/coding-agent/src/core/settings-defaults.ts
+M	packages/coding-agent/src/core/settings-manager.ts
+M	packages/coding-agent/src/core/settings-schema.ts
+M	packages/coding-agent/src/core/tools/bash.ts
+M	packages/coding-agent/src/core/tools/output-accumulator.ts
+M	packages/coding-agent/src/core/tools/renderers/bash.ts
+M	packages/coding-agent/src/core/tools/truncate.ts
+M	packages/coding-agent/src/extensions/llama/client.ts
+M	packages/coding-agent/src/extensions/mcp/resources.ts
+M	packages/coding-agent/src/extensions/mcp/tools.ts
+M	packages/coding-agent/src/main.ts
+M	packages/coding-agent/src/modes/interactive/components/bash-execution.ts
+M	packages/coding-agent/src/modes/interactive/components/first-time-setup.ts
+M	packages/coding-agent/src/modes/interactive/components/mermaid.ts
+M	packages/coding-agent/src/modes/interactive/components/oauth-selector.ts
+M	packages/coding-agent/src/modes/interactive/components/settings-selector.ts
+M	packages/coding-agent/src/modes/interactive/external-editor.ts
+M	packages/coding-agent/src/modes/interactive/interactive-mode.ts
+M	packages/coding-agent/src/modes/interactive/program-status-reporter.ts
+M	packages/coding-agent/src/modes/interactive/session-share.ts
+M	packages/coding-agent/src/modes/print-mode.ts
+M	packages/coding-agent/src/modes/rpc/jsonl.ts
+M	packages/coding-agent/src/modes/rpc/rpc-mode.ts
+M	packages/coding-agent/src/package-manager-cli.ts
+M	packages/coding-agent/src/utils/clipboard.ts
+M	packages/coding-agent/src/utils/output-files.ts
+M	packages/coding-agent/src/utils/shell.ts
+M	packages/coding-agent/test/auth-storage.test.ts
+M	packages/coding-agent/test/bash-executor-truncation.test.ts
+M	packages/coding-agent/test/clipboard.test.ts
+M	packages/coding-agent/test/external-editor.test.ts
+M	packages/coding-agent/test/first-time-setup.test.ts
+M	packages/coding-agent/test/interactive-mode-assistant-diagnostics.test.ts
+M	packages/coding-agent/test/interactive-mode-compaction.test.ts
+M	packages/coding-agent/test/interactive-mode-extension-dialogs.test.ts
+M	packages/coding-agent/test/interactive-mode-status.test.ts
+M	packages/coding-agent/test/mcp-extension.test.ts
+M	packages/coding-agent/test/mermaid.test.ts
+M	packages/coding-agent/test/oauth-selector.test.ts
+A	packages/coding-agent/test/output-file-failures.test.ts
+M	packages/coding-agent/test/package-command-paths.test.ts
+M	packages/coding-agent/test/print-mode.test.ts
+M	packages/coding-agent/test/rpc-jsonl.test.ts
+M	packages/coding-agent/test/rpc-prompt-response-semantics.test.ts
+M	packages/coding-agent/test/session-manager/build-context.test.ts
+M	packages/coding-agent/test/session-share.test.ts
+M	packages/coding-agent/test/settings-manager.test.ts
+M	packages/coding-agent/test/settings-selector.test.ts
+M	packages/coding-agent/test/shell-kill-process-tree.test.ts
+A	packages/coding-agent/test/startup-ui-program-status.test.ts
+A	packages/coding-agent/test/suite/regressions/12164-stored-command-key-auth-status.test.ts
+M	packages/coding-agent/test/suite/regressions/4167-thinking-toggle-pending-tool-render.test.ts
+M	packages/coding-agent/test/suite/regressions/7301-stalled-availability-refresh.test.ts
+M	packages/coding-agent/test/tools.test.ts
+M	packages/coding-agent/test/windows-shell-config.test.ts
+M	packages/durable/CHANGELOG.md
+M	packages/durable/README.md
+M	packages/durable/docs/group-commit.md
+M	packages/durable/docs/spec.md
+M	packages/durable/docs/suspendable/spec.md
+M	packages/durable/package.json
+M	packages/durable/src/codemode/codemode.ts
+M	packages/durable/src/codemode/output.ts
+M	packages/durable/src/env/node.ts
+M	packages/durable/src/harness/agent.ts
+M	packages/durable/src/harness/compaction.ts
+M	packages/durable/src/harness/define.ts
+M	packages/durable/src/harness/generation.ts
+M	packages/durable/src/harness/harness.ts
+M	packages/durable/src/harness/live.ts
+M	packages/durable/src/harness/parks.ts
+M	packages/durable/src/harness/scheduler.ts
+M	packages/durable/src/harness/tool.ts
+M	packages/durable/src/harness/types.ts
+M	packages/durable/src/images/node-worker.ts
+M	packages/durable/src/images/node.ts
+M	packages/durable/src/session/transaction.ts
+M	packages/durable/src/session/writer.ts
+M	packages/durable/src/signals.ts
+M	packages/durable/src/storage/indexeddb.ts
+M	packages/durable/src/storage/jsonl/storage.ts
+M	packages/durable/src/storage/memory.ts
+M	packages/durable/src/storage/sqlite/storage.ts
+M	packages/durable/src/testing/commit-writes.ts
+M	packages/durable/src/testing/storage-conformance.ts
+M	packages/durable/src/types.ts
+M	packages/durable/test/examples/27-reviewer.ts
+M	packages/durable/test/examples/32-tests-after-edits.ts
+M	packages/durable/test/examples/34-submit-in-commit.ts
+M	packages/durable/test/examples/38-signals.ts
+M	packages/durable/test/examples/39-ask-a-person.ts
+M	packages/durable/test/examples/40-tool-waits-for-webhook.ts
+M	packages/durable/test/examples/41-tool-polls.ts
+M	packages/durable/test/examples/42-parallel-children.ts
+M	packages/durable/test/examples/43-subagent-waits.ts
+M	packages/durable/test/examples/44-approval-gate.ts
+M	packages/durable/test/examples/45-review-on-yield.ts
+M	packages/durable/test/examples/46-after-tools-terminate.ts
+M	packages/durable/test/harness-after-run.test.ts
+M	packages/durable/test/harness-compaction.test.ts
+M	packages/durable/test/harness-hook-tasks.test.ts
+M	packages/durable/test/harness-inbox.test.ts
+M	packages/durable/test/harness-nested-tools.test.ts
+M	packages/durable/test/harness-park-children.test.ts
+M	packages/durable/test/harness-signals.test.ts
+M	packages/durable/test/harness-submit-in-commit.test.ts
+M	packages/durable/test/harness-telemetry.test.ts
+M	packages/durable/test/harness-tool-gates.test.ts
+M	packages/durable/test/harness-tool-parks.test.ts
+M	packages/durable/test/harness-tools.test.ts
+M	packages/durable/test/harness-turn-limit.test.ts
+M	packages/durable/test/indexeddb-storage.test.ts
+M	packages/durable/test/jsonl-storage.test.ts
+M	packages/durable/test/session-cached-storage.test.ts
+M	packages/durable/test/session-support.ts
+M	packages/durable/test/spec-usage.test.ts
+M	packages/durable/test/sqlite-commit.test.ts
+M	packages/durable/test/sqlite-storage.test.ts
+M	packages/durable/test/store-storage-commit.test.ts
+M	packages/env/CHANGELOG.md
+M	packages/env/package.json
+M	packages/env/src/remote-env.ts
+M	packages/evals/package.json
+M	packages/mcp/CHANGELOG.md
+M	packages/mcp/README.md
+M	packages/mcp/package.json
+M	packages/mcp/src/client.ts
+M	packages/mcp/src/index.ts
+A	packages/mcp/src/model-content.ts
+M	packages/mcp/src/protocol/jsonrpc.ts
+A	packages/mcp/src/result-schema.ts
+M	packages/mcp/src/transports/streamable-http.ts
+A	packages/mcp/test/model-content.test.ts
+A	packages/mcp/test/result-schema.test.ts
+M	packages/mcp/test/streamable-http.test.ts
+M	packages/schema/CHANGELOG.md
+M	packages/schema/package.json
+M	packages/telemetry/CHANGELOG.md
+M	packages/telemetry/package.json
+M	packages/tui/CHANGELOG.md
+M	packages/tui/package.json
+M	packages/tui/src/components/editor.ts
+M	packages/tui/src/components/markdown.ts
+M	packages/tui/src/stdin-buffer.ts
+M	packages/tui/src/terminal-image.ts
+M	packages/tui/src/tui-alt-screen.ts
+M	packages/tui/src/tui-main-screen.ts
+M	packages/tui/test/editor.test.ts
+M	packages/tui/test/markdown.test.ts
+M	packages/tui/test/stdin-buffer.test.ts
+M	packages/tui/test/tui-alt-screen.test.ts
+M	packages/tui/test/tui-render.test.ts
+M	scripts/generate-coding-agent-install-lock.mjs
