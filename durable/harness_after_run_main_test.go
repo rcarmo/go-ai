@@ -736,6 +736,86 @@ func TestMainAfterRunStopAnswered(t *testing.T) {
 	}
 }
 
+// harness-after-run.test.ts:517-536. Abort only the afterRun child, not
+// the conversation or generation whose answer has already been published.
+func TestSourceV160AbortAfterRunChildCompletesAnsweredRun(t *testing.T) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+		ctx, cancel := context.WithTimeout(bg, 8*time.Second)
+		defer cancel()
+		probe := &mainAfterRunProbe{started: make(chan struct{}), release: make(chan struct{})}
+		child := mainAfterRunTask(t, probe)
+		registry := NewRegistry()
+		if err := registry.Install(&Extension{Name: "after-run", Tasks: []*TaskDefinition{child}, Hooks: GenerationHooks{
+			AfterRun: func(context.Context, RunSummary, *HookAPI) (*AfterRunResult, error) {
+				return &AfterRunResult{Tasks: []RunEndTask{{Task: child, Input: JSON{"label": "run 1"}}}}, nil
+			},
+		}}); err != nil {
+			t.Fatal(err)
+		}
+		var requests atomic.Int64
+		ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
+			requests.Add(1)
+			ch := make(chan goai.Event, 1)
+			ch <- terminal("done")
+			close(ch)
+			return ch
+		})
+		options.Registry = registry
+		h := openHarness(t, b.store, options)
+		cleanupTaskGates(t, probe.release)
+		c := root(t, h, ref)
+		sub, err := c.Submit(ctx, Input{Type: "input", Content: "go"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		answered, err := sub.Wait(ctx)
+		if err != nil || answered.Record.Status != "done" || answered.Record.Answer == 0 {
+			t.Fatal("answer not settled before after-run abort", answered.Record, err)
+		}
+		awaitTaskSignal(t, probe.started)
+		live, found, err := c.SnapshotDefinition(ctx, LiveDoc(), nil)
+		if err != nil || !found {
+			t.Fatal(live, found, err)
+		}
+		run := generationObject(generationObject(live.Copy())["run"])
+		generationID := submissionEntryID(run["taskId"])
+		tasks, _ := generationObject(run["afterRun"])["tasks"].([]any)
+		if generationID == 0 || len(tasks) != 1 {
+			t.Fatal("expected one after-run child", run)
+		}
+		childID := submissionEntryID(tasks[0])
+		beforeAbort, found, err := b.store.Task(ctx, childID)
+		if err != nil || !found || beforeAbort.Owner != generationID || beforeAbort.State.Status != "running" {
+			t.Fatal("after-run child not running under answered generation", beforeAbort, found, err)
+		}
+		if mark, err := h.AbortTask(ctx, childID); err != nil || mark != "marked" {
+			t.Fatal("abort after-run child", mark, err)
+		}
+		if err := c.WaitForIdle(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if count := probe.aborted.Load(); count != 1 {
+			t.Fatalf("after-run child cleanup calls = %d, want one", count)
+		}
+		live, found, err = c.SnapshotDefinition(ctx, LiveDoc(), nil)
+		if err != nil || !found || !equalJSONValue(live.Copy(), JSON{}) {
+			t.Fatal("aborting child did not leave an empty live document", live, found, err)
+		}
+		generation, found, err := h.Task(ctx, generationID)
+		outcome := generation.State.Outcome
+		if err != nil || !found || generation.AbortRequested || generation.State.Status != "terminal" || outcome == nil || outcome.Status != "completed" || outcome.Result == nil || !outcome.Result.Present || !equalJSONValue(outcome.Result.Value, JSON{"entryId": float64(answered.Record.Answer)}) {
+			t.Fatal("child-only abort changed the answered generation's completed outcome", generation, found, err)
+		}
+		endedChild, found, err := h.Task(ctx, childID)
+		if err != nil || !found || endedChild.State.Status != "terminal" || endedChild.State.Outcome == nil || endedChild.State.Outcome.Status != "aborted" {
+			t.Fatal("targeted after-run child did not abort", endedChild, found, err)
+		}
+		if status, err := sub.Status(ctx); err != nil || status.Status != "done" || status.Answer != answered.Record.Answer || requests.Load() != 1 {
+			t.Fatal("answer changed after child-only abort", status, requests.Load(), err)
+		}
+	})
+}
+
 // Native orderly-close control for source1140's finish resumption. This does
 // not claim its initial crash/held-progress stream assertions.
 func TestMainAfterRunCloseInFinishReasks(t *testing.T) {
