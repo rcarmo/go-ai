@@ -14,6 +14,48 @@ import (
 
 var schemaDecimalNumberPattern = regexp.MustCompile(`^[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$`)
 var schemaBigIntNumberPattern = regexp.MustCompile(`^-?(?:0|[1-9][0-9]*)n$`)
+var schemaBigIntConversionPattern = regexp.MustCompile(`^-?(?:0|[1-9][0-9]*)(?:n|\.[0-9]+)?$`)
+
+// Convert the native and declared string forms used by TypeBox's TryBigInt.
+// Never narrow a decimal string to float64, or share a mutable input integer.
+func coerceSchemaBigInt(value any) any {
+	switch n := value.(type) {
+	case *big.Int:
+		if n != nil {
+			return new(big.Int).Set(n)
+		}
+	case nil:
+		return new(big.Int)
+	case bool:
+		if n {
+			return big.NewInt(1)
+		}
+		return new(big.Int)
+	case int:
+		return big.NewInt(int64(n))
+	case int64:
+		return big.NewInt(n)
+	case float64:
+		if !math.IsNaN(n) && !math.IsInf(n, 0) {
+			integer, _ := big.NewFloat(n).Int(nil)
+			return integer
+		}
+	case string:
+		if schemaBigIntConversionPattern.MatchString(n) {
+			whole, _, _ := strings.Cut(strings.TrimSuffix(n, "n"), ".")
+			if integer, ok := new(big.Int).SetString(whole, 10); ok {
+				return integer
+			}
+		}
+		switch schemaFormatASCIIToLower(n) {
+		case "true":
+			return big.NewInt(1)
+		case "false":
+			return new(big.Int)
+		}
+	}
+	return value
+}
 
 // TypeBox's TryUndefined distinguishes numeric zero, boolean false and
 // specific strings rather than treating every false-like value as undefined.

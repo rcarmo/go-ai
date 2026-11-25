@@ -310,8 +310,13 @@ func (v *toolSchemaValidator) convertValidationValue(value interface{}, schema m
 		return value
 	}
 	types := schemaTypes(schema["type"])
-	if v.coerceUndefined && len(types) == 1 && types[0] == "undefined" {
-		return coerceSchemaUndefined(value)
+	if v.coerceNativeTypes && len(types) == 1 {
+		switch types[0] {
+		case "undefined":
+			return coerceSchemaUndefined(value)
+		case "bigint":
+			return coerceSchemaBigInt(value)
+		}
 	}
 	if len(types) == 1 && types[0] == "array" {
 		if _, array := value.([]interface{}); !array {

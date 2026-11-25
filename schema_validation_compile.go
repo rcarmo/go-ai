@@ -80,9 +80,9 @@ func (c *CompiledJSONSchema) Validate(value any) (any, []JSONSchemaDiagnostic, e
 }
 
 // Coerce applies the coercion rules without requiring the result to pass
-// validation or modifying the input. For an explicit native input, an
-// undefined schema may produce SchemaUndefined. A json.RawMessage does not
-// opt into that non-JSON conversion.
+// validation or modifying the input. For explicit native inputs, declared
+// bigint and undefined schemas may produce *big.Int and SchemaUndefined.
+// A json.RawMessage does not opt into these non-JSON conversions.
 func (c *CompiledJSONSchema) Coerce(value any) (any, error) {
 	call, err := c.coercingInput(value)
 	if err != nil {
@@ -107,7 +107,7 @@ func (c *CompiledJSONSchema) coercingInput(value any) (standaloneSchemaValue, er
 	if err != nil {
 		return standaloneSchemaValue{}, err
 	}
-	v.coerceUndefined = raw == nil
+	v.coerceNativeTypes = raw == nil
 	return standaloneSchemaValue{validator: v, schema: c.schema, value: value}, nil
 }
 

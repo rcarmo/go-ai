@@ -71,31 +71,31 @@ type toolSchemaDiagnosticKey struct {
 }
 
 type toolSchemaValidator struct {
-	root            map[string]interface{}
-	draft7          bool
-	trackDynamic    bool
-	strictNumbers   bool
-	coerceUndefined bool
-	formatPolicy    schemaFormatPolicy
-	scope           []string
-	scopeKey        string
-	schemaRaw       []byte
-	resources       *toolSchemaResources
-	refs            map[toolSchemaRefKey]interface{}
-	refBases        map[toolSchemaRefKey]string
-	regex           map[string]toolSchemaRegexResult
-	patterns        map[toolSchemaPatternKey]toolSchemaPatternResult
-	patternSyntax   map[string]error
-	patternDeadline time.Time
-	patternFailure  error
-	converted       map[toolSchemaMemoKey]interface{}
-	converting      map[toolSchemaMemoKey]bool
-	checked         map[toolSchemaMemoKey]bool
-	checking        map[toolSchemaMemoKey]bool
-	diagnostics     map[toolSchemaDiagnosticKey]toolSchemaIssues
-	valueOrders     map[uintptr][]string
-	diagnosticCuts  uint64
-	members         map[uintptr]*toolSchemaMembers
+	root              map[string]interface{}
+	draft7            bool
+	trackDynamic      bool
+	strictNumbers     bool
+	coerceNativeTypes bool
+	formatPolicy      schemaFormatPolicy
+	scope             []string
+	scopeKey          string
+	schemaRaw         []byte
+	resources         *toolSchemaResources
+	refs              map[toolSchemaRefKey]interface{}
+	refBases          map[toolSchemaRefKey]string
+	regex             map[string]toolSchemaRegexResult
+	patterns          map[toolSchemaPatternKey]toolSchemaPatternResult
+	patternSyntax     map[string]error
+	patternDeadline   time.Time
+	patternFailure    error
+	converted         map[toolSchemaMemoKey]interface{}
+	converting        map[toolSchemaMemoKey]bool
+	checked           map[toolSchemaMemoKey]bool
+	checking          map[toolSchemaMemoKey]bool
+	diagnostics       map[toolSchemaDiagnosticKey]toolSchemaIssues
+	valueOrders       map[uintptr][]string
+	diagnosticCuts    uint64
+	members           map[uintptr]*toolSchemaMembers
 	// Pointer identities must not outlive their inputs: retain them through
 	// the call so GC/address reuse cannot turn a different candidate into a hit.
 	inputs map[toolSchemaMemoKey]interface{}
