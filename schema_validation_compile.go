@@ -80,25 +80,35 @@ func (c *CompiledJSONSchema) Validate(value any) (any, []JSONSchemaDiagnostic, e
 }
 
 // Coerce applies the coercion rules without requiring the result to pass
-// validation. It does not modify the input. Pass a decoded JSON value or a
-// json.RawMessage, as for Check.
+// validation or modifying the input. For an explicit native input, an
+// undefined schema may produce SchemaUndefined. A json.RawMessage does not
+// opt into that non-JSON conversion.
 func (c *CompiledJSONSchema) Coerce(value any) (any, error) {
-	v, value, _, err := c.call(value)
+	call, err := c.coercingInput(value)
 	if err != nil {
 		return nil, err
 	}
-	return (standaloneSchemaValue{validator: v, schema: c.schema, value: value}).coerce()
+	return call.coerce()
 }
 
 // Parse coerces a value and checks the result. It returns the coerced value
 // with an empty diagnostic slice, or nil with the diagnostics of the coerced
-// value. Errors report input or checker failures.
+// value. Input domains follow Coerce. Errors report input or checker failures.
 func (c *CompiledJSONSchema) Parse(value any) (any, []JSONSchemaDiagnostic, error) {
-	v, value, _, err := c.call(value)
+	call, err := c.coercingInput(value)
 	if err != nil {
 		return nil, nil, err
 	}
-	return (standaloneSchemaValue{validator: v, schema: c.schema, value: value}).parse()
+	return call.parse()
+}
+
+func (c *CompiledJSONSchema) coercingInput(value any) (standaloneSchemaValue, error) {
+	v, value, raw, err := c.call(value)
+	if err != nil {
+		return standaloneSchemaValue{}, err
+	}
+	v.coerceUndefined = raw == nil
+	return standaloneSchemaValue{validator: v, schema: c.schema, value: value}, nil
 }
 
 func (c *CompiledJSONSchema) call(value any) (*toolSchemaValidator, any, json.RawMessage, error) {

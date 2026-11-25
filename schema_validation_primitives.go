@@ -15,6 +15,31 @@ import (
 var schemaDecimalNumberPattern = regexp.MustCompile(`^[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$`)
 var schemaBigIntNumberPattern = regexp.MustCompile(`^-?(?:0|[1-9][0-9]*)n$`)
 
+// TypeBox's TryUndefined distinguishes numeric zero, boolean false and
+// specific strings rather than treating every false-like value as undefined.
+func coerceSchemaUndefined(value any) any {
+	convert := false
+	switch n := value.(type) {
+	case nil:
+		convert = true
+	case bool:
+		convert = !n
+	case *big.Int:
+		convert = n != nil && n.Sign() == 0
+	case string:
+		switch schemaFormatASCIIToLower(n) {
+		case "undefined", "null", "", "0":
+			convert = true
+		}
+	default:
+		convert = SchemaEqual(value, 0)
+	}
+	if convert {
+		return SchemaUndefined{}
+	}
+	return value
+}
+
 // Scalar types first use TypeBox's conversion rules. Type arrays skip this
 // pass and retain primitive/Ajv rules. Matching native values remain untouched.
 func convertJSONSchemaPrimitive(value interface{}, kind string) (interface{}, error) {

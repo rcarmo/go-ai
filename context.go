@@ -310,6 +310,9 @@ func (v *toolSchemaValidator) convertValidationValue(value interface{}, schema m
 		return value
 	}
 	types := schemaTypes(schema["type"])
+	if v.coerceUndefined && len(types) == 1 && types[0] == "undefined" {
+		return coerceSchemaUndefined(value)
+	}
 	if len(types) == 1 && types[0] == "array" {
 		if _, array := value.([]interface{}); !array {
 			_, tuple := validationTupleItems(schema)

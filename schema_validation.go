@@ -75,6 +75,7 @@ type toolSchemaValidator struct {
 	draft7          bool
 	trackDynamic    bool
 	strictNumbers   bool
+	coerceUndefined bool
 	formatPolicy    schemaFormatPolicy
 	scope           []string
 	scopeKey        string
