@@ -84,12 +84,64 @@ func TestCodex140RemovesUnavailableModels(t *testing.T) {
 	}
 }
 
+// Source: pi v1.6.0 supports-xhigh.test.ts:188–192.
 func TestSupportsXHighIncludesOnlyMediumHighXHighForOpenAIGPT55Pro(t *testing.T) {
-	assertThinkingLevels(t, requireModelForThinking(t, goai.ProviderOpenAI, "gpt-5.5-pro"), []string{"medium", "high", "xhigh"})
+	assertGPT55ProThinkingV160(t, goai.ProviderOpenAI, "gpt-5.5-pro", goai.ApiOpenAIResponses)
 }
 
+// Source: pi v1.6.0 supports-xhigh.test.ts:194–198.
 func TestSupportsXHighIncludesOnlyMediumHighXHighForOpenRouterGPT55Pro(t *testing.T) {
-	assertThinkingLevels(t, requireModelForThinking(t, goai.ProviderOpenRouter, "openai/gpt-5.5-pro"), []string{"medium", "high", "xhigh"})
+	assertGPT55ProThinkingV160(t, goai.ProviderOpenRouter, "openai/gpt-5.5-pro", goai.ApiOpenAICompletions)
+}
+
+func assertGPT55ProThinkingV160(t *testing.T, provider goai.Provider, id string, api goai.Api) {
+	t.Helper()
+	model := requireModelForThinking(t, provider, id)
+	levels := []string{"medium", "high", "xhigh"}
+	t.Run("catalog", func(t *testing.T) {
+		if model.Provider != provider || model.ID != id || model.Api != api || !model.Reasoning {
+			t.Fatalf("unexpected catalog model %s/%s %s reasoning=%t", model.Provider, model.ID, model.Api, model.Reasoning)
+		}
+		// The published maps explicitly disable these levels; omitting a key
+		// can enable provider defaults, so nil alone is not sufficient.
+		excluded := []goai.ModelThinkingLevel{goai.ThinkingOff, "minimal", "low", "max"}
+		if len(model.ThinkingLevelMap) != len(levels)+len(excluded) {
+			t.Errorf("catalog thinking map has %d entries; want %d", len(model.ThinkingLevelMap), len(levels)+len(excluded))
+		}
+		for _, level := range excluded {
+			if mapped, present := model.ThinkingLevelMap[level]; !present || mapped != nil {
+				t.Errorf("catalog %s must be present with a null effort mapping", level)
+			}
+		}
+		for _, level := range levels {
+			if mapped := model.ThinkingLevelMap[goai.ModelThinkingLevel(level)]; mapped == nil || *mapped != level {
+				t.Errorf("catalog %s must explicitly map to %q", level, level)
+			}
+		}
+	})
+	t.Run("effort", func(t *testing.T) {
+		assertThinkingLevels(t, model, levels)
+	})
+}
+
+// Supplemental: the regular 5.5 entries on the same providers deliberately
+// retain off and low. The Pro exclusions are catalog entries, not a global rule.
+func TestV160GPT55NonProRetainsOffAndLow(t *testing.T) {
+	for _, tc := range []struct {
+		provider goai.Provider
+		id       string
+	}{
+		{goai.ProviderOpenAI, "gpt-5.5"},
+		{goai.ProviderOpenRouter, "openai/gpt-5.5"},
+	} {
+		t.Run(string(tc.provider), func(t *testing.T) {
+			model := requireModelForThinking(t, tc.provider, tc.id)
+			assertThinkingLevels(t, model, []string{"off", "low", "medium", "high", "xhigh"})
+			if mapped, ok := goai.MapThinkingLevel(model, goai.ThinkingOff); !ok || mapped != "none" {
+				t.Errorf("non-Pro off maps to (%q, %v); want (none, true)", mapped, ok)
+			}
+		})
+	}
 }
 
 func TestSupportsXHighMatchesDeepSeekV4ProOnOpenCodeGo130(t *testing.T) {
