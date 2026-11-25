@@ -51,7 +51,15 @@ func (s *llamaSourceServer) RoundTrip(req *http.Request) (*http.Response, error)
 	if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
 		return nil, err
 	}
-	s.requests = append(s.requests, llamaSourceRequest{req.URL.String(), req.URL.Path, body, req.Header.Clone()})
+	target := req.URL.String()
+	if !req.URL.IsAbs() { // Requests received by an actual HTTP server have an origin-form target.
+		scheme := "http"
+		if req.TLS != nil {
+			scheme = "https"
+		}
+		target = scheme + "://" + req.Host + req.URL.RequestURI()
+	}
+	s.requests = append(s.requests, llamaSourceRequest{target, req.URL.Path, body, req.Header.Clone()})
 	status := s.status
 	var response any
 	if status != 0 {
@@ -277,12 +285,32 @@ func TestSourceV160LlamaCPPClassifier(t *testing.T) {
 		}
 	})
 	t.Run("temperature-division", func(t *testing.T) { // 216
-		server := &llamaSourceServer{}
-		result := runLlamaSource(t, server, llamaSourceModel(), llamaSourcePick("Pick one"), goai.ClassifierOptions{Temperature: 2})
+		server := newLlamaSourceLoopback(t, &llamaSourceServer{}, llamaLoopbackPrefix())
+		ctx := llamaSourcePick("Pick one")
+		result := runLlamaSourceUsing(t, server.model(), ctx, goai.ClassifierOptions{HTTPClient: server.http.Client(), Temperature: 2}, goai.Classify)
 		checkLlamaResult(t, result, goai.StopReasonStop, "")
+		probabilities := result.Answers["pick"].Probabilities
+		if _, a := probabilities["a"]; !a || len(probabilities) != 2 {
+			t.Fatalf("unexpected probability keys: %v", probabilities)
+		}
+		if _, b := probabilities["b"]; !b {
+			t.Fatalf("missing probability for b: %v", probabilities)
+		}
 		want := 1 / (1 + math.Exp(-1.2))
-		checkLlamaFloat(t, "a", result.Answers["pick"].Probabilities["a"], want)
-		checkLlamaFloat(t, "b", result.Answers["pick"].Probabilities["b"], 1-want)
+		checkLlamaFloat(t, "a", probabilities["a"], want)
+		checkLlamaFloat(t, "b", probabilities["b"], 1-want)
+		assertLlamaSingleReadoutV160(t, server, 2)
+
+		// Public equivalence to the private helper's pre-scaled-input check.
+		preScaled := newLlamaSourceLoopback(t, &llamaSourceServer{next: func(string, int) map[string]float64 {
+			return map[string]float64{"A": -0.1 / 2, "B": -2.5 / 2}
+		}}, llamaLoopbackPrefix())
+		unit := preScaled.classify(t, preScaled.model(), ctx)
+		checkLlamaResult(t, unit, goai.StopReasonStop, "")
+		if !maps.Equal(probabilities, unit.Answers["pick"].Probabilities) {
+			t.Errorf("temperature-scaled probabilities = %v, pre-scaled input = %v", probabilities, unit.Answers["pick"].Probabilities)
+		}
+		assertLlamaSingleReadoutV160(t, preScaled, 2)
 	})
 	t.Run("explicit-zero-temperature", func(t *testing.T) { // 229
 		server := &llamaSourceServer{tokens: llamaSourceWords, next: func(_ string, _ int) map[string]float64 {
@@ -456,46 +484,83 @@ func TestSourceV160LlamaCPPClassifier(t *testing.T) {
 		checkLlamaResult(t, result, goai.StopReasonError, "Unsupported classifier API: typesafe-system-one")
 	})
 	t.Run("base-urls", func(t *testing.T) { // 381
-		for _, relative := range []struct{ scheme, suffix, rootSuffix string }{{"http", "/v1/", ""}, {"https", "/prefix/v1", "/prefix"}, {"http", "", ""}} {
-			server, model := &llamaSourceServer{}, llamaSourceModel()
-			base := relative.scheme + "://" + strings.TrimSuffix(strings.TrimPrefix(model.BaseURL, "http://"), "/v1")
-			model.BaseURL = base + relative.suffix
-			checkLlamaResult(t, runLlamaSource(t, server, model, llamaSourcePick("Pick"), goai.ClassifierOptions{}), goai.StopReasonStop, "")
-			if completions := server.matching("/completion"); len(completions) != 1 || completions[0].url != base+relative.rootSuffix+"/completion" {
-				t.Errorf("base %s: completion requests=%#v", model.BaseURL, completions)
-			}
+		for _, tc := range []struct {
+			name, suffix, rootSuffix string
+			listen                   func(http.Handler) *httptest.Server
+		}{
+			{"trailing-v1", "/v1/", "", httptest.NewServer},
+			{"tls-prefix-v1", "/prefix/v1", "/prefix", httptest.NewTLSServer},
+			{"no-version", "", "", httptest.NewServer},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				server := newLlamaSourceLoopbackUsing(t, &llamaSourceServer{}, tc.rootSuffix, tc.listen)
+				model := server.model()
+				model.BaseURL = server.http.URL + tc.suffix
+				// Keep the paths exact even if a repeated run reuses a server port.
+				model.ID = fmt.Sprintf("url-fixture-%d", llamaSourceServerID.Add(1))
+				checkLlamaResult(t, server.classify(t, model, llamaSourcePick("Pick")), goai.StopReasonStop, "")
+				got := map[string]int{}
+				for _, req := range server.matching("") {
+					got[req.url]++
+				}
+				root := server.http.URL + tc.rootSuffix
+				want := map[string]int{root + "/tokenize": 4, root + "/apply-template": 1, root + "/completion": 1}
+				if !maps.Equal(got, want) {
+					t.Errorf("base %s: wire targets=%v, want %v", model.BaseURL, got, want)
+				}
+			})
 		}
 	})
 	t.Run("confidence-and-expected-score", func(t *testing.T) { // 387
 		for _, tc := range []struct {
-			probs             []float64
-			score, confidence float64
+			name, labels string
+			probs        []float64
+			confidence   float64
 		}{
-			{[]float64{.89, .06, .05}, .16, .835},
-			{[]float64{.5, .5}, .5, 0},
-			{[]float64{1, 0, 0}, 0, 1},
-			{[]float64{.2, .3, .5}, 1.3, .25},
+			{"three-choices", "ABC", []float64{.89, .06, .05}, .835},
+			{"uniform", "AB", []float64{.5, .5}, 0},
+			{"certain", "ABC", []float64{1, 0, 0}, 1},
 		} {
-			server := &llamaSourceServer{next: func(_ string, _ int) map[string]float64 {
-				logprobs := map[string]float64{}
-				for i, p := range tc.probs {
-					logprobs[fmt.Sprint(i)] = -1000 // rounds to zero after exp, valid JSON logit
-					if p > 0 {
-						logprobs[fmt.Sprint(i)] = math.Log(p)
-					}
+			t.Run(tc.name, func(t *testing.T) {
+				server := llamaSourceProbabilityLoopback(t, tc.labels, tc.probs)
+				criteria := map[string]string{}
+				for i := range tc.probs {
+					criteria[string("abc"[i])] = ""
 				}
-				return logprobs
-			}}
-			fixture := goai.ClassifierContext{State: map[string]any{}, Questions: map[string]goai.ClassifierQuestion{"q": {Type: "score", Criteria: []string{"a", "b", "c"}[:len(tc.probs)]}}}
-			result := runLlamaSource(t, server, llamaSourceModel(), fixture, goai.ClassifierOptions{})
+				ctx := llamaSourcePick("")
+				ctx.Questions["pick"] = goai.ClassifierQuestion{Type: "choice", Criteria: criteria}
+				result := server.classify(t, server.model(), ctx)
+				checkLlamaResult(t, result, goai.StopReasonStop, "")
+				answer := result.Answers["pick"]
+				if answer.Type != "choice" {
+					t.Fatalf("answer=%#v, want choice", answer)
+				}
+				if tc.confidence == 0 || tc.confidence == 1 {
+					if answer.Confidence != tc.confidence {
+						t.Errorf("confidence = %g, want exactly %g", answer.Confidence, tc.confidence)
+					}
+				} else {
+					checkLlamaFloat(t, "confidence", answer.Confidence, tc.confidence)
+				}
+				if fields := llamaSourceAnswerJSON(t, answer); len(fields) != 4 || fields["type"] != "choice" || fields["choice"] != "a" || fields["probabilities"] == nil || fields["confidence"] != answer.Confidence {
+					t.Errorf("choice JSON with no score = %v", fields)
+				}
+				assertLlamaSingleReadoutV160(t, server, len(tc.labels))
+			})
+		}
+		t.Run("expected-score", func(t *testing.T) {
+			server := llamaSourceProbabilityLoopback(t, "012", []float64{.2, .3, .5})
+			fixture := goai.ClassifierContext{State: map[string]any{}, Questions: map[string]goai.ClassifierQuestion{"q": {Type: "score", Criteria: []string{"a", "b", "c"}}}}
+			result := server.classify(t, server.model(), fixture)
 			checkLlamaResult(t, result, goai.StopReasonStop, "")
 			answer := result.Answers["q"]
-			if answer.Type != "score" {
-				t.Errorf("answer=%#v", answer)
+			checkLlamaFloat(t, "score", answer.Score, 1.3)
+			checkLlamaFloat(t, "confidence", answer.Confidence, .25)
+			if fields := llamaSourceAnswerJSON(t, answer); len(fields) != 3 || fields["type"] != "score" || fields["score"] != answer.Score || fields["confidence"] != answer.Confidence {
+				t.Errorf("score JSON = %v; want type, score and confidence only", fields)
 			}
-			checkLlamaFloat(t, "score", answer.Score, tc.score)
-			checkLlamaFloat(t, "confidence", answer.Confidence, tc.confidence)
-		}
+			assertLlamaSingleReadoutV160(t, server, 3)
+		})
 	})
 }
 
@@ -579,8 +644,13 @@ type llamaSourceLoopback struct {
 
 func newLlamaSourceLoopback(t *testing.T, fake *llamaSourceServer, prefix string) *llamaSourceLoopback {
 	t.Helper()
+	return newLlamaSourceLoopbackUsing(t, fake, prefix, httptest.NewServer)
+}
+
+func newLlamaSourceLoopbackUsing(t *testing.T, fake *llamaSourceServer, prefix string, listen func(http.Handler) *httptest.Server) *llamaSourceLoopback {
+	t.Helper()
 	s := &llamaSourceLoopback{fake: fake, prefix: prefix}
-	s.http = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	s.http = listen(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost || !strings.HasPrefix(r.URL.Path, prefix+"/") {
 			t.Errorf("unexpected classifier request %s %s", r.Method, r.URL.Path)
 			http.Error(w, "unexpected request", http.StatusBadRequest)
@@ -803,5 +873,45 @@ func TestLlamaCPPInFlightCallerCancellationV160(t *testing.T) {
 	}
 	if got := requests.Load(); got != 1 {
 		t.Errorf("requests after cancellation = %d, want 1", got)
+	}
+}
+
+func llamaSourceProbabilityLoopback(t *testing.T, labels string, probabilities []float64) *llamaSourceLoopback {
+	t.Helper()
+	logprobs := make(map[string]float64, len(labels))
+	for i, p := range probabilities {
+		logprob := -1000.0 // Exp underflows to zero; unlike -Inf, this is valid JSON.
+		if p > 0 {
+			logprob = math.Log(p)
+		}
+		logprobs[string(labels[i])] = logprob
+	}
+	return newLlamaSourceLoopback(t, &llamaSourceServer{next: func(string, int) map[string]float64 { return logprobs }}, llamaLoopbackPrefix())
+}
+
+func llamaSourceAnswerJSON(t *testing.T, answer goai.ClassifierAnswer) map[string]any {
+	t.Helper()
+	data, err := json.Marshal(answer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fields map[string]any
+	if err := json.Unmarshal(data, &fields); err != nil {
+		t.Fatal(err)
+	}
+	return fields
+}
+
+func assertLlamaSingleReadoutV160(t *testing.T, server *llamaSourceLoopback, labels int) {
+	t.Helper()
+	completions := server.matching("/completion")
+	if got := len(completions); got != 1 {
+		t.Fatalf("completion count = %d, want 1", got)
+	}
+	if body := completions[0].body; body["temperature"] != float64(0) || body["n_predict"] != float64(1) || body["n_probs"] != float64(256) {
+		t.Errorf("unexpected template readout request: %#v", body)
+	}
+	if tokens, templates, total := len(server.matching("/tokenize")), len(server.matching("/apply-template")), len(server.matching("")); tokens != 2*labels || templates != 1 || total != 2*labels+2 {
+		t.Errorf("requests: tokenize=%d templates=%d total=%d, want %d, 1, %d", tokens, templates, total, 2*labels, 2*labels+2)
 	}
 }
