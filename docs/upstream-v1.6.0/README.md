@@ -1489,3 +1489,5 @@ Suppressing the counted abort in the drain probe fails the exact run-and-abort a
 Both unchanged originals passed. The scripted simple-options request sends exactly `{"effort":"xhigh","summary":"auto"}` for GPT-5.5 with an explicit `xhigh` mapping. A distinct request with `ping` sends `"tool_choice":"required"`. Separate `high` and default tool-choice probes keep the cases distinct. They check decoded request fields and a successful completion, not the whole payload or compression bytes.
 
 Six controls isolated effort demotion, missing and extra reasoning members, ignored and unconditional required choice, and a missing tool. Focused repeats, vet and Staticcheck passed. No live calls or production changes were made.
+
+The integrated code at `74f27964` passed 31 focused top-level Go tests twice, without skips. The default published worker returned `50` with eight journal publications both times. Vet and Staticcheck v0.8.2 passed. The inventory at `87e7cc30` records 2,101 scoped sites: 2,048 mapped, 48 partial and five unmatched. Thirty-seven of the 214 changed suites have assertion-level links. Full parity remains open.
