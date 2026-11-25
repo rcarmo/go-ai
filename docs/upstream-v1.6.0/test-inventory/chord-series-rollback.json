@@ -1,0 +1,157 @@
+{
+  "format": 1,
+  "pin": "faac585884ae2c013a6b1400f3e9e77f10b34bac",
+  "evidenceBase": "0ec852038cec8b94d22b6a8c85b00233a9c10b5a",
+  "node": "v26.13.0",
+  "platform": "linux/arm64",
+  "configSha256": "f13c3424afac46e1500bb993c23fabce908f899321fd2c90e3adda5712f3ac9a",
+  "original": {
+    "file": "packages/chord/test/store/store.test.ts",
+    "blob": "61d10eef5f700518e727b1609b92a548793a12a8",
+    "sha256": "4a81fac8d5d290ee7be4cca7202dd02091f798a8efe360e909ad6599afe27aef",
+    "selection": "a commit series",
+    "passed": 12,
+    "failed": 0,
+    "unselected": 44,
+    "todo": 0,
+    "caseNames": [
+      "a commit series stores its commits in one transaction, one seq each, each checked against the ones before it",
+      "a commit series stops at a check that refuses: the commits before it are stored, it and the ones after are not",
+      "a commit series rolls the whole series back when a check's statement fails, even if the check throws its own error",
+      "a commit series rolls the whole series back when a commit's writes throw, the store going on",
+      "a commit series writes the metadata once per series: three statements per delta with its outbox commit, plus one (cost guard)",
+      "a commit series a failed BEGIN IMMEDIATE is an unknown outcome: nothing is received, the store stops storage_failed",
+      "a commit series a failed COMMIT is an unknown outcome: nothing is received, the store stops storage_failed",
+      "a commit series a failed ROLLBACK is an unknown outcome: nothing is received, the store stops storage_failed",
+      "a commit series lets a later commit see the table records an earlier one changed; a rollback leaves the catalog as it was",
+      "a commit series runs a commit queued behind a series after the series' receipts",
+      "a commit series counts only commits with writes against the seq bound: empty ones at Number.MAX_SAFE_INTEGER still stand",
+      "a commit series stops the store when a receipt throws"
+    ]
+  },
+  "runner": {
+    "vitest": "4.1.12",
+    "integrity": "sha512-5eWdz2yb3ajxWF3C8C4TjkXl7FGm3n2E/VlazALrQHzK7nYMSGFnCZto0bbPNl77AwkOZVLk0YnBAejUu0NiWA==",
+    "archiveSha256": "ac79c9561c99eabc1cc29e0a839cbd03d1ff0e45bbecb5a2edfa6c3827c823d1",
+    "evaluatorSha256": "a0b36fb2211d2587d8df68d5855d48141be27e99bdb973378a83f927e03b004e",
+    "copiedDependencies": {
+      "roots": [
+        "npm:node_modules/vitest"
+      ],
+      "host": {
+        "os": "linux",
+        "cpu": "arm64",
+        "libc": "glibc"
+      },
+      "placements": [
+        "node_modules/@jridgewell/sourcemap-codec",
+        "node_modules/@oxc-project/types",
+        "node_modules/@rolldown/binding-linux-arm64-gnu",
+        "node_modules/@rolldown/pluginutils",
+        "node_modules/@standard-schema/spec",
+        "node_modules/@types/chai",
+        "node_modules/@types/deep-eql",
+        "node_modules/@types/estree",
+        "node_modules/@vitest/expect",
+        "node_modules/@vitest/mocker",
+        "node_modules/@vitest/pretty-format",
+        "node_modules/@vitest/runner",
+        "node_modules/@vitest/snapshot",
+        "node_modules/@vitest/spy",
+        "node_modules/@vitest/utils",
+        "node_modules/assertion-error",
+        "node_modules/chai",
+        "node_modules/convert-source-map",
+        "node_modules/detect-libc",
+        "node_modules/es-module-lexer",
+        "node_modules/estree-walker",
+        "node_modules/expect-type",
+        "node_modules/fdir",
+        "node_modules/lightningcss",
+        "node_modules/lightningcss-linux-arm64-gnu",
+        "node_modules/magic-string",
+        "node_modules/nanoid",
+        "node_modules/obug",
+        "node_modules/pathe",
+        "node_modules/picocolors",
+        "node_modules/picomatch",
+        "node_modules/postcss",
+        "node_modules/rolldown",
+        "node_modules/siginfo",
+        "node_modules/source-map-js",
+        "node_modules/stackback",
+        "node_modules/std-env",
+        "node_modules/tinybench",
+        "node_modules/tinyexec",
+        "node_modules/tinyglobby",
+        "node_modules/tinyrainbow",
+        "node_modules/vite",
+        "node_modules/vitest",
+        "node_modules/why-is-node-running"
+      ]
+    }
+  },
+  "primaryReference": {
+    "file": "packages/durable/src/storage/sqlite/node.ts",
+    "sha256": "a71180a69e8d9225ccdba50f8eb7e908a3454b6b537657ba18a964d891f29e1c",
+    "import": "@earendil-works/chord/sqlite/node",
+    "importLine": 2,
+    "call": "openNodeSqliteDatabase",
+    "callLine": 21
+  },
+  "observedModules": [
+    {
+      "kind": "source-evaluated",
+      "api": "node:vm runInThisContext",
+      "file": "packages/chord/src/sqlite/node.ts",
+      "export": "NodeSqliteDatabase",
+      "sourceSha256": "754f3e921e76ce990951b419791853b4d7a57cf1fc74e1fa697e2dea4cfa1a47"
+    },
+    {
+      "kind": "source-evaluated",
+      "api": "node:vm runInThisContext",
+      "file": "packages/chord/src/store/store.ts",
+      "export": "ChordStore",
+      "sourceSha256": "fe2501420ab2f00d5fcfe072727e5b1f487e1ee5356c677baf8aea79c68958ed"
+    }
+  ],
+  "witness": {
+    "case": "a commit series rolls the whole series back when a commit's writes throw, the store going on",
+    "passed": 1,
+    "unselected": 55,
+    "transaction": {
+      "kind": "failed-transaction",
+      "api": "node:sqlite DatabaseSync",
+      "begin": "BEGIN IMMEDIATE",
+      "sql": "INSERT INTO no_such_table VALUES (1)",
+      "error": "no such table: no_such_table",
+      "documentsBeforeEnd": 1,
+      "end": "ROLLBACK",
+      "documentsAfterEnd": 0,
+      "engine": {
+        "version": "3.54.0",
+        "sourceId": "2026-10-09 15:46:58 be8d059e9a49089ab2dce5ed26dd87aaf598fdc5fbe0b107c0dd758464bcd5e3"
+      }
+    }
+  },
+  "control": {
+    "change": "commit-on-error-in-scratch-NodeSqliteDatabase.transaction",
+    "case": "a commit series rolls the whole series back when a commit's writes throw, the store going on",
+    "failed": 1,
+    "unselected": 55,
+    "transaction": {
+      "kind": "failed-transaction",
+      "api": "node:sqlite DatabaseSync",
+      "begin": "BEGIN IMMEDIATE",
+      "sql": "INSERT INTO no_such_table VALUES (1)",
+      "error": "no such table: no_such_table",
+      "documentsBeforeEnd": 1,
+      "end": "COMMIT",
+      "documentsAfterEnd": 1,
+      "engine": {
+        "version": "3.54.0",
+        "sourceId": "2026-10-09 15:46:58 be8d059e9a49089ab2dce5ed26dd87aaf598fdc5fbe0b107c0dd758464bcd5e3"
+      }
+    }
+  }
+}
