@@ -1199,3 +1199,7 @@ All 40 unchanged validator cases passed. A shared Go map reached through the sam
 ### Removing an after-run hook before reopen prevents a second ask
 
 All 29 unchanged after-run cases passed. The native SQLite fixture kills a real writer during the first held hook after the answer commits. On reopen without the extension, the hook is not asked again, no child runs and the live document is empty. The retained-extension control asks again and runs one child from the same saved finish checkpoint. Both paths complete the original generation without a new model request. The source fixture simulates process loss by parking storage; the native comparison performs a real process exit.
+
+### Responses and Codex keep the exact reasoning removal diagnostics
+
+All five unchanged cases passed. The native public streams matched the exact removal IDs, reasons and order on completed, incomplete and Codex `response.done` events, including the unknown reason. They omitted diagnostics for all seven ignored reports. The test uses a scripted transport, with no live credentials. A broader selection hit an intermittent panic in the existing Codex socket-scope test (`age-cap`: `t.Error` after the test ended). Its package-only repeat passed; this does not establish a broader sweep.
