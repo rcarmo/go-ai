@@ -1,0 +1,179 @@
+{
+  "format": 1,
+  "pin": "faac585884ae2c013a6b1400f3e9e77f10b34bac",
+  "evidenceBase": "681ae6ce8132e75f46c855f791d7ff91ca0f616c",
+  "node": "v26.13.0",
+  "platform": "linux/arm64",
+  "configSha256": "f13c3424afac46e1500bb993c23fabce908f899321fd2c90e3adda5712f3ac9a",
+  "original": {
+    "file": "packages/chord/test/telemetry-ingest/sender.test.ts",
+    "blob": "294856d2a327be4dfc34d217c18265677417d7c8",
+    "sha256": "e17dbb9742f428c36d0b866d4a49b21076e0048a6f089a5a4e5524502f23bd31",
+    "selection": "whole-file",
+    "passed": 3,
+    "failed": 0,
+    "skipped": 0,
+    "todo": 0,
+    "caseNames": [
+      "a page's sender sends its spans without metrics once bound; until then they wait in the recorder",
+      "a page's sender gives a refused batch up",
+      "a worker's sender sends spans and metrics to the worker variant"
+    ]
+  },
+  "runner": {
+    "vitest": "4.1.12",
+    "integrity": "sha512-5eWdz2yb3ajxWF3C8C4TjkXl7FGm3n2E/VlazALrQHzK7nYMSGFnCZto0bbPNl77AwkOZVLk0YnBAejUu0NiWA==",
+    "archiveSha256": "ac79c9561c99eabc1cc29e0a839cbd03d1ff0e45bbecb5a2edfa6c3827c823d1",
+    "evaluatorSha256": "a0b36fb2211d2587d8df68d5855d48141be27e99bdb973378a83f927e03b004e",
+    "copiedDependencies": {
+      "roots": [
+        "npm:node_modules/vitest"
+      ],
+      "host": {
+        "os": "linux",
+        "cpu": "arm64",
+        "libc": "glibc"
+      },
+      "placements": [
+        "node_modules/@jridgewell/sourcemap-codec",
+        "node_modules/@oxc-project/types",
+        "node_modules/@rolldown/binding-linux-arm64-gnu",
+        "node_modules/@rolldown/pluginutils",
+        "node_modules/@standard-schema/spec",
+        "node_modules/@types/chai",
+        "node_modules/@types/deep-eql",
+        "node_modules/@types/estree",
+        "node_modules/@vitest/expect",
+        "node_modules/@vitest/mocker",
+        "node_modules/@vitest/pretty-format",
+        "node_modules/@vitest/runner",
+        "node_modules/@vitest/snapshot",
+        "node_modules/@vitest/spy",
+        "node_modules/@vitest/utils",
+        "node_modules/assertion-error",
+        "node_modules/chai",
+        "node_modules/convert-source-map",
+        "node_modules/detect-libc",
+        "node_modules/es-module-lexer",
+        "node_modules/estree-walker",
+        "node_modules/expect-type",
+        "node_modules/fdir",
+        "node_modules/lightningcss",
+        "node_modules/lightningcss-linux-arm64-gnu",
+        "node_modules/magic-string",
+        "node_modules/nanoid",
+        "node_modules/obug",
+        "node_modules/pathe",
+        "node_modules/picocolors",
+        "node_modules/picomatch",
+        "node_modules/postcss",
+        "node_modules/rolldown",
+        "node_modules/siginfo",
+        "node_modules/source-map-js",
+        "node_modules/stackback",
+        "node_modules/std-env",
+        "node_modules/tinybench",
+        "node_modules/tinyexec",
+        "node_modules/tinyglobby",
+        "node_modules/tinyrainbow",
+        "node_modules/vite",
+        "node_modules/vitest",
+        "node_modules/why-is-node-running"
+      ]
+    }
+  },
+  "primaryReferences": [
+    {
+      "file": "packages/ai/src/telemetry.ts",
+      "sourceSha256": "91c635e9e3760869faa9d26af9f0347152b11006dac18f7e9733c7b4dae3b086",
+      "line": 10,
+      "import": "@earendil-works/pi-telemetry"
+    },
+    {
+      "file": "packages/durable/src/harness/telemetry.ts",
+      "sourceSha256": "76c320337eb00bf2ed59bc350ba52c68feb2d758875366df487f04f204b91845",
+      "line": 1,
+      "import": "@earendil-works/pi-telemetry"
+    }
+  ],
+  "observed": {
+    "modules": [
+      {
+        "kind": "source-evaluated",
+        "api": "node:vm runInThisContext",
+        "file": "packages/chord/src/telemetry-ingest/facet.ts",
+        "export": "telemetryIngestFacet",
+        "sourceSha256": "b1315424801d7ed648e1bd92ede8056815958d5545bfb8d08a1bdc7d32a2f547"
+      },
+      {
+        "kind": "source-evaluated",
+        "api": "node:vm runInThisContext",
+        "file": "packages/chord/src/telemetry-ingest/recorder.ts",
+        "export": "TelemetryRecorder",
+        "sourceSha256": "b1844a5b5377590d81daba1bb22b58ecafde989227f3b8c7d47fb4fa4d816cdc"
+      },
+      {
+        "kind": "source-evaluated",
+        "api": "node:vm runInThisContext",
+        "file": "packages/chord/src/telemetry-ingest/sender.ts",
+        "export": "sendWorkerTelemetry",
+        "sourceSha256": "9d30143945ffd7f3d32178143cd47797954bf2556650b00685eca7f0b6bdcce6"
+      },
+      {
+        "kind": "source-evaluated",
+        "api": "node:vm runInThisContext",
+        "file": "packages/telemetry/src/memory.ts",
+        "export": "telemetryNow",
+        "sourceSha256": "e3be09d86803c34fe807672727161a1d66d8dd03ff69fa8ce2532a986a580a7b"
+      }
+    ],
+    "ingests": [
+      {
+        "spanNames": [
+          "page.click",
+          "chord.hold"
+        ],
+        "hasMetrics": false,
+        "fixtureMetrics": [],
+        "accepted": 2
+      },
+      {
+        "spanNames": [],
+        "hasMetrics": false,
+        "fixtureMetrics": [],
+        "accepted": 0
+      },
+      {
+        "spanNames": [
+          "chord.hold",
+          "worker.job"
+        ],
+        "hasMetrics": true,
+        "fixtureMetrics": [
+          {
+            "name": "runs",
+            "sum": 2
+          }
+        ],
+        "accepted": 2
+      }
+    ]
+  },
+  "control": {
+    "change": "drop-worker-metrics-in-scratch",
+    "case": "a worker's sender sends spans and metrics to the worker variant",
+    "failed": 1,
+    "unselected": 2,
+    "ingests": [
+      {
+        "spanNames": [
+          "chord.hold",
+          "worker.job"
+        ],
+        "hasMetrics": false,
+        "fixtureMetrics": [],
+        "accepted": 2
+      }
+    ]
+  }
+}
