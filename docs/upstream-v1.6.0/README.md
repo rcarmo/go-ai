@@ -1317,3 +1317,7 @@ All three unchanged placement variants passed. Native QuickJS and the published 
 ### Prepared native coercion returns exact BigInts
 
 All 49 unchanged coercion cases passed. Prepared Go coercion now matches the pinned BigInt values, truncates decimals toward zero, and leaves invalid input unchanged. The integer-string control stays exact beyond `2^53`; the pointer control proves that the input and result cannot mutate each other. This applies to explicit native inputs. Raw JSON, old one-shot coercion and tool-input policy remain unchanged.
+
+### Mocked PowerShell emits ordered progress through the live ToolAPI
+
+All three unchanged mock cases passed. The native SQLite harness observes `héllo\n`, `ok` after fallback, and `partial` on exit 3 through live tool updates. Each mocked output callback is held until its append is observed. No PowerShell process runs. Go preserves the error status, text and exit code, but reports `tool_error` with receipt details rather than the source `structuredOutput` and `exit_code` diagnostic. That result-envelope assertion remains partial.
