@@ -75,3 +75,9 @@ The original's raw JavaScript `{kind: "nap"}` cannot inhabit Go's typed sleep/wa
 All 40 unchanged v1.6.1 validator cases passed. The prepared Go checks require an actual `constructor` property, accept it when present, reject the wrong type for the `toString` property, and do not treat `constructor` as a known type. Separate exact explanation checks cover the missing property, the wrong type and the unrecognized type. A valid object with both own properties remains accepted. Three controls isolate those refusals without introducing JavaScript prototype behavior into Go.
 
 The verified v1.6.1 npm archive has the expected release digest and package manifest. Its 43 executable distribution members and all 172 distribution members match the v1.6.0 package by path and bytes. This is artifact identity, not proof of a runtime load. The focused native tests, vet and Staticcheck passed without production changes.
+
+### Caller-facing signal results carry kind tags without a memo migration
+
+Both unchanged v1.6.1 signal originals passed. Native public SQLite outcomes initially returned the right delivery decisions, winning values and deadline wake, but serialized the signal states as `{value: ...}` or `{expired: true}`. `SignalState.MarshalJSON` now emits `{kind: "value", value: ...}` or `{kind: "expired"}`. The Go `Value` and `Expired` fields, delivery protocol and persisted memo formats are unchanged.
+
+A separate real SQLite reopen verifies both legacy memo forms, distinguishes an absent signal from an explicitly delivered null, and checks that mutating a sender or returned value does not mutate the memo. Three controls independently catch a missing value tag, the old expiry view, and a tag leaking into a stored memo. Twelve focused native groups passed twice, and vet and Staticcheck passed.
