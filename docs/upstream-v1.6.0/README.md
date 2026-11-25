@@ -1155,3 +1155,5 @@ A separate test cancels the caller after the recreate reaches the transport. Bot
 ### Store and dependency fault controls
 
 Permitting the oversized worker patch at the decode boundary exposed five writes and a successful value where Go must refuse the raw reply. Making the invalid numeric key a valid string changed only the first class to `ok`. Both controls failed the focused Go test as expected and were removed. The restored store and adjacent worker checks passed twice. The Photon byte-cap and Chord JSON retry receipts reproduced byte for byte.
+
+The integrated code at `ff2666ae` passed 34 focused top-level Go tests twice, without skips. The published worker still returned `50` with 103 journal publications in both repeats; the original allows fewer than ten. The runs used CGO-free SQLite and loopback-only networking. Vet and Staticcheck v0.8.2 passed. The round 21 and 33 historical audits reproduced byte for byte. The inventory at `b52991ef` records 1,900 scoped sites: 1,847 mapped, 51 partial and two unmatched. Thirty-two of the 214 changed suites have assertion-level links. Full parity remains open.
