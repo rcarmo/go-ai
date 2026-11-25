@@ -1277,3 +1277,11 @@ All 49 unchanged coercion cases passed. The prepared Go API now has `Validate`, 
 ### Assistant retry policy distinguishes temporary failures from usage limits
 
 All 52 unchanged retry cases passed. The scoped native checks match missing Responses terminal events, Azure capacity errors and temporary ChatGPT subscription errors as retryable. Quota, subscription and workspace usage limits stay permanent. A scripted Responses stream that ends early also produces the exact assistant error and recovers on one retry. These tests do not make a live request or claim equivalence with provider SDK HTTP retry policy.
+
+### Large Codemode store patches commit without larger records
+
+The six unchanged store cases passed. The published worker and native inline engine preserve all five 200 KiB values through Durable. Small stores retain the inline format. Larger stores commit bounded, rewindable per-key records and immutable run fragments atomically. Forks before and after the write see none and all five values. Neither the per-record nor aggregate transaction limits changed: tight frame and write-count controls refuse the whole patch without returning its value or writes.
+
+A real SQLite process exit leaves the result committed and the task running. Recovery changes one live key and deletes another before reading the settled result. That read still returns the exact original patch without starting a worker or reapplying any write. A subsequent guest sees the live changes. Raw base and delta mutations, early retirement and an orphan fragment are refused without advancing the committed sequence.
+
+The host now counts both keys and JSON values in the retained UTF-16 budget. The native baseline accepted a merge whose values alone were at the limit. The corrected host rejects it. A separate archived guest comparison and the native boundary checks agree at and one unit above the limit, including a key encoded as a surrogate pair.
