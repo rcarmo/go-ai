@@ -69,6 +69,15 @@ func v160StandaloneWorkerPlacements() []struct{ name, launcher, identity string 
 // adapter. No tools or globals are registered in this fixture.
 func executeV160StandaloneScript(t *testing.T, process officialWorkerTransport120, launcher, identity, code string) ([]CodemodeWorkerOutput, CodemodeWorkerMessage, CodemodeResult) {
 	t.Helper()
+	output, done, final, err := observeV160StandaloneScript(t, process, launcher, identity, code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return output, done, final
+}
+
+func observeV160StandaloneScript(t *testing.T, process officialWorkerTransport120, launcher, identity, code string) ([]CodemodeWorkerOutput, CodemodeWorkerMessage, CodemodeResult, error) {
+	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
 	defer cancel()
 	var mu sync.Mutex
@@ -112,7 +121,7 @@ func executeV160StandaloneScript(t *testing.T, process officialWorkerTransport12
 		return CodemodeDelivery{}, ctx.Err()
 	})
 	if err != nil {
-		t.Fatalf("worker relay: %v; frames=%v, terminal ok=%t position=%+v error=%s", err, frameTypes, done.OK, done.During, done.Error)
+		err = fmt.Errorf("worker relay: %w; frames=%v, terminal ok=%t position=%+v error=%s", err, frameTypes, done.OK, done.During, done.Error)
 	}
-	return output, done, final
+	return output, done, final, err
 }
