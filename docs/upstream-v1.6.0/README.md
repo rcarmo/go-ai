@@ -1145,3 +1145,13 @@ One [unchanged object retry case](test-inventory/chord-json-retry.md) passed. Th
 ### Aborting only an after-run child preserves the answered generation
 
 All 29 unchanged after-run cases passed. In the native SQLite comparison, a real after-run child holds an already answered generation. Aborting that child runs cleanup once, clears the live document and leaves the same generation `terminal/completed` with its original answer link. The child itself ends `aborted`; no second model request occurs. Changing the generation outcome to `aborted` failed the terminal-state check. No production change was needed.
+
+### Anthropic recreates after a continuation is reported in flight
+
+All 33 unchanged thread cases passed. The pinned `thread_continue_in_flight` case returns a scripted HTTP 400 before the continuation sends SSE. The native stream retries with the full create request, calls the payload hook once, reports exactly one typed fallback with that reason, then continues from `msg_3` with only the fresh message. The two previously mapped retry variants still pass. `thread_fingerprint_mismatch` remains unindexed; SDK metadata and historical string-versus-block differences are unchanged.
+
+A separate test cancels the caller after the recreate reaches the transport. Both runtimes abort with the fallback diagnostic and no unfinished head. The rejected continuation consumed its old head, so a fresh request creates and the following one continues from the new clean head. Neither test runs two overlapping provider turns or makes a live request.
+
+### Store and dependency fault controls
+
+Permitting the oversized worker patch at the decode boundary exposed five writes and a successful value where Go must refuse the raw reply. Making the invalid numeric key a valid string changed only the first class to `ok`. Both controls failed the focused Go test as expected and were removed. The restored store and adjacent worker checks passed twice. The Photon byte-cap and Chord JSON retry receipts reproduced byte for byte.
