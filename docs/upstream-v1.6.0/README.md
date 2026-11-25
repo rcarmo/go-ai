@@ -1445,3 +1445,5 @@ The selected unchanged restart-limit case passed. The real SQLite process cutoff
 All three unchanged placement variants passed. The published hosts return the wrapped PNG data without its line breaks and preserve the exact 1,048,588-byte base64 block, MIME and order. The proof checks length and SHA-256, not image decoding. A same-length byte change fails the data comparison.
 
 Native QuickJS rejects the original literal before output because the script exceeds its existing 1 MiB setup limit. A shorter program that constructs the same data emits both exact blocks. No limit or production code changed. The source-literal assertion remains partial.
+
+The integrated code at `5c800e4a` passed 20 focused top-level Go tests twice, without skips. The default published worker returned `50` with eight journal publications in both repeats. Vet and Staticcheck v0.8.2 passed. The inventory at `63738390` records 2,076 scoped sites: 2,023 mapped, 48 partial and five unmatched. Both new partial sites belong to the native large-script source limit. Thirty-seven of the 214 changed suites have assertion-level links. Full parity remains open.
