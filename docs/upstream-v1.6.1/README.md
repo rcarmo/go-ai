@@ -31,3 +31,15 @@ The [existing acceptance gaps](../upstream-v1.6.0/acceptance-gaps.md) are starti
 ## Retarget verification
 
 The path inventory reproduced byte for byte from the two Git commits. The four manifest versions and the unchanged standalone source/test trees were checked directly against the fetched tag. On the native baseline (`42a37aae`), four focused QuickJS tests passed twice without skips. The historical ledger still validates its 2,122 locators against the v1.6.0 bytes; locator validation does not run those tests. No v1.6.1 original or published worker was executed during the retarget.
+
+## First v1.6.1 runtime comparisons
+
+The [dependency receipt](dependencies/README.md) records the exact Git checkout, the workspace closure and the published archives. Only the Codemode test scope is installed at this pin so far. The released source tarball contains provider data absent from Git, so the two are retained separately.
+
+### Standalone tools use the first normalized alias; Durable starts stay strict
+
+The two unchanged standalone cases passed on worker, inline and remote hosts. The unchanged native baseline rejected the normalized-name collision before dispatch; its omitted-argument and explicit-null control already passed. The native standalone engine now lets the pinned guest prelude choose the first normalized alias. The three calls return `dash`, `dash`, `mcp` and expose exactly the two expected `ALL_TOOLS` entries. Reversing registration changes the normalized alias but keeps the distinct raw alias callable. All descriptions still count toward the setup limits, even when shadowed.
+
+The unchanged deterministic start case passed on worker and remote hosts. Native caller-controlled starts keep their previous refusal before reserving a worker or dispatching a call. This is a supplemental preservation check, not a match for the JavaScript throw envelope or wording. No saved starts, catalog data, limit, or invocation accounting changed.
+
+At `d6c326d6`, ten focused Go tests passed twice without skips. Vet and Staticcheck v0.8.2 passed. The two v1.6.1 standalone assertions are mapped separately from the historical ledger. The Durable saved-start, settled-result and spill cases still need their unchanged originals at this pin.

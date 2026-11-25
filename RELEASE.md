@@ -1,6 +1,6 @@
 # Release acceptance
 
-The active port targets official upstream **v1.6.1**, `ef4a1cfcca62b77ad3558337ff3e1c7f6beeadfe`. The [v1.6.1 verification log](docs/upstream-v1.6.1/README.md) pins the release and inventories its changes. The [v1.6.0 verification log](docs/upstream-v1.6.0/README.md) remains historical evidence. The port is not release-accepted.
+The active port targets official upstream **v1.6.1**, `ef4a1cfcca62b77ad3558337ff3e1c7f6beeadfe`. The [v1.6.1 verification log](docs/upstream-v1.6.1/README.md) pins the release and inventories its changes. It also records the [standalone Codemode alias fix](docs/upstream-v1.6.1/README.md#standalone-tools-use-the-first-normalized-alias-durable-starts-stay-strict). The [v1.6.0 verification log](docs/upstream-v1.6.0/README.md) remains historical evidence. The port is not release-accepted.
 
 ## Historical v1.5.0 evidence
 
