@@ -75,7 +75,7 @@ func readTool(env durable.FileSystem, inlineImages bool, limits *ImageLimits) du
 				var block goai.ContentBlock
 				var details durable.JSON
 				var err error
-				resolved, vision, e := invocationImageLimits(ctx, api)
+				resolved, unsupportedByModel, e := invocationImageLimits(ctx, api)
 				if e != nil {
 					return durable.ToolResult{}, e
 				}
@@ -94,7 +94,7 @@ func readTool(env durable.FileSystem, inlineImages bool, limits *ImageLimits) du
 					}
 					return imageReadFailure(err), nil
 				}
-				return imageReadResult(block, details, vision), nil
+				return imageReadResult(block, details, unsupportedByModel), nil
 			}
 			if positional, ok := env.(durable.ExtendedFileSystem); ok {
 				return readPositional(ctx, positional, abs, path, args, api)

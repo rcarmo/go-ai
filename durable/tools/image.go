@@ -179,18 +179,18 @@ func inlineImageBytesAt(ctx context.Context, path string, data []byte, limits Im
 }
 
 func inlineReadResult(ctx context.Context, path string, data []byte, api *durable.ToolAPI) (durable.ToolResult, error) {
-	limits, vision, err := invocationImageLimits(ctx, api)
+	limits, unsupportedByModel, err := invocationImageLimits(ctx, api)
 	if err != nil {
 		return durable.ToolResult{}, err
 	}
-	return inlineReadImageResult(ctx, path, data, limits, vision)
+	return inlineReadImageResult(ctx, path, data, limits, unsupportedByModel)
 }
 
 func imageReadFailure(err error) durable.ToolResult {
 	return durable.ToolResult{Blocks: []goai.ContentBlock{}, IsError: true, Diagnostics: []durable.ToolDiagnostic{{Severity: "error", Code: "unsupported_image", Message: err.Error()}}}
 }
 
-func inlineReadImageResult(ctx context.Context, path string, data []byte, limits ImageLimits, vision bool) (durable.ToolResult, error) {
+func inlineReadImageResult(ctx context.Context, path string, data []byte, limits ImageLimits, unsupportedByModel *string) (durable.ToolResult, error) {
 	block, details, err := inlineImageBytesAt(ctx, path, data, limits)
 	if err != nil {
 		if ctx.Err() != nil {
@@ -198,7 +198,7 @@ func inlineReadImageResult(ctx context.Context, path string, data []byte, limits
 		}
 		return imageReadFailure(err), nil
 	}
-	return imageReadResult(block, details, vision), nil
+	return imageReadResult(block, details, unsupportedByModel), nil
 }
 
 type imagePreparationError struct {
@@ -211,20 +211,20 @@ func (e *imagePreparationError) Unwrap() error { return e.cause }
 
 // Retain images in the transcript even for text-only models. Provider message
 // transformation supplies placeholders without discarding durable image data.
-func imageReadResult(block goai.ContentBlock, details durable.JSON, vision bool) durable.ToolResult {
+func imageReadResult(block goai.ContentBlock, preparation durable.JSON, unsupportedByModel *string) durable.ToolResult {
 	message := fmt.Sprintf("Read image file [%s].", block.MimeType)
 	prepared := PreparedImage{MimeType: block.MimeType}
-	prepared.ConvertedFrom, _ = details["convertedFrom"].(string)
-	prepared.OriginalWidth, _ = details["originalWidth"].(int)
-	prepared.OriginalHeight, _ = details["originalHeight"].(int)
-	prepared.Width, _ = details["width"].(int)
-	prepared.Height, _ = details["height"].(int)
-	notes := preparedImageNotes(prepared)
-	if !vision {
-		notes = append(notes, "Image output will be replaced with a text placeholder because the current model does not support image inputs.")
-	}
-	if len(notes) > 0 {
+	prepared.ConvertedFrom, _ = preparation["convertedFrom"].(string)
+	prepared.OriginalWidth, _ = preparation["originalWidth"].(int)
+	prepared.OriginalHeight, _ = preparation["originalHeight"].(int)
+	prepared.Width, _ = preparation["width"].(int)
+	prepared.Height, _ = preparation["height"].(int)
+	if notes := preparedImageNotes(prepared); len(notes) > 0 {
 		message += " " + strings.Join(notes, " ")
+	}
+	var details durable.JSON
+	if unsupportedByModel != nil {
+		details = durable.JSON{"imageUnsupportedByModel": *unsupportedByModel}
 	}
 	return (durable.ToolResult{Blocks: []goai.ContentBlock{block}, Details: details, Diagnostics: []durable.ToolDiagnostic{{Severity: "info", Message: message}}}).WithStructuredContent()
 }

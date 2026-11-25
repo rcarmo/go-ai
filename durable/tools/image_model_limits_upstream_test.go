@@ -71,9 +71,15 @@ func TestSourceV160ModelImageLimits(t *testing.T) {
 	}
 }
 
+func readWithModelWidth(t *testing.T, read durable.ToolRegistration) durable.ToolResult {
+	t.Helper()
+	result, _ := readWithImageModel(t, read, []string{"text", "image"}, &goai.ModelImageResizeOptions{MaxWidth: 4})
+	return result
+}
+
 // The provider emits one local tool call and then completes. The harness, not
 // the fixture, constructs the invocation API and resolves the active model.
-func readWithModelWidth(t *testing.T, read durable.ToolRegistration) durable.ToolResult {
+func readWithImageModel(t *testing.T, read durable.ToolRegistration, input []string, resize *goai.ModelImageResizeOptions) (durable.ToolResult, *durable.ConversationHandle) {
 	t.Helper()
 	type observation struct {
 		result durable.ToolResult
@@ -108,8 +114,10 @@ func readWithModelWidth(t *testing.T, read durable.ToolRegistration) durable.Too
 	if err != nil {
 		t.Fatal(err)
 	}
-	model := &goai.Model{Provider: "test", ID: "test", Api: api, Input: []string{"text", "image"}, ContextWindow: 10000, MaxTokens: 100,
-		InputLimits: &goai.ModelInputLimits{Images: &goai.ModelImageInputLimits{Resize: &goai.ModelImageResizeOptions{MaxWidth: 4}}}}
+	model := &goai.Model{Provider: "test", ID: "test", Api: api, Input: input, ContextWindow: 10000, MaxTokens: 100}
+	if resize != nil {
+		model.InputLimits = &goai.ModelInputLimits{Images: &goai.ModelImageInputLimits{Resize: resize}}
+	}
 	harness, err := durable.Open(t.Context(), store, durable.Options{Registry: registry, Models: func(provider goai.Provider, id string) *goai.Model {
 		if provider == model.Provider && id == model.ID {
 			return model
@@ -142,5 +150,5 @@ func readWithModelWidth(t *testing.T, read durable.ToolRegistration) durable.Too
 	if observed.err != nil {
 		t.Fatal(observed.err)
 	}
-	return observed.result
+	return observed.result, conv
 }

@@ -29,7 +29,8 @@ func TestRead120PreparedImageUsesOwnedLocalPathAndLimits(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if len(result.Blocks) != 1 || result.Details["width"] != 4 || result.Details["height"] != 2 || result.Details["originalWidth"] != 20 {
+	want := "Read image file [image/png]. Resized from 20x10 to 4x2. Multiply coordinates by 5.00 to map them to the original."
+	if len(result.Blocks) != 1 || result.Details != nil || len(result.Diagnostics) != 1 || result.Diagnostics[0].Message != want {
 		t.Fatal(result)
 	}
 	encoded, e := base64.StdEncoding.DecodeString(result.Blocks[0].Data)

@@ -60,7 +60,7 @@ func readPositional(ctx context.Context, env durable.ExtendedFileSystem, abs, pa
 		}
 		var result durable.ToolResult
 		if mime != "" {
-			limits, vision, limitErr := invocationImageLimits(ctx, api)
+			limits, unsupportedByModel, limitErr := invocationImageLimits(ctx, api)
 			if limitErr != nil {
 				return durable.ToolResult{}, limitErr
 			}
@@ -71,7 +71,7 @@ func readPositional(ctx context.Context, env durable.ExtendedFileSystem, abs, pa
 				if readErr != nil {
 					return durable.ToolResult{}, readErr
 				}
-				result, err = inlineReadImageResult(ctx, path, data, limits, vision)
+				result, err = inlineReadImageResult(ctx, path, data, limits, unsupportedByModel)
 			}
 		} else {
 			result, err = readPositionalText(ctx, reader, before.Size, path, args)

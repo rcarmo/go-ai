@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"github.com/rcarmo/go-ai/durable"
@@ -27,12 +28,16 @@ func TestReadImageOwnsValidInlinePNGAndRejectsBroken(t *testing.T) {
 	}
 	file.Close()
 	result, err := ReadWithImages(env).Execute(context.Background(), durable.JSON{"path": "image.png"}, nil)
-	if err != nil || len(result.Blocks) != 1 || result.Blocks[0].Type != "image" || result.Blocks[0].MimeType != "image/png" || result.Details["width"] != 2 || result.Details["height"] != 3 {
+	if err != nil || len(result.Blocks) != 1 || result.Blocks[0].Type != "image" || result.Blocks[0].MimeType != "image/png" || result.Details != nil {
 		t.Fatal(result, err)
 	}
 	data, err := base64.StdEncoding.DecodeString(result.Blocks[0].Data)
 	if err != nil || len(data) == 0 {
 		t.Fatal(err)
+	}
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(data))
+	if err != nil || cfg.Width != 2 || cfg.Height != 3 {
+		t.Fatal(cfg, err)
 	}
 	if err := os.WriteFile(path, data[:16], 0600); err != nil {
 		t.Fatal(err)
