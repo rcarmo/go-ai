@@ -291,8 +291,8 @@ func TestMainSafeToolReplayClearsOutputThroughSecondCrash(t *testing.T) {
 	})
 }
 
-// Source: harness-tool-parks.test.ts, waking. The crash cases kill a separate
-// process after its woken execute intent and progress have durable receipts.
+// harness-tool-parks.test.ts:494-517, with separate real crash controls for
+// unsafe and replay-safe tools after their woken execute intent.
 func TestSourceV160CanonicalToolParkRecovery(t *testing.T) {
 	for _, mode := range []string{"removed", "unsafe", "safe"} {
 		t.Run(mode, func(t *testing.T) { testV160ToolParkRecovery(t, mode) })
@@ -363,6 +363,26 @@ func testV160ToolParkRecovery(t *testing.T, mode string) {
 		Definition: goai.Tool{Name: "ci", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "test.park.recovery", Version: 1, ReplaySafe: mode == "safe",
 		Execute: func(run context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 			seen <- attempt{api.Wake, api.Checkpoint}
+			if mode == "removed" {
+				signal, err := api.ReadSignal(run, token, "done")
+				if err != nil {
+					return ToolResult{}, err
+				}
+				if signal != nil {
+					text, _ := generationObject(signal.Value)["text"].(string)
+					return ToolResult{Content: text}, nil
+				}
+				if err := api.Output("started\n"); err != nil {
+					return ToolResult{}, err
+				}
+				if err := api.Diagnostic(ToolDiagnostic{Severity: "info", Message: "run 1"}); err != nil {
+					return ToolResult{}, err
+				}
+				if err := api.Details(JSON{"build": 1}); err != nil {
+					return ToolResult{}, err
+				}
+				return ToolResult{Park: &ToolPark{Sleep: &ToolSleep{Signals: []SignalKey{key}, Checkpoint: JSON{"build": 1}}}}, nil
+			}
 			if api.Wake == nil && starting {
 				if mode != "unsafe" {
 					if err := api.Diagnostic(ToolDiagnostic{Severity: "info", Message: "parked"}); err != nil {
@@ -413,10 +433,16 @@ func testV160ToolParkRecovery(t *testing.T, mode string) {
 		case <-ctx.Done():
 			t.Fatal("tool did not park", ctx.Err())
 		}
+		signalText := "x"
 		if mode == "removed" {
+			parked, found, err := h.Task(ctx, ids.Tool)
+			if err != nil || !found || parked.State.Status != "sleeping" || !reflect.DeepEqual(parked.State.Signals, []SignalKey{key}) || !equalJSONValue(taskCheckpointMap(parked.State.Checkpoint)["checkpoint"], JSON{"build": 1}) {
+				t.Fatal("parked before registry removal", parked.State, found, err)
+			}
 			options.Registry.Remove("ci")
+			signalText = "late"
 		}
-		if got, err := h.Signal(ctx, ids.Tool, token, "done", JSON{"text": "x"}); err != nil || got != SignalDelivered {
+		if got, err := h.Signal(ctx, ids.Tool, token, "done", JSON{"text": signalText}); err != nil || got != SignalDelivered {
 			t.Fatalf("signal = %s, %v", got, err)
 		}
 		if childDir != "" {
@@ -477,8 +503,27 @@ func testV160ToolParkRecovery(t *testing.T, mode string) {
 	text := v160ToolResultText(result)
 	switch mode {
 	case "removed":
-		if len(seen) != 1 || len(cleaned) != 0 || record.State.Outcome.Status != "failed" || !result.IsError || !equalJSONValue(result.DetailsValue, JSON{"build": 1}) || !strings.Contains(text, "[info] parked") || !strings.Contains(text, "Tool ci is not available") {
-			t.Fatalf("removed tool: runs=%d, cancels=%d, task=%+v, result=%+v", len(seen), len(cleaned), record.State.Outcome, result)
+		outcome := record.State.Outcome
+		if record.State.Status != "terminal" || outcome.Status != "failed" || outcome.Error == nil || outcome.Error.Message != "Tool ci is not available" {
+			t.Fatalf("woken unavailable tool outcome = %+v, want failed", outcome)
+		}
+		if !result.IsError || !equalJSONValue(result.DetailsValue, JSON{"build": 1}) {
+			t.Fatal("woken unavailable result lost retained details or error flag", result)
+		}
+		if !strings.Contains(text, "[info] run 1") || !strings.Contains(text, "Tool ci is not available") {
+			t.Fatalf("woken unavailable result text = %q", text)
+		}
+		if len(seen) != 1 || len(cleaned) != 0 || !reflect.DeepEqual(<-seen, attempt{}) {
+			t.Fatalf("removed tool ran or cleaned up again: runs=%d cancels=%d", len(seen), len(cleaned))
+		}
+		if outcome.Result == nil || !outcome.Result.Present {
+			t.Fatal("woken unavailable result entry not linked to task", outcome)
+		}
+		entryID := submissionEntryID(generationObject(outcome.Result.Value)["entryId"])
+		stored, found, err := native.Entry(ctx, entryID)
+		wantDiagnostics := []any{JSON{"severity": "info", "message": "run 1"}, JSON{"severity": "error", "code": "tool_unavailable", "message": "Tool ci is not available"}}
+		if err != nil || !found || stored.CommitSeq == 0 || stored.Entry.ByTask != ids.Tool || !equalJSONValue(generationObject(stored.Entry.Data)["diagnostics"], wantDiagnostics) {
+			t.Fatalf("woken unavailable stored diagnostics = %v, found=%v err=%v; want %v", generationObject(stored.Entry.Data)["diagnostics"], found, err, wantDiagnostics)
 		}
 		for {
 			select {
