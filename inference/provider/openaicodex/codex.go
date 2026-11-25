@@ -1844,14 +1844,20 @@ func buildCodexRequest(model *goai.Model, convCtx *goai.Context, opts *goai.Stre
 
 	configuration := codexConfigurationUpdateEffort(model, opts)
 	if effort, ok := codexEffort(model, opts); ok {
-		summary := "auto"
-		if opts != nil && opts.ReasoningSummary != "" {
-			summary = opts.ReasoningSummary
-		}
 		if configuration != "" {
 			effort = "medium"
 		}
-		req.Reasoning = map[string]any{"effort": effort, "summary": summary}
+		reasoning := map[string]any{"effort": effort}
+		// The unset-effort fallback has no summary. Explicit efforts and
+		// configuration updates retain the summary option and its default.
+		if configuration != "" || (opts != nil && opts.Reasoning != nil && *opts.Reasoning != "") {
+			summary := "auto"
+			if opts != nil && opts.ReasoningSummary != "" {
+				summary = opts.ReasoningSummary
+			}
+			reasoning["summary"] = summary
+		}
+		req.Reasoning = reasoning
 	}
 	// Leading instructions belong to the stable input prefix, not a top-level field.
 	view := codexToolView{}
