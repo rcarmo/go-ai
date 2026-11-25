@@ -1092,11 +1092,27 @@ The integrated code at `52098ac4` passed 26 focused top-level Go tests twice, wi
 
 ### Sandbox failures keep earlier output and reject a non-serializable value
 
-All six selected unchanged variants passed. Native inline QuickJS, the published portable guest and the standalone worker preserve the sole `partial` output before the script fails. Returning `10n` produces a script `TypeError` in each placement. The native worker test checks both the raw published frames and the Go projection. No production change was needed.
+All six selected unchanged variants passed. Native inline QuickJS, the published portable guest and the standalone worker preserve the sole `partial` output before the script fails. Returning `10n` produces a script `TypeError` in each placement. The native worker test checks both the raw published frames and the Go projection. Dropping partial text in the adapter or returning serializable `10` from the guest failed the corresponding check. No production change was needed.
 
 ### Image fitting applies EXIF orientation before measuring dimensions
 
 The unchanged [EXIF fit case](test-inventory/images-fit-exif.md) passed. Under the same limits, Photon and public Go `FitImages` both decode the fitted EXIF-6 input at 30×40. Forcing orientation 3 broke the dimension comparison in both runtimes. This is a dimension check; pixel placement, encoder bytes and worker timing are outside its scope.
+
+### Capacity-one fixture reads the canonical held result
+
+The earlier `decided receipt lost` assertion read a legacy executor checkpoint. The pinned tool implementation stores the decided result as a committed entry linked from the task outcome, and the scheduler retains that outcome while the child runs. The corrected native fixture reads the public completing task and its actual SQLite entry. It checks the original output, details, usage and app commit before the child releases its hold, then verifies the same entry and commit sequence after the join. The capacity, single execution, spending and continuation checks remain. No production change was needed. This is a native regression check grounded in the pinned record contract, not an upstream capacity-one case.
+
+### Chord coalesces pending replacements under backpressure
+
+Both unchanged [backpressure cases](test-inventory/chord-pending-ops.md) passed, one per codec, with 134 other file cases unselected. The loaded `PendingOps` queue folds replacements `2`, `3` and `4` to exactly `[["r",4]]`. Keeping the first replacement in scratch returned `[["r",2]]` and failed the unchanged binary assertion. The receipt covers this Chord path, without claiming native Go or Durable correspondence.
+
+### Typed BigInt checks use exact representable bounds
+
+All 40 unchanged validator cases passed. Standalone Go checks now accept explicit, non-nil `*big.Int` values for `bigint`. The pinned membership, bound, divisibility and diagnostic comparisons match. The checks do not round the native integer to a float, and JSON numbers and strings do not become BigInts. The original loop predicates are checked separately from direct `expect` locators. Coercion and arbitrary-size schema bound constants remain outside this slice.
+
+### Anthropic recreates a thread after `thread_not_found`
+
+All 33 unchanged thread cases passed. The native 404 variant sends the suffix, receives `thread_not_found`, recreates from the full request, and continues the next fresh message from `msg_3`. It calls the payload hook once and reports exactly one fallback diagnostic with the matching reason. The previously checked 400 variant still passes. The two other retry variants remain unindexed, and SDK metadata and historical string-versus-block differences stay separate. No production change was needed.
 
 ### Sandbox return cancels an unawaited call
 
