@@ -1477,3 +1477,9 @@ The integrated code at `5741b091` passed 25 focused top-level Go tests twice, wi
 All three unchanged placement variants passed. Native QuickJS runs the same text, console and image loops with a 32 MiB heap. Each ends with a script `RangeError` containing `script output exceeded`. The retained ASCII output is above 14 MiB and at most 16 MiB. The empty-text loop stops at exactly 100,000 blocks with a `RangeError`. This checks the pinned ASCII and item-count boundaries, not Unicode accounting or Durable output spilling.
 
 The native baseline and four focused Go tests passed; the focused tests passed twice without skips. In scratch overlays, a 12 MiB guest character limit failed all three retained-length lower bounds without changing the error shape. A 99,999-item limit failed only the empty-block count. No production limit changed.
+
+### Stop keeps the committed answer in both after-run phases
+
+The unchanged `MemoryStorage` original passed. The native SQLite test checks both phases immediately after public `Abort` returns: `run` and `runFailure` are absent, and the original submission still has the same `done` answer. During finish, the cancelled hook returns its task request but no child runs or is published. During drain, the original owned `run 1` child runs and is aborted exactly once. The comparison covers the five public observations, not a native memory storage placement.
+
+Suppressing the counted abort in the drain probe fails the exact run-and-abort assertion. Five focused groups passed twice; vet and Staticcheck passed. No runtime code changed.
