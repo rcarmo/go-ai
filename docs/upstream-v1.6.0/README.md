@@ -1363,3 +1363,5 @@ The unchanged mock passed. Standalone Go now returns the exact structured result
 ### GPT-5.5 Pro exposes only the pinned three effort levels
 
 All 58 unchanged effort cases passed. The scoped OpenAI and OpenRouter Pro checks match `medium`, `high`, `xhigh` in order. Their published off, minimal, low and max entries remain explicitly null. The regular GPT-5.5 controls keep off and low on both providers. This checks catalog data and the public effort helpers, not live routing. No generated data or production behavior changed.
+
+The integrated code at `249bcee9` passed 24 focused top-level Go tests twice, without skips. The default published worker returned `50` with eight journal publications in both repeats. Vet and Staticcheck v0.8.2 passed. The inventory at `8c6d28ed` records 2,005 scoped sites: 1,954 mapped, 46 partial and five unmatched. Thirty-seven of the 214 changed suites have assertion-level links. Full parity remains open.
