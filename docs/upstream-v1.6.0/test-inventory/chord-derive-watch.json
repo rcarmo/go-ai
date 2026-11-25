@@ -1,0 +1,263 @@
+{
+  "format": 1,
+  "pin": "faac585884ae2c013a6b1400f3e9e77f10b34bac",
+  "evidenceBase": "4db6f2123184ab22e0fe6d09b8e3aa40cfa90183",
+  "node": "v26.13.0",
+  "platform": "linux/arm64",
+  "configSha256": "f13c3424afac46e1500bb993c23fabce908f899321fd2c90e3adda5712f3ac9a",
+  "original": {
+    "file": "packages/chord/test/state/derive.test.ts",
+    "blob": "362e4f97a15bf20475402fabff9a2f5d3e5d33a6",
+    "sha256": "0bf870b2f679169ec295fe2c1bb68cdd3b641c9b13a21c5984b83712f6075d7f",
+    "selection": "whole-file",
+    "passed": 23,
+    "failed": 0,
+    "skipped": 0,
+    "todo": 0,
+    "caseNames": [
+      "derives across objects update in the batch of the commit that changed their source's object",
+      "the pull model computes a diamond's derives once each per batch",
+      "the pull model leaves unwatched derives dirty until read; a one-off read does not make them eager",
+      "the pull model diffs a watched derive's old and new value (counted), and sends no frame when they are equal",
+      "a watched derive read between two changes of its source in one batch delivers one frame: its last value, diffed from the value before the batch (one diff)",
+      "a watched derive read between two changes of its source in one batch delivers nothing when the batch ends at the value it started from",
+      "a watched derive read between two changes of its source in one batch a derive over it is one frame too, read or not",
+      "a watched derive read between two changes of its source in one batch a failure read in between and the value after it are one frame, the diff from the value before; no failure call",
+      "a watched derive read between two changes of its source in one batch a value read in between and the failure after it are one failure call",
+      "failures give the throwing derive's watches and those of the derives over it one failure call; they heal on a later change",
+      "failures give one failure call per episode: a recompute that throws again is quiet; a heal ends the episode",
+      "failures open a new watch on a failed derive at its last good value, the failure its first call, then the heal",
+      "failures report once per failure episode, also when nothing watches (a lazy derive fails when read)",
+      "failures fold a failure and a value for a busy listener: the value replaces the failure, as a root replacement",
+      "GC a detached derive is not held by its former sources",
+      "GC a watch open on a failed derive keeps nothing more: it ends with its reference, and a retained one holds no source",
+      "GC of handed-out errors a failure call's fresh error kept by its listener keeps nothing of its host once the host closes",
+      "mapShared maps an object element once while it stays the same object; primitives every time",
+      "mapShared keeps no element alive in its cache",
+      "mapShared returns the previous result object for an unchanged element",
+      "the retired flag a derive over a retired source publishes retired: true although its value and ops are unchanged (rule 21)",
+      "the retired flag a retirement while the derive is failed travels with its next good value",
+      "the retired flag a retirement visits each derive of a diamond once, not once per path (40 derives)"
+    ]
+  },
+  "runner": {
+    "vitest": "4.1.12",
+    "integrity": "sha512-5eWdz2yb3ajxWF3C8C4TjkXl7FGm3n2E/VlazALrQHzK7nYMSGFnCZto0bbPNl77AwkOZVLk0YnBAejUu0NiWA==",
+    "archiveSha256": "ac79c9561c99eabc1cc29e0a839cbd03d1ff0e45bbecb5a2edfa6c3827c823d1",
+    "evaluatorSha256": "a0b36fb2211d2587d8df68d5855d48141be27e99bdb973378a83f927e03b004e",
+    "copiedDependencies": {
+      "roots": [
+        "npm:node_modules/vitest"
+      ],
+      "host": {
+        "os": "linux",
+        "cpu": "arm64",
+        "libc": "glibc"
+      },
+      "placements": [
+        "node_modules/@jridgewell/sourcemap-codec",
+        "node_modules/@oxc-project/types",
+        "node_modules/@rolldown/binding-linux-arm64-gnu",
+        "node_modules/@rolldown/pluginutils",
+        "node_modules/@standard-schema/spec",
+        "node_modules/@types/chai",
+        "node_modules/@types/deep-eql",
+        "node_modules/@types/estree",
+        "node_modules/@vitest/expect",
+        "node_modules/@vitest/mocker",
+        "node_modules/@vitest/pretty-format",
+        "node_modules/@vitest/runner",
+        "node_modules/@vitest/snapshot",
+        "node_modules/@vitest/spy",
+        "node_modules/@vitest/utils",
+        "node_modules/assertion-error",
+        "node_modules/chai",
+        "node_modules/convert-source-map",
+        "node_modules/detect-libc",
+        "node_modules/es-module-lexer",
+        "node_modules/estree-walker",
+        "node_modules/expect-type",
+        "node_modules/fdir",
+        "node_modules/lightningcss",
+        "node_modules/lightningcss-linux-arm64-gnu",
+        "node_modules/magic-string",
+        "node_modules/nanoid",
+        "node_modules/obug",
+        "node_modules/pathe",
+        "node_modules/picocolors",
+        "node_modules/picomatch",
+        "node_modules/postcss",
+        "node_modules/rolldown",
+        "node_modules/siginfo",
+        "node_modules/source-map-js",
+        "node_modules/stackback",
+        "node_modules/std-env",
+        "node_modules/tinybench",
+        "node_modules/tinyexec",
+        "node_modules/tinyglobby",
+        "node_modules/tinyrainbow",
+        "node_modules/vite",
+        "node_modules/vitest",
+        "node_modules/why-is-node-running"
+      ]
+    }
+  },
+  "primaryReference": {
+    "file": "packages/durable/src/harness/task-graph.ts",
+    "sha256": "bc7086ccbf41bb0516dea4cc9c9696e490fd61b4ba5e08a0306997de04a27836",
+    "import": "@earendil-works/chord/watch",
+    "importLine": 4,
+    "call": "Watch.advance",
+    "callLine": 278
+  },
+  "observedModules": [
+    {
+      "kind": "source-evaluated",
+      "api": "node:vm runInThisContext",
+      "file": "packages/chord/src/state/derive.ts",
+      "export": "Derive",
+      "sourceSha256": "eef46436c505ff240b6c71083dc72bb296d993b74d1320b26091a3bf307a44ba"
+    },
+    {
+      "kind": "source-evaluated",
+      "api": "node:vm runInThisContext",
+      "file": "packages/chord/src/watch.ts",
+      "export": "Watch",
+      "sourceSha256": "61c87972674aac408493ea94d81c44eb326978313b3363ce5ebf4067e9921f65"
+    }
+  ],
+  "witness": {
+    "case": "failures fold a failure and a value for a busy listener: the value replaces the failure, as a root replacement",
+    "passed": 1,
+    "unselected": 22,
+    "calls": [
+      {
+        "kind": "source",
+        "call": {
+          "kind": "value",
+          "value": 5,
+          "ops": [
+            [
+              "r",
+              5
+            ]
+          ],
+          "retired": false
+        }
+      },
+      {
+        "kind": "listener",
+        "call": {
+          "kind": "value",
+          "value": 5,
+          "ops": [
+            [
+              "r",
+              5
+            ]
+          ],
+          "retired": false
+        }
+      },
+      {
+        "kind": "source",
+        "call": {
+          "kind": "failed",
+          "error": "t threw"
+        }
+      },
+      {
+        "kind": "source",
+        "call": {
+          "kind": "value",
+          "value": 6,
+          "ops": [
+            [
+              "r",
+              6
+            ]
+          ],
+          "retired": false
+        }
+      },
+      {
+        "kind": "listener",
+        "call": {
+          "kind": "value",
+          "value": 6,
+          "ops": [
+            [
+              "r",
+              6
+            ]
+          ],
+          "retired": false
+        }
+      }
+    ]
+  },
+  "control": {
+    "change": "retain-superseded-failure-in-scratch-Watch.advance",
+    "case": "failures fold a failure and a value for a busy listener: the value replaces the failure, as a root replacement",
+    "failed": 1,
+    "unselected": 22,
+    "calls": [
+      {
+        "kind": "source",
+        "call": {
+          "kind": "value",
+          "value": 5,
+          "ops": [
+            [
+              "r",
+              5
+            ]
+          ],
+          "retired": false
+        }
+      },
+      {
+        "kind": "listener",
+        "call": {
+          "kind": "value",
+          "value": 5,
+          "ops": [
+            [
+              "r",
+              5
+            ]
+          ],
+          "retired": false
+        }
+      },
+      {
+        "kind": "source",
+        "call": {
+          "kind": "failed",
+          "error": "t threw"
+        }
+      },
+      {
+        "kind": "source",
+        "call": {
+          "kind": "value",
+          "value": 6,
+          "ops": [
+            [
+              "r",
+              6
+            ]
+          ],
+          "retired": false
+        }
+      },
+      {
+        "kind": "listener",
+        "call": {
+          "kind": "failed",
+          "error": "t threw"
+        }
+      }
+    ]
+  }
+}
