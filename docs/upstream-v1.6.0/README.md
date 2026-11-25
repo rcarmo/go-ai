@@ -859,3 +859,9 @@ All eight unchanged [Chord framed-source cases](test-inventory/chord-framed-delt
 ### llama.cpp request hooks see only the completion request
 
 All 15 unchanged classifier cases passed offline. The public loopback client calls the payload hook once, with `n_predict: 1`, records response status `[200]`, and sends the transformed `id_slot: 1` field only on the completion request. Neighboring tests check invalid bounds and API selection before transport and keep the exact HTTP error body. A separate admitted-request test verifies that caller cancellation reaches the peer and returns an aborted result without an answer. Six controls caught missing, extra or ignored hooks, loss of the error body, and a detached request context. No production change was needed.
+
+### Codemode receives the built-in read tool's image or text
+
+Both unchanged image cases passed. The published guest saves the pinned PNG bytes, names the file in the text, and keeps one image block in the tool receipt. The built-in `read` now declares text or image as its structured value. In the translated script, reading `pixel.png` returns the image block and reading `note.txt` returns `hello`; the guest's output contains the exact image properties and attachment. The old schema-less path returned text in place of the image, so the script failed before its second read.
+
+The runtime derives the structured value from detached content. It validates ordinary model image attachments without copying them into a second bounded JSON record. The original nested record limit is unchanged; oversized structured images remain outside this comparison. Schema-less tools still return text, and an explicit schema value still takes precedence over derived content.
