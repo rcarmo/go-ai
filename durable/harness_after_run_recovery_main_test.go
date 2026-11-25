@@ -210,46 +210,9 @@ func TestMainAfterRunCrashFinishReasksDrainDoesNot(t *testing.T) {
 	})
 }
 
+// harness-after-run.test.ts:758-783 uses restartLimit=1 with a queued input.
 func TestMainAfterRunAnsweredFinishRestartLimit(t *testing.T) {
-	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
-		limit := uint64(1)
-		p := mainAfterRecoverySetup(t, map[int64]chan struct{}{1: make(chan struct{})}, nil, &limit)
-		h, c, settled := mainAfterRecoveryStart(t, p, b.store)
-		awaitTaskSignal(t, p.hookEntered)
-		later, err := c.Submit(bg, Input{Content: "later"})
-		if err != nil {
-			t.Fatal(err)
-		}
-		store := mainAfterRecoveryCrash(t, h, b.store)
-		h, c = mainAfterRecoveryOpen(t, p, store, c.ID())
-		mainAfterRecoveryIdle(t, c)
-		if p.asks.Load() != 1 || p.calls.Load() != 1 {
-			t.Error("cutoff reran hook/provider", p.asks.Load(), p.calls.Load())
-		}
-		live := mainAfterRunLive(t, h, c.ID())
-		if live["run"] != nil || live["runFailure"] != nil {
-			t.Error("answered cutoff retained run/failure", live)
-		}
-		snap, err := h.Snapshot(bg)
-		if err != nil {
-			t.Fatal(err)
-		}
-		count := -1
-		for _, doc := range snap.Documents {
-			if !doc.Retired && doc.Owner == c.ID() && doc.Kind == "pi.inbox" {
-				items, _ := doc.Value["items"].([]any)
-				count = len(items)
-			}
-		}
-		if count != 1 {
-			t.Error("cutoff consumed queued input", count, later.ID())
-		}
-		mainAfterRecoveryOutcome(t, h, settled.GenerationID)
-		if err := h.Close(bg); err != nil {
-			t.Error(err)
-		}
-		mainAfterRecoveryReports(t, p, "task_interrupted", "restart_limit", true)
-	})
+	t.Run("sqlite", func(t *testing.T) { testAfterRunFinishAfterProcessLoss(t, "restart-limit") })
 }
 
 func TestMainAfterRunChildRestartLimitCompletesGeneration(t *testing.T) {

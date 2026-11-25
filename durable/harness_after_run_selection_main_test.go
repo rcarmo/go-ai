@@ -16,31 +16,48 @@ import (
 // the old store. Here a separate SQLite writer dies inside the first hook.
 func TestMainAfterRunHooksDeselectedBeforeRecoveryFinish(t *testing.T) {
 	for _, mode := range []string{"deselected", "retained"} {
-		t.Run(mode, func(t *testing.T) { testAfterRunHookSelectionAfterProcessLoss(t, mode) })
+		t.Run(mode, func(t *testing.T) { testAfterRunFinishAfterProcessLoss(t, mode) })
 	}
 }
 
-func testAfterRunHookSelectionAfterProcessLoss(t *testing.T, mode string) {
+func testAfterRunFinishAfterProcessLoss(t *testing.T, mode string) {
 	t.Helper()
 	const crashDir = "GOAI_TEST_AFTER_RUN_SELECTION_CRASH"
 	ctx, cancel := context.WithTimeout(bg, 15*time.Second)
 	defer cancel()
 	type cutoff struct {
-		Conversation, Generation, Answer ID
-		Asks                             int64
+		Conversation, Generation, Answer, Later ID
+		Asks                                    int64
+	}
+	var limit *uint64
+	testName, subtest := "TestMainAfterRunHooksDeselectedBeforeRecoveryFinish", mode
+	if mode == "restart-limit" {
+		value := uint64(1)
+		limit = &value
+		testName, subtest = "TestMainAfterRunAnsweredFinishRestartLimit", "sqlite"
 	}
 	if dir := os.Getenv(crashDir); dir != "" {
 		store, err := openSQLiteTestDirectory(filepath.Join(dir, "db"), SQLiteOptions{})
 		if err != nil {
 			t.Fatal(err)
 		}
-		p := mainAfterRecoverySetup(t, map[int64]chan struct{}{1: make(chan struct{})}, nil, nil)
+		p := mainAfterRecoverySetup(t, map[int64]chan struct{}{1: make(chan struct{})}, nil, limit)
 		_, c, answered := mainAfterRecoveryStart(t, p, store)
 		watchReceive(t, p.hookEntered)
 		if p.asks.Load() != 1 || p.tasks.Load() != 0 || p.calls.Load() != 1 || answered.Record.Status != "done" || answered.Record.Answer == 0 {
 			t.Fatal("expected one held hook after committed answer and before child task", p.asks.Load(), p.tasks.Load(), p.calls.Load(), answered.Record)
 		}
 		witness := cutoff{Conversation: c.ID(), Generation: readOnlyHarnessRunID(t, c), Answer: answered.Record.Answer, Asks: p.asks.Load()}
+		if limit != nil {
+			later, err := c.Submit(ctx, Input{Type: "input", Content: "later"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if status, err := later.Status(ctx); err != nil || status.Status != "queued" || status.Entry != 0 {
+				t.Fatal("later input did not queue behind the held hook", status, err)
+			}
+			witness.Later = later.ID()
+		}
 		data, err := json.Marshal(witness)
 		if err != nil {
 			t.Fatal(err)
@@ -55,7 +72,7 @@ func testAfterRunHookSelectionAfterProcessLoss(t *testing.T, mode string) {
 	}
 
 	dir := t.TempDir()
-	cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestMainAfterRunHooksDeselectedBeforeRecoveryFinish$/^"+mode+"$")
+	cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^"+testName+"$/^"+subtest+"$")
 	cmd.Env = append(os.Environ(), crashDir+"="+dir)
 	output, err := cmd.CombinedOutput()
 	var exit *exec.ExitError
@@ -86,7 +103,13 @@ func testAfterRunHookSelectionAfterProcessLoss(t *testing.T, mode string) {
 	if children, err := store.ScanTasks(ctx, TaskQuery{Conversation: witness.Conversation, Kind: "task.after-recovery"}, 10, nil); err != nil || len(children.Items) != 0 || children.Next != nil {
 		t.Fatal("first hook had already published a child", children, err)
 	}
-	p := mainAfterRecoverySetup(t, nil, nil, nil)
+	if limit != nil {
+		later, found, err := store.Submission(ctx, witness.Later)
+		if err != nil || !found || later.Conversation != witness.Conversation || later.Status != "queued" || later.Entry != 0 {
+			t.Fatal("SQLite lacked queued input at the crash cutoff", later, found, err)
+		}
+	}
+	p := mainAfterRecoverySetup(t, nil, nil, limit)
 	if mode == "deselected" {
 		p.options.Registry.Uninstall(&Extension{Name: "after-recovery"})
 	}
@@ -110,6 +133,23 @@ func testAfterRunHookSelectionAfterProcessLoss(t *testing.T, mode string) {
 	if tasks := p.tasks.Load(); tasks != wantTasks {
 		t.Fatalf("after-run child executions after %s reopen = %d, want %d", mode, tasks, wantTasks)
 	}
+	if limit != nil {
+		later, err := h.Submission(ctx, witness.Later)
+		if err != nil || later == nil {
+			t.Fatal("queued input handle lost at finish cutoff", later, err)
+		}
+		if status, err := later.Status(ctx); err != nil || status.Status != "queued" || status.Entry != 0 {
+			t.Fatal("finish cutoff consumed queued input", status, err)
+		}
+		inbox, found, err := c.SnapshotDefinition(ctx, InboxDoc(), nil)
+		if err != nil || !found {
+			t.Fatal("missing inbox after finish cutoff", inbox, found, err)
+		}
+		items, _ := generationObject(inbox.Copy())["items"].([]any)
+		if len(items) != 1 || submissionEntryID(generationObject(items[0])["id"]) != witness.Later {
+			t.Fatal("finish cutoff changed the sole queued inbox item", items)
+		}
+	}
 	live, found, err := c.SnapshotDefinition(ctx, LiveDoc(), nil)
 	if err != nil || !found || !equalJSONValue(live.Copy(), JSON{}) {
 		t.Fatal("recovered finish left live state", live, found, err)
@@ -118,6 +158,25 @@ func testAfterRunHookSelectionAfterProcessLoss(t *testing.T, mode string) {
 	outcome := after.State.Outcome
 	if err != nil || !found || after.State.Status != "terminal" || outcome == nil || outcome.Status != "completed" || outcome.Result == nil || !outcome.Result.Present || !equalJSONValue(outcome.Result.Value, JSON{"entryId": float64(witness.Answer)}) || p.calls.Load() != 0 {
 		t.Fatal("recovered finish did not keep its original answer", after, found, err, p.calls.Load())
+	}
+	if limit != nil {
+		if err := h.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+		p.mu.Lock()
+		defer p.mu.Unlock()
+		interruptions := 0
+		for _, info := range p.infos {
+			if info.Type == "task_interrupted" {
+				interruptions++
+				if info.Reason != "restart_limit" || info.Task == nil || info.Task.ID != witness.Generation || info.Restarts == nil || *info.Restarts != 1 {
+					t.Fatal("wrong finish cutoff interruption receipt", info)
+				}
+			}
+		}
+		if interruptions != 1 {
+			t.Fatalf("finish cutoff interruption reports = %d, want one", interruptions)
+		}
 	}
 }
 
