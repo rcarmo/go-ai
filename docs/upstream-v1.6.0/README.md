@@ -1403,3 +1403,7 @@ The integrated code at `5b0126fe` passed 23 focused top-level Go tests twice, wi
 ### Sandbox diagnostics preserve non-finite number text
 
 All three unchanged placement variants passed. The published hosts and native QuickJS preserve the exact ordered console text for NaN and both infinities, the separate `text()` output, and the thrown `NaN` script diagnostic. Swapping the two infinities failed the log comparison in all four placements without changing the thrown result. No production change was needed.
+
+### Codex forwards the raw provider event sequence
+
+The selected unchanged SSE case passed. The native public stream forwards all five provider payloads in order, associates them with the supplied model, and returns `Hello` through its public text and terminal events. The scripted request verifies synthetic bearer and account headers, no API-key header, and the adapter's own formatted User-Agent. This does not claim matching the SDK runtime's User-Agent bytes or its GitHub prompt-bootstrap fetch. No production change or live request was needed.
