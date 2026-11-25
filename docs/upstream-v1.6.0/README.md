@@ -901,3 +901,11 @@ The unchanged watermark case passed. The native test cuts off a real portable gu
 The unchanged simultaneous-results case also passed upstream. A separate native probe released 50 callbacks together and observed 59 journal publications by its 29th delivery, before the test deadline. It already exceeded the source's limit of fewer than ten publications, and the final result of 50 was not observed. Go's per-delivery acknowledgement fence remains unchanged.
 
 The integrated code at `65a28834` passed 28 focused top-level Go tests twice, without skips. The run used the archived portable guest and standalone worker, with CGO disabled and network access restricted to loopback. Vet and Staticcheck v0.8.2 passed. The two image receipts and the Chord read-plan receipt reproduced byte for byte. Of 1,720 scoped sites, 1,669 are mapped, 48 are partial and three are unmatched. Twenty-nine of the 214 changed suites have assertion-level links.
+
+### Chord sends scoped telemetry payloads over the in-memory link
+
+All three unchanged [telemetry sender cases](test-inventory/chord-telemetry-sender.md) passed offline. The witness observed the four pinned modules evaluate and the real ingest target receive the page spans without metrics, refuse an out-of-scope batch with zero spans accepted, and receive both worker spans with `runs = 2`. Dropping only the worker metrics failed the unchanged counter assertion. This verifies the shared runtime on the in-memory link; it does not cover network transport or native Go correspondence.
+
+### Opt-in Schema URL and JSON Pointer URI fragment formats
+
+All 40 unchanged validator cases passed. The five pinned format assertions now match in the configured one-shot and prepared Go checks. The new JSON Pointer URI fragment rule rejects a raw space and a missing `#`; the earlier native checks accepted both. The generated expression comes from the pinned TypeBox source. Default and legacy callers retain their prior treatment of the new format, old established formats are unchanged, and the checks do not fetch URLs. Fault controls caught a missing assertion, an assertion leaking into legacy callers and incorrect Unicode folding.
