@@ -1419,3 +1419,7 @@ The integrated code at `c5dfd752` passed 24 focused top-level Go tests twice, wi
 ### Sandbox rejects each invalid output without emitting a block
 
 All three unchanged placement variants passed. Native QuickJS and the published hosts catch all sixteen invalid arguments, emit no output block, and preserve the circular-text TypeError and the exact ordered image errors. Swapping two invalid arguments failed only the order assertion in all four comparisons. No remote image was fetched or production code changed.
+
+### Codex SSE preserves the scoped session-affinity fields
+
+All three selected unchanged cases passed. The native scripted request sends the two exact session-affinity headers and `prompt_cache_key` when enabled, omits them rather than sending empty values when retention is `none`, and clamps the 67-character ASCII session ID to 64. Synthetic authentication remains unchanged. The comparison covers the scoped headers and body fields, not SDK metadata or compressed byte identity. No production change or live request was needed.
