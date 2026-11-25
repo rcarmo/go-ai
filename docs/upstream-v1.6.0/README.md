@@ -1097,3 +1097,7 @@ All six selected unchanged variants passed. Native inline QuickJS, the published
 ### Image fitting applies EXIF orientation before measuring dimensions
 
 The unchanged [EXIF fit case](test-inventory/images-fit-exif.md) passed. Under the same limits, Photon and public Go `FitImages` both decode the fitted EXIF-6 input at 30×40. Forcing orientation 3 broke the dimension comparison in both runtimes. This is a dimension check; pixel placement, encoder bytes and worker timing are outside its scope.
+
+### Sandbox return cancels an unawaited call
+
+All three unchanged variants passed. Native raw QuickJS and the published portable and Node host APIs return `early`, record one `slow` call as cancelled, and observe its callback cancellation before return. The separate public Go and SQLite path returns `early` and records `slow/cancelled` without launching the callback at all. The final-drain guard prevents that effect from being admitted. Removing the call lost the raw cancellation evidence; forcing final-drain admission caused an unexpected native effect. No production change was needed.
