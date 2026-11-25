@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# != 3 ]]; then
-  printf 'Usage: bash %s <pinned-git-mirror> <oracle-dir> <retained-archive-dir>\n' "$0" >&2
+if [[ $# -lt 3 || $# -gt 4 || ( $# == 4 && $4 != auth-wire ) ]]; then
+  printf 'Usage: bash %s <pinned-git-mirror> <oracle-dir> <retained-archive-dir> [auth-wire]\n' "$0" >&2
   exit 1
 fi
 here=$(cd -- "$(dirname -- "$0")" && pwd -P)
@@ -81,6 +81,41 @@ verify_witness() {
     return 13
   fi
 }
+if [[ ${4:-load} == auth-wire ]]; then
+  source_test="packages/ai/$test"
+  source_sha=$(sha256sum "$scratch/$source_test" | cut -d' ' -f1)
+  test='test/google-standalone-auth-v160-supplemental.test.ts'
+  selector='observes the pinned standalone wire credential'
+  full_name=$selector
+  # Reuse the pinned case's imports, context and model in a separate scratch test.
+  head -n 27 "$scratch/$source_test" > "$scratch/packages/ai/$test"
+  cat >> "$scratch/packages/ai/$test" <<'TS'
+it("observes the pinned standalone wire credential", async () => {
+	const requests: unknown[] = [];
+	const key = "a+b/c=";
+	const fetch: FetchFunction = async (input, init) => {
+		const request = new Request(input, init);
+		requests.push({ method: request.method, url: request.url, key: request.headers.get("x-goog-api-key") });
+		const body = { candidates: [{ content: { role: "model", parts: [{ text: "partial" }] }, finishReason: "CONTINUATION", continuationToken: "token-1" }] };
+		return new Response(`data: ${JSON.stringify(body)}\n\n`, { headers: { "content-type": "text/event-stream" } });
+	};
+	const result = await streamGoogleGenerativeAI(createModel("google-generative-ai"), context, { apiKey: key, fetch }).result();
+	expect(result.stopReason).toBe("length");
+	expect(requests).toEqual([{ method: "POST", url: "https://upstream.test/v1/models/test-model:streamGenerateContent?alt=sse", key }]);
+});
+TS
+  run_selected wire
+  verify_witness wire
+  jq -n --arg pin "$pin" --arg node "$node_version" --arg vitest "$vitest_version" \
+    --arg source "$source_test" --arg sourceSha "$source_sha" --arg selector "$selector" \
+    --arg archiveSha "$archive_sha" --slurpfile witness "$scratch/wire.trace.jsonl" '
+    {format:1,pin:$pin,node:$node,vitest:$vitest,fixtureSource:{file:$source,sha256:$sourceSha},
+     fixture:{name:$selector,passed:1},archiveSha256:$archiveSha,loaded:$witness[0],
+     checkedRequest:{count:1,method:"POST",url:"https://upstream.test/v1/models/test-model:streamGenerateContent?alt=sse",credentialHeader:"x-goog-api-key",preservesKeyBytes:true,stopReason:"length"},
+     scope:"supplemental-standalone-auth-wire"}'
+  exit
+fi
+
 run_selected original
 verify_witness original
 

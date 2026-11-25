@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "pin": "faac585884ae2c013a6b1400f3e9e77f10b34bac",
+  "node": "v26.13.0",
+  "vitest": "4.1.12",
+  "fixtureSource": {
+    "file": "packages/ai/test/google-stop-reason-continuation.test.ts",
+    "sha256": "d13917a46c45753350398219f26c75e2f29382b9fafa2305913bbff7e86738b3"
+  },
+  "fixture": {
+    "name": "observes the pinned standalone wire credential",
+    "passed": 1
+  },
+  "archiveSha256": "93ba5d4d2ec28df2b00dc925637cb4d86a118eccfd9d3dca470f2908c58ea052",
+  "loaded": {
+    "entry": "node_modules/@google/genai/dist/node/index.mjs",
+    "format": "module",
+    "bytes": 1198102,
+    "sha256": "e07e9c3fc85b5a41586b013ffb7d9cd46ece70e5131090b43b04801a73b91665"
+  },
+  "checkedRequest": {
+    "count": 1,
+    "method": "POST",
+    "url": "https://upstream.test/v1/models/test-model:streamGenerateContent?alt=sse",
+    "credentialHeader": "x-goog-api-key",
+    "preservesKeyBytes": true,
+    "stopReason": "length"
+  },
+  "scope": "supplemental-standalone-auth-wire"
+}
