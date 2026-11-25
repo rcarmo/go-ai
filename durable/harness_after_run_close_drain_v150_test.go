@@ -9,19 +9,21 @@ import (
 	goai "github.com/rcarmo/go-ai"
 )
 
-// Pinned harness-after-run.test.ts:429 orderly-close half. Source waits for an
-// actual task attempt, closes, reopens and checks a rerun without re-asking the
-// hook. The old pending fixture incorrectly expected the durable abort handler
-// and raced task reservation against actual phase entry. Those translation
-// errors are corrected; the original runtime already passes this scenario.
+// harness-after-run.test.ts:459–475. Orderly close cancels the real child
+// invocation without calling its durable abort handler. Opening the same
+// database reruns that child without asking its parent's hook again.
 func TestV150AfterRunCloseInDrainResumesInterruptedAttempt(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
-		var executions, commits, aborts, asks atomic.Int64
+		var executions, commits, aborts, asks, requests atomic.Int64
 		gate := make(chan struct{})
+		entered := make(chan TaskRecord, 2)
 		def, err := DefineTask(TaskDefinitionOptions{Kind: "task.close-drain", Version: 1,
 			Initial: func(any) (JSON, error) { return JSON{"phase": "run"}, nil },
 			Phases: map[string]TaskPhase{"run": func(ctx context.Context, task TaskRecord, r *TaskRuntime) error {
-				executions.Add(1)
+				if executions.Add(1) <= 2 {
+					entered <- task
+				}
+				label := generationObject(task.Input.Value)["label"]
 				select {
 				case <-gate:
 				case <-ctx.Done():
@@ -32,10 +34,10 @@ func TestV150AfterRunCloseInDrainResumesInterruptedAttempt(t *testing.T) {
 					if err != nil {
 						return nil, err
 					}
-					if err := tx.appendEntryRecord(Entry{ID: id, Conversation: r.ConversationID(), Kind: "test.tests", Value: JSON{"label": "drain"}, ByTask: r.TaskID()}); err != nil {
+					if err := tx.appendEntryRecord(Entry{ID: id, Conversation: r.ConversationID(), Kind: "test.tests", Value: JSON{"label": label}, ByTask: r.TaskID()}); err != nil {
 						return nil, err
 					}
-					return taskDone(JSON{"label": "drain"}), nil
+					return taskDone(JSON{"label": label}), nil
 				})
 			}},
 			Abort: func(ctx context.Context, task TaskRecord, r *TaskRuntime) error {
@@ -50,11 +52,12 @@ func TestV150AfterRunCloseInDrainResumesInterruptedAttempt(t *testing.T) {
 		registry := NewRegistry()
 		if err := registry.Install(&Extension{Name: "close-drain", Tasks: []*TaskDefinition{def}, Hooks: GenerationHooks{AfterRun: func(_ context.Context, run RunSummary, _ *HookAPI) (*AfterRunResult, error) {
 			asks.Add(1)
-			return &AfterRunResult{Tasks: []RunEndTask{{Task: def, Input: JSON{"label": "drain"}}}}, nil
+			return &AfterRunResult{Tasks: []RunEndTask{{Task: def, Input: JSON{"label": "run 1"}}}}, nil
 		}}}); err != nil {
 			t.Fatal(err)
 		}
 		ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
+			requests.Add(1)
 			ch := make(chan goai.Event, 1)
 			ch <- terminal("done")
 			close(ch)
@@ -68,37 +71,11 @@ func TestV150AfterRunCloseInDrainResumesInterruptedAttempt(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		waitSubmission(t, sub)
-		childID := ID(0)
-		deadline := time.Now().Add(3 * time.Second)
-		for childID == 0 {
-			live := mainAfterRunLive(t, h, c.ID())
-			if a, ok := generationObject(live["run"])["afterRun"].(map[string]any); ok {
-				if list, islist := a["tasks"].([]any); islist && len(list) == 1 {
-					childID = submissionEntryID(list[0])
-				}
-			}
-			if childID == 0 {
-				if time.Now().After(deadline) {
-					t.Fatal("the hook's drain task was never committed", asks.Load())
-				}
-				time.Sleep(time.Millisecond)
-			}
-		}
-		runningDeadline := time.Now().Add(3 * time.Second)
-		for {
-			child, ok, err := h.Task(bg, childID)
-			if err != nil || !ok {
-				t.Fatal("drain task missing", ok, err)
-			}
-			// Source awaits the actual phase attempt, not its earlier reservation.
-			if child.State.Status == "running" && executions.Load() == 1 {
-				break
-			}
-			if time.Now().After(runningDeadline) {
-				t.Fatal("drain task never started", child.State.Status, child.State.Outcome)
-			}
-			time.Sleep(time.Millisecond)
+		answer := waitSubmission(t, sub).Record
+		first := watchReceive(t, entered)
+		childID := first.ID
+		if child, ok, err := h.Task(bg, childID); err != nil || !ok || child.State.Status != "running" || child.Owner != readOnlyHarnessRunID(t, c) || child.Restarts != 0 || generationObject(child.Input.Value)["label"] != "run 1" {
+			t.Fatal("original drain attempt did not start as the owned child run 1", child, ok, err)
 		}
 		if err := h.Close(bg); err != nil {
 			t.Fatal("orderly close during drain", err)
@@ -118,6 +95,10 @@ func TestV150AfterRunCloseInDrainResumesInterruptedAttempt(t *testing.T) {
 		defer cancel()
 		if err := c2.WaitForIdle(ctx); err != nil {
 			t.Fatal("reopen did not resume the interrupted drain", err)
+		}
+		second := watchReceive(t, entered)
+		if second.ID != childID || second.Owner != first.Owner || generationObject(second.Input.Value)["label"] != "run 1" {
+			t.Fatal("orderly close did not resume the same owned child run 1", second)
 		}
 		if executions.Load() != 2 || commits.Load() != 1 {
 			t.Error("interrupted drain attempt was not re-executed once", executions.Load(), commits.Load())
@@ -145,6 +126,11 @@ func TestV150AfterRunCloseInDrainResumesInterruptedAttempt(t *testing.T) {
 		}
 		if resumed.State.Outcome == nil || resumed.State.Outcome.Status != "completed" {
 			t.Error("resumed drain task not completed", resumed.State.Status, resumed.State.Outcome)
+		}
+		parent, found, err := h2.Task(ctx, first.Owner)
+		outcome := parent.State.Outcome
+		if err != nil || !found || parent.State.Status != "terminal" || outcome == nil || outcome.Status != "completed" || outcome.Result == nil || !equalJSONValue(outcome.Result.Value, JSON{"entryId": float64(answer.Answer)}) || requests.Load() != 1 {
+			t.Fatal("orderly close changed the original answer or repeated the provider request", parent, found, err, requests.Load())
 		}
 		if live := mainAfterRunLive(t, h2, c.ID()); len(live) != 0 {
 			t.Error("run/live after the resumed drain", live)

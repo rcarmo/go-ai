@@ -30,6 +30,7 @@ type mainAfterRecoveryProbe struct {
 	gates       map[int64]chan struct{}
 	mu          sync.Mutex
 	labels      []string
+	labelOffset int64 // display ordinal across separate test processes, not the local ask count
 	infos       []ReportInfo
 	options     Options
 	ref         ModelRef
@@ -77,7 +78,7 @@ func mainAfterRecoverySetup(t *testing.T, hooks, gates map[int64]chan struct{}, 
 				return nil, ctx.Err()
 			}
 		}
-		return &AfterRunResult{Tasks: []RunEndTask{{Task: def, Input: JSON{"label": fmt.Sprintf("run %d", n)}}}}, nil
+		return &AfterRunResult{Tasks: []RunEndTask{{Task: def, Input: JSON{"label": fmt.Sprintf("run %d", p.labelOffset+n)}}}}, nil
 	}}}); err != nil {
 		t.Fatal(err)
 	}
@@ -140,13 +141,6 @@ func mainAfterRecoveryStart(t *testing.T, p *mainAfterRecoveryProbe, store Stora
 	}
 	return h, c, mainAfterRecoveryRun{Record: record, GenerationID: generation}
 }
-func mainAfterRecoveryOutcome(t *testing.T, h *Harness, id ID) {
-	t.Helper()
-	task, ok, err := h.Task(bg, id)
-	if err != nil || !ok || task.State.Status != "terminal" || task.State.Outcome == nil || task.State.Outcome.Status != "completed" {
-		t.Error("answered generation outcome", task, ok, err)
-	}
-}
 func mainAfterRecoveryReports(t *testing.T, p *mainAfterRecoveryProbe, kind, reason string, want bool) {
 	t.Helper()
 	p.mu.Lock()
@@ -162,52 +156,9 @@ func mainAfterRecoveryReports(t *testing.T, p *mainAfterRecoveryProbe, kind, rea
 	}
 }
 
+// harness-after-run.test.ts:430–457, with two real writer exits on one DB.
 func TestMainAfterRunCrashFinishReasksDrainDoesNot(t *testing.T) {
-	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
-		p := mainAfterRecoverySetup(t, map[int64]chan struct{}{1: make(chan struct{})}, map[int64]chan struct{}{1: make(chan struct{})}, nil)
-		h, c, settled := mainAfterRecoveryStart(t, p, b.store)
-		awaitTaskSignal(t, p.hookEntered)
-		store := mainAfterRecoveryCrash(t, h, b.store)
-		h, c = mainAfterRecoveryOpen(t, p, store, c.ID())
-		if err := h.Resume(bg); err != nil {
-			t.Fatal(err)
-		}
-		awaitTaskSignal(t, p.hookEntered)
-		awaitTaskSignal(t, p.taskEntered)
-		if p.asks.Load() != 2 {
-			t.Error("finish must reask", p.asks.Load())
-		}
-		store = mainAfterRecoveryCrash(t, h, store)
-		h, c = mainAfterRecoveryOpen(t, p, store, c.ID())
-		mainAfterRecoveryIdle(t, c)
-		if p.asks.Load() != 2 || p.calls.Load() != 1 {
-			t.Error("drain reasked or redispatched", p.asks.Load(), p.calls.Load())
-		}
-		p.mu.Lock()
-		labels := append([]string(nil), p.labels...)
-		p.mu.Unlock()
-		if !reflect.DeepEqual(labels, []string{"run 2", "run 2"}) {
-			t.Error("same owned task replay", labels)
-		}
-		entries, err := c.Entries(bg, EntryQuery{Order: Ascending}, 100, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		count := 0
-		for _, entry := range entries.Items {
-			if entry.Kind == "test.tests" {
-				count++
-			}
-		}
-		if count != 1 {
-			t.Error("task completion entries", count)
-		}
-		inspect, err := h.InspectTasks(bg)
-		if err != nil || len(inspect.Tasks) != 0 {
-			t.Error("unfinished tasks", inspect, err)
-		}
-		mainAfterRecoveryOutcome(t, h, settled.GenerationID)
-	})
+	t.Run("sqlite", testAfterRunTwoSQLiteCutoffsV160)
 }
 
 // harness-after-run.test.ts:758-783 uses restartLimit=1 with a queued input.
