@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# != 4 && ( $# -lt 5 || $# -gt 6 || ( $5 != stable-worker && $5 != fit-resize && $5 != fit-passthrough && $5 != fit-omissions && $5 != fit-declared-type && $5 != fit-bmp ) ) ]]; then
-  printf 'Usage: bash %s <pinned-git-mirror> <prepared-oracle-dir> <user-npm-cacache> <release-archive-dir> [stable-worker|fit-resize|fit-passthrough|fit-omissions|fit-declared-type|fit-bmp [new-fixture-path]]\n' "$0" >&2
+if [[ $# != 4 && ( $# -lt 5 || $# -gt 6 || ( $5 != stable-worker && $5 != fit-resize && $5 != fit-passthrough && $5 != fit-omissions && $5 != fit-declared-type && $5 != fit-bmp && $5 != fit-exif ) ) ]]; then
+  printf 'Usage: bash %s <pinned-git-mirror> <prepared-oracle-dir> <user-npm-cacache> <release-archive-dir> [stable-worker|fit-resize|fit-passthrough|fit-omissions|fit-declared-type|fit-bmp|fit-exif [new-fixture-path]]\n' "$0" >&2
   exit 1
 fi
 mirror=$(realpath -- "$1")
@@ -34,6 +34,8 @@ elif [[ "$mode" == fit-declared-type ]]; then
   selector='fitImages corrects a declared type the bytes contradict, without a note'
 elif [[ "$mode" == fit-bmp ]]; then
   selector='fitImages converts a format providers do not take inline to PNG'
+elif [[ "$mode" == fit-exif ]]; then
+  selector='fitImages turns an image upright that fits but carries an EXIF orientation'
 fi
 key=node_modules/@silvia-odwyer/photon
 js=photon_rs.js
@@ -120,11 +122,11 @@ run_selected() {
       ]) and any(.[]; .kind=="worker-reply" and .id==0 and .mimeType=="image/jpeg" and
         .convertedFrom=="image/png" and (has("resized")|not) and .data.bytes>0 and .base64.bytes<=4718592)
     ' "$scratch/$tag.trace.jsonl" > "$scratch/$tag.events.check" || { cat "$scratch/$tag.trace.jsonl" >&2; return 1; }
-  elif [[ "$mode" == fit-resize || "$mode" == fit-passthrough || "$mode" == fit-declared-type || "$mode" == fit-bmp ]]; then
+  elif [[ "$mode" == fit-resize || "$mode" == fit-passthrough || "$mode" == fit-declared-type || "$mode" == fit-bmp || "$mode" == fit-exif ]]; then
     local width=200 mime=image/png
     case "$mode" in
       fit-passthrough) width=2000 ;;
-      fit-declared-type) width=2000; mime=image/jpeg ;;
+      fit-declared-type|fit-exif) width=2000; mime=image/jpeg ;;
       fit-bmp) width=2000; mime=image/bmp ;;
     esac
     jq -e '.numPendingTests==10 and .numTodoTests==0' "$scratch/$tag.result.json" > "$scratch/$tag.pending.check"
@@ -138,6 +140,7 @@ run_selected() {
         (if $mode=="fit-bmp" then .mimeType=="image/png" and .convertedFrom==$mime and (has("resized")|not)
          else .mimeType==$mime and (has("convertedFrom")|not) and
            (if $mode=="fit-resize" then .resized=={from:{width:400,height:100},to:{width:200,height:50}}
+            elif $mode=="fit-exif" then (has("resized")|not) and .data.bytes>0 and .data.sha256!=$sha
             else (has("resized")|not) and .data=={bytes:$bytes,sha256:$sha} end)
          end))
     ' "$scratch/$tag.trace.jsonl" > "$scratch/$tag.events.check" || { cat "$scratch/$tag.trace.jsonl" >&2; return 1; }
@@ -175,8 +178,9 @@ run_selected original
 verify_asset original load-js "$scratch/$js" > "$scratch/js.check"
 verify_asset original instantiate-wasm "$scratch/$wasm" > "$scratch/wasm.check"
 
-if [[ "$mode" == fit-resize || "$mode" == fit-passthrough || "$mode" == fit-omissions || "$mode" == fit-declared-type || "$mode" == fit-bmp ]]; then
+if [[ "$mode" == fit-resize || "$mode" == fit-passthrough || "$mode" == fit-omissions || "$mode" == fit-declared-type || "$mode" == fit-bmp || "$mode" == fit-exif ]]; then
   fixture="$scratch/original.input.png"
+  worker_trace=identical
   if [[ "$mode" == fit-resize ]]; then
     base=4db6f2123184ab22e0fe6d09b8e3aa40cfa90183
     adapter=packages/durable/src/tools/image-processor.ts
@@ -209,6 +213,15 @@ if [[ "$mode" == fit-resize || "$mode" == fit-passthrough || "$mode" == fit-omis
     scope=offline-fit-bmp-conversion
     [[ $(grep -Fc 'if (image.convertedFrom !== undefined) notes.push(' "$scratch/$adapter") == 1 ]]
     sed -i '/if (image\.convertedFrom !== undefined) notes\.push(/d' "$scratch/$adapter"
+  elif [[ "$mode" == fit-exif ]]; then
+    base=60dfad60f69141e5f7932714982a93de2f37411d
+    adapter=packages/durable/src/images/index.ts
+    assertion=125
+    change='apply orientation 3 instead of reading the fixture orientation 6'
+    scope=offline-fit-exif-orientation
+    worker_trace='same request and assets; different reply'
+    [[ $(grep -Fc 'const orientation = exifOrientation(bytes);' "$scratch/$adapter") == 1 ]]
+    sed -i 's/const orientation = exifOrientation(bytes);/const orientation = 3;/' "$scratch/$adapter"
   else
     base=3d0a45b2185b7177439d0cfe8ba60b5c23309b81
     adapter=packages/durable/src/images/fit.ts
@@ -229,7 +242,16 @@ if [[ "$mode" == fit-resize || "$mode" == fit-passthrough || "$mode" == fit-omis
     any(.testResults[].assertionResults[]; .fullName==$full and (.failureMessages|join("\n")|contains($site)))
   ' "$scratch/note.result.json" > "$scratch/note.check"; then show_failure note; exit 1; fi
   jq -s 'sort_by(.thread)' "$scratch/note.trace.jsonl" > "$scratch/note.events.json"
-  cmp "$scratch/original.events.json" "$scratch/note.events.json"
+  if [[ "$mode" == fit-exif ]]; then
+    jq -ne --slurpfile original "$scratch/original.events.json" --slurpfile control "$scratch/note.events.json" '
+      ($original[0]|map(select(.kind!="worker-reply")))==($control[0]|map(select(.kind!="worker-reply"))) and
+      ($original[0]|map(select(.kind=="worker-reply")|del(.data,.base64)))==($control[0]|map(select(.kind=="worker-reply")|del(.data,.base64))) and
+      ($original[0]|map(select(.kind=="worker-reply")|.data.sha256))!=($control[0]|map(select(.kind=="worker-reply")|.data.sha256)) and
+      any($control[0][]; .kind=="worker-reply" and .data.bytes>0)
+    ' > "$scratch/note.events.check"
+  else
+    cmp "$scratch/original.events.json" "$scratch/note.events.json"
+  fi
   if [[ "$mode" != fit-omissions ]]; then cmp "$fixture" "$scratch/note.input.png"; fi
   git -C "$mirror" show "$pin:$adapter" > "$scratch/$adapter"
   flock -u 9
@@ -239,16 +261,18 @@ if [[ "$mode" == fit-resize || "$mode" == fit-passthrough || "$mode" == fit-omis
   done > "$scratch/source.jsonl"
   if [[ -n "$fixture_out" ]]; then (set -o noclobber; cat "$fixture" > "$fixture_out"); fi
   jq -n --arg pin "$pin" --arg base "$base" --arg test "$test" --arg selected "$selector" \
-    --arg change "$change" --argjson assertion "$assertion" --arg scope "$scope" \
+    --arg change "$change" --argjson assertion "$assertion" --arg scope "$scope" --arg workerTrace "$worker_trace" \
     --arg node "$(node --version)" --arg vitest "$vitest" --arg url "$url" --arg integrity "$integrity" \
     --arg archiveSha "$archive_sha" --arg aiSha "$ai_sha" --arg png "$(base64 -w 0 "$fixture")" \
     --slurpfile deps "$scratch/copied.json" --slurpfile sources "$scratch/source.jsonl" \
-    --slurpfile observed "$scratch/original.events.json" --slurpfile report "$scratch/original.result.json" '
+    --slurpfile observed "$scratch/original.events.json" --slurpfile control "$scratch/note.events.json" \
+    --slurpfile report "$scratch/original.result.json" '
     {format:1,pin:$pin,evidenceBase:$base,node:$node,vitest:$vitest,
       selection:{file:$test,caseNames:[$selected],filteredOut:[$report[0].testResults[].assertionResults[]|select(.status=="skipped")|.fullName]},
       result:{passed:1,failed:0,selectedSkipped:0},sourceDigests:$sources,fixtureBase64:$png,
       photonArchive:{url:$url,integrity:$integrity,sha256:$archiveSha},aiArchiveSha256:$aiSha,
-      observed:$observed[0],control:{change:$change,failed:[$selected],assertions:[$assertion],workerTrace:"identical"},
+      observed:$observed[0],control:({change:$change,failed:[$selected],assertions:[$assertion],workerTrace:$workerTrace}+
+        (if $scope=="offline-fit-exif-orientation" then {workerReply:($control[0]|map(select(.kind=="worker-reply"))) } else {} end)),
       copiedDependencies:$deps[0],exclusions:[],scope:$scope}'
   exit 0
 fi
