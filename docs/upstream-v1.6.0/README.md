@@ -991,3 +991,7 @@ All 18 unchanged tool-park cases passed. The native fixture verifies the running
 ### Chord rolls back the full commit series
 
 All 12 unchanged [commit-series cases](test-inventory/chord-series-rollback.md) passed offline; the other 44 file cases were unselected. The witness observed the pinned store and Node SQLite adapter. The actual SQLite 3.54.0 connection held one provisional document row when the second write failed and zero after rollback. Committing on error in scratch left one row and made the unchanged retry fail. The receipt is scoped to the Chord group; it does not verify Durable's callers or native Go correspondence.
+
+### Anthropic threads retain caching when effort changes
+
+All 33 unchanged thread cases passed. The native create has a user message and the `high` per-turn control; continuation after `msg_a` sends the new user message and `low`. The managed envelope now stays at the pinned `low` setting, including the recreate, without overriding the turn's effort. Appending the empty effort control after cache marking preserves the ephemeral marker on real user content. The separate SDK capture and the native test cover the fixture's `200`, `400`, `200` response sequence and retained historical controls. Four faults caught the wrong envelope, lost cache marker, ignored requested effort and missing historical marker. The inline-tool case is separate.
