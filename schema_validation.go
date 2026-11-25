@@ -44,6 +44,11 @@ func toolSchemaKey(schema map[string]interface{}, value interface{}) (toolSchema
 	case reflect.Bool, reflect.String, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
 		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		key.value.scalar = value
+	case reflect.Struct:
+		if _, ok := value.(SchemaUndefined); !ok {
+			return key, false
+		}
+		// The type distinguishes this single value from a nil interface.
 	default:
 		return key, false
 	}

@@ -139,6 +139,8 @@ func schemaLiteralTypeName(value interface{}) string {
 	switch value.(type) {
 	case nil:
 		return "null"
+	case SchemaUndefined:
+		return "undefined"
 	case bool:
 		return "boolean"
 	case string:

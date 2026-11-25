@@ -578,6 +578,9 @@ func matchesJSONSchemaType(value interface{}, expectedType string) bool {
 		return ok
 	case "null":
 		return value == nil
+	case "undefined":
+		_, ok := value.(SchemaUndefined)
+		return ok
 	case "array":
 		_, ok := value.([]interface{})
 		return ok

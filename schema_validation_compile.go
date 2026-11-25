@@ -46,7 +46,8 @@ func CompileJSONSchema(schema json.RawMessage, options JSONSchemaCompileOptions)
 }
 
 // Check reports whether value satisfies the schema without coercion. Pass
-// a decoded JSON value, json.RawMessage, or typed []byte for the bytes type.
+// a decoded JSON value or json.RawMessage. Native values may also use typed
+// []byte for bytes and SchemaUndefined for an explicit undefined.
 func (c *CompiledJSONSchema) Check(value any) (bool, error) {
 	v, value, _, err := c.call(value)
 	if err != nil {
