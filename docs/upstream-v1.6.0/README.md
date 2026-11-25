@@ -855,3 +855,7 @@ All 89 unchanged validator and coercion cases passed. Prepared schemas now expos
 ### Chord replays ordered framed deltas without mutating input
 
 All eight unchanged [Chord framed-source cases](test-inventory/chord-framed-delta.md) passed offline. The witness observed `applyImmutable` replay the three ordered operations, producing `{a:2,b:3,c:4}` from the unchanged `{a:1,b:1,c:1}` input. Returning the previous value in scratch failed the replay assertion even though the recorded operations remained correct. The receipt covers this Chord path; it does not map the Durable consumers or native Go behavior.
+
+### llama.cpp request hooks see only the completion request
+
+All 15 unchanged classifier cases passed offline. The public loopback client calls the payload hook once, with `n_predict: 1`, records response status `[200]`, and sends the transformed `id_slot: 1` field only on the completion request. Neighboring tests check invalid bounds and API selection before transport and keep the exact HTTP error body. A separate admitted-request test verifies that caller cancellation reaches the peer and returns an aborted result without an answer. Six controls caught missing, extra or ignored hooks, loss of the error body, and a detached request context. No production change was needed.
