@@ -119,3 +119,11 @@ The unchanged original passed. The published v1.6.1 worker and reopened native S
 Four focused Go tests passed twice, plus vet and Staticcheck. No production code or saved format changed.
 
 Exact native test code: `3dc0c63f`.
+
+### OpenRouter retains native finish reasons without discarding visible output
+
+All 13 unchanged originals in the selected Completions stop-reason file passed. Seven of the nine scoped native cases failed before the fix. Go now retains a distinct OpenRouter `native_finish_reason` in the raw stop reason and error diagnostic. It keeps a turn with visible output successful, preserves clean stops regardless of case, and marks reasoning-only or whitespace-only failed stops retryable. The provider `finish_reason: error` control is retryable; the content-filter outcome and unrelated providers are not promoted to that path. These comparisons cover the retryability decision, not a multiattempt retry run. Eight fault controls isolated the changed decisions.
+
+The full provider package on the unchanged base also exposed four stale tests after catalog regeneration: one active Qwen field expectation and three tests that look up removed historical Groq or OpenCode IDs. This slice did not hide those failures or change their tests. The scoped OpenAI and retry checks passed; the broader catalog-test reconciliation is separate.
+
+At `4b4a0641`, 7 focused top-level Go tests passed twice without skips. Vet and Staticcheck passed. The ledger maps 27 sites across the nine compared originals; the other four passing originals are not mapped here.
