@@ -923,3 +923,13 @@ The unchanged no-count early-return case at L377 also passed upstream. Go can re
 ### Codemode aborts a running nested call at script completion
 
 The unchanged running-call case passed. The published guest starts `hold` and waits for `echo`; the fixture does not let `echo` return until the hold callback enters. The script returns `1`, the hold runs exactly once and observes cancellation, and its public SQLite task is terminal with outcome `aborted`. Relabelling the actual abort as `completed` failed the terminal-record check. Disabling only one cleanup path did not reproduce a failure, because the other cleanup still ran. No production change was needed.
+
+### Text-only model metadata stays out of the provider request
+
+The unchanged [image-details case](test-inventory/tools-images-model-details.md) passed. Durable keeps the exact PNG and normal read diagnostic. For the text-only model it stores only `{imageUnsupportedByModel:"test"}` as UI details; a vision read has no details object. An offline serialization check confirms the text-only request contains the placeholder and diagnostic but neither image bytes nor the UI detail. A vision replay keeps the image. Read caps and the structured image projection are unchanged.
+
+### Google continuation ends after one request per adapter
+
+Both unchanged continuation cases passed with the verified `@google/genai` 2.32.0 entry. The public native Generative AI and Vertex simple streams issue exactly two requests in total and both end with reason `length` after `CONTINUATION`. A separate wire comparison checks the model cap of 1,000 in each request body and the event sequence. The Go simple adapters now default an omitted cap to the model's limit, apply the existing context clamp, and preserve explicit caps including zero. Direct streams are unchanged.
+
+The standalone Google credential path still differs: the SDK puts the key in `x-goog-api-key`, while Go uses the query. The wire comparison excludes just that query difference; Vertex's header matches. No live request or SDK object-identity check ran.
