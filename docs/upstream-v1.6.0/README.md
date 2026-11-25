@@ -889,3 +889,7 @@ A supplemental check delivers a schema value for a failed nested tool and still 
 ### Chord executes the pinned SQLite read plan
 
 All 21 unchanged [Chord read-plan cases](test-inventory/chord-read-plan.md) passed offline. The witness observed the planner and Node SQLite adapter evaluate, and recorded a real SQLite 3.54.0 plan with the owning table searched first. Reversing the `CROSS JOIN` inputs in scratch changed the plan and failed the unchanged assertion. The receipt covers this Chord path on the pinned Node engine; it does not verify Durable's callers or native Go behavior.
+
+### llama.cpp request roots and classifier values
+
+All 15 unchanged classifier originals passed again. Each URL fixture sends the exact six requests to its loopback server and keeps the configured scheme and prefix while removing the version suffix. The temperature case checks both named probabilities and equal public results for pre-scaled logits. The choice cases return confidence 0 and 1 exactly and match 0.835 within the stated numerical tolerance, without a score field. The score result contains exactly type, score and confidence, with 1.3 and 0.25 within the same tolerance. This completes assertion indexing for the file; the private JavaScript helper array and renderer fields still have partial comparisons.
