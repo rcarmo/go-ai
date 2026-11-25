@@ -1349,3 +1349,9 @@ The unchanged mocked nonzero-exit case passed. The native baseline threw a Go er
 All 58 unchanged effort cases passed. The scoped public native catalog checks match the pinned Opus and Sonnet prices, token limits and managed flags. Both expose exactly `low`, `medium`, `high`, `xhigh`, `max` in that order. The controls separate catalog mistakes from effort-helper mistakes. No generated data or production code changed.
 
 The integrated code at `09355590` passed 28 focused top-level Go tests twice, without skips. The default published worker returned `50` with eight journal publications in both repeats. Vet and Staticcheck v0.8.2 passed. The inventory at `4067f3f5` records 1,999 scoped sites: 1,948 mapped, 46 partial and five unmatched. Thirty-seven of the 214 changed suites have assertion-level links. Full parity remains open.
+
+## Round 56
+
+### Namespaced globals preserve spread argument positions
+
+All three unchanged placement variants passed. Native QuickJS and the published hosts match the ordered namespace keys, the first-only argument rule and the rejected namespace mutation. The spread callbacks receive exactly `["classifier",null,3]` and `[]`. Swapping two inputs failed the argument-position assertion without changing the return value. No production change was needed.
