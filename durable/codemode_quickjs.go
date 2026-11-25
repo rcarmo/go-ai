@@ -254,7 +254,7 @@ func (s *QuickJSSandbox) Start(ctx context.Context, code string, start CodemodeS
 	}
 	go func() {
 		defer close(execution.done)
-		result := s.engine.Execute(linked, code, opts)
+		result := s.engine.ExecuteStart(linked, code, opts)
 		out := CodemodeResult{StoreWrites: JSON{}}
 		for _, item := range result.Output {
 			if item.Type == "image" {

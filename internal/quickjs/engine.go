@@ -304,14 +304,24 @@ func hostModule(r wazero.Runtime) wazero.HostModuleBuilder {
 	return b
 }
 
-// Execute runs a script (the body of an async function). It never returns
-// an error for script failures; those are Result.Error. Cancelling ctx aborts
-// the run.
+// Execute runs a standalone script. When tool aliases collide, the guest
+// exposes the first alias, as in the pinned standalone sandbox. Script
+// failures are returned in Result.Error. Cancelling ctx aborts the run.
 func (e *Engine) Execute(ctx context.Context, code string, opts Options) Result {
+	return e.execute(ctx, code, opts, false)
+}
+
+// ExecuteStart runs a caller-controlled start with fixed tool aliases. The
+// existing strict alias check runs before reserving any worker capacity.
+func (e *Engine) ExecuteStart(ctx context.Context, code string, opts Options) Result {
+	return e.execute(ctx, code, opts, true)
+}
+
+func (e *Engine) execute(ctx context.Context, code string, opts Options, strictToolAliases bool) Result {
 	if ctx == nil {
 		return Result{Error: &Error{Kind: ErrorSandbox, Message: "nil QuickJS context"}}
 	}
-	if err := validateInputs(code, opts); err != nil {
+	if err := validateInputs(code, opts, strictToolAliases); err != nil {
 		return Result{Error: &Error{Kind: ErrorSandbox, Message: err.Error()}}
 	}
 	if opts.Seed > 0xffffffff {

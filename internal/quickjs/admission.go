@@ -10,7 +10,7 @@ import (
 
 // validateInputs bounds native setup before instantiation or JSON expansion.
 // These byte budgets are native limits, separate from guest UTF16 store limits.
-func validateInputs(code string, opts Options) error {
+func validateInputs(code string, opts Options, strictToolAliases bool) error {
 	invalid := func() error { return errors.New("invalid or oversized QuickJS setup input") }
 	if !utf8.ValidString(code) || len(code) > int(maxBridgeStringBytes) || opts.MemoryLimitBytes < 0 || opts.StartedAt < 0 {
 		return invalid()
@@ -26,7 +26,10 @@ func validateInputs(code string, opts Options) error {
 		total += len(value)
 		return true
 	}
-	aliases := map[string]string{}
+	var aliases map[string]string
+	if strictToolAliases {
+		aliases = make(map[string]string)
+	}
 	for _, tool := range opts.Tools {
 		identifier := tool.JSName
 		if identifier == "" {
@@ -35,11 +38,13 @@ func validateInputs(code string, opts Options) error {
 		if tool.Name == "" || Identifier(identifier) != identifier || tool.Execute == nil || !add(tool.Name) || !add(identifier) || !add(tool.Description) {
 			return invalid()
 		}
-		for _, alias := range []string{tool.Name, identifier} {
-			if previous, ok := aliases[alias]; ok && previous != tool.Name {
-				return invalid()
+		if strictToolAliases {
+			for _, alias := range []string{tool.Name, identifier} {
+				if previous, ok := aliases[alias]; ok && previous != tool.Name {
+					return invalid()
+				}
+				aliases[alias] = tool.Name
 			}
-			aliases[alias] = tool.Name
 		}
 	}
 	globals := map[string]bool{}
