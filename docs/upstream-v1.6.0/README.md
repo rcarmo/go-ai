@@ -1391,3 +1391,7 @@ All three unchanged placement variants passed. Native QuickJS and the published 
 ### An after-run child admits its own follow-up after the tasks
 
 The selected unchanged follow-up case passed. The native SQLite child admits `fix the tests` in the same commit as its own write and completion. When the fix request starts, SQLite already records that child as complete. The transcript places the child's write before the follow-up input, and the separate fix run starts from that input and answers `fixed` without changing the original `done` answer. No production change was needed.
+
+### Codex accepts terminal SSE framing without waiting for EOF
+
+All three selected unchanged cases passed. The native public stream accepts a terminal event without its trailing blank line. It also settles completed and incomplete responses while the scripted body remains open, closes the body once, and preserves the exact text, stop reason and explicit `endTurn: false`. Fault controls distinguish missing final flush, waiting for EOF, missing Close and lost terminal fields. This is scripted transport evidence, not a live request or an SDK object-identity check.
