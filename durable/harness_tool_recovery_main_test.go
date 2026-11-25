@@ -291,7 +291,7 @@ func TestMainSafeToolReplayClearsOutputThroughSecondCrash(t *testing.T) {
 	})
 }
 
-// harness-tool-parks.test.ts:494-517 and :558-604. The recovery cases use
+// harness-tool-parks.test.ts:494-604. The recovery cases use
 // real process loss after a woken execute intent instead of overlapping writers.
 func TestSourceV160CanonicalToolParkRecovery(t *testing.T) {
 	for _, mode := range []string{"removed", "unsafe", "safe"} {
@@ -303,6 +303,7 @@ func testV160ToolParkRecovery(t *testing.T, mode string) {
 	t.Helper()
 	const crashDir = "GOAI_TEST_TOOL_PARK_CRASH"
 	const report = "Tool ci is not available: its parked call c1 cannot run again"
+	const interrupted = "Tool ci was interrupted and may have partially run"
 	childDir := os.Getenv(crashDir)
 	starting := childDir != "" || mode == "removed"
 	ctx, cancel := context.WithTimeout(bg, 15*time.Second)
@@ -348,16 +349,20 @@ func testV160ToolParkRecovery(t *testing.T, mode string) {
 		}
 		return canonicalToolSlot(doc.Value, ids.Tool), nil
 	}
-	if mode == "safe" && !starting {
+	if !starting {
 		// Check SQLite before opening the writable Harness. These are the
 		// crashed process's committed values, not its in-memory live view.
 		crashed, found, err := native.Task(ctx, ids.Tool)
 		checkpoint := taskCheckpointMap(crashed.State.Checkpoint)
-		if err != nil || !found || crashed.State.Status != "running" || crashed.Restarts != 0 || checkpoint["phase"] != "execute" || checkpoint["checkpoint"] != "first" || checkpoint["replay"] != "safe" {
+		if err != nil || !found || crashed.State.Status != "running" || crashed.Restarts != 0 || checkpoint["phase"] != "execute" || checkpoint["checkpoint"] != "first" || checkpoint["replay"] != mode {
 			t.Fatal("persisted woken intent after crash", crashed, found, err)
 		}
+		output, details, diagnostics := "cut off\n", wantDetails, any(wantDiagnostics)
+		if mode == "unsafe" {
+			output, details, diagnostics = "rerun\n", JSON{"woken": true}, nil
+		}
 		slot, err := readSlot(ctx)
-		if err != nil || slot["status"] != "running" || slot["output"] != "cut off\n" || !equalJSONValue(slot["details"], wantDetails) || !equalJSONValue(slot["diagnostics"], wantDiagnostics) {
+		if err != nil || slot["status"] != "running" || slot["output"] != output || !equalJSONValue(slot["details"], details) || !equalJSONValue(slot["diagnostics"], diagnostics) {
 			t.Fatal("persisted woken slot after crash", slot, err)
 		}
 	}
@@ -372,6 +377,7 @@ func testV160ToolParkRecovery(t *testing.T, mode string) {
 		Checkpoint any
 	}
 	seen, cleaned := make(chan attempt, 4), make(chan attempt, 4)
+	releaseCleanup := make(chan struct{})
 	type storedReplaySlot struct {
 		slot JSON
 		err  error
@@ -392,9 +398,8 @@ func testV160ToolParkRecovery(t *testing.T, mode string) {
 	})
 	options.Registry = NewRegistry()
 	options.OnReport = func(err error) { reports <- err }
-	if mode == "safe" {
-		// Supply a durable cut-off output for the stronger Go recovery
-		// control, rather than relying on any timer to store it.
+	if mode != "removed" {
+		// Store the cut-off output for the recovery witness without a timer.
 		interval, window := int64(0), float64(0)
 		options.Settings = &HarnessSettings{Progress: &ProgressSettings{OutputIntervalMs: &interval, PersistWithinMs: &window}}
 	}
@@ -454,8 +459,18 @@ func testV160ToolParkRecovery(t *testing.T, mode string) {
 			}
 			return ToolResult{}, nil
 		},
-		Cancel: func(_ context.Context, _ any, api *ToolAPI) error {
+		Cancel: func(cleanup context.Context, _ any, api *ToolAPI) error {
 			cleaned <- attempt{api.Wake, api.Checkpoint}
+			if mode == "unsafe" && !starting {
+				if err := cleanup.Err(); err != nil {
+					return err
+				}
+				select {
+				case <-releaseCleanup:
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			}
 			return nil
 		},
 	}); err != nil {
@@ -523,12 +538,10 @@ func testV160ToolParkRecovery(t *testing.T, mode string) {
 			return
 		}
 	} else {
-		if mode == "safe" {
-			// Writable Open recovers the task before scheduling resumes.
-			recovered, found, err := h.Task(ctx, ids.Tool)
-			if err != nil || !found || recovered.State.Status != "pending" || recovered.Restarts != 1 || len(seen) != 0 {
-				t.Fatal("paused recovered task", recovered, found, err)
-			}
+		// Writable Open recovers the task before scheduling resumes.
+		recovered, found, err := h.Task(ctx, ids.Tool)
+		if err != nil || !found || recovered.State.Status != "pending" || recovered.Restarts != 1 || len(seen) != 0 {
+			t.Fatal("paused recovered task", recovered, found, err)
 		}
 		c, err = h.Conversation(ctx, ids.Conversation)
 		if err != nil {
@@ -539,7 +552,42 @@ func testV160ToolParkRecovery(t *testing.T, mode string) {
 			t.Fatal(err)
 		}
 	}
-	if settled, err := sub.Wait(ctx); err != nil || settled.Record.Status != "done" {
+	wait := func() (Settlement, error) { return sub.Wait(ctx) }
+	if mode == "unsafe" {
+		wait = func() (Settlement, error) {
+			defer releaseTaskGate(releaseCleanup)
+			type outcome struct {
+				settlement Settlement
+				err        error
+			}
+			done := make(chan outcome, 1)
+			go func() {
+				settlement, err := sub.Wait(ctx)
+				done <- outcome{settlement, err}
+			}()
+			select {
+			case first := <-cleaned:
+				if !reflect.DeepEqual(first, attempt{nil, "first"}) {
+					t.Fatal("unsafe cleanup did not receive the original park checkpoint", first)
+				}
+			case early := <-done:
+				t.Fatalf("unsafe submission settled without cleanup: %+v, %v", early.settlement.Record, early.err)
+			case <-ctx.Done():
+				t.Fatal("unsafe recovery did not enter cleanup", ctx.Err())
+			}
+			pending, found, err := h.Task(ctx, ids.Tool)
+			if err != nil || !found || pending.State.Status != "running" || pending.Restarts != 1 || pending.State.Outcome != nil {
+				t.Fatal("tool settled before cleanup returned", pending, found, err)
+			}
+			if record, err := sub.Status(ctx); err != nil || record.Status != "placed" {
+				t.Fatal("submission settled before cleanup returned", record, err)
+			}
+			close(releaseCleanup)
+			result := watchReceive(t, done)
+			return result.settlement, result.err
+		}
+	}
+	if settled, err := wait(); err != nil || settled.Record.Status != "done" {
 		t.Fatalf("submission = %+v, %v", settled.Record, err)
 	}
 	if mode == "safe" {
@@ -594,8 +642,26 @@ func testV160ToolParkRecovery(t *testing.T, mode string) {
 			}
 		}
 	case "unsafe":
-		if len(seen) != 0 || len(cleaned) != 1 || !reflect.DeepEqual(<-cleaned, attempt{nil, "first"}) || record.State.Outcome.Status != "failed" || !result.IsError || !strings.Contains(text, "Tool ci was interrupted and may have partially run") {
-			t.Fatalf("unsafe tool: runs=%d, cancels=%d, task=%+v, result=%+v", len(seen), len(cleaned), record.State.Outcome, result)
+		// The child checked both pre-crash invocations. Recovery ran one
+		// cleanup above, and must not run the executor or another cleanup.
+		if len(seen) != 0 || len(cleaned) != 0 {
+			t.Fatalf("unsafe recovery executed or cleaned up again: runs=%d extra cancels=%d", len(seen), len(cleaned))
+		}
+		outcome := record.State.Outcome
+		if record.State.Status != "terminal" || outcome.Status != "failed" || outcome.Error == nil || outcome.Error.Message != interrupted || record.Restarts != 0 {
+			t.Fatalf("unsafe terminal outcome = %+v, restarts=%d; want failed/interrupted", outcome, record.Restarts)
+		}
+		if !result.IsError || !equalJSONValue(result.DetailsValue, JSON{"woken": true}) || !strings.Contains(text, interrupted) || !strings.HasPrefix(text, "rerun\n") {
+			t.Fatalf("unsafe interrupted tool result = %+v, text=%q", result, text)
+		}
+		if outcome.Result == nil || !outcome.Result.Present {
+			t.Fatal("unsafe recovery lacks a terminal result link", outcome)
+		}
+		entryID := submissionEntryID(generationObject(outcome.Result.Value)["entryId"])
+		stored, found, err := native.Entry(ctx, entryID)
+		diagnostics := []any{JSON{"severity": "error", "code": "interrupted", "message": interrupted}}
+		if err != nil || !found || stored.CommitSeq == 0 || stored.Entry.ByTask != ids.Tool || !equalJSONValue(generationObject(stored.Entry.Data)["diagnostics"], diagnostics) {
+			t.Fatalf("unsafe interrupted stored diagnostics = %v, found=%v err=%v", generationObject(stored.Entry.Data)["diagnostics"], found, err)
 		}
 	case "safe":
 		// The child checked the initial and woken attempts before it died;
