@@ -974,7 +974,7 @@ The unchanged post-result case passed. The published guest reopens a journal con
 
 ### All JSON inline-leaf vectors match
 
-All 40 unchanged validator cases passed. The independent pinned truth capture and native prepared checks now cover all 64 JSON-representable leaf vectors in four positions, for 256 exact validity comparisons. The two JavaScript `Uint8Array` values remain outside the native comparison; neither was replaced with a JSON value. Removing a constant check, accepting null unconditionally or skipping array item validation changed the expected verdicts. No production change was needed.
+All 40 unchanged validator cases passed. The independent pinned truth capture and native prepared checks now cover all 64 JSON-representable leaf vectors in four positions, for 256 exact validity comparisons. At this stage, the two JavaScript `Uint8Array` values were outside the native comparison; neither was replaced with a JSON value. Removing a constant check, accepting null unconditionally or skipping array item validation changed the expected verdicts. No production change was needed.
 
 ### Fitting leaves in-limit and text-only content unchanged
 
@@ -997,3 +997,31 @@ All 12 unchanged [commit-series cases](test-inventory/chord-series-rollback.md) 
 All 33 unchanged thread cases passed. The native create has a user message and the `high` per-turn control; continuation after `msg_a` sends the new user message and `low`. The managed envelope now stays at the pinned `low` setting, including the recreate, without overriding the turn's effort. Appending the empty effort control after cache marking preserves the ephemeral marker on real user content. The separate SDK capture and the native test cover the fixture's `200`, `400`, `200` response sequence and retained historical controls. Four faults caught the wrong envelope, lost cache marker, ignored requested effort and missing historical marker. The inline-tool case is separate.
 
 The integrated code at `e5f69fc7` passed 17 focused top-level Go tests twice, without skips. The published worker returned `50` and recorded 103 journal publications in both repeats. The run had CGO disabled and network access restricted to loopback. Vet and Staticcheck v0.8.2 passed. Both image-fit receipts and the Chord rollback receipt reproduced byte for byte. Of 1,796 scoped sites, 1,741 are mapped, 52 are partial and three are unmatched. Thirty-two of the 214 changed suites have assertion-level links.
+
+### Sandbox output keeps non-finite text and script errors
+
+All three unchanged variants passed. Native inline QuickJS, the published portable guest and the standalone Node worker preserve the console item `avg NaN Infinity -Infinity {"a":1}` followed by the text item `NaN`. The two published comparisons inspect the raw frames before Go groups console text for display. A thrown `NaN` remains a script failure with message `NaN`. The Node and portable workers retain their distinct fingerprints and effective budgets. No production change was needed.
+
+### Sandbox exit keeps the output and store patch
+
+All three unchanged `exit()` variants passed. The native inline engine and both published wire placements accept the original scalar `echo(1)`, then finish with only `before`, no return value, and the exact `k=1` patch with no deletes. None runs the code after `exit()`. A separate public Durable adapter check uses an object argument, as its tool contract requires. Removing `exit()` or discarding the write patch failed the corresponding test. No production or generated artifact changed.
+
+### Typed bytes complete the inline-leaf comparison
+
+All 40 unchanged validator cases passed. Standalone checks now accept a typed Go `[]byte` for an explicit `bytes` schema and apply the pinned byte-length bounds and diagnostics. Ordinary JSON arrays, strings, objects and null do not count as bytes. The two typed byte inputs complete the earlier leaf matrix: 66 values across four validation positions. No raw JSON normalization, tool coercion or other JavaScript-only types changed.
+
+### Fitting omits damaged or unpreparable images
+
+The unchanged [image omission case](test-inventory/images-fit-omissions.md) passed. Go keeps the surrounding text, omits the truncated PNG, non-image bytes and malformed base64, and preserves the required diagnostic text. The malformed base64 never reaches the processor. Removing the decoder explanation failed the unchanged original and native note check. The comparison does not require the exact decoder wording after the colon or cover worker timing.
+
+### Anthropic continues after an inline tool update
+
+All 33 unchanged thread cases passed. Go's native inline-tool mode now sends the new user content before the pending system tool update, keeps pending tool results in sequence, and flushes before the next assistant or at the end of the request. Cache marking follows that order. The reserved placeholder matches the pinned description and empty `required` list. The public native test keeps the two-request create/continue sequence and original thread ID. Auth, plain tool-result encoding and managed effort are unchanged. SDK client metadata and historical string-versus-block differences are still separate.
+
+### Chord validates decoded text through the shared Schema compiler
+
+All 12 unchanged [text-codec cases](test-inventory/chord-text-codec.md) passed offline; the other 160 file cases were unselected. The witness observed the pinned Chord and Schema modules evaluate and the compiled validator reject a decoded fixture containing numeric `old:1`. Allowing that value in the scratch schema changed only the validator verdict and failed the unchanged assertion. The receipt covers this shared runtime edge, without native Go mappings or a claim about AI or Durable tool execution.
+
+### Invalid parks reach `afterTool` and fail the task
+
+All 18 unchanged tool-park cases passed. The native invalid cases produce the pinned `invalid_park` diagnostic, call `afterTool` once, and retain the hook's details in the error receipt. The submission finishes, the task ends failed, and no live tool slot remains. In the reused-wake case, the two runs belong to the same task and the second park is refused with `it already woke a wait`. Real SQLite entries retain the diagnostic. Controls caught a missing hook, a wrong stored code and the wrong consumed-wake message. No production change was needed.
