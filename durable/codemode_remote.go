@@ -27,7 +27,12 @@ type RemoteCodemodeSandbox struct {
 
 func (s *RemoteCodemodeSandbox) RuntimeIdentity() string { return s.Identity }
 func (s *RemoteCodemodeSandbox) supportsGroupedCodemodeJournal() bool {
-	_, ok := s.Remote.(interface{ positionedCodemodeWorker() })
+	if worker, direct := s.Remote.(*CodemodeWorkerRemote); direct {
+		return worker != nil
+	}
+	// Internal adapters may preserve the proof. A generic wrapper that embeds
+	// the worker must not enable grouping by inheritance alone.
+	_, ok := s.Remote.(interface{ forwardsCodemodeWorkerPosition() })
 	return ok
 }
 

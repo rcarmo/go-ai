@@ -56,6 +56,15 @@ func (e *journalProofExecutionV160) AcknowledgeDrain(ctx context.Context, drain 
 		}
 		issued = journal.Deliveries[drain.DeliveryID-1].IssuedAfter
 	}
+	if journal.Version == codemodeGroupedJournalVersion && drain.Final {
+		// This cannot admit an effect. A grouped result saves its terminal
+		// position atomically with settlement, not as a non-final idle count.
+		if issued != nil || len(journal.Issued) != drain.Issued || drain.DeliveryID != 2 {
+			return fmt.Errorf("unexpected grouped final position: drain=%+v journal=%+v", drain, journal)
+		}
+		e.proof.steps = append(e.proof.steps, fmt.Sprintf("final:%d=%d", drain.DeliveryID, drain.Issued))
+		return e.CodemodeExecution.(CodemodeDrainExecution).AcknowledgeDrain(ctx, drain)
+	}
 	if issued == nil || *issued != drain.Issued || len(journal.Issued) != drain.Issued {
 		return fmt.Errorf("drain for delivery %d is not yet confirmed at count %d", drain.DeliveryID, drain.Issued)
 	}
@@ -66,8 +75,15 @@ func (e *journalProofExecutionV160) AcknowledgeDrain(ctx context.Context, drain 
 // codemode.test.ts:200–212. The exact source script must see each nested
 // result only after the real SQLite journal contains it.
 func TestSourceV160CodemodePublishedWorkerNestedCallsCommitBeforeDelivery(t *testing.T) {
+	t.Run("legacy", func(t *testing.T) { testV160NestedCallsCommitBeforeDelivery(t, true) })
+	t.Run("grouped", func(t *testing.T) { testV160NestedCallsCommitBeforeDelivery(t, false) })
+}
+
+func testV160NestedCallsCommitBeforeDelivery(t *testing.T, legacy bool) {
+	t.Helper()
 	const source = `const a = await tools.echo({ text: "a" }); const b = await tools.echo({ text: "b" }); return [a, b];`
 	sandbox, remote := newJournalWorkerSandboxV160(t)
+	sandbox.legacyJournal = legacy
 	probe := &journalProofSandboxV160{RemoteCodemodeSandbox: sandbox}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
@@ -148,10 +164,34 @@ func TestSourceV160CodemodePublishedWorkerNestedCallsCommitBeforeDelivery(t *tes
 	if nested != 2 { // L210
 		t.Errorf("nested tasks=%d; want 2", nested)
 	}
+	want := []string{"ack:0=1", "deliver:1=echo a", "ack:1=2", "deliver:2=echo b", "ack:2=2"}
+	if !legacy {
+		want[len(want)-1] = "final:2=2"
+		snapshot, err := store.Snapshot(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		found := false
+		for _, doc := range snapshot.Documents {
+			if doc.Kind != codemodeRunKind {
+				continue
+			}
+			found = true
+			var run codemodeRunState
+			if err := fromObject(doc.Value, &run, DefaultLimits()); err != nil {
+				t.Fatal(err)
+			}
+			if run.Start.JournalVersion != codemodeGroupedJournalVersion || !sameCodemodeTerminal(run.Terminal, codemodeTerminalPosition(2, 2, 2)) || run.Result == nil || !run.Result.HasValue || run.Result.Error != "" || !reflect.DeepEqual(run.Result.Value, []any{"echo a", "echo b"}) {
+				t.Fatalf("grouped terminal or saved result mismatch: terminal=%+v result=%+v", run.Terminal, run.Result)
+			}
+		}
+		if !found {
+			t.Fatal("missing sealed grouped run")
+		}
+	}
 	if err := h.Close(ctx); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"ack:0=1", "deliver:1=echo a", "ack:1=2", "deliver:2=echo b", "ack:2=2"}
 	if !reflect.DeepEqual(probe.steps, want) || remote.deliveries.Load() != 2 || remote.starts.Load() != 1 {
 		t.Errorf("confirmed boundaries=%v, guest deliveries=%d, guest starts=%d; want %v, 2 deliveries, 1 start", probe.steps, remote.deliveries.Load(), remote.starts.Load(), want)
 	}

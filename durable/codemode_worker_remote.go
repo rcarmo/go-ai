@@ -101,8 +101,6 @@ func (*CodemodeWorkerRemote) SupportsWorkerArgumentPresence() bool { return true
 // SupportsWorkerDiscovery advertises catalogue-only globals for new starts.
 func (*CodemodeWorkerRemote) SupportsWorkerDiscovery() bool { return true }
 
-func (*CodemodeWorkerRemote) positionedCodemodeWorker() {}
-
 func (r *CodemodeWorkerRemote) Execute(ctx context.Context, code string, start CodemodeStart, exchange func(context.Context, CodemodeEvent) (CodemodeRemoteReply, error), receive func(context.Context) (CodemodeDelivery, error)) error {
 	if ctx == nil || r == nil || r.Transport == nil || r.Fingerprint == "" || exchange == nil || receive == nil {
 		return reject("invalid worker remote adapter")

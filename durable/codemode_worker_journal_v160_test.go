@@ -20,6 +20,8 @@ type journalWorkerRemoteV160 struct {
 	deliveries   atomic.Int32
 }
 
+func (*journalWorkerRemoteV160) forwardsCodemodeWorkerPosition() {}
+
 func (r *journalWorkerRemoteV160) Execute(ctx context.Context, code string, start CodemodeStart, exchange func(context.Context, CodemodeEvent) (CodemodeRemoteReply, error), receive func(context.Context) (CodemodeDelivery, error)) error {
 	run := r.starts.Add(1)
 	if r.guestCode != nil {
@@ -75,5 +77,28 @@ func TestSourceV160CodemodePublishedWorkerUndefinedJournalReadback(t *testing.T)
 	testV160CodemodeJournalWithSandbox(t, ctx, sandbox, v160UndefinedJournalScript, "nothing", "[true,true]", CodemodeUndefined)
 	if got := remote.starts.Load(); got != 2 {
 		t.Fatalf("published guest executions = %d; want 2", got)
+	}
+}
+
+// A custom remote may round-trip events through JSON. An embedded worker
+// alone does not establish that the private terminal proof survives that.
+func TestV160CodemodeGroupedPolicyScope(t *testing.T) {
+	type genericWorker struct{ *CodemodeWorkerRemote }
+	worker := &CodemodeWorkerRemote{}
+	for _, tc := range []struct {
+		name   string
+		remote CodemodeRemote
+		want   bool
+	}{
+		{"built-in", worker, true},
+		{"generic-wrapper", genericWorker{worker}, false},
+		{"proved-test-adapter", &journalWorkerRemoteV160{CodemodeWorkerRemote: worker}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := &RemoteCodemodeSandbox{Remote: tc.remote}
+			if got := s.selectGroupedCodemodeJournal(); got != tc.want {
+				t.Fatalf("select grouped policy = %v; want %v", got, tc.want)
+			}
+		})
 	}
 }
