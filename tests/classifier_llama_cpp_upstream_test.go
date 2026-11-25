@@ -3,8 +3,10 @@ package goai_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +16,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	goai "github.com/rcarmo/go-ai"
 )
@@ -347,60 +350,106 @@ func TestSourceV160LlamaCPPClassifier(t *testing.T) {
 	})
 	t.Run("option-bounds", func(t *testing.T) { // 306
 		server := &llamaSourceServer{}
+		wire := newLlamaSourceLoopback(t, server, llamaLoopbackPrefix())
 		ctx := llamaSourcePick("Pick")
 		criteria := map[string]string{}
 		for i := range 63 {
 			criteria[fmt.Sprintf("option%d", i)] = ""
 		}
 		ctx.Questions["pick"] = goai.ClassifierQuestion{Type: "choice", Instructions: "Pick", Criteria: criteria}
-		checkLlamaResult(t, runLlamaSource(t, server, llamaSourceModel(), ctx, goai.ClassifierOptions{}), goai.StopReasonError, "A choice question needs 2 to 62 options, got 63")
+		checkLlamaResult(t, wire.classify(t, wire.model(), ctx), goai.StopReasonError, "A choice question needs 2 to 62 options, got 63")
 		ctx.Questions = map[string]goai.ClassifierQuestion{"rate": {Type: "score", Instructions: "Rate", Criteria: []string{"only"}}}
-		checkLlamaResult(t, runLlamaSource(t, server, llamaSourceModel(), ctx, goai.ClassifierOptions{}), goai.StopReasonError, "A score question needs 2 to 10 levels, got 1")
+		checkLlamaResult(t, wire.classify(t, wire.model(), ctx), goai.StopReasonError, "A score question needs 2 to 10 levels, got 1")
+		wire.mu.Lock()
+		defer wire.mu.Unlock()
 		if len(server.requests) != 0 {
 			t.Errorf("sent requests before validating bounds: %#v", server.requests)
 		}
 	})
 	t.Run("request-hooks", func(t *testing.T) { // 325
-		server := &llamaSourceServer{}
+		const prompt = "<|assistant|>\n"
+		server := newLlamaSourceLoopback(t, &llamaSourceServer{template: prompt}, llamaLoopbackPrefix())
 		var payloads []map[string]any
 		var statuses []int
-		runLlamaSource(t, server, llamaSourceModel(), llamaSourcePick("Pick"), goai.ClassifierOptions{
+		result := runLlamaSourceUsing(t, server.model(), llamaSourcePick("Pick"), goai.ClassifierOptions{
+			HTTPClient: server.http.Client(),
 			OnPayload: func(payload map[string]any, _ *goai.ClassifierModel) (map[string]any, error) {
-				payloads = append(payloads, payload)
-				out := map[string]any{"id_slot": 1}
-				for k, v := range payload {
-					out[k] = v
+				payloads = append(payloads, maps.Clone(payload))
+				if prior := len(server.matching("/completion")); prior != 0 {
+					t.Errorf("completion requests before OnPayload = %d, want 0", prior)
 				}
+				out := maps.Clone(payload)
+				out["id_slot"] = 1
 				return out, nil
 			},
 			OnResponse: func(meta goai.ClassifierResponseMetadata, _ *goai.ClassifierModel) error {
 				statuses = append(statuses, meta.Status)
+				if prior := len(server.matching("/completion")); prior != 1 {
+					t.Errorf("completion requests before OnResponse = %d, want 1", prior)
+				}
 				return nil
 			},
-		})
+		}, goai.Classify)
+		checkLlamaResult(t, result, goai.StopReasonStop, "")
+		if len(payloads) != 1 {
+			t.Fatalf("OnPayload calls = %d, want 1", len(payloads))
+		}
+		wantPayload := map[string]any{"model": "qwen", "prompt": prompt, "n_predict": 1, "n_probs": 256, "post_sampling_probs": false, "cache_prompt": true, "temperature": 0}
+		if payloads[0]["n_predict"] != 1 || !reflect.DeepEqual(payloads[0], wantPayload) {
+			t.Errorf("OnPayload value = %#v, want %#v", payloads[0], wantPayload)
+		}
+		if !slices.Equal(statuses, []int{200}) {
+			t.Errorf("OnResponse statuses = %v, want [200]", statuses)
+		}
 		completions := server.matching("/completion")
-		if len(payloads) != 1 || fmt.Sprint(payloads[0]["n_predict"]) != "1" || !reflect.DeepEqual(statuses, []int{200}) || len(completions) != 1 || completions[0].body["id_slot"] != float64(1) {
-			t.Errorf("payloads=%v statuses=%v completions=%#v", payloads, statuses, completions)
+		if len(completions) != 1 || completions[0].body["id_slot"] != float64(1) {
+			t.Fatalf("completion requests missing transformed id_slot: %#v", completions)
+		}
+		wantWire := map[string]any{"model": "qwen", "prompt": prompt, "n_predict": float64(1), "n_probs": float64(256), "post_sampling_probs": false, "cache_prompt": true, "temperature": float64(0), "id_slot": float64(1)}
+		if !reflect.DeepEqual(completions[0].body, wantWire) {
+			t.Errorf("completion wire body = %#v, want %#v", completions[0].body, wantWire)
+		}
+		for _, path := range []string{"/tokenize", "/apply-template"} {
+			for _, req := range server.matching(path) {
+				if _, leaked := req.body["id_slot"]; leaked {
+					t.Errorf("completion hook changed %s body: %#v", path, req.body)
+				}
+			}
+		}
+		if requests, tokens, templates := len(server.matching("")), len(server.matching("/tokenize")), len(server.matching("/apply-template")); requests != 6 || tokens != 4 || templates != 1 {
+			t.Errorf("requests=%d tokenize=%d templates=%d, want 6, 4, 1", requests, tokens, templates)
 		}
 	})
 	t.Run("server-error-and-cancel", func(t *testing.T) { // 352
 		zero := 0
-		server := &llamaSourceServer{status: http.StatusBadRequest}
-		result := runLlamaSource(t, server, llamaSourceModel(), llamaSourceContext(), goai.ClassifierOptions{MaxRetriesOverride: &zero})
+		server := newLlamaSourceLoopback(t, &llamaSourceServer{status: http.StatusBadRequest}, llamaLoopbackPrefix())
+		result := runLlamaSourceUsing(t, server.model(), llamaSourceContext(), goai.ClassifierOptions{HTTPClient: server.http.Client(), MaxRetriesOverride: &zero}, goai.Classify)
 		checkLlamaResult(t, result, goai.StopReasonError, "llama.cpp error (400)")
-		if !strings.Contains(result.ErrorMessage, "context overflow") {
-			t.Errorf("lost server details: %q", result.ErrorMessage)
+		const want = `llama.cpp error (400): {"error":{"message":"context overflow"}}`
+		if !strings.Contains(result.ErrorMessage, "context overflow") || result.ErrorMessage != want {
+			t.Errorf("server error = %q, want %q", result.ErrorMessage, want)
+		}
+		if requests := server.matching(""); len(requests) != 1 || requests[0].path != server.prefix+"/tokenize" {
+			t.Errorf("400 reached unexpected endpoint or retried: %#v", requests)
 		}
 		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
-		checkLlamaResult(t, runLlamaSource(t, &llamaSourceServer{}, llamaSourceModel(), llamaSourceContext(), goai.ClassifierOptions{Context: ctx}), goai.StopReasonAborted, "")
+		aborted := newLlamaSourceLoopback(t, &llamaSourceServer{}, llamaLoopbackPrefix())
+		checkLlamaResult(t, runLlamaSourceUsing(t, aborted.model(), llamaSourceContext(), goai.ClassifierOptions{Context: ctx, HTTPClient: aborted.http.Client()}, goai.Classify), goai.StopReasonAborted, "")
+		if requests := aborted.matching(""); len(requests) != 0 {
+			t.Errorf("already-canceled request reached the server: %#v", requests)
+		}
 	})
 	t.Run("other-api", func(t *testing.T) { // 373
 		// The original calls the llama.cpp provider directly, not dispatch.
-		server, model := &llamaSourceServer{}, llamaSourceModel()
+		server := &llamaSourceServer{}
+		wire := newLlamaSourceLoopback(t, server, llamaLoopbackPrefix())
+		model := wire.model()
 		model.Api = goai.ClassifierApiTypeSafeSystemOne
 		provider := goai.GetClassifierApiProvider(goai.ClassifierApiLlamaCPP)
-		result, err := provider.Classify(model, llamaSourceContext(), &goai.ClassifierOptions{HTTPClient: &http.Client{Transport: server}})
+		result, err := provider.Classify(model, llamaSourceContext(), &goai.ClassifierOptions{HTTPClient: wire.http.Client()})
+		wire.mu.Lock()
+		defer wire.mu.Unlock()
 		if err != nil || len(server.requests) != 0 {
 			t.Fatalf("err=%v requests=%d", err, len(server.requests))
 		}
@@ -680,4 +729,79 @@ func TestLlamaCPPSettledTokenCacheV160(t *testing.T) {
 			t.Errorf("duplicate token IDs reached completion: %d", got)
 		}
 	})
+}
+
+// Supplemental: the original pre-aborts its signal. This also cancels an
+// already admitted request and checks the real loopback peer sees it.
+func TestLlamaCPPInFlightCallerCancellationV160(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	guard, stopGuard := context.WithTimeout(t.Context(), 5*time.Second)
+	defer stopGuard()
+	entered := make(chan map[string]any, 1)
+	peerCanceled := make(chan error, 1)
+	releasePeer := make(chan struct{})
+	defer close(releasePeer)
+	var requests atomic.Int32
+	prefix := llamaLoopbackPrefix()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if attempt := requests.Add(1); attempt != 1 || r.Method != http.MethodPost || r.URL.Path != prefix+"/tokenize" {
+			t.Errorf("unexpected request %d: %s %s", attempt, r.Method, r.URL.Path)
+			http.Error(w, "unexpected request", http.StatusBadRequest)
+			return
+		}
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Error(err)
+			http.Error(w, "invalid request", http.StatusBadRequest)
+			return
+		}
+		entered <- body
+		select {
+		case <-r.Context().Done():
+			peerCanceled <- r.Context().Err()
+		case <-releasePeer:
+		}
+	}))
+	t.Cleanup(server.Close)
+	model := llamaSourceModel()
+	model.BaseURL = server.URL + prefix + "/v1"
+	type outcome struct {
+		result *goai.ClassifierResult
+		err    error
+	}
+	done := make(chan outcome, 1)
+	go func() {
+		result, err := goai.Classify(model, llamaSourcePick("Pick"), &goai.ClassifierOptions{Context: ctx, HTTPClient: server.Client()})
+		done <- outcome{result, err}
+	}()
+	select {
+	case body := <-entered:
+		want := map[string]any{"model": "qwen", "content": "\n", "add_special": false, "parse_special": false}
+		if !reflect.DeepEqual(body, want) {
+			t.Fatalf("first tokenization = %#v, want %#v", body, want)
+		}
+	case <-guard.Done():
+		t.Fatal("classifier did not reach the loopback server")
+	}
+	cancel()
+	select {
+	case err := <-peerCanceled:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("peer context = %v, want canceled", err)
+		}
+	case <-guard.Done():
+		t.Fatal("loopback peer did not receive caller cancellation")
+	}
+	select {
+	case got := <-done:
+		if got.err != nil || got.result == nil || got.result.StopReason != goai.StopReasonAborted || len(got.result.Answers) != 0 {
+			t.Fatalf("classification result = %+v, err=%v, want aborted with no answers", got.result, got.err)
+		}
+	case <-guard.Done():
+		t.Fatal("classifier did not return after cancellation")
+	}
+	if got := requests.Load(); got != 1 {
+		t.Errorf("requests after cancellation = %d, want 1", got)
+	}
 }
