@@ -1223,3 +1223,9 @@ All 40 unchanged validator cases passed. The native baseline accepted 12 of the 
 ### An answered generation survives reaching the finish restart limit
 
 All 29 unchanged after-run cases passed. The native SQLite test kills the first writer while the finish hook holds an already committed answer. At `restartLimit=1`, recovery keeps the original completed answer and the same queued input, clears the live document and reports one `task_interrupted` with reason `restart_limit` for that generation. The [shared native checks](../../durable/harness_after_run_selection_main_test.go) count exactly one hook ask and no new provider call. Bypassing the cap or dropping its report failed the corresponding check. No production recovery code changed.
+
+### Grouped journal failure, admission and seal checks
+
+The separate opt-in draft `12b35d41` preserves positioned script errors and the effect-free positionless syntax error, with the original output and completed-tool report. A newly issued callback sees its persisted admission count. Both directions of saved-policy reopen pass; raw put and delta refuse a change to the sealed suffix. Three controls caught an incorrect script position, a bypassed seal and premature callback admission. The draft returned `50` with eight publications twice, while both legacy controls remained at 54. Unpositioned worker stops still need a separate check before activation.
+
+The integrated code at `6b0eaf00` passed 44 focused top-level Go tests twice, without skips. Vet and Staticcheck v0.8.2 passed. The inventory at `1f3c5c46` records 1,930 scoped sites: 1,877 mapped, 51 partial and two unmatched. Thirty-three of the 214 changed suites have assertion-level links. Full parity remains open.
