@@ -1321,3 +1321,9 @@ All 49 unchanged coercion cases passed. Prepared Go coercion now matches the pin
 ### Mocked PowerShell emits ordered progress through the live ToolAPI
 
 All three unchanged mock cases passed. The native SQLite harness observes `héllo\n`, `ok` after fallback, and `partial` on exit 3 through live tool updates. Each mocked output callback is held until its append is observed. No PowerShell process runs. Go preserves the error status, text and exit code, but reports `tool_error` with receipt details rather than the source `structuredOutput` and `exit_code` diagnostic. That result-envelope assertion remains partial.
+
+### Anthropic omits the interleaved-thinking beta when thinking is off
+
+The selected unchanged SSE case passed, as did all 48 unchanged SSE and thread cases. The native baseline sent the legacy interleaved-thinking beta even when thinking was disabled. Go now adds it automatically only for a reasoning-capable model with thinking requested and without forced adaptive thinking. Explicit header and authentication overrides are unchanged.
+
+The scripted cold thread now sends only the thread beta, as the pinned SDK does. The Go URL remains queryless, its payload hook does not expose the SDK-only `betas` field, and its historical text remains a block rather than a string. Those are separate wire and SDK representation differences. No live call was made.
