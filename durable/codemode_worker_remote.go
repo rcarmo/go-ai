@@ -141,8 +141,8 @@ func (r *CodemodeWorkerRemote) Execute(ctx context.Context, code string, start C
 	// Let RPCs for abandoned calls return after the guest ends. The
 	// transport can join them without waiting for the host to receive the
 	// terminal event, which is deliberately held until the transport returns.
-	finish := func(ctx context.Context, result *CodemodeResult, scriptEnd *CodemodeWorkerDuring) error {
-		if _, err := exchange(ctx, CodemodeEvent{Result: result, scriptEnd: scriptEnd}); err != nil {
+	finish := func(ctx context.Context, result *CodemodeResult, scriptEnd *CodemodeWorkerDuring, workerStopped bool) error {
+		if _, err := exchange(ctx, CodemodeEvent{Result: result, scriptEnd: scriptEnd, workerStopped: workerStopped}); err != nil {
 			return err
 		}
 		terminal = true
@@ -416,7 +416,7 @@ func (r *CodemodeWorkerRemote) Execute(ctx context.Context, code string, start C
 							*end = *message.During
 						}
 					}
-					err = finish(callCtx, &result, end)
+					err = finish(callCtx, &result, end, false)
 				}
 			case "crash", "failure":
 				result := CodemodeResult{Images: images, Error: message.Message, WallMs: time.Since(began).Milliseconds()}
@@ -435,7 +435,7 @@ func (r *CodemodeWorkerRemote) Execute(ctx context.Context, code string, start C
 					if result.Error == "" {
 						result.Error = "Remote sandbox failed"
 					}
-					err = finish(callCtx, &result, nil)
+					err = finish(callCtx, &result, nil, start.JournalVersion == codemodeGroupedJournalVersion)
 				}
 			default:
 				err = reject("unknown worker message type")

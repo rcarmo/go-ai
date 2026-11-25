@@ -5,16 +5,31 @@ const (
 	codemodeJournalBatchLimit     = 16
 )
 
-// Terminal is guest position, not host completion. Outcomes beyond Delivered
-// may already have committed, and remain in the journal when the run finishes.
+// Terminal is guest position when present, not host completion. A worker
+// stop does not report a position; Delivered is absent in that case. The
+// committed suffix stays in the journal in either case.
 type codemodeTerminal struct {
-	Delivered int `json:"delivered"`
-	Issued    int `json:"issued"`
-	Committed int `json:"committed"`
+	Delivered     *int `json:"delivered,omitempty"`
+	WorkerStopped bool `json:"workerStopped,omitempty"`
+	Issued        int  `json:"issued"`
+	Committed     int  `json:"committed"`
+}
+
+func codemodeTerminalPosition(delivered, issued, committed int) *codemodeTerminal {
+	return &codemodeTerminal{Delivered: &delivered, Issued: issued, Committed: committed}
 }
 
 func sameCodemodeTerminal(a, b *codemodeTerminal) bool {
-	return a == nil && b == nil || a != nil && b != nil && *a == *b
+	if a == nil || b == nil {
+		return a == b
+	}
+	if a.WorkerStopped != b.WorkerStopped || a.Issued != b.Issued || a.Committed != b.Committed {
+		return false
+	}
+	if a.Delivered == nil || b.Delivered == nil {
+		return a.Delivered == b.Delivered
+	}
+	return *a.Delivered == *b.Delivered
 }
 
 func validateGroupedCodemodeJournal(start CodemodeStart, journal codemodeJournalState, terminal *codemodeTerminal, settled bool) error {
@@ -63,15 +78,25 @@ func validateGroupedCodemodeJournal(start CodemodeStart, journal codemodeJournal
 		}
 		return nil
 	}
-	if terminal.Delivered < 0 || terminal.Delivered > len(journal.Deliveries) || terminal.Committed != len(journal.Deliveries) || terminal.Issued != len(journal.Issued) {
+	if terminal.Committed != len(journal.Deliveries) || terminal.Issued != len(journal.Issued) {
 		return reject("invalid codemode terminal extent")
 	}
-	if terminal.Delivered == 0 {
+	if terminal.WorkerStopped {
+		if terminal.Delivered != nil {
+			return reject("codemode worker stop claims a guest position")
+		}
+		return nil
+	}
+	if terminal.Delivered == nil || *terminal.Delivered < 0 || *terminal.Delivered > len(journal.Deliveries) {
+		return reject("invalid codemode terminal extent")
+	}
+	delivered := *terminal.Delivered
+	if delivered == 0 {
 		if journal.FirstIssued != nil || len(journal.Deliveries) != 0 {
 			return reject("codemode ended before durable first idle")
 		}
 	} else {
-		for _, delivery := range journal.Deliveries[terminal.Delivered-1:] {
+		for _, delivery := range journal.Deliveries[delivered-1:] {
 			if delivery.IssuedAfter != nil {
 				return reject("codemode ended before durable continuation")
 			}

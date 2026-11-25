@@ -82,7 +82,7 @@ func TestDraftV160CodemodeGroupedScriptFailures(t *testing.T) {
 						if err := fromObject(doc.Value, &state, DefaultLimits()); err != nil {
 							t.Fatal(err)
 						}
-						if state.Result == nil || !strings.Contains(state.Result.Error, tc.message) || grouped && (state.Terminal == nil || *state.Terminal != (codemodeTerminal{})) || !grouped && state.Terminal != nil {
+						if state.Result == nil || !strings.Contains(state.Result.Error, tc.message) || grouped && !sameCodemodeTerminal(state.Terminal, codemodeTerminalPosition(0, 0, 0)) || !grouped && state.Terminal != nil {
 							t.Fatalf("saved result=%+v terminal=%+v; want failed script with no effects", state.Result, state.Terminal)
 						}
 					case codemodeJournalKind:

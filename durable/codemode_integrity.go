@@ -37,6 +37,9 @@ func validateCodemodeDocuments(s Snapshot, doc Document, l Limits) error {
 		return reject("parallel codemode requires drain admission")
 	}
 	if run.Start.JournalVersion != 0 {
+		if run.Terminal != nil && run.Terminal.WorkerStopped && (run.Result == nil || run.Result.Error == "" || run.Result.HasValue || len(run.Result.StoreWrites) != 0 || len(run.Result.StoreDeletes) != 0) {
+			return reject("codemode worker stop lacks a failed result")
+		}
 		if err := validateGroupedCodemodeJournal(run.Start, journal, run.Terminal, run.Result != nil); err != nil {
 			return err
 		}

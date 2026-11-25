@@ -126,12 +126,15 @@ func (s *RemoteCodemodeSandbox) Start(ctx context.Context, code string, start Co
 			if err := fromObject(value, &detached, limits); err != nil {
 				return CodemodeRemoteReply{}, err
 			}
-			if event.scriptEnd != nil {
-				if owned.JournalVersion != codemodeGroupedJournalVersion || detached.Result == nil || detached.Result.Error == "" || !s.supportsGroupedCodemodeJournal() {
-					return CodemodeRemoteReply{}, reject("invalid codemode script end proof")
+			if event.scriptEnd != nil || event.workerStopped {
+				if owned.JournalVersion != codemodeGroupedJournalVersion || detached.Result == nil || detached.Result.Error == "" || !s.supportsGroupedCodemodeJournal() || event.scriptEnd != nil && event.workerStopped {
+					return CodemodeRemoteReply{}, reject("invalid codemode worker end proof")
 				}
-				during := *event.scriptEnd
-				detached.scriptEnd = &during
+				if event.scriptEnd != nil {
+					during := *event.scriptEnd
+					detached.scriptEnd = &during
+				}
+				detached.workerStopped = event.workerStopped
 			}
 			if err := e.admitEvent(detached, owned); err != nil {
 				return CodemodeRemoteReply{}, err

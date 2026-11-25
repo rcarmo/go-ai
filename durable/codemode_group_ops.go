@@ -77,7 +77,7 @@ func settleGroupedCodemodeDrain(ctx context.Context, vm CodemodeDrainExecution, 
 		if observed != len(journal.Issued) {
 			return nil, reject("codemode drain ended before saved calls")
 		}
-		terminal := &codemodeTerminal{Delivered: delivered, Issued: observed, Committed: len(journal.Deliveries)}
+		terminal := codemodeTerminalPosition(delivered, observed, len(journal.Deliveries))
 		if err := validateGroupedCodemodeJournal(start, *journal, terminal, true); err != nil {
 			return nil, fmt.Errorf("codemode drain terminal position: %w", err)
 		}

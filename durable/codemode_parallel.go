@@ -67,18 +67,26 @@ func (r *TaskRuntime) runParallelCodemode(ctx context.Context, vm CodemodeExecut
 	if start.JournalVersion == codemodeGroupedJournalVersion {
 		group = &codemodeGroupReady{}
 	}
-	finishGroupedScript := func(event CodemodeEvent) (CodemodeResult, error) {
-		if event.scriptEnd == nil || event.Result == nil || event.Result.Error == "" {
+	finishGroupedFailure := func(event CodemodeEvent) (CodemodeResult, error) {
+		if event.Result == nil || event.Result.Error == "" || event.scriptEnd == nil && !event.workerStopped {
 			return divergence("grouped codemode ended without terminal position")
 		}
-		if event.scriptEnd.Seq != delivered || event.scriptEnd.Issued != observed || observed != len(journal.Issued) {
-			return divergence("grouped codemode script end position diverged")
+		if observed != len(journal.Issued) {
+			return divergence("grouped codemode ended before saved calls")
 		}
-		position := codemodeTerminal{Delivered: delivered, Issued: observed, Committed: len(journal.Deliveries)}
-		if err := validateGroupedCodemodeJournal(start, *journal, &position, true); err != nil {
+		var position *codemodeTerminal
+		if event.workerStopped {
+			position = &codemodeTerminal{WorkerStopped: true, Issued: observed, Committed: len(journal.Deliveries)}
+		} else {
+			if event.scriptEnd.Seq != delivered || event.scriptEnd.Issued != observed {
+				return divergence("grouped codemode script end position diverged")
+			}
+			position = codemodeTerminalPosition(delivered, observed, len(journal.Deliveries))
+		}
+		if err := validateGroupedCodemodeJournal(start, *journal, position, true); err != nil {
 			return divergence(err.Error())
 		}
-		*terminalOut = position
+		*terminalOut = *position
 		return *event.Result, nil
 	}
 	deliveredIDs := map[int]bool{}
@@ -194,7 +202,7 @@ func (r *TaskRuntime) runParallelCodemode(ctx context.Context, vm CodemodeExecut
 				}
 			} else if event.Result != nil && event.Call == nil && event.Drain == nil {
 				if group != nil {
-					return finishGroupedScript(event)
+					return finishGroupedFailure(event)
 				}
 				if observed != len(journal.Issued) || delivered != len(journal.Deliveries) {
 					return divergence("sandbox ended before replay journal")
@@ -248,7 +256,7 @@ func (r *TaskRuntime) runParallelCodemode(ctx context.Context, vm CodemodeExecut
 					return CodemodeResult{}, reject("unexpected event before delivery")
 				}
 				if group != nil {
-					return finishGroupedScript(received.event)
+					return finishGroupedFailure(received.event)
 				}
 				if observed != len(journal.Issued) || delivered != len(journal.Deliveries) {
 					return divergence("sandbox ended before replay journal")

@@ -24,7 +24,13 @@ func TestV160CodemodeGroupedJournalAuthority(t *testing.T) {
 	}{
 		{"running-with-unacknowledged-suffix", "", nil},
 		{"sealed-before-unused-suffix", "", func(_ *CodemodeStart, _ *codemodeJournalState) *codemodeTerminal {
-			return &codemodeTerminal{Delivered: 2, Issued: 3, Committed: 3}
+			return codemodeTerminalPosition(2, 3, 3)
+		}},
+		{"positionless-stop-preserves-extent", "", func(_ *CodemodeStart, _ *codemodeJournalState) *codemodeTerminal {
+			return &codemodeTerminal{WorkerStopped: true, Issued: 3, Committed: 3}
+		}},
+		{"positionless-stop-cannot-invent-position", "codemode worker stop claims a guest position", func(_ *CodemodeStart, _ *codemodeJournalState) *codemodeTerminal {
+			return &codemodeTerminal{WorkerStopped: true, Delivered: watermark120(2), Issued: 3, Committed: 3}
 		}},
 		{"unsupported-version", "invalid codemode group journal version", func(s *CodemodeStart, _ *codemodeJournalState) *codemodeTerminal {
 			s.JournalVersion++
@@ -41,10 +47,10 @@ func TestV160CodemodeGroupedJournalAuthority(t *testing.T) {
 		}},
 		{"early-stop-contradicts-second-idle", "codemode ended before durable continuation", func(_ *CodemodeStart, j *codemodeJournalState) *codemodeTerminal {
 			j.Deliveries[1].IssuedAfter = watermark120(3)
-			return &codemodeTerminal{Delivered: 2, Issued: 3, Committed: 3}
+			return codemodeTerminalPosition(2, 3, 3)
 		}},
 		{"seal-cannot-trim-committed-outcome", "invalid codemode terminal extent", func(_ *CodemodeStart, _ *codemodeJournalState) *codemodeTerminal {
-			return &codemodeTerminal{Delivered: 2, Issued: 3, Committed: 2}
+			return codemodeTerminalPosition(2, 3, 2)
 		}},
 		{"nonterminal-issued-calls-need-coverage", "codemode batch contains unadmitted issued calls", func(_ *CodemodeStart, j *codemodeJournalState) *codemodeTerminal {
 			j.Issued = append(j.Issued, CodemodeCall{ID: 4, Name: "leaf", Arguments: JSON{}})
