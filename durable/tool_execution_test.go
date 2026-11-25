@@ -672,8 +672,8 @@ func TestSourceV160CanonicalToolTimedAndInvalidParks(t *testing.T) {
 	}
 }
 
-// Source: harness-tool-parks.test.ts, cancel. Registry.Remove is the native
-// disposal seam. A public durable park receipt or Execute entry gates abort.
+// harness-tool-parks.test.ts:345-450, plus racing-park coverage. A durable
+// park receipt or Execute entry gates abort. Registry.Remove disposes the tool.
 func TestSourceV160CanonicalToolCancel(t *testing.T) {
 	for _, mode := range []string{"parked", "throws-at-limit", "woken", "removed", "racing-park"} {
 		t.Run(mode, func(t *testing.T) {
@@ -718,7 +718,12 @@ func TestSourceV160CanonicalToolCancel(t *testing.T) {
 			}
 			cleanups := make(chan cancellation, 4)
 			entered := make(chan ID, 4)
-			cutOff := make(chan struct{}, 1)
+			cutOff := make(chan string, 1)
+			cleanupStarted, releaseCleanup := make(chan struct{}, 1), make(chan struct{})
+			wantCheckpoint := any(JSON{"build": 1})
+			if mode == "woken" {
+				wantCheckpoint = "first"
+			}
 			err = options.Registry.Register(ToolRegistration{
 				Definition:     goai.Tool{Name: "ci", Parameters: json.RawMessage(`{"type":"object","properties":{"job":{"type":"string"}},"required":["job"]}`)},
 				Implementation: "test.cancel", Version: 1,
@@ -730,21 +735,23 @@ func TestSourceV160CanonicalToolCancel(t *testing.T) {
 						case <-ctx.Done():
 							return ToolResult{}, ctx.Err()
 						}
-						cutOff <- struct{}{}
+						cutOff <- "execute"
 						if mode != "racing-park" {
 							return ToolResult{}, run.Err()
 						}
 					}
-					return ToolResult{Park: &ToolPark{Sleep: &ToolSleep{Signals: []SignalKey{key}, Checkpoint: JSON{"build": 1}}}}, nil
+					return ToolResult{Park: &ToolPark{Sleep: &ToolSleep{Signals: []SignalKey{key}, Checkpoint: wantCheckpoint}}}, nil
 				},
 				Cancel: func(cleanup context.Context, args any, api *ToolAPI) error {
-					if mode == "throws-at-limit" {
-						cleanups <- cancellation{}
-						return fmt.Errorf("cancel failed")
+					if err := cleanup.Err(); err != nil {
+						t.Errorf("park cleanup inherited a cancelled context: %v", err)
 					}
 					if mode == "woken" || mode == "racing-park" {
 						select {
-						case <-cutOff:
+						case phase := <-cutOff:
+							if phase != "execute" {
+								t.Errorf("unexpected aborted phase: %q", phase)
+							}
 						default:
 							t.Error("cancel ran before the cut-off execute returned")
 						}
@@ -768,6 +775,17 @@ func TestSourceV160CanonicalToolCancel(t *testing.T) {
 					if _, err := api.CreateTask(cleanup, ToolTask(), JSON{}, TaskOptions{}); err == nil || err.Error() != message {
 						t.Errorf("cancel task start = %v", err)
 					}
+					if mode == "parked" || mode == "throws-at-limit" {
+						cleanupStarted <- struct{}{}
+						select {
+						case <-releaseCleanup:
+						case <-ctx.Done():
+							return ctx.Err()
+						}
+					}
+					if mode == "throws-at-limit" {
+						panic("cancel failed")
+					}
 					return nil
 				},
 			})
@@ -775,6 +793,9 @@ func TestSourceV160CanonicalToolCancel(t *testing.T) {
 				t.Fatal(err)
 			}
 			h := openHarness(t, storage, options)
+			if mode == "throws-at-limit" && h.RestartLimit() != 1 {
+				t.Fatalf("restart limit = %d, want 1", h.RestartLimit())
+			}
 			c := root(t, h, ref)
 			sub, err := c.Submit(ctx, Input{Type: "input", Content: "go"})
 			if err != nil {
@@ -813,7 +834,31 @@ func TestSourceV160CanonicalToolCancel(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if err := c.Abort(ctx); err != nil {
+			if mode == "parked" || mode == "throws-at-limit" {
+				defer releaseTaskGate(releaseCleanup)
+				aborted := make(chan error, 1)
+				go func() { aborted <- c.Abort(ctx) }()
+				select {
+				case <-cleanupStarted:
+				case err := <-aborted:
+					t.Fatalf("abort returned without entering park cleanup: %v", err)
+				case <-ctx.Done():
+					t.Fatal(ctx.Err())
+				}
+				record, found, err := h.Task(ctx, id)
+				if err != nil || !found || !record.AbortRequested || record.State.Status == "terminal" {
+					t.Fatal("parked task settled before cleanup returned", record, found, err)
+				}
+				select {
+				case err := <-aborted:
+					t.Fatalf("abort returned while cleanup was held: %v", err)
+				default:
+				}
+				close(releaseCleanup)
+				if err := watchReceive(t, aborted); err != nil {
+					t.Fatal(err)
+				}
+			} else if err := c.Abort(ctx); err != nil {
 				t.Fatal(err)
 			}
 			settled, err := sub.Wait(ctx)
@@ -839,8 +884,11 @@ func TestSourceV160CanonicalToolCancel(t *testing.T) {
 					t.Fatalf("cancel calls = %d; want one", len(cleanups))
 				}
 				got := <-cleanups
-				if mode != "throws-at-limit" && (got.wake != nil || !equalJSONValue(got.checkpoint, JSON{"build": 1}) || !equalJSONValue(got.args, JSON{"job": "build"}) || got.err != nil || got.cwd != "/work") {
-					t.Fatalf("cancel = %+v", got)
+				if got.wake != nil || !equalJSONValue(got.checkpoint, wantCheckpoint) || !equalJSONValue(got.args, JSON{"job": "build"}) || got.err != nil || got.cwd != "/work" {
+					t.Fatalf("cancel = %+v, want checkpoint %v and cwd /work", got, wantCheckpoint)
+				}
+				if (mode == "woken" || mode == "racing-park") && len(cutOff) != 0 {
+					t.Fatal("execute did not clean up exactly once before park cancellation")
 				}
 			}
 			wantReport := map[string]string{"removed": "Tool ci is not available: its parked call c1 was not cancelled", "throws-at-limit": "cancel failed"}[mode]
