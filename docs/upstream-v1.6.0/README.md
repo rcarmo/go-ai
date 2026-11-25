@@ -1267,3 +1267,9 @@ Both selected unchanged Codemode cases passed. The native baseline rejected the 
 The oversized store patch also reproduced through public SQLite on the unchanged native baseline: all five values are individually legal, but the worker patch is rejected as a combined record. The bounded-store candidate remains separate pending its storage checks.
 
 The integrated code at `81abc657` passed 32 focused top-level Go tests twice, without skips. The default published worker returned `50` with eight journal publications in each repeat. Vet and Staticcheck v0.8.2 passed. The inventory at `81abc657` records 1,959 scoped sites: 1,906 mapped, 48 partial and five unmatched. Thirty-five of the 214 changed suites have assertion-level links. Full parity remains open.
+
+## Round 52
+
+### Prepared validation returns an unchanged value or ordered diagnostics
+
+All 49 unchanged coercion cases passed. The prepared Go API now has `Validate`, which returns the valid input without converting it or returns the ordered diagnostics for `/count` and `/tags`. On the same handle, `Parse` still converts `"42"` and `"a"` to `42` and `["a"]`. The comparison does not claim JavaScript reference identity or static type equivalence.
