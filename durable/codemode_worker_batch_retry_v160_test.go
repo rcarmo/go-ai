@@ -95,3 +95,56 @@ func TestSourceV160CodemodePublishedWorkerHeldBatchBeforeLaunch(t *testing.T) {
 		t.Errorf("guest starts=%d, guest deliveries=%d; want 2 starts and 0 deliveries", got.starts, got.replies)
 	}
 }
+
+// codemode.test.ts:325–352. Use the original script for the error, effect and
+// task-count assertions. The replay input changes only in the test guest;
+// the saved start and journal remain sealed.
+func TestSourceV160CodemodePublishedWorkerPostResultAdmissionFence(t *testing.T) {
+	for _, tc := range []struct {
+		name, source, diagnostic string
+	}{
+		{
+			name: "changed-next-call",
+			source: `await tools.echo({ text: "a" });
+			const extra = load("k") ?? 0;
+			for (let i = 0; i < extra; i++) tools.echo({ text: "extra" + i });
+			await tools.hold({});`,
+			// Native replay rejects the earlier issued identity mismatch.
+			diagnostic: "call 2 is tools.echo",
+		},
+		{
+			name: "matching-prefix-extra-calls",
+			// Supplemental L348 projection. Retain the issued hold in
+			// slot 2, then add three fresh calls before the next drain.
+			source: `await tools.echo({ text: "a" });
+			const hold = tools.hold({});
+			const extra = load("k") ?? 0;
+			await Promise.all(Array.from({ length: extra }, (_, i) => tools.echo({ text: "extra" + i })));
+			await hold;`,
+			diagnostic: "after result 1 it had made 5 calls, where it had made 2",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := runV160PublishedWorkerNestedReplay(t, tc.source, workerReplayChangesV160{
+				guestStore: func(run int32, store JSON) JSON {
+					if run == 2 {
+						return JSON{"k": 3}
+					}
+					return store
+				},
+			})
+			if len(got.beforeClose) != 1 || got.beforeClose[0].Call.Name != "echo" || got.beforeClose[0].IssuedAfter == nil || *got.beforeClose[0].IssuedAfter != 2 {
+				t.Fatalf("live journal must confirm echo and its two-call watermark: %+v", got.beforeClose)
+			}
+			if !got.isError || !strings.Contains(got.text, tc.diagnostic) {
+				t.Errorf("replay error=%t, text=%q; want %q", got.isError, got.text, tc.diagnostic)
+			}
+			if !reflect.DeepEqual(got.echoes, map[string]int{"a": 1}) || got.nested != 2 { // L349–350
+				t.Errorf("echo effects=%v, nested tasks=%d; want map[a:1] and exactly 2 tasks", got.echoes, got.nested)
+			}
+			if got.starts != 2 || got.replies != 2 {
+				t.Errorf("guest starts=%d, guest deliveries=%d; want 2 starts and only the live/replayed echo a deliveries", got.starts, got.replies)
+			}
+		})
+	}
+}
