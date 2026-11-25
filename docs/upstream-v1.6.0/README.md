@@ -979,3 +979,7 @@ All 40 unchanged validator cases passed. The independent pinned truth capture an
 ### Fitting leaves in-limit and text-only content unchanged
 
 The unchanged [pass-through case](test-inventory/images-fit-passthrough.md) passed. The verified Photon worker receives one PNG and returns the same byte count and digest without resize or conversion. The native fixture passes the exact captured input at the default limits, records one processor request and checks the unchanged result and caller content. Text-only input makes no additional request. Forcing a changed result broke both comparisons. This does not equate different encoders or establish worker scheduling.
+
+### All 50 Codemode results finish; batching still differs
+
+The unchanged simultaneous-results case passed upstream. The [native published-worker test](../../durable/codemode_worker_concurrent_results_v160_test.go) releases the same 50 callbacks at one barrier and returns exactly `50` without an error. It counts journal changes through the terminal submission publication, without a timing sleep or a snapshot lookup in the observer. The completed baseline recorded 103 journal publications, above the source's limit of fewer than ten. This supersedes the earlier unfinished measurement. The test verifies the final result and records the count; it does not require the current native count as a contract. No production protocol or validation change was made.
