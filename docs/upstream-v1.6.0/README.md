@@ -875,3 +875,7 @@ All 40 unchanged validator cases passed. The prepared Go checks match 31 pinned 
 ### Image reads use the active model's width limit
 
 The unchanged [model-width case](test-inventory/tools-images-model-limits.md) passed with the pinned 8×6 PNG. A real Durable model lookup supplies a width of four and retains the default height limit of 2,000. Without preparation, the read refuses the 8×6 image with the expected dimensions in its diagnostic. With preparation, it returns an image that decodes to 4×3. Ignoring the model width broke both native checks. Cross-encoder bytes and worker behavior are outside this comparison.
+
+### Parked cleanup respects tool removal and a refused park
+
+All 18 unchanged tool-park cases passed. Removing a tool after its sleeping receipt leaves the submission unanswered, invokes no cleanup and reports the missing tool. In the racing case, the actual running task is marked for abort before it attempts to park. No sleeping receipt is published. Cleanup runs once with an uncancelled context, the original `started` checkpoint and no wake, and the task ends aborted. Fault controls caught skipped cleanup, a cancelled cleanup context and the missing report. No production change was needed.
