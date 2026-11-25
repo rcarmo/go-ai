@@ -31,7 +31,7 @@ func TestAnthropic130ErrorImagesFollowAllToolResults(t *testing.T) {
 	if !reflect.DeepEqual(types, []string{"tool_result", "tool_result", "text", "image", "image"}) {
 		t.Fatal(types)
 	}
-	if !blocks[0].IsError {
+	if blocks[0].IsError == nil || !*blocks[0].IsError {
 		t.Fatal("error flag lost")
 	}
 	errorContent := blocks[0].Content.([]anthropicContentBlock)

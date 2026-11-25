@@ -621,7 +621,7 @@ type anthropicContentBlock struct {
 	Tool         interface{}     `json:"tool,omitempty"`
 	ToolUseID    string          `json:"tool_use_id,omitempty"`
 	Content      interface{}     `json:"content,omitempty"`
-	IsError      bool            `json:"is_error,omitempty"`
+	IsError      *bool           `json:"is_error,omitempty"`
 	CacheControl *cacheControl   `json:"cache_control,omitempty"`
 	Thinking     string          `json:"thinking,omitempty"`
 	Signature    string          `json:"signature,omitempty"`
@@ -898,13 +898,15 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 				}
 			} else {
 				var content []anthropicContentBlock
-				imageRun := false
+				plainText, imageRun := true, false
 				for _, block := range m.Content {
 					switch block.Type {
 					case "text":
+						plainText = plainText && !block.TextSignaturePresent && block.TextSignature == ""
 						content = append(content, anthropicContentBlock{Type: "text", Text: block.Text})
 						imageRun = false
 					case "image":
+						plainText = false
 						if m.IsError {
 							if !imageRun {
 								content = append(content, anthropicContentBlock{Type: "text", Text: "(image attached after the tool results)"})
@@ -914,6 +916,8 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 						} else {
 							content = append(content, anthropicImageBlock(block))
 						}
+					default:
+						plainText = false
 					}
 				}
 				if len(trailing) > 0 {
@@ -921,11 +925,17 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 				}
 				if len(content) == 0 {
 					resultContent = ""
+				} else if plainText {
+					text := make([]string, len(content))
+					for i, block := range content {
+						text[i] = goai.SanitizeSurrogates(block.Text)
+					}
+					resultContent = strings.Join(text, "\n")
 				} else {
 					resultContent = content
 				}
 			}
-			resultBlock := anthropicContentBlock{Type: "tool_result", ToolUseID: toolUseID, Content: resultContent, IsError: m.IsError}
+			resultBlock := anthropicContentBlock{Type: "tool_result", ToolUseID: toolUseID, Content: resultContent, IsError: boolPtr(m.IsError)}
 			if toolResultGroup < 0 {
 				req.Messages = append(req.Messages, anthropicMessage{Role: "user", Content: []anthropicContentBlock{resultBlock}})
 				toolResultGroup = len(req.Messages) - 1

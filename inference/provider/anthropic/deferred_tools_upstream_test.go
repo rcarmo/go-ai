@@ -37,7 +37,7 @@ func TestUpstreamDeferredToolsAnthropicReferencesAndFallbacks(t *testing.T) {
 	}
 
 	missing := buildRequest(opusDeferredModel(), deferredContext([]goai.Tool{deferredTool("base_tool")}, []string{"late_tool"}), &goai.StreamOptions{})
-	if len(missing.Tools) != 1 || missing.Tools[0].DeferLoading || missing.Messages[2].Content.([]anthropicContentBlock)[0].Content.([]anthropicContentBlock)[0].Text != "done" {
+	if len(missing.Tools) != 1 || missing.Tools[0].DeferLoading || missing.Messages[2].Content.([]anthropicContentBlock)[0].Content != "done" {
 		t.Fatalf("missing-tool fallback req=%#v", missing)
 	}
 
