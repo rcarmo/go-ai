@@ -74,10 +74,31 @@ func newJournalWorkerSandbox(root string) (*RemoteCodemodeSandbox, *journalWorke
 // portable QuickJS guest both before the SQLite close and after reopen. The
 // adapter forwards real guest frames, never scripted or recorded test replies.
 func TestSourceV160CodemodePublishedWorkerUndefinedJournalReadback(t *testing.T) {
-	sandbox, remote := newJournalWorkerSandboxV160(t)
+	checkPublishedWorkerUndefinedJournal(t, officialWorkerPackageRootV160(t))
+}
+
+func TestSourceV161CodemodePublishedWorkerUndefinedJournalReadback(t *testing.T) {
+	checkPublishedWorkerUndefinedJournal(t, officialWorkerPackageRoot(t, "GOAI_CODEMODE_V161_PACKAGE_ROOT", "1.6.1"))
+}
+
+func checkPublishedWorkerUndefinedJournal(t *testing.T, packageRoot string) {
+	t.Helper()
+	sandbox, remote := newJournalWorkerSandbox(packageRoot)
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	testV160CodemodeJournalWithSandbox(t, ctx, sandbox, v160UndefinedJournalScript, "nothing", "[true,true]", CodemodeUndefined)
+	if got := remote.starts.Load(); got != 2 {
+		t.Fatalf("published guest executions = %d; want 2", got)
+	}
+}
+
+// Supplemental: explicit null arguments must remain distinct from the
+// omitted argument in the original undefined-result replay.
+func TestV161CodemodePublishedWorkerExplicitNullArgument(t *testing.T) {
+	sandbox, remote := newJournalWorkerSandbox(officialWorkerPackageRoot(t, "GOAI_CODEMODE_V161_PACKAGE_ROOT", "1.6.1"))
+	ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
+	defer cancel()
+	testV160CodemodeJournalWithSandbox(t, ctx, sandbox, `const n = await next(null); await tools.hold({}); return [n, await next(null)];`, "next", "[1,2]", nil)
 	if got := remote.starts.Load(); got != 2 {
 		t.Fatalf("published guest executions = %d; want 2", got)
 	}
