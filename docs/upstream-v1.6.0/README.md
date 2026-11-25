@@ -1263,3 +1263,7 @@ All three unchanged strict-tool cases passed. The native payload hook and script
 ### Grouped replay reports the saved count before the held-call dispute
 
 Both selected unchanged Codemode cases passed. The native baseline rejected the first changed call before reading the drain. On the grouped policy, Go now reports the pinned three-versus-two and five-versus-two count diagnostics. It counts only valid guest frames, never admits an effect from the rejected replay, and leaves the saved journal unchanged. A matching count still causes the existing redacted identity refusal. The old policy keeps its original refusal order when reopened.
+
+The oversized store patch also reproduced through public SQLite on the unchanged native baseline: all five values are individually legal, but the worker patch is rejected as a combined record. The bounded-store candidate remains separate pending its storage checks.
+
+The integrated code at `81abc657` passed 32 focused top-level Go tests twice, without skips. The default published worker returned `50` with eight journal publications in each repeat. Vet and Staticcheck v0.8.2 passed. The inventory at `81abc657` records 1,959 scoped sites: 1,906 mapped, 48 partial and five unmatched. Thirty-five of the 214 changed suites have assertion-level links. Full parity remains open.
