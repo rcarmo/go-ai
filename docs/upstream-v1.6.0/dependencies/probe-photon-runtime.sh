@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# != 4 && ( $# -lt 5 || $# -gt 6 || $5 != stable-worker ) ]]; then
-  printf 'Usage: bash %s <pinned-git-mirror> <prepared-oracle-dir> <user-npm-cacache> <release-archive-dir> [stable-worker [new-fixture-path]]\n' "$0" >&2
+if [[ $# != 4 && ( $# -lt 5 || $# -gt 6 || ( $5 != stable-worker && $5 != fit-resize ) ) ]]; then
+  printf 'Usage: bash %s <pinned-git-mirror> <prepared-oracle-dir> <user-npm-cacache> <release-archive-dir> [stable-worker|fit-resize [new-fixture-path]]\n' "$0" >&2
   exit 1
 fi
 mirror=$(realpath -- "$1")
@@ -82,7 +82,7 @@ show_failure() {
 
 run_test() {
   local tag=$1 fixture=
-  [[ "$mode" != stable-worker ]] || fixture="$scratch/$tag.input.png"
+  [[ "$mode" == resize ]] || fixture="$scratch/$tag.input.png"
   (
     cd "$scratch/packages/durable"
     env -i PATH="$PATH" HOME="$scratch/home" TMPDIR="$scratch/tmp" PHOTON_PROBE_ROOT="$scratch" \
@@ -112,6 +112,16 @@ run_selected() {
       ]) and any(.[]; .kind=="worker-reply" and .id==0 and .mimeType=="image/jpeg" and
         .convertedFrom=="image/png" and (has("resized")|not) and .data.bytes>0 and .base64.bytes<=4718592)
     ' "$scratch/$tag.trace.jsonl" > "$scratch/$tag.events.check" || { cat "$scratch/$tag.trace.jsonl" >&2; return 1; }
+  elif [[ "$mode" == fit-resize ]]; then
+    jq -e '.numPendingTests==10 and .numTodoTests==0' "$scratch/$tag.result.json" > "$scratch/$tag.pending.check"
+    jq -es --arg sha "$(sha256 "$scratch/$tag.input.png")" --argjson bytes "$(wc -c < "$scratch/$tag.input.png")" '
+      ([.[]|select(.thread=="test-thread")|.kind]==["instantiate-wasm"]) and
+      ([.[]|select(.thread=="image-worker")|.kind]==["load-js","instantiate-wasm","worker-request","worker-reply"]) and length==5 and
+      ([.[]|select(.kind=="worker-request")|del(.thread,.kind)]==[
+        {id:0,mimeType:"image/png",limits:{maxWidth:200,maxHeight:2000,maxBytes:4718592},sha256:$sha,bytes:$bytes}
+      ]) and any(.[]; .kind=="worker-reply" and .id==0 and .mimeType=="image/png" and
+        .resized=={from:{width:400,height:100},to:{width:200,height:50}} and (has("convertedFrom")|not) and .base64.bytes<=4718592)
+    ' "$scratch/$tag.trace.jsonl" > "$scratch/$tag.events.check" || { cat "$scratch/$tag.trace.jsonl" >&2; return 1; }
   else
     jq -es '
     ([.[]|select(.thread=="test-thread")|.kind]==["instantiate-wasm"]) and
@@ -138,6 +148,41 @@ flock 9
 run_selected original
 verify_asset original load-js "$scratch/$js" > "$scratch/js.check"
 verify_asset original instantiate-wasm "$scratch/$wasm" > "$scratch/wasm.check"
+
+if [[ "$mode" == fit-resize ]]; then
+  base=4db6f2123184ab22e0fe6d09b8e3aa40cfa90183
+  notes=packages/durable/src/tools/image-processor.ts
+  [[ $(grep -Fc '(from.width / to.width).toFixed(2)' "$scratch/$notes") == 1 ]]
+  sed -i 's/(from.width \/ to.width)\.toFixed(2)/(from.width \/ to.width).toFixed(1)/' "$scratch/$notes"
+  if run_test note; then printf 'Changing coordinate-note precision unexpectedly passed\n' >&2; exit 1; fi
+  if ! jq -e --arg full "$selector" --slurpfile original "$scratch/original.result.json" '
+    .numPassedTests==0 and .numFailedTests==1 and .numPendingTests==10 and .numTodoTests==0 and
+    ([.testResults[].assertionResults[]|[.fullName,.status]]==[$original[0].testResults[].assertionResults[]|[.fullName,if .status=="passed" then "failed" else .status end]]) and
+    any(.testResults[].assertionResults[]; .fullName==$full and (.failureMessages|join("\n")|contains("images-fit.test.ts:111:")))
+  ' "$scratch/note.result.json" > "$scratch/note.check"; then show_failure note; exit 1; fi
+  jq -s 'sort_by(.thread)' "$scratch/note.trace.jsonl" > "$scratch/note.events.json"
+  cmp "$scratch/original.events.json" "$scratch/note.events.json"
+  cmp "$scratch/original.input.png" "$scratch/note.input.png"
+  git -C "$mirror" show "$pin:$notes" > "$scratch/$notes"
+  flock -u 9
+  for file in "$test" "$notes" packages/durable/{test/image-fixtures.ts,src/images/{index,node,node-worker}.ts}; do
+    git -C "$mirror" show "$pin:$file" | cmp "$scratch/$file" -
+    jq -cn --arg file "$file" --arg sha "$(sha256 "$scratch/$file")" '{file:$file,sha256:$sha}'
+  done > "$scratch/source.jsonl"
+  if [[ -n "$fixture_out" ]]; then (set -o noclobber; cat "$scratch/original.input.png" > "$fixture_out"); fi
+  jq -n --arg pin "$pin" --arg base "$base" --arg test "$test" --arg selected "$selector" \
+    --arg node "$(node --version)" --arg vitest "$vitest" --arg url "$url" --arg integrity "$integrity" \
+    --arg archiveSha "$archive_sha" --arg aiSha "$ai_sha" --arg png "$(base64 -w 0 "$scratch/original.input.png")" \
+    --slurpfile deps "$scratch/copied.json" --slurpfile sources "$scratch/source.jsonl" \
+    --slurpfile observed "$scratch/original.events.json" --slurpfile report "$scratch/original.result.json" '
+    {format:1,pin:$pin,evidenceBase:$base,node:$node,vitest:$vitest,
+      selection:{file:$test,caseNames:[$selected],filteredOut:[$report[0].testResults[].assertionResults[]|select(.status=="skipped")|.fullName]},
+      result:{passed:1,failed:0,selectedSkipped:0},sourceDigests:$sources,fixtureBase64:$png,
+      photonArchive:{url:$url,integrity:$integrity,sha256:$archiveSha},aiArchiveSha256:$aiSha,
+      observed:$observed[0],control:{change:"format the coordinate multiplier to one decimal place",failed:[$selected],assertions:[111],workerTrace:"identical"},
+      copiedDependencies:$deps[0],exclusions:[],scope:"offline-fit-resize-and-ordered-notes"}'
+  exit 0
+fi
 
 # Keep behavior intact while changing both provenance inputs in scratch.
 printf '\n// Photon provenance control.\n' >> "$scratch/$key/$js"
