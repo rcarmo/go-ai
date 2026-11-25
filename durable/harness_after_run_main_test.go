@@ -659,23 +659,30 @@ func TestMainAfterRunTerminateSummary(t *testing.T) {
 	}
 }
 
-// Source478: Stop during either hooks or children ends an already answered run
-// completed, with no runFailure. Actual native abort marks/signals/joins apply.
+// harness-after-run.test.ts:479\u2013514 runs in upstream MemoryStorage. This
+// SQLite witness observes the same five facts immediately after public Stop.
 func TestMainAfterRunStopAnswered(t *testing.T) {
-	for _, stage := range []string{"hook", "task"} {
+	for _, stage := range []string{"finish", "drain"} {
 		t.Run(stage, func(t *testing.T) {
 			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+				ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+				defer cancel()
 				probe := &mainAfterRunProbe{started: make(chan struct{}), release: make(chan struct{})}
 				def := mainAfterRunTask(t, probe)
 				hookStarted := make(chan struct{})
+				var asks atomic.Int64
+				var returnedAfterCancel atomic.Bool
 				registry := NewRegistry()
 				if err := registry.Install(&Extension{Name: "after-run", Tasks: []*TaskDefinition{def}, Hooks: GenerationHooks{AfterRun: func(ctx context.Context, _ RunSummary, _ *HookAPI) (*AfterRunResult, error) {
-					close(hookStarted)
-					if stage == "hook" {
-						<-ctx.Done()
-						return nil, ctx.Err()
+					if asks.Add(1) == 1 {
+						close(hookStarted)
 					}
-					return &AfterRunResult{Tasks: []RunEndTask{{Task: def, Input: JSON{"label": "run"}}}}, nil
+					if stage == "finish" {
+						<-ctx.Done()
+						returnedAfterCancel.Store(true)
+					}
+					// The original proposes work even after the hook is canceled.
+					return &AfterRunResult{Tasks: []RunEndTask{{Task: def, Input: JSON{"label": "run 1"}}}}, nil
 				}}}); err != nil {
 					t.Fatal(err)
 				}
@@ -689,48 +696,70 @@ func TestMainAfterRunStopAnswered(t *testing.T) {
 				h := openHarness(t, b.store, options)
 				cleanupTaskGates(t, probe.release)
 				c := root(t, h, ref)
-				sub, err := c.Submit(bg, Input{Content: "go"})
+				sub, err := c.Submit(ctx, Input{Content: "go"})
 				if err != nil {
 					t.Fatal(err)
 				}
-				settlement := waitSubmission(t, sub)
+				answered, err := sub.Wait(ctx)
+				if err != nil || answered.Record.Status != "done" || answered.Record.Answer == 0 {
+					t.Fatal("original answer did not commit before Stop", answered.Record, err)
+				}
 				awaitTaskSignal(t, hookStarted)
-				if stage == "task" {
+				if stage == "drain" {
 					awaitTaskSignal(t, probe.started)
 				}
-				beforeStop := mainAfterRunLive(t, h, c.ID())
-				if err := c.Abort(bg); err != nil {
+				before := generationObject(mainAfterRunLive(t, h, c.ID())["run"])
+				generationID := submissionEntryID(before["taskId"])
+				children, _ := generationObject(before["afterRun"])["tasks"].([]any)
+				if generationID == 0 || (stage == "finish" && len(children) != 0) || (stage == "drain" && len(children) != 1) {
+					t.Fatal("wrong live ownership at Stop gate", before)
+				}
+				if stage == "drain" {
+					child, found, err := h.Task(ctx, submissionEntryID(children[0]))
+					if err != nil || !found || child.Owner != generationID || child.State.Status != "running" {
+						t.Fatal("expected actual held and owned child before drain Stop", child, found, err)
+					}
+				}
+				if err := c.Abort(ctx); err != nil {
 					t.Fatal(err)
 				}
-				ctx, cancel := context.WithTimeout(bg, 3*time.Second)
-				defer cancel()
-				if err := c.WaitForIdle(ctx); err != nil {
-					t.Fatal(err)
+				if asks.Load() != 1 || (stage == "finish" && !returnedAfterCancel.Load()) {
+					t.Fatal("Stop did not join the expected hook", asks.Load(), returnedAfterCancel.Load())
 				}
-				if live := mainAfterRunLive(t, h, c.ID()); live["run"] != nil || live["runFailure"] != nil {
-					t.Error("answered Stop failure/live", live)
+				live, found, err := c.SnapshotDefinition(ctx, LiveDoc(), nil)
+				if err != nil || !found || !equalJSONValue(live.Copy(), JSON{}) {
+					t.Fatal("answered Stop retained a run or runFailure", live, found, err)
 				}
-				// Source generation.abort returns aborted even after answering; the
-				// input stays done and no failure is published (source478).
-				generationID := submissionEntryID(generationObject(beforeStop["run"])["taskId"])
-				task, ok, err := h.Task(bg, generationID)
-				if err != nil || !ok || task.State.Outcome == nil || task.State.Outcome.Status != "aborted" {
-					t.Error("answered Stop outcome", task, ok, err)
-				}
-				status, err := sub.Status(bg)
-				if err != nil || status.Status != "done" || status.Answer != settlement.Record.Answer {
-					t.Error("answered input changed", status, err)
+				status, err := sub.Status(ctx)
+				if err != nil || status.Status != "done" || status.Answer != answered.Record.Answer {
+					t.Fatal("answered input changed", status, err)
 				}
 				wantRuns := []string{}
 				wantAborted := int64(0)
-				if stage == "task" {
-					wantRuns, wantAborted = []string{"run"}, 1
+				if stage == "drain" {
+					wantRuns, wantAborted = []string{"run 1"}, 1
 				}
 				probe.mu.Lock()
-				if !reflect.DeepEqual(append([]string{}, probe.runs...), wantRuns) || probe.aborted.Load() != wantAborted {
-					t.Error("Stop task runs/aborts", probe.runs, probe.aborted.Load())
-				}
+				runs := append([]string{}, probe.runs...)
 				probe.mu.Unlock()
+				if !reflect.DeepEqual(runs, wantRuns) || probe.aborted.Load() != wantAborted {
+					t.Fatal("Stop task runs/aborts", runs, probe.aborted.Load())
+				}
+				// The generation task aborts but its prior answer stays done.
+				task, ok, err := h.Task(ctx, generationID)
+				if err != nil || !ok || task.State.Status != "terminal" || task.State.Outcome == nil || task.State.Outcome.Status != "aborted" {
+					t.Fatal("answered Stop generation outcome", task, ok, err)
+				}
+				page, err := b.store.ScanTasks(ctx, TaskQuery{Conversation: c.ID(), Kind: def.Kind()}, 8, nil)
+				if err != nil || page.Next != nil || len(page.Items) != len(wantRuns) {
+					t.Fatal("Stop published unexpected child incarnations", page, err)
+				}
+				if stage == "drain" {
+					child := page.Items[0]
+					if child.ID != submissionEntryID(children[0]) || child.Owner != generationID || child.State.Status != "terminal" || child.State.Outcome == nil || child.State.Outcome.Status != "aborted" {
+						t.Fatal("Stop did not abort the original owned child", child)
+					}
+				}
 			})
 		})
 	}
