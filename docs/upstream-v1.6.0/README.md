@@ -1219,3 +1219,7 @@ The unchanged native test reproduced the late `t.Error` after the age-cap subtes
 ### Standalone Schema rejects typed non-finite numbers
 
 All 40 unchanged validator cases passed. The native baseline accepted 12 of the 18 combinations of NaN or infinity and the pinned schemas. Standalone Go validation now rejects them, including through unions and shared references. The explain path reports the exact NaN diagnostic, finite values and signed zero still pass where expected, and coercion preserves the input bits. The legacy tool validation path and raw JSON number handling are unchanged.
+
+### An answered generation survives reaching the finish restart limit
+
+All 29 unchanged after-run cases passed. The native SQLite test kills the first writer while the finish hook holds an already committed answer. At `restartLimit=1`, recovery keeps the original completed answer and the same queued input, clears the live document and reports one `task_interrupted` with reason `restart_limit` for that generation. The [shared native checks](../../durable/harness_after_run_selection_main_test.go) count exactly one hook ask and no new provider call. Bypassing the cap or dropping its report failed the corresponding check. No production recovery code changed.
