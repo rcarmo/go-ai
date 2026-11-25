@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# != 4 && ( $# -lt 5 || $# -gt 6 || ( $5 != stable-worker && $5 != fit-resize && $5 != fit-passthrough ) ) ]]; then
-  printf 'Usage: bash %s <pinned-git-mirror> <prepared-oracle-dir> <user-npm-cacache> <release-archive-dir> [stable-worker|fit-resize|fit-passthrough [new-fixture-path]]\n' "$0" >&2
+if [[ $# != 4 && ( $# -lt 5 || $# -gt 6 || ( $5 != stable-worker && $5 != fit-resize && $5 != fit-passthrough && $5 != fit-omissions ) ) ]]; then
+  printf 'Usage: bash %s <pinned-git-mirror> <prepared-oracle-dir> <user-npm-cacache> <release-archive-dir> [stable-worker|fit-resize|fit-passthrough|fit-omissions [new-fixture-path]]\n' "$0" >&2
   exit 1
 fi
 mirror=$(realpath -- "$1")
@@ -28,6 +28,8 @@ if [[ "$mode" == stable-worker ]]; then
   heap=1856 # Vitest deep-compares a multi-MiB Uint8Array.
 elif [[ "$mode" == fit-passthrough ]]; then
   selector='fitImages is unchanged when every image comes back as it was, and asks the processor only about images'
+elif [[ "$mode" == fit-omissions ]]; then
+  selector='fitImages leaves out what cannot be prepared, with a note: damaged images, other bytes, malformed base64'
 fi
 key=node_modules/@silvia-odwyer/photon
 js=photon_rs.js
@@ -84,7 +86,7 @@ show_failure() {
 
 run_test() {
   local tag=$1 fixture=
-  [[ "$mode" == resize ]] || fixture="$scratch/$tag.input.png"
+  if [[ "$mode" != resize && "$mode" != fit-omissions ]]; then fixture="$scratch/$tag.input.png"; fi
   (
     cd "$scratch/packages/durable"
     env -i PATH="$PATH" HOME="$scratch/home" TMPDIR="$scratch/tmp" PHOTON_PROBE_ROOT="$scratch" \
@@ -128,6 +130,13 @@ run_selected() {
         (if $mode=="fit-resize" then .resized=={from:{width:400,height:100},to:{width:200,height:50}}
          else (has("resized")|not) and .data=={bytes:$bytes,sha256:$sha} end))
     ' "$scratch/$tag.trace.jsonl" > "$scratch/$tag.events.check" || { cat "$scratch/$tag.trace.jsonl" >&2; return 1; }
+  elif [[ "$mode" == fit-omissions ]]; then
+    jq -e '.numPendingTests==10 and .numTodoTests==0' "$scratch/$tag.result.json" > "$scratch/$tag.pending.check"
+    jq -es '
+      ([.[]|select(.thread=="test-thread")|.kind]==["instantiate-wasm"]) and
+      ([.[]|select(.thread=="image-worker")|.kind]==["load-js","instantiate-wasm","worker-reply","worker-reply"]) and length==5 and
+      ([.[]|select(.kind=="worker-reply")|del(.thread,.kind)]==[{id:0},{id:1}])
+    ' "$scratch/$tag.trace.jsonl" > "$scratch/$tag.events.check" || { cat "$scratch/$tag.trace.jsonl" >&2; return 1; }
   else
     jq -es '
     ([.[]|select(.thread=="test-thread")|.kind]==["instantiate-wasm"]) and
@@ -155,7 +164,8 @@ run_selected original
 verify_asset original load-js "$scratch/$js" > "$scratch/js.check"
 verify_asset original instantiate-wasm "$scratch/$wasm" > "$scratch/wasm.check"
 
-if [[ "$mode" == fit-resize || "$mode" == fit-passthrough ]]; then
+if [[ "$mode" == fit-resize || "$mode" == fit-passthrough || "$mode" == fit-omissions ]]; then
+  fixture="$scratch/original.input.png"
   if [[ "$mode" == fit-resize ]]; then
     base=4db6f2123184ab22e0fe6d09b8e3aa40cfa90183
     adapter=packages/durable/src/tools/image-processor.ts
@@ -164,7 +174,7 @@ if [[ "$mode" == fit-resize || "$mode" == fit-passthrough ]]; then
     scope=offline-fit-resize-and-ordered-notes
     [[ $(grep -Fc '(from.width / to.width).toFixed(2)' "$scratch/$adapter") == 1 ]]
     sed -i 's/(from.width \/ to.width)\.toFixed(2)/(from.width \/ to.width).toFixed(1)/' "$scratch/$adapter"
-  else
+  elif [[ "$mode" == fit-passthrough ]]; then
     base=0ec852038cec8b94d22b6a8c85b00233a9c10b5a
     adapter=packages/durable/src/images/fit.ts
     assertion=91
@@ -172,6 +182,18 @@ if [[ "$mode" == fit-resize || "$mode" == fit-passthrough ]]; then
     scope=offline-fit-passthrough
     [[ $(grep -Fc 'let changed = false;' "$scratch/$adapter") == 1 ]]
     sed -i 's/let changed = false;/let changed = true;/' "$scratch/$adapter"
+  else
+    base=3d0a45b2185b7177439d0cfe8ba60b5c23309b81
+    adapter=packages/durable/src/images/fit.ts
+    assertion=149
+    change='omit the base64 decoding error from the omission note'
+    scope=offline-fit-omission-diagnostics
+    [[ $(grep -Fc 'return omitted(image.mimeType, `:' "$scratch/$adapter") == 1 ]]
+    sed -i '/return omitted(image\.mimeType, `:/c\	\treturn omitted(image.mimeType, "");' "$scratch/$adapter"
+    git show "$base:docs/upstream-v1.6.0/test-inventory/tools-images-read-contract.json" |
+      jq -er --arg pin "$pin" --arg sha "$(sha256 "$scratch/packages/durable/test/image-fixtures.ts")" '
+        select(.pin==$pin and any(.sourceDigests[]; .file=="packages/durable/test/image-fixtures.ts" and .sha256==$sha)) | .fixturesBase64.png4x4
+      ' | base64 -d > "$fixture"
   fi
   if run_test note; then printf 'Control unexpectedly passed: %s\n' "$change" >&2; exit 1; fi
   if ! jq -e --arg full "$selector" --arg site "images-fit.test.ts:$assertion:" --slurpfile original "$scratch/original.result.json" '
@@ -181,18 +203,18 @@ if [[ "$mode" == fit-resize || "$mode" == fit-passthrough ]]; then
   ' "$scratch/note.result.json" > "$scratch/note.check"; then show_failure note; exit 1; fi
   jq -s 'sort_by(.thread)' "$scratch/note.trace.jsonl" > "$scratch/note.events.json"
   cmp "$scratch/original.events.json" "$scratch/note.events.json"
-  cmp "$scratch/original.input.png" "$scratch/note.input.png"
+  if [[ "$mode" != fit-omissions ]]; then cmp "$fixture" "$scratch/note.input.png"; fi
   git -C "$mirror" show "$pin:$adapter" > "$scratch/$adapter"
   flock -u 9
   for file in "$test" "$adapter" packages/durable/{test/image-fixtures.ts,src/images/{index,node,node-worker}.ts}; do
     git -C "$mirror" show "$pin:$file" | cmp "$scratch/$file" -
     jq -cn --arg file "$file" --arg sha "$(sha256 "$scratch/$file")" '{file:$file,sha256:$sha}'
   done > "$scratch/source.jsonl"
-  if [[ -n "$fixture_out" ]]; then (set -o noclobber; cat "$scratch/original.input.png" > "$fixture_out"); fi
+  if [[ -n "$fixture_out" ]]; then (set -o noclobber; cat "$fixture" > "$fixture_out"); fi
   jq -n --arg pin "$pin" --arg base "$base" --arg test "$test" --arg selected "$selector" \
     --arg change "$change" --argjson assertion "$assertion" --arg scope "$scope" \
     --arg node "$(node --version)" --arg vitest "$vitest" --arg url "$url" --arg integrity "$integrity" \
-    --arg archiveSha "$archive_sha" --arg aiSha "$ai_sha" --arg png "$(base64 -w 0 "$scratch/original.input.png")" \
+    --arg archiveSha "$archive_sha" --arg aiSha "$ai_sha" --arg png "$(base64 -w 0 "$fixture")" \
     --slurpfile deps "$scratch/copied.json" --slurpfile sources "$scratch/source.jsonl" \
     --slurpfile observed "$scratch/original.events.json" --slurpfile report "$scratch/original.result.json" '
     {format:1,pin:$pin,evidenceBase:$base,node:$node,vitest:$vitest,
