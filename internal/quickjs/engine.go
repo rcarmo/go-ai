@@ -160,6 +160,10 @@ type Result struct {
 type Engine struct {
 	runtime  wazero.Runtime
 	compiled wazero.CompiledModule
+
+	lifecycle sync.Mutex
+	closed    bool
+	active    map[*context.CancelCauseFunc]struct{}
 }
 
 var (
@@ -202,8 +206,20 @@ func newEngineWithConfig(ctx context.Context, config wazero.RuntimeConfig) (*Eng
 	return &Engine{runtime: r, compiled: compiled}, nil
 }
 
-// Close releases the runtime.
-func (e *Engine) Close(ctx context.Context) error { return e.runtime.Close(ctx) }
+var errSandboxClosed = errors.New("Sandbox closed")
+
+// Close cancels active scripts before releasing the runtime. Each Execute
+// still joins its own host callbacks before returning.
+func (e *Engine) Close(ctx context.Context) error {
+	e.lifecycle.Lock()
+	e.closed = true
+	for cancel := range e.active {
+		(*cancel)(errSandboxClosed)
+	}
+	e.active = nil
+	e.lifecycle.Unlock()
+	return e.runtime.Close(ctx)
+}
 
 type ctxKey struct{}
 
@@ -311,6 +327,24 @@ func (e *Engine) Execute(ctx context.Context, code string, opts Options) Result 
 	if maxCalls == 0 {
 		maxCalls = maxBridgeOutputItems
 	}
+	e.lifecycle.Lock()
+	if e.closed {
+		e.lifecycle.Unlock()
+		return Result{Error: &Error{Kind: ErrorSandbox, Message: errSandboxClosed.Error()}}
+	}
+	ctx, cancelExecution := context.WithCancelCause(ctx)
+	if e.active == nil {
+		e.active = make(map[*context.CancelCauseFunc]struct{})
+	}
+	e.active[&cancelExecution] = struct{}{}
+	e.lifecycle.Unlock()
+	defer func() {
+		cancelExecution(nil)
+		e.lifecycle.Lock()
+		delete(e.active, &cancelExecution)
+		e.lifecycle.Unlock()
+	}()
+
 	timeout := opts.Timeout
 	if timeout <= 0 {
 		timeout = DefaultTimeout
@@ -503,12 +537,22 @@ func (e *Engine) Execute(ctx context.Context, code string, opts Options) Result 
 	return finish(v.result.Error)
 }
 
+// executionAbort keeps an explicit cancellation cause, without changing
+// the diagnostic for an ordinary cancellation or parent deadline.
+func executionAbort(ctx context.Context) *Error {
+	message := "Execution aborted"
+	if cause := context.Cause(ctx); cause != nil && cause != context.Canceled && cause != context.DeadlineExceeded {
+		message = cause.Error()
+	}
+	return &Error{Kind: ErrorAborted, Message: message}
+}
+
 // contextError classifies a failure: timeout, abort (caller cancelled) or a
 // sandbox failure.
 func (v *vm) contextError(runCtx, parent context.Context, detail string) *Error {
 	switch {
 	case parent.Err() != nil:
-		return &Error{Kind: ErrorAborted, Message: "Execution aborted"}
+		return executionAbort(parent)
 	case v.budgetExceeded:
 		return &Error{Kind: ErrorTimeout, Message: fmt.Sprintf("Execution exceeded its interrupt budget of %d polls", v.interruptBudget)}
 	case errors.Is(runCtx.Err(), context.DeadlineExceeded):
@@ -925,7 +969,7 @@ func (v *vm) hostCall(ctx context.Context, namePtr, nameLen, argc, argvPtr uint3
 	fail := func() uint32 {
 		v.done, v.interrupt = true, true
 		if ctx.Err() != nil {
-			v.result = Result{Error: &Error{Kind: ErrorAborted, Message: "Execution aborted"}}
+			v.result = Result{Error: executionAbort(ctx)}
 			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 				v.result.Error = &Error{Kind: ErrorTimeout, Message: "Execution deadline exceeded"}
 			}
