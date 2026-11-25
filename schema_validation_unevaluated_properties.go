@@ -15,7 +15,7 @@ type toolSchemaPropertyAnnotationVisit struct {
 func (v *toolSchemaValidator) firstUnevaluatedPropertyFailure(object, schema map[string]interface{}, enterRoot bool) (string, bool) {
 	var first string
 	found := false
-	v.visitUnevaluatedPropertyFailures(object, schema, enterRoot, sortedSchemaKeys, func(key string, _ interface{}) bool {
+	v.visitUnevaluatedPropertyFailures(object, schema, enterRoot, false, sortedSchemaKeys, func(key string, _ interface{}) bool {
 		first, found = key, true
 		return false
 	})
@@ -24,13 +24,16 @@ func (v *toolSchemaValidator) firstUnevaluatedPropertyFailure(object, schema map
 
 // The annotation pass is shared. Only standalone explanations use the input's
 // property order and continue past the first rejected name.
-func (v *toolSchemaValidator) visitUnevaluatedPropertyFailures(object, schema map[string]interface{}, enterRoot bool, keys func(map[string]interface{}) []string, yield func(string, interface{}) bool) {
+func (v *toolSchemaValidator) visitUnevaluatedPropertyFailures(object, schema map[string]interface{}, enterRoot, explaining bool, keys func(map[string]interface{}) []string, yield func(string, interface{}) bool) {
 	raw, present := schema["unevaluatedProperties"]
 	if v.draft7 || !present || raw == true || len(object) == 0 {
 		return
 	}
-	annotations := toolSchemaPropertyAnnotations{names: make(map[string]bool)}
-	v.collectEvaluatedProperties(object, schema, &annotations, make(map[toolSchemaPropertyAnnotationVisit]bool), true, enterRoot)
+	var annotations toolSchemaPropertyAnnotations
+	if !explaining || !v.undefinedPropertyBlocksAnnotations(object, schema) {
+		annotations.names = make(map[string]bool)
+		v.collectEvaluatedProperties(object, schema, &annotations, make(map[toolSchemaPropertyAnnotationVisit]bool), true, enterRoot)
+	}
 	if annotations.all {
 		return
 	}
@@ -39,6 +42,21 @@ func (v *toolSchemaValidator) visitUnevaluatedPropertyFailures(object, schema ma
 			return
 		}
 	}
+}
+
+// The pinned explainer omits a declared field's direct diagnostic for
+// undefined. Its local object annotator still checks that value; if rejected,
+// it exits before contributing any annotations or visiting later parts.
+func (v *toolSchemaValidator) undefinedPropertyBlocksAnnotations(object, schema map[string]interface{}) bool {
+	properties, _ := schema["properties"].(map[string]interface{})
+	for key, value := range object {
+		if _, undefined := value.(SchemaUndefined); undefined {
+			if child, declared := properties[key]; declared && !v.acceptsRaw(value, child) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // Annotations belong to the current object instance and dynamic resource stack.

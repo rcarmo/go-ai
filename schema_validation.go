@@ -452,7 +452,7 @@ func (v *toolSchemaValidator) appendIssues(out toolSchemaIssues, value, raw inte
 	switch value := value.(type) {
 	case map[string]interface{}:
 		if mode.structured() {
-			v.visitUnevaluatedPropertyFailures(value, schema, mode != diagnosticsDetached, v.diagnosticObjectKeys, func(key string, raw interface{}) bool {
+			v.visitUnevaluatedPropertyFailures(value, schema, mode != diagnosticsDetached, true, v.diagnosticObjectKeys, func(key string, raw interface{}) bool {
 				childPath := schemaIssuePath(path, key)
 				if raw == false {
 					out = append(out, JSONSchemaDiagnostic{childPath, "unevaluatedProperties", "unknown field"})

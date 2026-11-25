@@ -85,5 +85,37 @@ func TestSchemaUndefinedStillChecksOtherObjectRules(t *testing.T) {
 
 func TestSchemaUndefinedLocalAnnotationStillChecksValue(t *testing.T) {
 	const schema = `{"type":"object","properties":{"a":{"type":"string"}},"unevaluatedProperties":false}`
-	assertV160UndefinedCheck(t, schema, map[string]any{"a": goai.SchemaUndefined{}}, false)
+	input := map[string]any{"a": goai.SchemaUndefined{}}
+	assertV160UndefinedCheck(t, schema, input, false)
+	issues, err := compileV160LeafSchema(t, schema).Explain(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertV160StructuredDiagnostics(t, issues, `[{"path":"/a","keyword":"unevaluatedProperties","message":"unknown field"}]`)
+}
+
+// Own-key membership accepts this undeclared required key. When another
+// keyword fails, the pinned explainer also diagnoses the undefined key.
+func TestSchemaUndefinedUndeclaredRequiredDiagnostics(t *testing.T) {
+	const schema = `{"type":"object","required":["a"],"properties":{"b":{"type":"string"}}}`
+	compiled := compileV160LeafSchema(t, schema)
+	for _, tc := range []struct {
+		b      any
+		want   bool
+		issues string
+	}{
+		{1, false, `[{"path":"/a","keyword":"required","message":"missing"},{"path":"/b","keyword":"type","message":"expected string, got integer"}]`},
+		{"ok", true, `[]`},
+	} {
+		input := map[string]any{"a": goai.SchemaUndefined{}, "b": tc.b}
+		got, err := compiled.Check(input)
+		if err != nil || got != tc.want {
+			t.Fatalf("check(%#v) = %t, %v; want %t", input, got, err, tc.want)
+		}
+		issues, err := compiled.Explain(input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertV160StructuredDiagnostics(t, issues, tc.issues)
+	}
 }
