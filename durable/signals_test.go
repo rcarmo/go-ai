@@ -297,7 +297,7 @@ func TestSourceV160SignalDeliveredBeforeSleep(t *testing.T) {
 	}
 	want := &TaskOutcome{Status: "completed", Result: &TaskValue{Present: true, Value: map[string]any{
 		"wake":   map[string]any{"reason": "signal", "signal": "test.answer", "key": "a"},
-		"states": []any{map[string]any{"value": map[string]any{"text": "early"}}},
+		"states": []any{map[string]any{"kind": "value", "value": map[string]any{"text": "early"}}},
 	}}}
 	if !reflect.DeepEqual(task.State.Outcome, want) {
 		got, _ := json.Marshal(task.State.Outcome)
@@ -395,7 +395,7 @@ func signalAskDefinition(t *testing.T, answer *SignalToken, until *int64, parked
 	return def
 }
 
-// v1.6.0 harness-signals.test.ts:225. Advance the injected clock inside the
+// v1.6.1 harness-signals.test.ts:231–245. Advance the injected clock inside the
 // delivery's public commit so reservation cannot run between the clock change
 // and the delivery. No timer or wall-clock delay establishes this order.
 func TestSourceV160LateSignalExpiresBeforeReservation(t *testing.T) {
@@ -442,7 +442,7 @@ func TestSourceV160LateSignalExpiresBeforeReservation(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := &TaskOutcome{Status: "completed", Result: &TaskValue{Present: true, Value: map[string]any{
-		"wake": map[string]any{"reason": "expired"}, "states": []any{map[string]any{"expired": true}},
+		"wake": map[string]any{"reason": "expired"}, "states": []any{map[string]any{"kind": "expired"}},
 	}}}
 	if !reflect.DeepEqual(record.State.Outcome, want) {
 		got, _ := json.Marshal(record.State.Outcome)
@@ -888,7 +888,7 @@ func TestV160WakePrefersSignalToFutureDeadline(t *testing.T) {
 		t.Fatal(err)
 	}
 	record, err := h.WaitForTask(ctx, id)
-	want := taskDone(map[string]any{"wake": map[string]any{"reason": "signal", "signal": "test.answer", "key": "a"}, "states": []any{map[string]any{"value": map[string]any{"text": "later"}}}}).Outcome
+	want := taskDone(map[string]any{"wake": map[string]any{"reason": "signal", "signal": "test.answer", "key": "a"}, "states": []any{map[string]any{"kind": "value", "value": map[string]any{"text": "later"}}}}).Outcome
 	if err != nil || !reflect.DeepEqual(record.State.Outcome, want) {
 		got, _ := json.Marshal(record.State.Outcome)
 		expected, _ := json.Marshal(want)
@@ -1179,6 +1179,7 @@ func TestSourceV160SubmissionNotifications(t *testing.T) {
 	}
 }
 
+// v1.6.1 harness-signals.test.ts:129–152.
 func TestSourceV160ParallelSignalsComposeDeliveriesInOrder(t *testing.T) {
 	ctx, cancel := context.WithTimeout(bg, 6*time.Second)
 	defer cancel()
@@ -1203,7 +1204,7 @@ func TestSourceV160ParallelSignalsComposeDeliveriesInOrder(t *testing.T) {
 		t.Fatalf("deliveries = %v, %v", v, err)
 	}
 	got, err := h.WaitForTask(ctx, id)
-	want := taskDone(map[string]any{"wake": map[string]any{"reason": "signal", "signal": "test.answer", "key": "a"}, "states": []any{map[string]any{"value": map[string]any{"text": "first"}}, map[string]any{"value": map[string]any{"text": "bee"}}}}).Outcome
+	want := taskDone(map[string]any{"wake": map[string]any{"reason": "signal", "signal": "test.answer", "key": "a"}, "states": []any{map[string]any{"kind": "value", "value": map[string]any{"text": "first"}}, map[string]any{"kind": "value", "value": map[string]any{"text": "bee"}}}}).Outcome
 	if err != nil || !reflect.DeepEqual(got.State.Outcome, want) {
 		actual, _ := json.Marshal(got.State.Outcome)
 		expected, _ := json.Marshal(want)
@@ -1295,7 +1296,7 @@ func TestSourceV160SignalReadingVersionsAndMigration(t *testing.T) {
 					}
 				} else {
 					raw, err := json.Marshal(got.State)
-					if got.Err != nil || err != nil || string(raw) != `{"value":{"n":42}}` {
+					if got.Err != nil || err != nil || string(raw) != `{"kind":"value","value":{"n":42}}` {
 						t.Fatalf("read = %s, %v, %v", raw, got.Err, err)
 					}
 				}
@@ -1399,7 +1400,7 @@ func TestSourceV160SignalSleepGraph(t *testing.T) {
 	record, err := h.WaitForTask(ctx, id)
 	want := taskDone(map[string]any{
 		"wake":   map[string]any{"reason": "signal", "signal": "test.answer", "key": "b"},
-		"states": []any{nil, map[string]any{"value": map[string]any{"text": "bee"}}},
+		"states": []any{nil, map[string]any{"kind": "value", "value": map[string]any{"text": "bee"}}},
 	}).Outcome
 	if err != nil || !reflect.DeepEqual(record.State.Outcome, want) {
 		got, _ := json.Marshal(record.State.Outcome)
@@ -1490,7 +1491,7 @@ func TestSourceV160SignalSleepEndings(t *testing.T) {
 				if ending == "resleep-expired" {
 					want = taskDone([]any{fmt.Sprintf("Task %d cannot sleep on signal test.answer key a: it expired", id)}).Outcome
 				} else {
-					want = taskDone(map[string]any{"wake": map[string]any{"reason": "expired"}, "states": []any{map[string]any{"expired": true}}}).Outcome
+					want = taskDone(map[string]any{"wake": map[string]any{"reason": "expired"}, "states": []any{map[string]any{"kind": "expired"}}}).Outcome
 				}
 			case "abort":
 				if got, err := h.AbortTask(ctx, id); err != nil || got != "marked" {
@@ -1518,7 +1519,7 @@ func TestSourceV160SignalSleepEndings(t *testing.T) {
 				if err := h.Resume(ctx); err != nil {
 					t.Fatal(err)
 				}
-				want = taskDone(map[string]any{"wake": map[string]any{"reason": "signal", "signal": "test.answer", "key": "a"}, "states": []any{map[string]any{"value": map[string]any{"text": "later"}}}}).Outcome
+				want = taskDone(map[string]any{"wake": map[string]any{"reason": "signal", "signal": "test.answer", "key": "a"}, "states": []any{map[string]any{"kind": "value", "value": map[string]any{"text": "later"}}}}).Outcome
 			}
 			record, err := h.WaitForTask(ctx, id)
 			actual, encodeErr := json.Marshal(record.State.Outcome)

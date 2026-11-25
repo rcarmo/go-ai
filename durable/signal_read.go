@@ -15,13 +15,15 @@ type SignalState struct {
 	Expired bool
 }
 
+// MarshalJSON tags the caller's read view, not the persisted signal memo.
 func (s SignalState) MarshalJSON() ([]byte, error) {
 	if s.Expired {
-		return []byte(`{"expired":true}`), nil
+		return []byte(`{"kind":"expired"}`), nil
 	}
 	return json.Marshal(struct {
-		Value any `json:"value"`
-	}{s.Value})
+		Kind  string `json:"kind"`
+		Value any    `json:"value"`
+	}{"value", s.Value})
 }
 
 // ReadSignal reads this invocation's retained signal value, even after a wake
