@@ -556,6 +556,8 @@ func testV160CanonicalToolSignalPark(t *testing.T, reopen bool) {
 	}
 }
 
+// harness-tool-parks.test.ts:293-342 covers the invalid and reused cases;
+// the timed case retains its separate success-path coverage.
 func TestSourceV160CanonicalToolTimedAndInvalidParks(t *testing.T) {
 	for _, mode := range []string{"time", "mixed", "result", "empty", "unowned", "reused"} {
 		t.Run(mode, func(t *testing.T) {
@@ -566,7 +568,8 @@ func TestSourceV160CanonicalToolTimedAndInvalidParks(t *testing.T) {
 				t.Fatal(err)
 			}
 			storage := &toolParkTestStorage{Storage: native, parked: make(chan ID, 4)}
-			key, err := testSignalAnswer(t).Key("a")
+			token := testSignalAnswer(t)
+			key, err := token.Key("k")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -574,10 +577,14 @@ func TestSourceV160CanonicalToolTimedAndInvalidParks(t *testing.T) {
 			clock.Store(1000)
 			var providerCalls atomic.Int32
 			observed := make(chan goai.Message, 2)
+			name := mode
+			if mode == "reused" {
+				name = "again"
+			}
 			ref, options := setupFakeAPI(t, func(_ context.Context, _ *goai.Model, conversation *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
 				ch := make(chan goai.Event, 1)
 				if providerCalls.Add(1) == 1 {
-					ch <- toolAnswer("call", mode, JSON{})
+					ch <- toolAnswer("call", name, JSON{})
 				} else {
 					for _, msg := range conversation.Messages {
 						if msg.Role == goai.RoleToolResult && msg.ToolCallID == "call" {
@@ -591,13 +598,15 @@ func TestSourceV160CanonicalToolTimedAndInvalidParks(t *testing.T) {
 			})
 			wakeEvents := make(chan Wake, 32)
 			options.Now, options.OnWake, options.Registry = clock.Load, func(w Wake) { wakeEvents <- w }, NewRegistry()
-			wakes := make(chan *WakeReason, 3)
-			err = options.Registry.Register(ToolRegistration{Definition: goai.Tool{Name: mode, Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "park." + mode, Version: 1,
+			wakes, taskIDs := make(chan *WakeReason, 3), make(chan ID, 3)
+			err = options.Registry.Register(ToolRegistration{Definition: goai.Tool{Name: name, Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "park." + mode, Version: 1,
 				Execute: func(_ context.Context, _ any, api *ToolAPI) (ToolResult, error) {
 					wakes <- api.Wake
-					until := int64(1500)
+					taskIDs <- api.TaskID()
+					until := int64(1)
 					switch mode {
 					case "time":
+						until = 1500
 						if api.Wake != nil {
 							return ToolResult{Blocks: []goai.ContentBlock{}}, nil
 						}
@@ -617,6 +626,24 @@ func TestSourceV160CanonicalToolTimedAndInvalidParks(t *testing.T) {
 			})
 			if err != nil {
 				t.Fatal(err)
+			}
+			type hookReceipt struct {
+				invocation ToolInvocation
+				result     ToolResult
+			}
+			hooks := make(chan hookReceipt, 3)
+			if mode != "time" {
+				if err := options.Registry.Install(&Extension{Name: "inspect-invalid-park", ToolHooks: ToolHooks{AfterTool: func(ctx context.Context, _ goai.ToolCall, result ToolResult, api *HookAPI) (*ToolResult, error) {
+					invocation, err := api.ToolInvocation(ctx)
+					if err != nil {
+						return nil, err
+					}
+					hooks <- hookReceipt{invocation, result}
+					result.Details = JSON{"by": "afterTool"}
+					return &result, nil
+				}}}); err != nil {
+					t.Fatal(err)
+				}
 			}
 			h := openHarness(t, storage, options)
 			c := root(t, h, ref)
@@ -639,7 +666,7 @@ func TestSourceV160CanonicalToolTimedAndInvalidParks(t *testing.T) {
 						t.Fatal(err)
 					}
 				} else {
-					if got, err := h.Signal(ctx, id, testSignalAnswer(t), "a", JSON{"text": "x"}); err != nil || got != SignalDelivered {
+					if got, err := h.Signal(ctx, id, token, key.Key, JSON{"text": "x"}); err != nil || got != SignalDelivered {
 						t.Fatalf("signal = %v, %v", got, err)
 					}
 				}
@@ -661,12 +688,62 @@ func TestSourceV160CanonicalToolTimedAndInvalidParks(t *testing.T) {
 					for _, block := range msg.Content {
 						text += block.Text
 					}
-					if !msg.IsError || !strings.Contains(text, "Tool "+mode+" returned an invalid park") {
-						t.Fatalf("invalid result = %+v / %s", msg, text)
+					if !msg.IsError || !strings.Contains(text, "Tool "+name+" returned an invalid park") {
+						t.Fatalf("invalid model result = %+v / %s", msg, text)
 					}
 				}
 			case <-ctx.Done():
 				t.Fatal("missing tool result", ctx.Err())
+			}
+			if mode == "time" {
+				return
+			}
+			wantRuns := 1
+			if mode == "reused" {
+				wantRuns = 2
+			}
+			if len(taskIDs) != wantRuns {
+				t.Fatalf("invalid park tool runs = %d, want %d", len(taskIDs), wantRuns)
+			}
+			id := <-taskIDs
+			if mode == "reused" {
+				if second := <-taskIDs; second != id {
+					t.Fatalf("repark used another task: %d != %d", second, id)
+				}
+			}
+			message := "Tool " + name + " returned an invalid park"
+			result := v160ToolResult(t, ctx, c, "call")
+			if !result.IsError || !equalJSONValue(result.Details, JSON{"by": "afterTool"}) || !strings.Contains(v160ToolResultText(result), message) {
+				t.Fatalf("invalid park transcript result or hook details lost: %+v", result)
+			}
+			if mode == "reused" && !strings.Contains(v160ToolResultText(result), "it already woke a wait") {
+				t.Fatalf("repark did not report consumed wake: %q", v160ToolResultText(result))
+			}
+			if len(hooks) != 1 {
+				t.Fatalf("invalid park afterTool calls = %d, want one", len(hooks))
+			}
+			hook := <-hooks
+			if hook.invocation.Task != id || hook.invocation.CallID != "call" || !hook.result.IsError || len(hook.result.Diagnostics) != 1 || hook.result.Diagnostics[0].Code != "invalid_park" || !strings.HasPrefix(hook.result.Diagnostics[0].Message, message+": ") {
+				t.Fatalf("afterTool did not receive original invalid park on task %d: %+v", id, hook)
+			}
+			task, err := h.WaitForTask(ctx, id)
+			outcome := task.State.Outcome
+			if err != nil || task.State.Status != "terminal" || outcome == nil || outcome.Status != "failed" || outcome.Error == nil || outcome.Error.Message != message || outcome.Result == nil || !outcome.Result.Present {
+				t.Fatalf("invalid park task = %+v, %v; want terminal failed", task, err)
+			}
+			entryID := submissionEntryID(generationObject(outcome.Result.Value)["entryId"])
+			stored, found, err := native.Entry(ctx, entryID)
+			diagnostics := []any{JSON{"severity": "error", "code": "invalid_park", "message": hook.result.Diagnostics[0].Message}}
+			if err != nil || !found || stored.CommitSeq == 0 || stored.Entry.ByTask != id || !equalJSONValue(generationObject(stored.Entry.Data)["diagnostics"], diagnostics) {
+				t.Fatal("invalid park stored diagnostic or task link", stored, found, err)
+			}
+			live, found, err := c.SnapshotDefinition(ctx, LiveDoc(), nil)
+			if err != nil || !found {
+				t.Fatal(live, found, err)
+			}
+			slots, _ := generationObject(live.Copy())["tools"].([]any)
+			if len(slots) != 0 {
+				t.Fatal("invalid park retained a live tool slot", slots)
 			}
 		})
 	}
