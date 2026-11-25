@@ -147,3 +147,11 @@ At `4c989882`, 7 focused top-level Go tests passed twice, with vet and Staticche
 A follow-up read on the actual reopened SQLite handle finds exactly two committed tool inputs tagged `nested` and confirms that the reused first child's terminal result still has the `nested` tag. The previously partial input-count and result-shape assertions are now directly checked after the turn completes. The unchanged originals are the same three already verified in this round. No production or stored schema changed.
 
 At `1aa3c8e8`, three focused Go tests passed twice, with vet and Staticcheck.
+
+### The full OpenAI provider package passes after catalog-test reconciliation
+
+The four failing tests were asserting stale catalog inputs. The active Qwen expectations now match the exact published metadata for the three affected models. Its provider data bytes were already the same in v1.6.0 and v1.6.1. The retired Groq and OpenCode cases use their complete verified v1.6.0 records to keep the historical wire checks. Those records remain absent from the active registry. Both retained fixture records match the archived inputs, and neither active generation nor provider production code changed.
+
+The scoped original tests and four fault controls distinguish the current metadata from the historical wire behavior. This is native test reconciliation, not new v1.6.1 direct assertion mapping.
+
+At `5fe42737`, all 101 top-level tests in `./inference/provider/openai` passed twice with no exclusions or skips. Vet and Staticcheck passed. The active v1.6.1 ledger remains 90 scoped sites: 86 mapped and four partial. No full repository or release acceptance is claimed.
