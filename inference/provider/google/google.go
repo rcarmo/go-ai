@@ -39,6 +39,17 @@ func init() {
 }
 
 func streamGoogleSimple(ctx context.Context, model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions) <-chan goai.Event {
+	if model != nil && model.MaxTokens > 0 && (opts == nil || opts.MaxTokens == nil) {
+		// Simple streams default to the model cap; the request builder clamps
+		// it to context. Direct streams still omit an unspecified cap.
+		simple := goai.StreamOptions{}
+		if opts != nil {
+			simple = *opts
+		}
+		maxTokens := model.MaxTokens
+		simple.MaxTokens = &maxTokens
+		opts = &simple
+	}
 	return streamGoogle(ctx, model, convCtx, opts)
 }
 
