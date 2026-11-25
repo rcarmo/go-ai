@@ -55,7 +55,10 @@ func (r *journalWorkerRemoteV160) Execute(ctx context.Context, code string, star
 
 func newJournalWorkerSandboxV160(t *testing.T) (*RemoteCodemodeSandbox, *journalWorkerRemoteV160) {
 	t.Helper()
-	root := officialWorkerPackageRootV160(t)
+	return newJournalWorkerSandbox(officialWorkerPackageRootV160(t))
+}
+
+func newJournalWorkerSandbox(root string) (*RemoteCodemodeSandbox, *journalWorkerRemoteV160) {
 	observed := make(chan int)
 	remote := &journalWorkerRemoteV160{
 		CodemodeWorkerRemote: &CodemodeWorkerRemote{

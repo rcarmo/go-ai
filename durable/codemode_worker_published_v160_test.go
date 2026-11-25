@@ -16,12 +16,17 @@ const officialWorkerFingerprintV160 = "quickjs-wasi 3.6.2, quickjs 0.17.0, prelu
 
 func officialWorkerPackageRootV160(t *testing.T) string {
 	t.Helper()
-	root := os.Getenv("GOAI_CODEMODE_V160_PACKAGE_ROOT")
+	return officialWorkerPackageRoot(t, "GOAI_CODEMODE_V160_PACKAGE_ROOT", "1.6.0")
+}
+
+func officialWorkerPackageRoot(t *testing.T, env, version string) string {
+	t.Helper()
+	root := os.Getenv(env)
 	if root == "" {
-		t.Skip("opt-in: GOAI_CODEMODE_V160_PACKAGE_ROOT containing the verified pi-codemode 1.6.0 package and quickjs-wasi 3.6.2")
+		t.Skipf("opt-in: %s containing the verified pi-codemode %s package and quickjs-wasi 3.6.2", env, version)
 	}
 	for _, dependency := range []struct{ path, version string }{
-		{"@earendil-works/pi-codemode", "1.6.0"}, {"quickjs-wasi", "3.6.2"},
+		{"@earendil-works/pi-codemode", version}, {"quickjs-wasi", "3.6.2"},
 	} {
 		data, err := os.ReadFile(filepath.Join(root, "node_modules", dependency.path, "package.json"))
 		if err != nil {

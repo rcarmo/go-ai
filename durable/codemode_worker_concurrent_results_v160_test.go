@@ -14,20 +14,30 @@ import (
 // exactly. The observer checks the upstream publication limit for a new
 // run on the default published worker policy.
 func TestSourceV160CodemodePublishedWorkerConcurrentResults(t *testing.T) {
-	testV160ConcurrentResults(t, true)
+	checkWorkerConcurrentResults(t, officialWorkerPackageRootV160(t), true)
 }
 
 func TestV160CodemodeLegacyWorkerConcurrentResults(t *testing.T) {
-	testV160ConcurrentResults(t, false)
+	checkWorkerConcurrentResults(t, officialWorkerPackageRootV160(t), false)
 }
 
-func testV160ConcurrentResults(t *testing.T, grouped bool) {
+// The standalone v1.6.1 published worker retains the pinned fingerprint.
+// v1.6.1 codemode.test.ts:913–946 checks the default, with a legacy control.
+func TestSourceV161CodemodePublishedWorkerConcurrentResults(t *testing.T) {
+	checkWorkerConcurrentResults(t, officialWorkerPackageRoot(t, "GOAI_CODEMODE_V161_PACKAGE_ROOT", "1.6.1"), true)
+}
+
+func TestV161CodemodeLegacyWorkerConcurrentResults(t *testing.T) {
+	checkWorkerConcurrentResults(t, officialWorkerPackageRoot(t, "GOAI_CODEMODE_V161_PACKAGE_ROOT", "1.6.1"), false)
+}
+
+func checkWorkerConcurrentResults(t *testing.T, packageRoot string, grouped bool) {
 	t.Helper()
 	const count = 50
 	const script = `return (await Promise.all(Array.from({ length: 50 }, () => wait()))).length`
 	ctx, cancel := context.WithTimeout(t.Context(), 120*time.Second)
 	defer cancel()
-	sandbox, remote := newJournalWorkerSandboxV160(t)
+	sandbox, remote := newJournalWorkerSandbox(packageRoot)
 	sandbox.legacyJournal = !grouped
 	registry := NewRegistry()
 	ext, err := NewCodemodeExtension(sandbox)
@@ -116,6 +126,9 @@ func testV160ConcurrentResults(t *testing.T, grouped bool) {
 	}
 	if publications.Load() == 0 {
 		t.Fatal("no journal publications observed")
+	}
+	if !grouped && publications.Load() < 10 {
+		t.Fatalf("legacy control used %d journal publications; want at least 10", publications.Load())
 	}
 	t.Logf("native journal publications = %d for %d finished deliveries (source requires fewer than 10)", publications.Load(), remote.deliveries.Load())
 }
