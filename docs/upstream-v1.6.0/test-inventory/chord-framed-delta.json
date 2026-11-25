@@ -1,0 +1,205 @@
+{
+  "format": 1,
+  "pin": "faac585884ae2c013a6b1400f3e9e77f10b34bac",
+  "evidenceBase": "d2742a93489bf8be895f3d9a86bb4e4b39e6a547",
+  "node": "v26.13.0",
+  "configSha256": "f13c3424afac46e1500bb993c23fabce908f899321fd2c90e3adda5712f3ac9a",
+  "original": {
+    "file": "packages/chord/test/state/framed.test.ts",
+    "blob": "86990b14633f58c9689e2c2e1d907b24db0f189b",
+    "sha256": "fb8a7343c0c546148124fe0b7f728d61706b94e3f5b44092194517aab7c5c5b5",
+    "selection": "whole-file",
+    "passed": 8,
+    "failed": 0,
+    "skipped": 0,
+    "todo": 0,
+    "caseNames": [
+      "a framed source set several times in one batch delivers one frame: its last value, diffed from the value before the batch",
+      "a framed source set several times in one batch delivers nothing when the batch ends at the value it started from",
+      "a framed source set several times in one batch marks its dependents with every change: a derive read between two sets reads again after the second",
+      "a framed source set several times in one batch tells a dependent of a change after it took the value: one that reads at once reads the new one",
+      "a framed source set several times in one batch lists nothing while nobody watches it; a subscriber taken on between two sets gets the diff from what it took",
+      "a framed source failing and recovering in one batch a failure and the value after it are one frame, the diff from the value before; no failure call",
+      "a framed source failing and recovering in one batch a value and the failure after it, or two failures, are one failure call and one report",
+      "a framed source failing and recovering in one batch an end in the batch that set it delivers nothing"
+    ]
+  },
+  "runner": {
+    "vitest": "4.1.12",
+    "integrity": "sha512-5eWdz2yb3ajxWF3C8C4TjkXl7FGm3n2E/VlazALrQHzK7nYMSGFnCZto0bbPNl77AwkOZVLk0YnBAejUu0NiWA==",
+    "archiveSha256": "ac79c9561c99eabc1cc29e0a839cbd03d1ff0e45bbecb5a2edfa6c3827c823d1",
+    "evaluatorSha256": "a0b36fb2211d2587d8df68d5855d48141be27e99bdb973378a83f927e03b004e",
+    "copiedDependencies": {
+      "roots": [
+        "npm:node_modules/vitest"
+      ],
+      "host": {
+        "os": "linux",
+        "cpu": "arm64",
+        "libc": "glibc"
+      },
+      "placements": [
+        "node_modules/@jridgewell/sourcemap-codec",
+        "node_modules/@oxc-project/types",
+        "node_modules/@rolldown/binding-linux-arm64-gnu",
+        "node_modules/@rolldown/pluginutils",
+        "node_modules/@standard-schema/spec",
+        "node_modules/@types/chai",
+        "node_modules/@types/deep-eql",
+        "node_modules/@types/estree",
+        "node_modules/@vitest/expect",
+        "node_modules/@vitest/mocker",
+        "node_modules/@vitest/pretty-format",
+        "node_modules/@vitest/runner",
+        "node_modules/@vitest/snapshot",
+        "node_modules/@vitest/spy",
+        "node_modules/@vitest/utils",
+        "node_modules/assertion-error",
+        "node_modules/chai",
+        "node_modules/convert-source-map",
+        "node_modules/detect-libc",
+        "node_modules/es-module-lexer",
+        "node_modules/estree-walker",
+        "node_modules/expect-type",
+        "node_modules/fdir",
+        "node_modules/lightningcss",
+        "node_modules/lightningcss-linux-arm64-gnu",
+        "node_modules/magic-string",
+        "node_modules/nanoid",
+        "node_modules/obug",
+        "node_modules/pathe",
+        "node_modules/picocolors",
+        "node_modules/picomatch",
+        "node_modules/postcss",
+        "node_modules/rolldown",
+        "node_modules/siginfo",
+        "node_modules/source-map-js",
+        "node_modules/stackback",
+        "node_modules/std-env",
+        "node_modules/tinybench",
+        "node_modules/tinyexec",
+        "node_modules/tinyglobby",
+        "node_modules/tinyrainbow",
+        "node_modules/vite",
+        "node_modules/vitest",
+        "node_modules/why-is-node-running"
+      ]
+    }
+  },
+  "primaryReferences": [
+    {
+      "file": "packages/durable/src/harness/task-graph.ts",
+      "sourceSha256": "bc7086ccbf41bb0516dea4cc9c9696e490fd61b4ba5e08a0306997de04a27836",
+      "import": "@earendil-works/chord/delta",
+      "importLine": 2,
+      "call": "applyImmutable",
+      "callLine": 275
+    },
+    {
+      "file": "packages/durable/src/harness/view.ts",
+      "sourceSha256": "7c0945f3229a7f78e438a767422478011702632550d8bc33a21b59907d025db0",
+      "import": "@earendil-works/chord/delta",
+      "importLine": 2,
+      "call": "applyImmutable",
+      "callLine": 350
+    }
+  ],
+  "observed": {
+    "modules": [
+      {
+        "kind": "source-evaluated",
+        "api": "node:vm runInThisContext",
+        "file": "packages/chord/src/delta/index.ts",
+        "export": "applyImmutable",
+        "sourceSha256": "c91aac8552fc685ab4b665208dca9f440ab1ee7f929199c0594a45de1baa44ae"
+      },
+      {
+        "kind": "source-evaluated",
+        "api": "node:vm runInThisContext",
+        "file": "packages/chord/src/state/framed.ts",
+        "export": "FramedSource",
+        "sourceSha256": "9a506e7c8a97e1e432bcc3bca20eea5744b8078c67d6e347a1ca24bf11295d27"
+      }
+    ],
+    "replay": {
+      "kind": "delta-replay",
+      "before": {
+        "a": 1,
+        "b": 1,
+        "c": 1
+      },
+      "ops": [
+        [
+          "s",
+          [
+            "a"
+          ],
+          2
+        ],
+        [
+          "s",
+          [
+            "b"
+          ],
+          3
+        ],
+        [
+          "s",
+          [
+            "c"
+          ],
+          4
+        ]
+      ],
+      "after": {
+        "a": 2,
+        "b": 3,
+        "c": 4
+      },
+      "inputUnchanged": true
+    }
+  },
+  "control": {
+    "change": "return-unchanged-prior-value-from-immutable-replay-in-scratch",
+    "case": "a framed source set several times in one batch delivers one frame: its last value, diffed from the value before the batch",
+    "failed": 1,
+    "unselected": 7,
+    "replay": {
+      "kind": "delta-replay",
+      "before": {
+        "a": 1,
+        "b": 1,
+        "c": 1
+      },
+      "ops": [
+        [
+          "s",
+          [
+            "a"
+          ],
+          2
+        ],
+        [
+          "s",
+          [
+            "b"
+          ],
+          3
+        ],
+        [
+          "s",
+          [
+            "c"
+          ],
+          4
+        ]
+      ],
+      "after": {
+        "a": 1,
+        "b": 1,
+        "c": 1
+      },
+      "inputUnchanged": true
+    }
+  }
+}
