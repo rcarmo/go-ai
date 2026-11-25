@@ -1381,3 +1381,9 @@ All 52 unchanged retry cases passed. The scoped native runner returns a successf
 The selected unchanged reset case passed. The native SQLite test queues a reset while a real after-run child is held. No reset enters the transcript until the child releases. The committed suffix is exactly `test.tests` then `pi.reset`, with increasing commit sequences. A real reopen preserves that order and the same marker. No production recovery change was needed.
 
 The integrated code at `1ff8d0a2` passed 23 focused top-level Go tests twice, without skips. The default published worker returned `50` with eight journal publications in both repeats. Vet and Staticcheck v0.8.2 passed. The inventory at `0df0f8a8` records 2,021 scoped sites: 1,970 mapped, 46 partial and five unmatched. Thirty-seven of the 214 changed suites have assertion-level links. Full parity remains open.
+
+## Round 58
+
+### The pinned thrown object keeps its compact diagnostic
+
+All three unchanged placement variants passed. Native QuickJS and the published hosts report a script error with the exact message `{"code":7}`. Changing the thrown code to `8` failed the exact diagnostic check in all four comparisons. No production change was needed.
