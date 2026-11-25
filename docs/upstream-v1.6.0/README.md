@@ -1209,3 +1209,13 @@ All five unchanged cases passed. The native public streams matched the exact rem
 In the separate opt-in draft `69259b33`, two native runs returned `50` and recorded eight and seven journal publications, below the pinned limit of ten. A real portable guest and SQLite cutoff also replayed only `a` and `b`, kept the already-committed `c` without delivering it, and did not rerun any callback. This is prototype evidence. The default path is unchanged; error-position, seal and activation checks are still open.
 
 The integrated code at `e3dd77ac` passed 46 focused top-level Go tests twice, without skips. The default worker still returned `50` with 54 journal publications in both repeats. Vet and Staticcheck v0.8.2 passed. The round 21 and 33 audits reproduced byte for byte. The inventory at `79f23fab` records 1,922 scoped sites: 1,869 mapped, 51 partial and two unmatched. Thirty-three of the 214 changed suites have assertion-level links. Full parity remains open.
+
+## Round 49
+
+### The Codex socket test joins its retired reader callback
+
+The unchanged native test reproduced the late `t.Error` after the age-cap subtest had ended. The test now waits for a buffered callback receipt within the same deadline. It still checks that replacing the socket does not wait for the old peer's acknowledgement, verifies both normal close codes and exact reasons, and requires two fresh sockets with no reuse or SSE. Production retirement remains asynchronous. All three selected unchanged upstream cases passed; three controls failed cleanly without a late panic.
+
+### Standalone Schema rejects typed non-finite numbers
+
+All 40 unchanged validator cases passed. The native baseline accepted 12 of the 18 combinations of NaN or infinity and the pinned schemas. Standalone Go validation now rejects them, including through unions and shared references. The explain path reports the exact NaN diagnostic, finite values and signed zero still pass where expected, and coercion preserves the input bits. The legacy tool validation path and raw JSON number handling are unchanged.
