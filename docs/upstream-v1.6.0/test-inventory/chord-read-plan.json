@@ -1,0 +1,174 @@
+{
+  "format": 1,
+  "pin": "faac585884ae2c013a6b1400f3e9e77f10b34bac",
+  "evidenceBase": "c6a6625b2db95221616a118adab10a851032b3d9",
+  "node": "v26.13.0",
+  "nodeExecutableSha256": "66f4a883c880ef336276e7730c01cbae2b92fb8e6a51f7371f920599cac824b7",
+  "platform": "linux/arm64",
+  "configSha256": "f13c3424afac46e1500bb993c23fabce908f899321fd2c90e3adda5712f3ac9a",
+  "original": {
+    "file": "packages/chord/test/store/read-plan.test.ts",
+    "blob": "6d87ec0fd98356d1c08c37c3ba04d3e8c05aff68",
+    "sha256": "18a296b6cd1e7ca5636f7a9c6e1e9a3475cfa19c1b9f451f62ae77818cff4a60",
+    "selection": "whole-file",
+    "passed": 21,
+    "failed": 0,
+    "skipped": 0,
+    "todo": 0,
+    "caseNames": [
+      "exists is true for a row with a matching row in the set's table, with and without an inner condition",
+      "exists negates and nests",
+      "exists matches by the key, a prefix of it, or a declared index; anything else is refused, naming the columns",
+      "exists is refused in writes",
+      "exists matches nothing for a NULL in a matched column: the exists is false",
+      "existsNode and whereNode take a condition as data: an optional pointer keeps its row, a pointer to a hidden row drops it",
+      "existsNode and whereNode apply to a joined set, with an exists matched on the partner",
+      "existsNode and whereNode refuse a malformed node before anything is rendered",
+      "existsNode and whereNode check a nested exists against the table bound to its set when the read opens",
+      "join pairs each row with the one row of that key, drops a row without a partner, orders by a partner column",
+      "join continues after a position of a joined order, and ends through one",
+      "join refuses a match short of the whole key, a second join, the table's own set and a column of another type",
+      "join is driven from the query's own table, whatever the planner would prefer",
+      "join fails a read whose partner column is not what it was written for",
+      "uses and the probe lists each table a read uses with the columns it depends on",
+      "uses and the probe is one keyed lookup: by the own key, by a join's match, by an exists' match",
+      "uses and the probe has no keyed probe where the own table has no index for the match",
+      "what a read was written for, checked when it opens (code review round 1) refuses a joined set whose key the bound table has differently: the join would pair a row with several",
+      "what a read was written for, checked when it opens (code review round 1) refuses a column an exists compares that the bound table has with another type; an unused one may change",
+      "what a read was written for, checked when it opens (code review round 1) takes a condition as data only with canonical host keys, and no ordering of a host column",
+      "a table handle's own reads page and count take an exists, and refuse a joined query instead of ignoring the join"
+    ]
+  },
+  "runner": {
+    "vitest": "4.1.12",
+    "integrity": "sha512-5eWdz2yb3ajxWF3C8C4TjkXl7FGm3n2E/VlazALrQHzK7nYMSGFnCZto0bbPNl77AwkOZVLk0YnBAejUu0NiWA==",
+    "archiveSha256": "ac79c9561c99eabc1cc29e0a839cbd03d1ff0e45bbecb5a2edfa6c3827c823d1",
+    "evaluatorSha256": "a0b36fb2211d2587d8df68d5855d48141be27e99bdb973378a83f927e03b004e",
+    "copiedDependencies": {
+      "roots": [
+        "npm:node_modules/vitest"
+      ],
+      "host": {
+        "os": "linux",
+        "cpu": "arm64",
+        "libc": "glibc"
+      },
+      "placements": [
+        "node_modules/@jridgewell/sourcemap-codec",
+        "node_modules/@oxc-project/types",
+        "node_modules/@rolldown/binding-linux-arm64-gnu",
+        "node_modules/@rolldown/pluginutils",
+        "node_modules/@standard-schema/spec",
+        "node_modules/@types/chai",
+        "node_modules/@types/deep-eql",
+        "node_modules/@types/estree",
+        "node_modules/@vitest/expect",
+        "node_modules/@vitest/mocker",
+        "node_modules/@vitest/pretty-format",
+        "node_modules/@vitest/runner",
+        "node_modules/@vitest/snapshot",
+        "node_modules/@vitest/spy",
+        "node_modules/@vitest/utils",
+        "node_modules/assertion-error",
+        "node_modules/chai",
+        "node_modules/convert-source-map",
+        "node_modules/detect-libc",
+        "node_modules/es-module-lexer",
+        "node_modules/estree-walker",
+        "node_modules/expect-type",
+        "node_modules/fdir",
+        "node_modules/lightningcss",
+        "node_modules/lightningcss-linux-arm64-gnu",
+        "node_modules/magic-string",
+        "node_modules/nanoid",
+        "node_modules/obug",
+        "node_modules/pathe",
+        "node_modules/picocolors",
+        "node_modules/picomatch",
+        "node_modules/postcss",
+        "node_modules/rolldown",
+        "node_modules/siginfo",
+        "node_modules/source-map-js",
+        "node_modules/stackback",
+        "node_modules/std-env",
+        "node_modules/tinybench",
+        "node_modules/tinyexec",
+        "node_modules/tinyglobby",
+        "node_modules/tinyrainbow",
+        "node_modules/vite",
+        "node_modules/vitest",
+        "node_modules/why-is-node-running"
+      ]
+    }
+  },
+  "primaryReference": {
+    "file": "packages/durable/src/storage/sqlite/node.ts",
+    "sha256": "a71180a69e8d9225ccdba50f8eb7e908a3454b6b537657ba18a964d891f29e1c",
+    "import": "@earendil-works/chord/sqlite/node",
+    "importLine": 2,
+    "call": "openNodeSqliteDatabase",
+    "callLine": 21
+  },
+  "observed": {
+    "modules": [
+      {
+        "kind": "source-evaluated",
+        "api": "node:vm runInThisContext",
+        "file": "packages/chord/src/sqlite/node.ts",
+        "export": "openNodeSqliteDatabase",
+        "sourceSha256": "754f3e921e76ce990951b419791853b4d7a57cf1fc74e1fa697e2dea4cfa1a47"
+      },
+      {
+        "kind": "source-evaluated",
+        "api": "node:vm runInThisContext",
+        "file": "packages/chord/src/store/read-plan.ts",
+        "export": "ReadPlan",
+        "sourceSha256": "e935fe2e1e617d336da08288f079e585c975ee6f5494e481606a7e5eab299c33"
+      }
+    ],
+    "plan": {
+      "kind": "explain-plan",
+      "api": "node:sqlite StatementSync.all",
+      "sql": "EXPLAIN QUERY PLAN SELECT t.\"team\" AS \"team\", t.\"session\" AS \"session\", t.\"note\" AS \"note\", p.\"id\" AS \"sessions.columns:id\", p.\"app\" AS \"sessions.columns:app\", p.\"private\" AS \"sessions.columns:private\", p.\"lastTouch\" AS \"sessions.columns:lastTouch\", p.\"archivedAt\" AS \"sessions.columns:archivedAt\" FROM \"app.store:teams\" AS t CROSS JOIN \"app.store:sessions\" AS p ON p.\"id\" = t.\"session\" WHERE (t.\"team\" = ? AND p.\"app\" = ?) ORDER BY p.\"lastTouch\" DESC, t.\"team\" DESC, t.\"session\" DESC LIMIT ?",
+      "params": [
+        "u12",
+        "club",
+        51
+      ],
+      "steps": [
+        "SEARCH t USING PRIMARY KEY (team=?)",
+        "SEARCH p USING PRIMARY KEY (id=?)",
+        "USE TEMP B-TREE FOR ORDER BY"
+      ],
+      "engine": {
+        "version": "3.54.0",
+        "sourceId": "2026-10-09 15:46:58 be8d059e9a49089ab2dce5ed26dd87aaf598fdc5fbe0b107c0dd758464bcd5e3"
+      }
+    }
+  },
+  "control": {
+    "change": "reverse-scratch-CROSS-JOIN-inputs",
+    "case": "join is driven from the query's own table, whatever the planner would prefer",
+    "failed": 1,
+    "unselected": 20,
+    "plan": {
+      "kind": "explain-plan",
+      "api": "node:sqlite StatementSync.all",
+      "sql": "EXPLAIN QUERY PLAN SELECT t.\"team\" AS \"team\", t.\"session\" AS \"session\", t.\"note\" AS \"note\", p.\"id\" AS \"sessions.columns:id\", p.\"app\" AS \"sessions.columns:app\", p.\"private\" AS \"sessions.columns:private\", p.\"lastTouch\" AS \"sessions.columns:lastTouch\", p.\"archivedAt\" AS \"sessions.columns:archivedAt\" FROM \"app.store:sessions\" AS p CROSS JOIN \"app.store:teams\" AS t ON p.\"id\" = t.\"session\" WHERE (t.\"team\" = ? AND p.\"app\" = ?) ORDER BY p.\"lastTouch\" DESC, t.\"team\" DESC, t.\"session\" DESC LIMIT ?",
+      "params": [
+        "u12",
+        "club",
+        51
+      ],
+      "steps": [
+        "SEARCH p USING INDEX app.store:sessions:by_app (app=?)",
+        "SEARCH t USING PRIMARY KEY (team=? AND session=?)",
+        "USE TEMP B-TREE FOR LAST 2 TERMS OF ORDER BY"
+      ],
+      "engine": {
+        "version": "3.54.0",
+        "sourceId": "2026-10-09 15:46:58 be8d059e9a49089ab2dce5ed26dd87aaf598fdc5fbe0b107c0dd758464bcd5e3"
+      }
+    }
+  }
+}
