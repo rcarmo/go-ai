@@ -116,6 +116,10 @@ func NewCodemodeExtension(sandbox CodemodeSandbox, options ...CodemodeExtensionO
 		if err != nil {
 			return ToolResult{}, err
 		}
+		calls, err := api.runtime.codemodeCallDetails(ctx, "script")
+		if err != nil {
+			return ToolResult{}, err
+		}
 		status := "completed"
 		if result.Error != "" {
 			status = "failed"
@@ -130,7 +134,7 @@ func NewCodemodeExtension(sandbox CodemodeSandbox, options ...CodemodeExtensionO
 		}
 		// Keep image bytes visible to model-facing hooks. Tool settlement chunks
 		// the final blocks after those hooks have fitted or replaced them.
-		return ToolResult{Blocks: blocks, IsError: result.Error != "", Details: JSON{"fullOutputPath": result.FullOutputPath}}, nil
+		return ToolResult{Blocks: blocks, IsError: result.Error != "", Details: JSON{"fullOutputPath": result.FullOutputPath, "calls": calls}}, nil
 	}}
 	section := PromptSection{Key: "codemode", Render: func(ctx context.Context, input PromptInput) (*string, error) {
 		enabled := false
