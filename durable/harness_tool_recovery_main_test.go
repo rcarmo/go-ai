@@ -291,8 +291,8 @@ func TestMainSafeToolReplayClearsOutputThroughSecondCrash(t *testing.T) {
 	})
 }
 
-// harness-tool-parks.test.ts:494-517, with separate real crash controls for
-// unsafe and replay-safe tools after their woken execute intent.
+// harness-tool-parks.test.ts:494-517 and :558-604. The recovery cases use
+// real process loss after a woken execute intent instead of overlapping writers.
 func TestSourceV160CanonicalToolParkRecovery(t *testing.T) {
 	for _, mode := range []string{"removed", "unsafe", "safe"} {
 		t.Run(mode, func(t *testing.T) { testV160ToolParkRecovery(t, mode) })
@@ -333,6 +333,34 @@ func testV160ToolParkRecovery(t *testing.T, mode string) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = native.Close(bg) })
+	wantDetails := JSON{"build": 1}
+	wantDiagnostics := []any{JSON{"severity": "info", "message": "parked"}}
+	readSlot := func(ctx context.Context) (JSON, error) {
+		point := CurrentDocumentPoint()
+		doc, found, err := native.FindDocument(ctx, DocumentAddress{Scope: "conversation", Owner: ids.Conversation, Kind: "pi.live"}, point)
+		if err != nil || !found {
+			return nil, fmt.Errorf("stored live document lookup: found=%v err=%v", found, err)
+		}
+		doc, found, err = native.DocumentAt(ctx, doc.ID, point)
+		if err != nil || !found {
+			return nil, fmt.Errorf("stored live document read: found=%v err=%v", found, err)
+		}
+		return canonicalToolSlot(doc.Value, ids.Tool), nil
+	}
+	if mode == "safe" && !starting {
+		// Check SQLite before opening the writable Harness. These are the
+		// crashed process's committed values, not its in-memory live view.
+		crashed, found, err := native.Task(ctx, ids.Tool)
+		checkpoint := taskCheckpointMap(crashed.State.Checkpoint)
+		if err != nil || !found || crashed.State.Status != "running" || crashed.Restarts != 0 || checkpoint["phase"] != "execute" || checkpoint["checkpoint"] != "first" || checkpoint["replay"] != "safe" {
+			t.Fatal("persisted woken intent after crash", crashed, found, err)
+		}
+		slot, err := readSlot(ctx)
+		if err != nil || slot["status"] != "running" || slot["output"] != "cut off\n" || !equalJSONValue(slot["details"], wantDetails) || !equalJSONValue(slot["diagnostics"], wantDiagnostics) {
+			t.Fatal("persisted woken slot after crash", slot, err)
+		}
+	}
 	storage := &toolParkTestStorage{Storage: native, parked: make(chan ID, 2)}
 	token := testSignalAnswer(t)
 	key, err := token.Key("done")
@@ -344,6 +372,11 @@ func testV160ToolParkRecovery(t *testing.T, mode string) {
 		Checkpoint any
 	}
 	seen, cleaned := make(chan attempt, 4), make(chan attempt, 4)
+	type storedReplaySlot struct {
+		slot JSON
+		err  error
+	}
+	replaySlots := make(chan storedReplaySlot, 4)
 	crashReady := make(chan struct{}, 1)
 	reports := make(chan error, 32)
 	var calls atomic.Int32
@@ -359,6 +392,12 @@ func testV160ToolParkRecovery(t *testing.T, mode string) {
 	})
 	options.Registry = NewRegistry()
 	options.OnReport = func(err error) { reports <- err }
+	if mode == "safe" {
+		// Supply a durable cut-off output for the stronger Go recovery
+		// control, rather than relying on any timer to store it.
+		interval, window := int64(0), float64(0)
+		options.Settings = &HarnessSettings{Progress: &ProgressSettings{OutputIntervalMs: &interval, PersistWithinMs: &window}}
+	}
 	if err := options.Registry.Register(ToolRegistration{
 		Definition: goai.Tool{Name: "ci", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "test.park.recovery", Version: 1, ReplaySafe: mode == "safe",
 		Execute: func(run context.Context, _ any, api *ToolAPI) (ToolResult, error) {
@@ -408,6 +447,10 @@ func testV160ToolParkRecovery(t *testing.T, mode string) {
 				crashReady <- struct{}{}
 				<-run.Done()
 				return ToolResult{}, run.Err()
+			}
+			if mode == "safe" {
+				slot, err := readSlot(run)
+				replaySlots <- storedReplaySlot{slot, err}
 			}
 			return ToolResult{}, nil
 		},
@@ -480,6 +523,13 @@ func testV160ToolParkRecovery(t *testing.T, mode string) {
 			return
 		}
 	} else {
+		if mode == "safe" {
+			// Writable Open recovers the task before scheduling resumes.
+			recovered, found, err := h.Task(ctx, ids.Tool)
+			if err != nil || !found || recovered.State.Status != "pending" || recovered.Restarts != 1 || len(seen) != 0 {
+				t.Fatal("paused recovered task", recovered, found, err)
+			}
+		}
 		c, err = h.Conversation(ctx, ids.Conversation)
 		if err != nil {
 			t.Fatal(err)
@@ -492,12 +542,20 @@ func testV160ToolParkRecovery(t *testing.T, mode string) {
 	if settled, err := sub.Wait(ctx); err != nil || settled.Record.Status != "done" {
 		t.Fatalf("submission = %+v, %v", settled.Record, err)
 	}
+	if mode == "safe" {
+		observed := watchReceive(t, replaySlots)
+		slot := observed.slot
+		if observed.err != nil || slot["status"] != "running" || slot["output"] != nil || !equalJSONValue(slot["details"], wantDetails) || !equalJSONValue(slot["diagnostics"], wantDiagnostics) {
+			t.Fatalf("before replay effect: stored slot=%v, err=%v; want old details and diagnostics but no output", slot, observed.err)
+		}
+	}
 	record, err := h.WaitForTask(ctx, ids.Tool)
 	if err != nil || record.State.Outcome == nil {
 		t.Fatalf("task = %+v, %v", record, err)
 	}
-	if mode == "safe" && record.State.Outcome.Status != "completed" {
-		t.Fatalf("safe tool outcome = %+v; error=%+v", record.State.Outcome, record.State.Outcome.Error)
+	// Pinned scheduler.ts withState drops the restart count once decided.
+	if mode == "safe" && (record.State.Status != "terminal" || record.State.Outcome.Status != "completed" || record.Restarts != 0) {
+		t.Fatalf("safe tool outcome = %+v; restarts=%d; error=%+v", record.State.Outcome, record.Restarts, record.State.Outcome.Error)
 	}
 	result := v160ToolResult(t, ctx, c, "c1")
 	text := v160ToolResultText(result)
@@ -540,9 +598,26 @@ func testV160ToolParkRecovery(t *testing.T, mode string) {
 			t.Fatalf("unsafe tool: runs=%d, cancels=%d, task=%+v, result=%+v", len(seen), len(cleaned), record.State.Outcome, result)
 		}
 	case "safe":
+		// The child checked the initial and woken attempts before it died;
+		// the new process must add exactly one more with the same wake.
 		want := attempt{&WakeReason{Reason: "signal", Signal: key.Signal, Key: "done"}, "first"}
-		if len(seen) != 1 || !reflect.DeepEqual(<-seen, want) || len(cleaned) != 0 || record.State.Outcome.Status != "completed" || result.IsError || !equalJSONValue(result.DetailsValue, JSON{"build": 1}) || text != "<harness>\n[info] parked\n</harness>" {
-			t.Fatalf("safe tool: runs=%d, cancels=%d, task=%+v, result=%+v, text=%q", len(seen), len(cleaned), record.State.Outcome, result, text)
+		if len(seen) != 1 || !reflect.DeepEqual(<-seen, want) || len(cleaned) != 0 {
+			t.Fatalf("safe replay attempts: pending receipts=%d cleanup calls=%d", len(seen), len(cleaned))
+		}
+		if result.IsError || !equalJSONValue(result.DetailsValue, wantDetails) {
+			t.Fatal("safe replay lost details or returned an error", result)
+		}
+		if text != "<harness>\n[info] parked\n</harness>" {
+			t.Fatalf("safe replay result text = %q", text)
+		}
+		outcome := record.State.Outcome.Result
+		if outcome == nil || !outcome.Present {
+			t.Fatal("safe replay lacks the terminal result link", record.State.Outcome)
+		}
+		entryID := submissionEntryID(generationObject(outcome.Value)["entryId"])
+		stored, found, err := native.Entry(ctx, entryID)
+		if err != nil || !found || stored.CommitSeq == 0 || stored.Entry.ByTask != ids.Tool || !equalJSONValue(generationObject(stored.Entry.Data)["diagnostics"], wantDiagnostics) {
+			t.Fatal("safe replay lost the stored tool diagnostic", stored, found, err)
 		}
 	}
 }
