@@ -167,7 +167,7 @@ func readPositionalText(ctx context.Context, reader durable.BinaryReader, size i
 	}
 	truncation := TruncateHeadOf(text, TruncationTotals{Lines: totalsLines, Bytes: totalsBytes})
 	content := truncation.Content
-	result := durable.ToolResult{Content: content, Diagnostics: []durable.ToolDiagnostic{}}
+	result := (durable.ToolResult{Content: content, Diagnostics: []durable.ToolDiagnostic{}}).WithStructuredContent()
 	if truncation.FirstLineExceedsLimit {
 		content = truncateUTF8(strings.Split(text, "\n")[0], MaxReadBytes)
 		result.Content = content

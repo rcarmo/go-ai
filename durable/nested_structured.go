@@ -23,10 +23,18 @@ func nestedOutputValue(result ToolResult) any {
 	return values
 }
 
+func (r ToolResult) wantsStructuredContent() bool {
+	return r.structuredFromContent && !r.IsError && !r.HasStructuredOutput && r.StructuredOutput == nil
+}
+
 // Structured output is validated after hooks and bounding. The registration
 // accepts only the native schema subset; unsupported schemas fail registration
 // rather than bypassing result validation. Explicit JSON null retains presence.
 func validateNestedStructuredResult(result ToolResult, offer toolOffer, limits Limits) (ToolResult, bool) {
+	if offer.StructuredOutputSchema != nil && result.wantsStructuredContent() {
+		result.StructuredOutput = nestedOutputValue(result)
+		result.HasStructuredOutput = true
+	}
 	present := result.HasStructuredOutput || result.StructuredOutput != nil
 	invalid := func(message string) (ToolResult, bool) {
 		result.StructuredOutput = nil

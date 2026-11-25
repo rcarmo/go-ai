@@ -80,7 +80,8 @@ func runV160PublishedOutput(t *testing.T, code string) (string, durable.JSON) {
 	spillRoot := t.TempDir()
 	t.Setenv("TMPDIR", spillRoot)
 	t.Setenv("TMP", spillRoot)
-	return durable.CheckV160PublishedWorkerOutput(t, code, tools.LocalEnv(cwd))
+	text, result := durable.CheckV160PublishedWorkerOutput(t, code, tools.LocalEnv(cwd), 0)
+	return text, result.Details
 }
 
 func readV160PublishedSpill(t *testing.T, details durable.JSON) (string, string) {

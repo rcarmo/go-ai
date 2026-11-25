@@ -404,7 +404,7 @@ func detachToolResult(result ToolResult, limits Limits) (ToolResult, error) {
 	if err = fromObject(value, &copy, limits); err != nil {
 		return ToolResult{}, err
 	}
-	return ToolResult{imageChunks: result.imageChunks, StructuredOutput: copy.StructuredOutput, HasStructuredOutput: copy.HasStructuredOutput, Content: copy.Content, Blocks: originalBlocks, Details: copy.Details, DetailsValue: copy.DetailsValue, HasDetails: copy.HasDetails, Usage: copy.Usage, Diagnostics: blocks[0].Diagnostics, IsError: copy.IsError, Control: copy.Control, Commit: result.Commit, usesRetainedOutput: result.usesRetainedOutput, usesReportedDiagnostics: result.usesReportedDiagnostics}, nil
+	return ToolResult{imageChunks: result.imageChunks, StructuredOutput: copy.StructuredOutput, HasStructuredOutput: copy.HasStructuredOutput, Content: copy.Content, Blocks: originalBlocks, Details: copy.Details, DetailsValue: copy.DetailsValue, HasDetails: copy.HasDetails, Usage: copy.Usage, Diagnostics: blocks[0].Diagnostics, IsError: copy.IsError, Control: copy.Control, Commit: result.Commit, usesRetainedOutput: result.usesRetainedOutput, usesReportedDiagnostics: result.usesReportedDiagnostics, structuredFromContent: result.structuredFromContent}, nil
 }
 
 func callOnYield(ctx context.Context, hook func(context.Context, MessageReceipt, *HookAPI) (*Input, error), message MessageReceipt, r *TaskRuntime) (input *Input, err error) {

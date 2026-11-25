@@ -226,5 +226,5 @@ func imageReadResult(block goai.ContentBlock, details durable.JSON, vision bool)
 	if len(notes) > 0 {
 		message += " " + strings.Join(notes, " ")
 	}
-	return durable.ToolResult{Blocks: []goai.ContentBlock{block}, Details: details, Diagnostics: []durable.ToolDiagnostic{{Severity: "info", Message: message}}}
+	return (durable.ToolResult{Blocks: []goai.ContentBlock{block}, Details: details, Diagnostics: []durable.ToolDiagnostic{{Severity: "info", Message: message}}}).WithStructuredContent()
 }

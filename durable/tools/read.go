@@ -40,6 +40,16 @@ func readTool(env durable.FileSystem, inlineImages bool, limits *ImageLimits) du
 			Description: "Read the contents of a file. Supports text files and images (" + formats + "). Images are sent as attachments. For text files, output is truncated to 2000 lines or 50KB (whichever is hit first). Use offset/limit for large files. When you need the full file, continue with offset until complete.",
 			Parameters:  readSchema,
 		},
+		StructuredOutputSchema: durable.JSON{"anyOf": []any{
+			durable.JSON{"type": "string"},
+			durable.JSON{
+				"type": "object",
+				"properties": durable.JSON{
+					"type": durable.JSON{"type": "string", "enum": []any{"image"}}, "data": durable.JSON{"type": "string"}, "mimeType": durable.JSON{"type": "string"},
+				},
+				"required": []any{"type", "data", "mimeType"},
+			},
+		}},
 		Implementation: "durable.tools.read",
 		Version:        1,
 		ReplaySafe:     true,
@@ -119,7 +129,7 @@ func readTool(env durable.FileSystem, inlineImages bool, limits *ImageLimits) du
 			if err != nil {
 				return durable.ToolResult{}, err
 			}
-			result := durable.ToolResult{Content: content, Diagnostics: []durable.ToolDiagnostic{}}
+			result := (durable.ToolResult{Content: content, Diagnostics: []durable.ToolDiagnostic{}}).WithStructuredContent()
 			if content == "" {
 				result.Blocks = []goai.ContentBlock{}
 			}

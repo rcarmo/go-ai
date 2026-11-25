@@ -13,7 +13,7 @@ import (
 // CheckV160PublishedWorkerOutput runs a model tool call in the real published
 // portable guest. The external test supplies a production filesystem without
 // introducing an import cycle between this package and durable/tools.
-func CheckV160PublishedWorkerOutput(t *testing.T, script string, fs FileSystem) (string, JSON) {
+func CheckV160PublishedWorkerOutput(t *testing.T, script string, fs FileSystem, wantDeliveries int32, registrations ...ToolRegistration) (string, MessageReceipt) {
 	t.Helper()
 	sandbox, remote := newJournalWorkerSandboxV160(t)
 	registry := NewRegistry()
@@ -23,6 +23,11 @@ func CheckV160PublishedWorkerOutput(t *testing.T, script string, fs FileSystem) 
 	}
 	if err := registry.Install(&ext); err != nil {
 		t.Fatal(err)
+	}
+	for _, registration := range registrations {
+		if err := registry.Register(registration); err != nil {
+			t.Fatal(err)
+		}
 	}
 	var requests atomic.Int32
 	ref, opts := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
@@ -54,13 +59,13 @@ func CheckV160PublishedWorkerOutput(t *testing.T, script string, fs FileSystem) 
 	}
 	result := v160ToolResult(t, ctx, c, "s1")
 	text := v160ToolResultText(result)
-	if result.IsError || remote.starts.Load() != 1 || remote.deliveries.Load() != 0 {
+	if result.IsError || remote.starts.Load() != 1 || remote.deliveries.Load() != wantDeliveries {
 		if len(text) > 1024 {
 			text = text[:1024]
 		}
-		t.Fatalf("error=%v starts=%d deliveries=%d text=%q; want successful guest output", result.IsError, remote.starts.Load(), remote.deliveries.Load(), text)
+		t.Fatalf("error=%v starts=%d deliveries=%d text=%q; want successful guest output and %d deliveries", result.IsError, remote.starts.Load(), remote.deliveries.Load(), text, wantDeliveries)
 	}
-	return text, result.Details
+	return text, result
 }
 
 func TestCodemodeWorkerOutputDecoderBoundsV160(t *testing.T) {

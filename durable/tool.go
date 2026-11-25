@@ -231,6 +231,24 @@ func validateSchema(s JSON, depth int) error {
 	if s != nil && len(s) == 0 {
 		return nil
 	} // source unknown() schema
+	if raw, exists := s["anyOf"]; exists {
+		// A union is a standalone schema in the native structured-output
+		// subset. Do not ignore sibling constraints when checking it.
+		choices, ok := raw.([]any)
+		if !ok || len(choices) == 0 || len(s) != 1 {
+			return reject("invalid structured output union")
+		}
+		for _, choice := range choices {
+			branch, ok := choice.(map[string]any)
+			if !ok {
+				return reject("invalid structured output union branch")
+			}
+			if err := validateSchema(branch, depth+1); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
 	typ, ok := s["type"].(string)
 	if !ok {
 		return reject("schema type required")
@@ -426,6 +444,18 @@ func checkSchema(s JSON, v any, depth int) error {
 	if s != nil && len(s) == 0 {
 		return nil
 	}
+	if raw, exists := s["anyOf"]; exists {
+		choices, ok := raw.([]any)
+		if !ok || len(choices) == 0 || len(s) != 1 {
+			return reject("invalid structured output union")
+		}
+		for _, choice := range choices {
+			if branch, ok := choice.(map[string]any); ok && checkSchema(branch, v, depth+1) == nil {
+				return nil
+			}
+		}
+		return reject("structured output does not match any union branch")
+	}
 	if !schemaType(v, s["type"].(string)) {
 		return reject("tool arguments schema type")
 	}
@@ -547,9 +577,19 @@ type ToolResult struct {
 	Commit                  func(*Tx) error
 	usesRetainedOutput      bool
 	usesReportedDiagnostics bool
+	structuredFromContent   bool
 	harnessResult           bool // final hook result, independent of the failed task ending
 	thrownError             string
 }
+
+// WithStructuredContent asks the runtime to project the declared structured
+// value from the detached text or image content. An explicit structured value
+// takes precedence. Failed results are not projected.
+func (r ToolResult) WithStructuredContent() ToolResult {
+	r.structuredFromContent = true
+	return r
+}
+
 type toolCheckpoint struct {
 	StreamingArguments bool      `json:"streamingArguments,omitempty"`
 	UTF16Arguments     []string  `json:"utf16Arguments,omitempty"`
