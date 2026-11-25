@@ -1329,3 +1329,9 @@ The selected unchanged SSE case passed, as did all 48 unchanged SSE and thread c
 The scripted cold thread now sends only the thread beta, as the pinned SDK does. The Go URL remains queryless, its payload hook does not expose the SDK-only `betas` field, and its historical text remains a block rather than a string. Those are separate wire and SDK representation differences. No live call was made.
 
 The integrated code at `233b3439` passed 33 focused top-level Go tests twice, without skips. The default published worker returned `50` with eight journal publications in both repeats. Vet and Staticcheck v0.8.2 passed. The inventory at `acdbc8e5` records 1,992 scoped sites: 1,941 mapped, 46 partial and five unmatched. Thirty-six of the 214 changed suites have assertion-level links. Full parity remains open.
+
+## Round 55
+
+### Schema equality matches the pinned structural truth vector
+
+The unchanged equality case passed. Public Go `SchemaEqual` matches all ten outcomes in source order and with operands reversed. Object field order does not affect equality, while array position and the distinction between null, explicit undefined and a missing key do. The source checks the vector with a one-line loop; the ledger records this as supplemental evidence rather than adding a direct assertion locator. No production change was needed.
