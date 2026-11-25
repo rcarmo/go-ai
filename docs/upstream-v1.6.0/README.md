@@ -1397,3 +1397,9 @@ The selected unchanged follow-up case passed. The native SQLite child admits `fi
 All three selected unchanged cases passed. The native public stream accepts a terminal event without its trailing blank line. It also settles completed and incomplete responses while the scripted body remains open, closes the body once, and preserves the exact text, stop reason and explicit `endTurn: false`. Fault controls distinguish missing final flush, waiting for EOF, missing Close and lost terminal fields. This is scripted transport evidence, not a live request or an SDK object-identity check.
 
 The integrated code at `5b0126fe` passed 23 focused top-level Go tests twice, without skips. The default published worker returned `50` with eight journal publications in both repeats. Vet and Staticcheck v0.8.2 passed. The inventory at `8f048428` records 2,033 scoped sites: 1,982 mapped, 46 partial and five unmatched. Thirty-seven of the 214 changed suites have assertion-level links. Full parity remains open.
+
+## Round 59
+
+### Sandbox diagnostics preserve non-finite number text
+
+All three unchanged placement variants passed. The published hosts and native QuickJS preserve the exact ordered console text for NaN and both infinities, the separate `text()` output, and the thrown `NaN` script diagnostic. Swapping the two infinities failed the log comparison in all four placements without changing the thrown result. No production change was needed.
