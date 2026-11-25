@@ -1461,3 +1461,9 @@ Swapping two text calls without changing the block count fails the order asserti
 The unchanged original passed. A scripted request through `Complete` carries one `Originator: my-app` from the model and one `User-Agent: my-app/1.0` from the caller. It keeps exactly one provider Bearer token despite a caller Authorization override. The request completed with `stop`; it retained the token-derived account and sent no `X-Api-Key`.
 
 Separate model-only and mixed-case caller-over-model checks passed. Six controls isolated model and caller omission, reversed precedence, lost token or account authority, and duplicate User-Agent. No live service was called and no production code changed.
+
+### SQLite recovery reasks before child creation and resumes after it
+
+The unchanged original passed. Two real SIGKILLs against the same SQLite database distinguish the phases. After the first cutoff, recovery reasks exactly once and publishes one owned child. After the second, it resumes that same child without another ask. Both starts used `run 2`; the child publishes one entry, the answered parent keeps its result and public inspection is empty. The orderly-close half also runs the same `run 1` child twice with one hook ask and no abort handler.
+
+The crash assertions run in `testAfterRunTwoSQLiteCutoffsV160`, called by the `/sqlite` test. The durable records and owner are inspected before and after each cutoff, not fabricated. Skipping the reask leaves the run idle without its child. Reasking during drain fails the crash and orderly-close comparisons. Both witnesses passed six repeats; no runtime code changed.
