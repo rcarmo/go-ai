@@ -1054,6 +1054,30 @@ The unchanged [getter-context case](test-inventory/chord-getter-context.md) pass
 
 ### Sandbox tool rejections remain catchable
 
-All three unchanged variants passed. The native raw engine and both published placements catch `tool exploded` as a JavaScript `Error`, finish the script successfully and record one `fail` call with status `error`. Delivering the failed tool as a success or relabelling its status broke the comparison. The raw engine handles the omitted argument, and the published tool envelope normalizes it to an empty object. Public inline Durable still rejects the omitted form; the separate adapter check supplies `{}`. That argument guard was not changed in this round.
+All three unchanged variants passed. The native raw engine and both published placements catch `tool exploded` as a JavaScript `Error`, finish the script successfully and record one `fail` call with status `error`. Delivering the failed tool as a success or relabelling its status broke the comparison. The raw engine handles the omitted argument, and the published tool envelope normalizes it to an empty object. At that stage, public inline Durable rejected the omitted form; the separate adapter check supplied `{}`. That argument guard was unchanged in Round 43.
 
 The integrated code at `45ec2b5e` passed 24 focused top-level Go tests twice, without skips. The run used the actual published guest and standalone worker, with CGO disabled and network access restricted to loopback. Vet and Staticcheck v0.8.2 passed. The Chord getter-context and both image receipts reproduced byte for byte. Of 1,846 scoped sites, 1,792 are mapped, 51 are partial and three are unmatched. Thirty-two of the 214 changed suites have assertion-level links.
+
+### New inline Codemode starts normalize omitted tool arguments
+
+All three unchanged tool-error originals passed. The exact `tools.fail()` script now works through the public inline adapter, as it does through the published placements. An omitted or undefined argument reaches the tool as an empty object, allowing the actual tool error to be caught. A new Durable start persists that policy; a saved start without the bit keeps strict decoding. Explicit null, numbers and arrays are still rejected, and global argument presence is unchanged. No existing start or journal record is rewritten.
+
+### Sandbox store reads and returned patches are detached
+
+All six unchanged store variants passed. Native raw, public inline, portable and standalone worker checks return `[41,42,null,null]` with exactly the requested sets and deletion. The other script returns `[1,1]`, retaining `kept:{b:1}` despite local mutations. Neither caller snapshot changes and the tests do not persist a patch. Controls caught a lost deletion and leaked mutations. No production change was needed.
+
+### Fitting converts BMP to PNG and reports the conversion
+
+The unchanged [BMP case](test-inventory/images-fit-bmp.md) passed. With the exact captured 4×4 BMP, native fitting returns PNG and the sole `Converted from image/bmp to image/png.` note. Removing the note broke both comparisons. This verifies format and diagnostic behavior, without equating encoded bytes or worker scheduling.
+
+### Anthropic recreates an already-continued thread
+
+All 33 unchanged thread cases passed. The native `thread_already_continued` variant invokes the payload hook once, sends the suffix, receives `400`, and recreates from the full request. It reports exactly one fallback diagnostic with the pinned reason and sends the next fresh suffix from `msg_3`. The other three retry variants are unindexed in this slice. No production change was needed.
+
+### Schema checks required and optional explicit undefined
+
+All 40 unchanged validator cases passed. In the covered declared-property checks, an optional explicit `SchemaUndefined{}` can be treated as absent without deleting the caller's key. A required declaration that rejects the marker reports `missing`. The previously unrepresented property-order input now uses the typed marker and matches. JSON null, actual omission and tool policy remain distinct. Pattern and additional rules still inspect the real key.
+
+### Chord fingerprints ignore annotations
+
+All 13 unchanged [fingerprint cases](test-inventory/chord-fingerprint.md) passed offline. The witness observed the pinned JSON guard accepting the fixture title and both contracts producing the same fingerprint. Keeping annotations in scratch changed only the annotated fingerprint and failed the unchanged equality check. This covers the Chord contract path; it does not verify Durable's callers or native Go correspondence.
