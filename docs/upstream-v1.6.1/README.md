@@ -93,3 +93,13 @@ The local model-regeneration gate now checks the v1.6.1 archive and manifest. In
 All five unchanged `openai-completions-non-null-assistant-content.test.ts` variants passed, using the verified provider data from the release alongside the unchanged test and API sources. With the old Go catalog, the four models requiring an empty string sent JSON `null`; GLM-5.3 correctly sent `null`. After regeneration, the public request hook captures `""` for the four models and exact JSON `null` for GLM-5.3. All cases retain the exact four role positions and `tool-1` call ID. The hook stops each request before transport, so this is not a live Cloudflare test. No provider runtime code changed.
 
 The integrated code at `47f5e092` passed 17 focused top-level Go tests twice, without skips. Vet, Staticcheck v0.8.2, the exact model-regeneration gate and its negative self-test passed. The active v1.6.1 ledger validates 36 scoped sites: 32 mapped and four partial. These are development comparisons, not full parity or release acceptance.
+
+## Round 3: incremental verification
+
+### A refused journal commit never reaches the v1.6.1 worker
+
+The unchanged `codemode.test.ts` commit-before-delivery case passed. The same script in the published v1.6.1 worker calls only `first` when its journal commit is refused. The native storage decorator captures the rejected write, and the harness joins after the `lost` failure. The worker receives zero deliveries. Reopened SQLite contains the first issued call but none of the rejected delivery. These stronger native observations do not add source assertion sites.
+
+The v1.6.0 worker's existing fence and v1.6.1 successful grouped delivery ran as controls. Three focused Go tests passed twice without skips; vet and Staticcheck passed. No production code changed.
+
+Exact native test code: `cd76b19d`.
