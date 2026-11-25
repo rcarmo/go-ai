@@ -13,7 +13,7 @@ const v160FiveStoreValues = `for (let i=0;i<5;i++) store("k"+i, String(i).repeat
 
 // Supplemental to sandbox.test.ts:454–470. Five individually legal writes
 // fit one default SQLite transaction but not a single Durable document.
-func TestDraftV160CodemodePublishedLargeStorePatch(t *testing.T) {
+func TestV160CodemodePublishedLargeStorePatch(t *testing.T) {
 	for _, mode := range []struct{ name, refusal string }{
 		{"default-frame", ""},
 		{"tight-frame", "encoded JSON byte limit"},

@@ -7,13 +7,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"syscall"
 	"testing"
 	"time"
 )
 
-func TestDraftV160CodemodePublishedLargeStoreRecovery(t *testing.T) {
+func TestV160CodemodePublishedLargeStoreRecovery(t *testing.T) {
 	const childDir = "GOAI_CODEMODE_R51_CRASH_DIR"
 	sandbox, worker := newJournalWorkerSandboxV160(t)
 	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
@@ -21,8 +22,16 @@ func TestDraftV160CodemodePublishedLargeStoreRecovery(t *testing.T) {
 	child := os.Getenv(childDir)
 	registry := NewRegistry()
 	def := taskDefinition(t, "store-loss-v160", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+		if child == "" {
+			// Change the live store before reading the old run. The saved
+			// result must not come from, or be reapplied to, the live map.
+			mutation, err := r.RunCodemode(ctx, "mutate", `store("k0", "changed"); store("k1", undefined); return "mutated"`, sandbox)
+			if err != nil || mutation.Error != "" || !mutation.HasValue || mutation.Value != "mutated" || len(mutation.StoreWrites) != 1 || mutation.StoreWrites["k0"] != "changed" || !reflect.DeepEqual(mutation.StoreDeletes, []string{"k1"}) || worker.starts.Load() != 1 {
+				return fmt.Errorf("live store mutation: value=%v error=%q writes=%d deletes=%v starts=%d; %v", mutation.Value, mutation.Error, len(mutation.StoreWrites), mutation.StoreDeletes, worker.starts.Load(), err)
+			}
+		}
 		result, err := r.RunCodemode(ctx, "write", v160FiveStoreValues, sandbox)
-		if err != nil || !result.HasValue || result.Value != "stored-five" || len(result.StoreWrites) != 5 || result.Error != "" {
+		if err != nil || !result.HasValue || result.Value != "stored-five" || len(result.StoreWrites) != 5 || len(result.StoreDeletes) != 0 || result.Error != "" || worker.starts.Load() != 1 {
 			return fmt.Errorf("large store result at process boundary: value=%v, writes=%d, error=%v", result.Value, len(result.StoreWrites), err)
 		}
 		for i := 0; i < 5; i++ {
@@ -34,6 +43,10 @@ func TestDraftV160CodemodePublishedLargeStoreRecovery(t *testing.T) {
 			// Store, result and fragments have settled, but the owner remains
 			// running. Do not close the Harness or finish the task.
 			return syscall.Kill(os.Getpid(), syscall.SIGKILL)
+		}
+		fresh, err := r.RunCodemode(ctx, "read", `return [load("k0"), load("k1") === undefined, [2,3,4].every(i => load("k"+i) === String(i).repeat(200*1024))]`, sandbox)
+		if err != nil || fresh.Error != "" || !fresh.HasValue || !reflect.DeepEqual(fresh.Value, []any{"changed", true, true}) || len(fresh.StoreWrites) != 0 || worker.starts.Load() != 2 {
+			return fmt.Errorf("fresh store read: value=%v error=%q writes=%d starts=%d; %v", fresh.Value, fresh.Error, len(fresh.StoreWrites), worker.starts.Load(), err)
 		}
 		return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone(nil), nil })
 	})
@@ -59,7 +72,7 @@ func TestDraftV160CodemodePublishedLargeStoreRecovery(t *testing.T) {
 		t.Fatalf("child did not die after settled large store: %+v; %v", row.State.Outcome, err)
 	}
 	dir := t.TempDir()
-	proc := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestDraftV160CodemodePublishedLargeStoreRecovery$")
+	proc := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestV160CodemodePublishedLargeStoreRecovery$")
 	proc.Env = append(os.Environ(), childDir+"="+dir)
 	output, err := proc.CombinedOutput()
 	var exit *exec.ExitError
@@ -72,16 +85,28 @@ func TestDraftV160CodemodePublishedLargeStoreRecovery(t *testing.T) {
 		t.Fatal(err)
 	}
 	var runDoc, part Document
+	partCount, partBytes := 0, 0
 	for _, d := range before.Documents {
 		if d.Kind == codemodeRunKind && !d.Retired {
 			runDoc = d
 		}
-		if d.Kind == codemodeStoreResultKind && d.Key == "write/0" {
-			part = d
+		if d.Kind == codemodeStoreResultKind {
+			encoded, err := encodeBounded(d.Value, DefaultLimits(), DefaultLimits().MaxDocumentBytes)
+			if err != nil {
+				t.Fatalf("stored patch exceeded the unchanged document limit: %v", err)
+			}
+			partCount++
+			partBytes += len(encoded)
+			if d.Key == "write/0" {
+				part = d
+			}
 		}
 	}
 	if runDoc.ID == 0 || part.ID == 0 || runDoc.Owner != part.Owner || before.Tasks[runDoc.Owner].Status != "running" {
 		t.Fatal("missing committed patch and running task at the process boundary")
+	}
+	if partCount != 5 || partBytes <= DefaultLimits().MaxRecordBytes {
+		t.Fatalf("result parts=%d bytes=%d; want five bounded parts exceeding one record in total", partCount, partBytes)
 	}
 	refuse := func(write StorageWrite, want ...string) {
 		t.Helper()
@@ -99,6 +124,7 @@ func TestDraftV160CodemodePublishedLargeStoreRecovery(t *testing.T) {
 		t.Fatalf("%s refused for wrong reason: %s; want one of %v", write.Type, got, want)
 	}
 	refuse(StorageWrite{Type: "document.change", ID: part.ID, Content: &DocumentContent{Version: 1, Kind: "base", Value: JSON{"key": "k0", "value": "forged"}}}, "codemode store part changed")
+	refuse(StorageWrite{Type: "document.change", ID: part.ID, Content: &DocumentContent{Version: 1, Kind: "delta", Ops: []Operation{{"s", []any{"value"}, "forged"}}}}, "codemode store part changed")
 	refuse(StorageWrite{Type: "document.retire", ID: part.ID}, "invalid codemode store part reference", "invalid codemode store part retirement")
 	orphan, err := store.MintID(ctx)
 	if err != nil {
@@ -118,7 +144,7 @@ func TestDraftV160CodemodePublishedLargeStoreRecovery(t *testing.T) {
 	if row.State.Outcome != nil && row.State.Outcome.Error != nil {
 		t.Fatal(row.State.Outcome.Error.Message)
 	}
-	if err != nil || row.State.Outcome == nil || row.State.Outcome.Status != "completed" || worker.starts.Load() != 0 {
-		t.Fatalf("reopen did not reuse the settled patch: %+v, starts=%d, err=%v", row.State.Outcome, worker.starts.Load(), err)
+	if err != nil || row.State.Outcome == nil || row.State.Outcome.Status != "completed" || worker.starts.Load() != 2 {
+		t.Fatalf("reopen did not reuse the settled patch with only the mutation and read starting: %+v, starts=%d, err=%v", row.State.Outcome, worker.starts.Load(), err)
 	}
 }
