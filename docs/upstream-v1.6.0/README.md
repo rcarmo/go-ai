@@ -1545,3 +1545,11 @@ The unchanged `MemoryStorage` original passed. Native SQLite runs the valid `ok`
 Two sites remain partial. Go's typed task slice cannot carry the original `tasks: "x"`, so it reports two representable hook results, not three. Four aggregate messages match verbatim; Go reports an unsupported JSON value rather than naming the function value. No production code changed. Five focused groups passed twice, and vet and Staticcheck passed.
 
 The integrated code at `e5ad63eb` passed 36 focused top-level Go tests twice, without skips. The default published worker returned `50` with eight journal publications both times. Vet and Staticcheck v0.8.2 passed. The inventory at `aacfee7e` records 2,118 scoped sites: 2,062 mapped, 51 partial and five unmatched. Thirty-seven of the 214 changed suites have assertion-level links. Full parity remains open.
+
+## Round 67: frozen sandbox objects, after-run diagnostics and model keys
+
+### Sandbox built-ins stay frozen without blocking instance overrides
+
+All twelve unchanged placement variants passed. Native QuickJS preserves the echo result, JSON text and `k: [1]` store write when the script tries to patch built-ins. All seven intrinsic objects in the fixture are frozen. Own instance properties still work; the six-value reply preserves both the overrides and the `TypeError` from changing the frozen prototype. Replacing or extending the tool object fails to change its exact `[false,"still"]` result. The tool fixture does not add a new console assertion.
+
+Four focused Go tests passed twice without skips. The scratch controls change the stored value, substitute one ordinary unfrozen object, or change the echo input. Each reaches its distinct assertion. No production code or sandbox protection changed in this comparison.
