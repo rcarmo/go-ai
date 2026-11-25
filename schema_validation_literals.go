@@ -150,6 +150,8 @@ func schemaLiteralTypeName(value interface{}) string {
 		return "number"
 	case []interface{}:
 		return "array"
+	case []byte:
+		return "bytes"
 	default:
 		return "object"
 	}

@@ -22,6 +22,19 @@ func (v *toolSchemaValidator) constraintIssue(value interface{}, schema map[stri
 			}
 		}
 	}
+	if data, ok := value.([]byte); ok {
+		// Bytes use the declared length bounds only when bytes is the sole
+		// type. A bytes alternative in a type list only checks the type.
+		if types := schemaTypes(schema["type"]); len(types) == 1 && types[0] == "bytes" {
+			length := float64(len(data))
+			if min, ok := schema["minLength"].(float64); ok && length < min {
+				return fail("minLength", "expected at least "+schemaFloatString(min)+" bytes")
+			}
+			if max, ok := schema["maxLength"].(float64); ok && length > max {
+				return fail("maxLength", "expected at most "+schemaFloatString(max)+" bytes")
+			}
+		}
+	}
 	if divisor, ok := schema["multipleOf"].(float64); ok && matchesJSONSchemaType(value, "number") && !schemaNumberMultiple(value, divisor) {
 		return fail("multipleOf", "expected a multiple of "+schemaFloatString(divisor))
 	}

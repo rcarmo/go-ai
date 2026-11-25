@@ -32,7 +32,8 @@ type JSONSchemaCheckOptions struct {
 }
 
 // CheckJSONSchemaValueWithOptions checks a value without coercion. Pass a
-// decoded value or json.RawMessage. Its zero options treat format as an
+// decoded value, json.RawMessage, or typed []byte for the bytes type.
+// Its zero options treat format as an
 // annotation; CheckJSONSchemaValue and tool validation retain their existing
 // format checks. A false result with no error means the value failed the
 // schema. Errors report setup or checker failures.

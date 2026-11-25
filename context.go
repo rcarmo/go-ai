@@ -437,7 +437,8 @@ func schemaList(raw interface{}) ([]map[string]interface{}, bool) {
 }
 
 // CheckJSONSchemaValue checks a decoded JSON value without normalizing or
-// coercing it. The schema and value use ordinary decoded JSON containers.
+// coercing it. Use ordinary decoded JSON containers, or pass typed []byte
+// for the schema's explicit bytes type.
 func CheckJSONSchemaValue(schema map[string]any, value any) bool {
 	validator := newToolSchemaValidator(schema)
 	validator.enableDynamicReferences()
@@ -579,6 +580,9 @@ func matchesJSONSchemaType(value interface{}, expectedType string) bool {
 		return value == nil
 	case "array":
 		_, ok := value.([]interface{})
+		return ok
+	case "bytes":
+		_, ok := value.([]byte)
 		return ok
 	case "object":
 		_, ok := value.(map[string]interface{})
