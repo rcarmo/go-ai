@@ -11,10 +11,12 @@ mkdir -p "$tmp_root"
 cache_base="$GO_AI_MODEL_REGEN_CACHE"
 
 upstream_repo_url="${PI_AI_UPSTREAM_REPO_URL:-https://github.com/earendil-works/pi.git}"
-upstream_tag="v1.6.0"
-upstream_sha="${PI_AI_UPSTREAM_SHA:-faac585884ae2c013a6b1400f3e9e77f10b34bac}"
-npm_url="${PI_AI_NPM_TARBALL_URL:-https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-1.6.0.tgz}"
-npm_sha256="d68312ec574bc959cb7fee26da4f4876d067aed9bbbe76e876359e60d2294747"
+upstream_tag="v1.6.1"
+upstream_sha="${PI_AI_UPSTREAM_SHA:-ef4a1cfcca62b77ad3558337ff3e1c7f6beeadfe}"
+npm_version="${upstream_tag#v}"
+npm_url="${PI_AI_NPM_TARBALL_URL:-https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-$npm_version.tgz}"
+npm_sha256="192c407bd69c06358c68519aa6290adc8362b132bee9117480c7604456d5073b"
+manifest_sha256="85ea40a8ec8e2b5327533d3fd0559072046fde37808c3d869da51fc52470a82c"
 
 workdir="$(mktemp -d "${tmp_root%/}/run-XXXXXX")"
 export TMPDIR="$workdir" TMP="$workdir" TEMP="$workdir" GOTMPDIR="$workdir"
@@ -87,12 +89,12 @@ ensure_source_checkout() {
 }
 
 ensure_npm_package() {
-  local dir="$cache_base/pi-ai-1.6.0-package"
+  local dir="$cache_base/pi-ai-$npm_version-package"
   local marker="$dir/.sha256"
   if [[ ! -f "$dir/package/dist/models.generated.js" ]] || [[ "$(cat "$marker" 2>/dev/null || true)" != "$npm_sha256" ]]; then
     rm -rf "$dir"
     mkdir -p "$dir"
-    local tgz="$workdir/pi-ai-1.6.0.tgz"
+    local tgz="$workdir/pi-ai-$npm_version.tgz"
     fetch_file "$npm_url" "$tgz"
     local got
     got="$(sha256_file "$tgz")"
@@ -123,6 +125,13 @@ if [[ ! -f "$source_models_js" ]]; then
   exit 1
 fi
 
+data_dir="$(dirname "$source_models_js")/providers/data"
+manifest="$data_dir/.manifest.json"
+if [[ ! -f "$manifest" || "$(sha256_file "$manifest")" != "$manifest_sha256" ]]; then
+  echo "model regeneration requires the exact $upstream_tag schema-v6 catalog manifest" >&2
+  exit 1
+fi
+
 (
   cd "$repo_root"
   generator=("$go_cmd" run ./cmd/generate-models)
@@ -131,9 +140,9 @@ fi
     "$go_cmd" build -o "$binary" ./cmd/generate-models
     generator=("$binary")
   fi
-  "${generator[@]}" -input "$source_models_js" -data-dir "$(dirname "$source_models_js")/providers/data" -kind chat -output "$generated_chat" >/dev/null
-  "${generator[@]}" -input "$source_models_js" -data-dir "$(dirname "$source_models_js")/providers/data" -kind image -output "$generated_images" >/dev/null
-  "${generator[@]}" -input "$source_models_js" -data-dir "$(dirname "$source_models_js")/providers/data" -kind classifier -output "$generated_classifiers" >/dev/null
+  "${generator[@]}" -input "$source_models_js" -data-dir "$data_dir" -kind chat -output "$generated_chat" >/dev/null
+  "${generator[@]}" -input "$source_models_js" -data-dir "$data_dir" -kind image -output "$generated_images" >/dev/null
+  "${generator[@]}" -input "$source_models_js" -data-dir "$data_dir" -kind classifier -output "$generated_classifiers" >/dev/null
 )
 "$go_cmd" fmt "$generated_chat" "$generated_images" "$generated_classifiers" >/dev/null
 
@@ -142,7 +151,7 @@ compare_generated() {
   local got="$2"
   local label="$3"
   diff -u "$want" "$got" >/dev/null || {
-    echo "$label does not match regeneration from exact v1.6.0 schema-v6 catalog" >&2
+    echo "$label does not match regeneration from exact $upstream_tag schema-v6 catalog" >&2
     echo "source: $source_models_js" >&2
     diff -u "$want" "$got" >&2 || true
     exit 1
@@ -154,7 +163,7 @@ compare_generated "$repo_root/image_models_generated.go" "$generated_images" "im
 compare_generated "$repo_root/classifier_models_generated.go" "$generated_classifiers" "classifier_models_generated.go"
 (
   cd "$repo_root"
-  "$go_cmd" run ./cmd/check-model-catalog -data-dir "$(dirname "$source_models_js")/providers/data"
+  "$go_cmd" run ./cmd/check-model-catalog -data-dir "$data_dir"
 )
 
 echo "chat model regeneration comparator passed"

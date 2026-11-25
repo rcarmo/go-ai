@@ -21,7 +21,7 @@ func TestV0870MetaAndRadiusCatalogs(t *testing.T) {
 	}
 
 	radius := requireModel(t, goai.Provider("radius"), "balanced")
-	if radius.Api != goai.ApiPiMessages || radius.BaseURL != "https://radius.pi.dev/v1" || radius.Lab != "Moonshot AI" {
+	if radius.Api != goai.ApiPiMessages || radius.BaseURL != "https://radius.pi.dev/v1" || radius.Lab != "Google" {
 		t.Fatalf("radius balanced metadata=%#v", radius)
 	}
 	if radius.Enabled == nil || !*radius.Enabled || len(radius.Providers) == 0 || radius.Providers[0].Credential != "radius" {

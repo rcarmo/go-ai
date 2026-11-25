@@ -18,6 +18,10 @@ func TestSourceV160OfflineCatalogueChecksReleasedManifest(t *testing.T) {
 	testReleasedManifest(t, "v1.6.0", "2026-11-20T10:48:49.496Z", "2026-11-20T10:48:49.497Z")
 }
 
+func TestSourceV161OfflineCatalogueChecksReleasedManifest(t *testing.T) {
+	testReleasedManifest(t, "v1.6.1", "2026-11-25T13:18:26.631Z", "2026-11-25T13:18:26.632Z")
+}
+
 func testReleasedManifest(t *testing.T, version, generatedAt, altered string) {
 	t.Helper()
 	data, err := os.ReadFile("testdata/catalog-" + version + "-manifest.json")

@@ -20,9 +20,9 @@ func TestV0844CatalogCountsAndProviderAPIs(t *testing.T) {
 		providers[model.Provider] = true
 		apis[model.Api] = true
 	}
-	// Current v1.6.0 catalogue, verified against the published records.
-	if len(models) != 1698 || len(providers) != 42 || len(apis) != 10 {
-		t.Fatalf("catalog models/providers/apis = %d/%d/%d, want current 1698/42/10", len(models), len(providers), len(apis))
+	// Current v1.6.1 catalogue, verified against the published records.
+	if len(models) != 1696 || len(providers) != 42 || len(apis) != 10 {
+		t.Fatalf("catalog models/providers/apis = %d/%d/%d, want current 1696/42/10", len(models), len(providers), len(apis))
 	}
 }
 
