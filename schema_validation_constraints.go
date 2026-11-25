@@ -35,7 +35,7 @@ func (v *toolSchemaValidator) constraintIssue(value interface{}, schema map[stri
 			}
 		}
 	}
-	if divisor, ok := schema["multipleOf"].(float64); ok && matchesJSONSchemaType(value, "number") && !schemaNumberMultiple(value, divisor) {
+	if divisor, ok := schema["multipleOf"].(float64); ok && (matchesJSONSchemaType(value, "number") || matchesJSONSchemaType(value, "bigint")) && !schemaNumberMultiple(value, divisor) {
 		return fail("multipleOf", "expected a multiple of "+schemaFloatString(divisor))
 	}
 	if object, ok := value.(map[string]interface{}); ok {
@@ -183,6 +183,13 @@ func validationItemRaw(schema map[string]interface{}, index int) interface{} {
 func schemaNumberMultiple(value interface{}, divisor float64) bool {
 	if divisor == 0 || math.IsNaN(divisor) || math.IsInf(divisor, 0) {
 		return false
+	}
+	if n, ok := value.(*big.Int); ok {
+		var integer, remainder big.Int
+		if _, accuracy := big.NewFloat(divisor).Int(&integer); n == nil || accuracy != big.Exact {
+			return false
+		}
+		return remainder.Rem(n, &integer).Sign() == 0
 	}
 	text, ok := schemaLiteralNumber(value)
 	if !ok {

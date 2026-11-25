@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"math/big"
 	"regexp"
 	"strconv"
 )
@@ -585,6 +586,9 @@ func matchesJSONSchemaType(value interface{}, expectedType string) bool {
 	case "boolean":
 		_, ok := value.(bool)
 		return ok
+	case "bigint":
+		n, ok := value.(*big.Int)
+		return ok && n != nil
 	case "null":
 		return value == nil
 	case "undefined":

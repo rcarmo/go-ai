@@ -16,7 +16,7 @@ func schemaNumericBoundsReason(value interface{}, schema map[string]interface{})
 }
 
 func schemaNumericBoundFailure(value interface{}, schema map[string]interface{}) (keyword, message string) {
-	if !matchesJSONSchemaType(value, "number") {
+	if !matchesJSONSchemaType(value, "number") && !matchesJSONSchemaType(value, "bigint") {
 		return "", ""
 	}
 	for _, keyword := range []string{"minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum"} {
@@ -57,6 +57,18 @@ func compareSchemaNumber(value interface{}, bound float64) (int, bool) {
 		return compareSchemaInt64(number, bound), true
 	case float64:
 		return compareSchemaFloat(number, bound)
+	case *big.Int:
+		if number == nil {
+			return 0, false
+		}
+		// Compare with the bound's exact integral part before resolving a
+		// possible fraction. Never round the native integer to a float.
+		var limit big.Int
+		_, accuracy := big.NewFloat(bound).Int(&limit)
+		if cmp := number.Cmp(&limit); cmp != 0 {
+			return cmp, true
+		}
+		return int(accuracy), true
 	case json.Number:
 		if integer, err := number.Int64(); err == nil {
 			return compareSchemaInt64(integer, bound), true

@@ -2,6 +2,7 @@ package goai
 
 import (
 	"math"
+	"math/big"
 	"reflect"
 	"sort"
 	"strconv"
@@ -38,6 +39,11 @@ func toolSchemaKey(schema map[string]interface{}, value interface{}) (toolSchema
 		key.value.ptr = r.Pointer()
 	case reflect.Slice:
 		key.value.ptr, key.value.length = r.Pointer(), r.Len()
+	case reflect.Pointer:
+		if n, ok := value.(*big.Int); !ok || n == nil {
+			return key, false
+		}
+		key.value.ptr = r.Pointer()
 	case reflect.Float64, reflect.Float32:
 		// NaN is not a reflexive map key; bits also distinguish signed zero.
 		key.value.bits = math.Float64bits(r.Float())

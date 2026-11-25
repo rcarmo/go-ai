@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"math"
+	"math/big"
 	"reflect"
 	"strconv"
 )
@@ -150,6 +151,8 @@ func schemaLiteralTypeName(value interface{}) string {
 			return "integer"
 		}
 		return "number"
+	case *big.Int:
+		return "bigint"
 	case []interface{}:
 		return "array"
 	case []byte:
