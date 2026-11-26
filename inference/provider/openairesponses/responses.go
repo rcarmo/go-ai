@@ -937,6 +937,7 @@ func buildAssistantItemsWithToolView(msgIndex int, msg goai.Message, model *goai
 				"type":    itemType,
 				"call_id": callID,
 				"name":    block.Name,
+				"status":  "completed",
 			}
 			if !customSelected {
 				item["arguments"] = mustJSON(block.Arguments)

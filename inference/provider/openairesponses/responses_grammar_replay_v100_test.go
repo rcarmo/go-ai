@@ -317,7 +317,8 @@ func TestSourceV160ResponsesGrammarReplay(t *testing.T) {
 		ctx := fixture(map[string]any{"payload": "abc"}, goai.ApiOpenAIResponses, goai.ProviderOpenAI, "gpt-test")
 		_, input := captureV100ResponsesReplayRequest(t, model, ctx)
 		want := []map[string]any{
-			{"type": "custom_tool_call", "id": "ctc_1", "call_id": "call_1", "name": "sample_tool", "input": "abc"},
+			// v1.6.1 completes replayed calls; the result item remains unchanged.
+			{"type": "custom_tool_call", "id": "ctc_1", "call_id": "call_1", "name": "sample_tool", "input": "abc", "status": "completed"},
 			{"type": "custom_tool_call_output", "call_id": "call_1", "output": "done"},
 		}
 		for _, item := range want {

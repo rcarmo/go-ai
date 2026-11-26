@@ -2020,7 +2020,8 @@ func buildCodexAssistantItemsWithToolView(msg goai.Message, model *goai.Model, v
 			if isDifferentModel && (strings.HasPrefix(itemID, "fc_") || strings.HasPrefix(itemID, "ctc_")) {
 				itemID = ""
 			}
-			item := map[string]interface{}{"type": "function_call", "call_id": callID, "name": block.Name}
+			// Full replay keeps the completion status retained by a cached turn.
+			item := map[string]interface{}{"type": "function_call", "call_id": callID, "name": block.Name, "status": "completed"}
 			if namespace, present := responsestream.ReplayToolNamespace(block, msg, model); present {
 				item["namespace"] = namespace
 			}
