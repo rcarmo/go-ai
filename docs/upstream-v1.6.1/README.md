@@ -249,3 +249,15 @@ At `32c954a6`, eight focused Go tests passed twice without skips. Vet and Static
 At the integrated Round 5 checkpoint `42225aca`, 24 focused Go tests passed twice without skips. Vet and Staticcheck passed across the five checked packages. The active v1.6.1 ledger has 153 scoped sites: 142 mapped, nine partial and two unmatched. This was not full local acceptance.
 
 The historical v1.6.0 log remains a snapshot. Running its locator validator against current native files stops at a Completions test anchor that had already changed before Round 5 during catalog-test reconciliation. The original source receipts remain pinned; that check is not an active v1.6.1 result.
+
+## Round 6: replay, scheduling, framing and dependency inputs
+
+- [SSE framing](sse-framing.md): four unchanged cases ran. Public Go parsing matched framing across all chunk sizes and line endings, including a split CRLF and a tail at EOF. Go's documented omission of comments from `Raw` leaves one assertion partial.
+- [Prepared Schema references](dependencies/schema-prepared-references.md): a registered reference accepts a valid point and rejects a missing coordinate. Recursive `oneOf` reports both errors from the selected branch, in order. No validator code changed.
+- [Bedrock SDK input](dependencies/README.md#bedrock-sdk-input): the staged CommonJS entry matched the locked archive, and the pinned provider loaded it in an isolated Node import. This did not exercise a client or provider request.
+- A fresh `main`-only checkout exposed two ledger references to commits that existed only in lane history. Both now point to identical receipts on `main`. The locator validator rejects unreachable commits; the repaired ledger was verified in a fresh checkout independent of the native and source test runs.
+- [Codemode output](codemode-output-layout.md): the published portable guest kept the text and console order and spilled the complete 6 MiB and 200,000-line bodies while keeping previews within the asserted bounds. The preview text itself is not an exact comparison.
+- [Durable inbox continuation](durable-yield-continuation.md): the queued write lands before the continuation, the original input settles against the second answer, and the write has its own receipt. No ownership or storage changed.
+- [Responses tool-call replay](responses-tool-call-replay.md): OpenAI Responses and Codex now send `status: "completed"` on replayed function and custom tool calls. Full replay was checked offline. The Codex suite passed on rerun after one timeout-order failure; that test and live WebSocket prefix checks are not covered by the replay fix.
+
+At the integrated checkpoint `aa2b72e4`, 11 focused Go tests passed without skips across five packages, with vet and Staticcheck. The pinned ledger has 175 sites: 163 mapped, ten partial and two unmatched. This was not full local acceptance or a live provider run.
