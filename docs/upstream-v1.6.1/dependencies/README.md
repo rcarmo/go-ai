@@ -40,3 +40,7 @@ Use `bun run docs/upstream-v1.6.1/dependencies/catalog-module-delta.ts "$V160_MO
 ## Google SDK input used by the stream tests
 
 The [`@google/genai` 3.6.1 receipt](google-sdk-input.json) records the exact npm lock placement and verified archive. The packed package manifest and Node entry point match the staged oracle bytes. Node loaded the `GoogleGenAI` export in a network-isolated process. This verifies the SDK input used by the scoped upstream comparisons, not a live SDK connection or constructor equivalence. The full static workspace closure also reproduced byte for byte.
+
+## Bedrock SDK input
+
+The [Bedrock SDK receipt](bedrock-sdk-input.json) compares the pinned `@aws-sdk/client-bedrock-runtime` 3.1127.0 npm archive with the staged manifest and CommonJS entry. An isolated Node import of the unchanged upstream provider loaded the same entry. The probe did not construct a client, send a request or run the upstream Bedrock tests. Run [the probe](probe-bedrock-sdk-input.sh) with the pinned Git mirror, staged oracle and npm `_cacache` directory to reproduce the receipt offline.
