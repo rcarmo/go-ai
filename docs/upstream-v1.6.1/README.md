@@ -239,3 +239,9 @@ Three unchanged originals passed. Public SQLite verifies that a hook decline com
 A supplemental busy-conversation control leaves the summary queued through child completion and places it only when the generation settles. Separate controls admitted a provider request or dropped the owned child; both failed. No production API or stored record changed.
 
 At `4955153f`, 5 Go tests passed twice without skips in this scope. Vet and Staticcheck passed.
+
+### The published Codemode worker keeps the failed script's call receipt
+
+Both unchanged originals passed. The published worker reports `Error: boom` with one `echo (ok)` receipt. After a SQLite reopen with a changed host sandbox identity, it refuses the run without another guest start or echo effect. The saved start and journal remain unchanged. The source's version-0 variant remains partial because native storage refuses that saved-start rewrite before replay. See the [failure receipt and controls](codemode-failure-receipts.md).
+
+At `32c954a6`, eight focused Go tests passed twice without skips. Vet and Staticcheck passed.
