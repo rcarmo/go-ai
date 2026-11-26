@@ -19,9 +19,22 @@ func CheckV160PublishedWorkerOutput(t *testing.T, script string, fs FileSystem, 
 	return text, result
 }
 
+// CheckV161PublishedWorkerOutput runs the same public Harness fixture with
+// the verified pi v1.6.1 portable package.
+func CheckV161PublishedWorkerOutput(t *testing.T, script string, fs FileSystem) (string, MessageReceipt) {
+	t.Helper()
+	_, text, result := runPublishedWorkerOutput(t, officialWorkerPackageRoot(t, "GOAI_CODEMODE_V161_PACKAGE_ROOT", "1.6.1"), script, fs, 0)
+	return text, result
+}
+
 func runV160PublishedWorkerOutput(t *testing.T, script string, fs FileSystem, wantDeliveries int32, registrations ...ToolRegistration) (*Harness, string, MessageReceipt) {
 	t.Helper()
-	sandbox, remote := newJournalWorkerSandboxV160(t)
+	return runPublishedWorkerOutput(t, officialWorkerPackageRootV160(t), script, fs, wantDeliveries, registrations...)
+}
+
+func runPublishedWorkerOutput(t *testing.T, packageRoot, script string, fs FileSystem, wantDeliveries int32, registrations ...ToolRegistration) (*Harness, string, MessageReceipt) {
+	t.Helper()
+	sandbox, remote := newJournalWorkerSandbox(packageRoot)
 	registry := NewRegistry()
 	ext, err := NewCodemodeExtension(sandbox)
 	if err != nil {
