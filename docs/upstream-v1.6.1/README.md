@@ -173,3 +173,11 @@ Three unchanged Codemode originals passed. The published v1.6.1 worker gets the 
 Four focused Go tests passed twice, including the v1.6.0 worker and SQLite controls. Vet and Staticcheck passed. No tool runtime or storage code changed.
 
 Exact native test code: `9e5e9040`.
+
+### Prepared Schema reports the selected branch and escapes both pointer characters
+
+All 40 unchanged validator originals passed. Prepared Go validation reports `/1/width` and `minimum` for the selected image branch, and `/0/kind` with the exact alternatives for an unrecognised tag. For a property named `a/b~c`, the diagnostic path is `/a~1b~0c`. Valid controls produce no diagnostics. Separate faults changed branch selection, allowed an unknown tag to fall through, and disabled each of the two pointer escapes. Each failed the intended assertion.
+
+Three focused Go tests passed twice, with vet and Staticcheck. No production validation, coercion or tool rules changed.
+
+Exact native test code: `e1550863`.
