@@ -97,6 +97,7 @@ type workerReplayChangesV160 struct {
 	pauseEcho        bool
 	stopAtEcho       bool // cut off before the first echo reply, without waiting for hold
 	unchangedJournal bool // replay refusal must not adopt a new call or count
+	unchangedStart   bool // replay refusal must preserve the initial run identity
 	now              func() int64
 	beforeStart      func(*RemoteCodemodeSandbox)
 	beforeResume     func(context.Context, Storage, *RemoteCodemodeSandbox)
@@ -229,9 +230,15 @@ func runPublishedWorkerNestedReplay(t *testing.T, packageRoot, source string, ch
 	}
 	var beforeClose []CodemodeDelivery
 	var firstIssued *int
-	var beforeJournal Document
+	var beforeJournal, beforeRun Document
 	journals := 0
 	for _, doc := range state.Documents {
+		if changes.unchangedStart && doc.Kind == codemodeRunKind {
+			if beforeRun.ID != 0 {
+				t.Fatal("multiple saved Codemode starts at cutoff")
+			}
+			beforeRun = doc
+		}
 		if doc.Kind == codemodeJournalKind {
 			journals++
 			beforeJournal = doc
@@ -244,6 +251,9 @@ func runPublishedWorkerNestedReplay(t *testing.T, packageRoot, source string, ch
 	}
 	if journals != 1 {
 		t.Fatalf("journals at hold = %d; want 1", journals)
+	}
+	if changes.unchangedStart && (beforeRun.ID == 0 || beforeRun.Value["start"] == nil) {
+		t.Fatal("missing saved Codemode start at cutoff")
 	}
 	if err := h.Close(ctx); err != nil {
 		t.Fatal(err)
@@ -280,14 +290,22 @@ func runPublishedWorkerNestedReplay(t *testing.T, packageRoot, source string, ch
 	if requests.Load() != 2 {
 		t.Errorf("model requests = %d; want 2", requests.Load())
 	}
-	if changes.unchangedJournal {
+	if changes.unchangedJournal || changes.unchangedStart {
 		final, err := next.Snapshot(ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
-		after, found := final.Documents[beforeJournal.ID]
-		if !found || !equalJSONValue(beforeJournal.Value, after.Value) {
-			t.Fatal("replay refusal changed the saved journal", found)
+		if changes.unchangedJournal {
+			after, found := final.Documents[beforeJournal.ID]
+			if !found || !equalJSONValue(beforeJournal.Value, after.Value) {
+				t.Fatal("replay refusal changed the saved journal", found)
+			}
+		}
+		if changes.unchangedStart {
+			after, found := final.Documents[beforeRun.ID]
+			if !found || !equalJSONValue(beforeRun.Value["start"], after.Value["start"]) {
+				t.Fatal("replay refusal changed the saved start", found)
+			}
 		}
 	}
 	page, err := next.Commit(ctx, func(tx *Tx) (any, error) {

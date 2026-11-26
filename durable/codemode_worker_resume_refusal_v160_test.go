@@ -26,6 +26,24 @@ func TestSourceV160CodemodePublishedWorkerFingerprintRefusal(t *testing.T) {
 	}
 }
 
+// pi v1.6.1 codemode.test.ts:822–841, fingerprint variant only.
+func TestSourceV161CodemodePublishedWorkerFingerprintRefusal(t *testing.T) {
+	got := runPublishedWorkerNestedReplay(t, officialWorkerPackageRoot(t, "GOAI_CODEMODE_V161_PACKAGE_ROOT", "1.6.1"), v160LateReplayScript, workerReplayChangesV160{
+		unchangedJournal: true,
+		unchangedStart:   true,
+		beforeResume: func(_ context.Context, _ Storage, sandbox *RemoteCodemodeSandbox) {
+			sandbox.Identity = "another sandbox"
+		},
+	})
+	if !got.isError || got.text != "<harness>\n[error] durable: rejected: the script cannot resume: the sandbox changed since it started\n</harness>" {
+		t.Errorf("result error=%t, text=%q; want exact sandbox-change refusal", got.isError, got.text)
+	}
+	if len(got.echoes) != 0 || got.starts != 1 || got.replies != 0 || got.nested != 1 {
+		t.Errorf("echo effects=%v, guest starts=%d, replies=%d, nested tasks=%d; want one start, no reply or echo, and one existing nested task",
+			got.echoes, got.starts, got.replies, got.nested)
+	}
+}
+
 // Supplemental, not a translation of the source version result. Native run
 // starts are immutable, so version 0 cannot be introduced by a public commit.
 func TestV160CodemodePublishedWorkerStartVersionImmutable(t *testing.T) {

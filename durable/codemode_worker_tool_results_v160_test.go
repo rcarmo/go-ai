@@ -126,9 +126,19 @@ func TestV160CodemodeLegacyWorkerFailureReportsCalls(t *testing.T) {
 	testV160CodemodePublishedWorkerFailureReportsCalls(t, false)
 }
 
+// Source: pi v1.6.1 codemode.test.ts:1094–1100.
+func TestSourceV161CodemodePublishedWorkerFailureReportsCalls(t *testing.T) {
+	checkPublishedWorkerFailureReportsCalls(t, officialWorkerPackageRoot(t, "GOAI_CODEMODE_V161_PACKAGE_ROOT", "1.6.1"), true)
+}
+
 func testV160CodemodePublishedWorkerFailureReportsCalls(t *testing.T, grouped bool) {
 	t.Helper()
-	sandbox, remote := newJournalWorkerSandboxV160(t)
+	checkPublishedWorkerFailureReportsCalls(t, officialWorkerPackageRootV160(t), grouped)
+}
+
+func checkPublishedWorkerFailureReportsCalls(t *testing.T, packageRoot string, grouped bool) {
+	t.Helper()
+	sandbox, remote := newJournalWorkerSandbox(packageRoot)
 	sandbox.legacyJournal = !grouped
 	registry := NewRegistry()
 	ext, err := NewCodemodeExtension(sandbox)
