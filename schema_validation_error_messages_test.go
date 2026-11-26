@@ -97,17 +97,33 @@ func assertV160PreparedMessageRecords(t *testing.T, compiled *goai.CompiledJSONS
 
 // validator.test.ts:414–441. The selected branch at each recursion depth
 // is determined by the fields it declares in the corresponding object.
-func TestSourceV160SchemaRecursiveOneOfMessages(t *testing.T) {
-	const filter = `{
+const sourceRecursiveOneOfSchema = `{
 		"type":"object","properties":{"where":{"$ref":"#/$defs/F"}},
 		"$defs":{"F":{"oneOf":[
 			{"type":"object","properties":{"field":{"type":"string"},"eq":{"type":"string"}},"required":["field","eq"],"additionalProperties":false},
 			{"type":"object","properties":{"and":{"type":"array","items":{"$ref":"#/$defs/F"}}},"required":["and"],"additionalProperties":false}
 		]}}
 	}`
-	const value = `{"where":{"and":[{"field":"a","eq":1,"x":2}]}}`
-	const want = `[{"path":"/where/and/0/eq","keyword":"type","message":"expected string, got integer"},{"path":"/where/and/0/x","keyword":"additionalProperties","message":"unknown field"}]`
-	assertV160MessageRecords(t, filter, value, want)
+
+const sourceRecursiveOneOfValue = `{"where":{"and":[{"field":"a","eq":1,"x":2}]}}`
+const sourceRecursiveOneOfIssues = `[{"path":"/where/and/0/eq","keyword":"type","message":"expected string, got integer"},{"path":"/where/and/0/x","keyword":"additionalProperties","message":"unknown field"}]`
+
+func TestSourceV160SchemaRecursiveOneOfMessages(t *testing.T) {
+	assertV160MessageRecords(t, sourceRecursiveOneOfSchema, sourceRecursiveOneOfValue, sourceRecursiveOneOfIssues)
+}
+
+func TestSourceV161SchemaPreparedRecursiveOneOf(t *testing.T) {
+	compiled := compileV160LeafSchema(t, sourceRecursiveOneOfSchema)
+	t.Run("L437-diagnostics-from-most-declared-fields", func(t *testing.T) {
+		assertV160PreparedSchemaCheck(t, compiled, sourceRecursiveOneOfValue, false)
+		assertV160PreparedMessageRecords(t, compiled, sourceRecursiveOneOfValue, sourceRecursiveOneOfIssues)
+	})
+	t.Run("supplemental-each-branch-can-pass", func(t *testing.T) {
+		for _, input := range []string{`{"where":{"and":[{"field":"a","eq":"1"}]}}`, `{"where":{"field":"a","eq":"1"}}`} {
+			assertV160PreparedSchemaCheck(t, compiled, input, true)
+			assertV160PreparedMessageRecords(t, compiled, input, `[]`)
+		}
+	})
 }
 
 // validator.test.ts:443–454. Both properties point to the same Go map,
