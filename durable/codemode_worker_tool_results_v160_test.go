@@ -12,6 +12,15 @@ import (
 // Source: codemode.test.ts:697–789. These scripts run against real nested
 // tools and SQLite with the published portable guest, not canned replies.
 func TestSourceV160CodemodePublishedWorkerNestedResultValues(t *testing.T) {
+	checkPublishedWorkerNestedResultValues(t, officialWorkerPackageRootV160(t))
+}
+
+func TestSourceV161CodemodePublishedWorkerNestedResultValues(t *testing.T) {
+	checkPublishedWorkerNestedResultValues(t, officialWorkerPackageRoot(t, "GOAI_CODEMODE_V161_PACKAGE_ROOT", "1.6.1"))
+}
+
+func checkPublishedWorkerNestedResultValues(t *testing.T, packageRoot string) {
+	t.Helper()
 	exitSchema := JSON{"type": "object", "properties": JSON{"output": JSON{"type": "string"}, "exitCode": JSON{"type": "number"}}, "required": []any{"output", "exitCode"}}
 	type tool struct {
 		name   string
@@ -51,7 +60,7 @@ return [r.exitCode, r.output, e];`, `[1,"no matches",["permission denied",null]]
 			}}}, 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			sandbox, remote := newJournalWorkerSandboxV160(t)
+			sandbox, remote := newJournalWorkerSandbox(packageRoot)
 			registry := NewRegistry()
 			ext, err := NewCodemodeExtension(sandbox)
 			if err != nil {
