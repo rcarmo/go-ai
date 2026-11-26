@@ -43,6 +43,7 @@ func v152SessionDocument(id ID, kind string, key *string, value JSON) StorageWri
 	return StorageWrite{Type: "document.create", Record: &DocumentCreate{ID: id, Kind: kind, Key: key, Scope: DocumentCreateScope{Kind: "session"}}, Content: &DocumentContent{Kind: "base", Version: 1, Value: value}}
 }
 
+// v1.6.1 sqlite-commit.test.ts:594–627, using native SQLite only.
 func TestSourceV152SQLiteRefusesThirdIncarnationAfterReplacement(t *testing.T) {
 	for _, reverse := range []bool{false, true} {
 		name := "creation first"
@@ -56,6 +57,7 @@ func TestSourceV152SQLiteRefusesThirdIncarnationAfterReplacement(t *testing.T) {
 				if err != nil || first.Stored != 1 || first.Refused != nil {
 					t.Fatal(first, err)
 				}
+				requireV161CommitKind(t, first, "stored")
 				replace := []StorageWrite{create(11), {Type: "document.retire", ID: 10}}
 				if reverse {
 					slices.Reverse(replace)
@@ -68,6 +70,7 @@ func TestSourceV152SQLiteRefusesThirdIncarnationAfterReplacement(t *testing.T) {
 				if err != nil || result.Stored != 1 || !ok || refused.Reason != "Document address already has a current incarnation" {
 					t.Fatalf("replacement refusal = %d, %v, %v", result.Stored, result.Refused.Value(), err)
 				}
+				requireV161CommitKind(t, result, "refused")
 				if !reflect.DeepEqual(receipts, []publicSQLiteReceipt{{0, 2}}) {
 					t.Fatalf("receipts = %v", receipts)
 				}

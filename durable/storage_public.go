@@ -7,13 +7,22 @@ import (
 
 // CommitResult reports what one public grouped Storage.Commit call stored and
 // which batch was refused, if one was. Refused is nil when every batch in the
-// call became durable. It mirrors the original `{ stored, refused?: unknown }`,
-// which resolves rather than rejects on a refusal and carries the refused value
-// verbatim; this call still rejects on a backend failure, and the receipts
-// already delivered still stand in that case.
+// call became durable. Like the upstream stored/refused union, this result
+// carries a refusal without returning it as an error. On backend failure,
+// the call returns a Go error separately; already delivered receipts stand.
 type CommitResult struct {
 	Stored  int
 	Refused *Refusal
+}
+
+// Kind returns "stored" or "refused" for a result returned with a nil Go
+// error. It checks refusal presence, not the value carried by the refusal.
+// This does not change the struct fields or their JSON representation.
+func (r CommitResult) Kind() string {
+	if r.Refused != nil {
+		return "refused"
+	}
+	return "stored"
 }
 
 // Commit persists the original public storage command batches in order, each as
