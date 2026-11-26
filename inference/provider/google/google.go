@@ -764,9 +764,45 @@ func isValidBase64Signature(sig string) bool {
 
 // Gemini SSE stream returns JSON chunks with candidates[].content.parts[]
 type geminiStreamChunk struct {
-	Candidates    []geminiCandidate `json:"candidates,omitempty"`
-	UsageMetadata *geminiUsage      `json:"usageMetadata,omitempty"`
-	ResponseID    string            `json:"responseId,omitempty"`
+	Candidates     []geminiCandidate `json:"candidates,omitempty"`
+	UsageMetadata  *geminiUsage      `json:"usageMetadata,omitempty"`
+	ResponseID     string            `json:"responseId,omitempty"`
+	PromptFeedback json.RawMessage   `json:"promptFeedback,omitempty"`
+}
+
+type geminiPromptFeedback struct {
+	BlockReason        string `json:"blockReason"`
+	BlockReasonMessage string `json:"blockReasonMessage"`
+	SafetyRatings      []struct {
+		Category    string `json:"category"`
+		Probability string `json:"probability"`
+	} `json:"safetyRatings"`
+}
+
+func (feedback *geminiPromptFeedback) blockError(provider string) string {
+	details := []string{provider + " prompt blocked: " + feedback.BlockReason}
+	if feedback.BlockReasonMessage != "" {
+		details = append(details, feedback.BlockReasonMessage)
+	}
+	var ratings []string
+	for _, rating := range feedback.SafetyRatings {
+		if rating.Category == "" {
+			continue
+		}
+		label := rating.Category
+		if rating.Probability != "" {
+			label += " (" + rating.Probability + ")"
+		}
+		ratings = append(ratings, label)
+	}
+	if len(ratings) != 0 {
+		label := "Safety ratings: "
+		if len(ratings) == 1 {
+			label = "Safety rating: "
+		}
+		details = append(details, label+strings.Join(ratings, ", "))
+	}
+	return strings.Join(details, ". ")
 }
 
 type geminiCandidate struct {
@@ -814,6 +850,12 @@ func processStreamContext(ctx context.Context, body io.Reader, model *goai.Model
 
 	type currentBlock = currentBlockT
 	var current *currentBlock
+	receivedChunks := 0
+	var promptBlockError string
+	providerLabel := "Google"
+	if model.Api == goai.ApiGoogleVertex {
+		providerLabel = "Google Vertex"
+	}
 
 	// Google uses the SDK's framing rules, not the shared SSE field grammar.
 	for evt := range parseGoogleFrames(parseCtx, body) {
@@ -846,6 +888,15 @@ func processStreamContext(ctx context.Context, body io.Reader, model *goai.Model
 			if err != nil {
 				fail(err)
 				return
+			}
+		}
+
+		receivedChunks++
+		if promptBlockError == "" && len(chunk.PromptFeedback) != 0 {
+			// Optional feedback must not change typed admission of candidates.
+			var feedback geminiPromptFeedback
+			if json.Unmarshal(chunk.PromptFeedback, &feedback) == nil && feedback.BlockReason != "" {
+				promptBlockError = feedback.blockError(providerLabel)
 			}
 		}
 
@@ -976,9 +1027,15 @@ func processStreamContext(ctx context.Context, body io.Reader, model *goai.Model
 		return
 	}
 	if partial.StopReason == goai.StopReasonPending {
-		partial.StopReason = goai.StopReasonError
-		partial.ErrorMessage = "Google stream ended without a finish reason"
-		send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("google stream ended without a finish reason")})
+		if promptBlockError != "" {
+			fail(fmt.Errorf("%s", promptBlockError))
+			return
+		}
+		chunkLabel := "chunks"
+		if receivedChunks == 1 {
+			chunkLabel = "chunk"
+		}
+		fail(fmt.Errorf("%s stream ended without a finish reason after receiving %d %s", providerLabel, receivedChunks, chunkLabel))
 		return
 	}
 	if partial.StopReason == "" {
