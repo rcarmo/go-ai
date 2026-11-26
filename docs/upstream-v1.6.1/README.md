@@ -205,3 +205,15 @@ At the combined Round 4 code checkpoint `7aab002c`, 11 focused Go tests and all 
 ### Next: Codex request-level reasoning baseline
 
 Three changed v1.6.1 Codex originals passed: retained replies establish the first request effort, replies from the wrong model are ignored, and simple mode with omitted reasoning starts at `none`. On the unchanged native baseline, a scripted public `StreamSimple` call for the last case keeps the `none` reply marker but sends `medium` with an extra `configuration_update:none` item. Upstream expects `none` with only the user item. This is a reproduced request gap, not a fix. The distinct raw versus simple dispatch decision remains open.
+
+## Round 5: Codex baseline and parallel checks
+
+### Codex starts at the retained request effort and sends only changes
+
+Four unchanged Codex stream cases and eight initial `max` variants passed. The old Go request failed all three native SSE cases: it always sent `medium` and included the initial and repeated efforts as configuration items. Go now uses the first retained reply from the requested model as the initial effort. With no such reply, it starts at the requested effort, including `none` on the simple omitted-reasoning path. The transcript carries only subsequent changes. Unrelated-model replies cannot set the baseline, and a compacted history with no retained reply starts fresh.
+
+The cached WebSocket test preserves one full request and two deltas, with the original `low` request baseline and only one update to `high`. The existing off transition still emits `none` as a change. Initial `max` requests carry `max` in the reasoning object, with no configuration item. Earlier v1.6.0 fixed-medium expectations are historical; their active native controls now assert the checked v1.6.1 projection. Three compiled controls restore `medium`, allow a repeated level, or accept a different model's reply; each fails its intended assertion.
+
+Only request projection changed. Raw versus simple dispatch, response markers, credentials, and cache ownership policies were not changed. No live request was made.
+
+At `b2ce9574`, all 111 Codex provider tests passed twice without skips. Vet and Staticcheck passed.
