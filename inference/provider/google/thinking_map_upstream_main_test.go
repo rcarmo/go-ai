@@ -70,15 +70,16 @@ func captureUpstreamGoogleThinking(t *testing.T, model *goai.Model, reasoning st
 	return thinking
 }
 
+// v1.6.1 adds native, lowercase-mapped and uppercase-mapped xhigh cases.
 func TestUpstreamMainGoogleThinkingMapResolver(t *testing.T) {
-	for _, level := range []string{"minimal", "low", "medium", "high"} {
+	for _, level := range []string{"minimal", "low", "medium", "high", "xhigh"} {
 		model := upstreamGoogleThinkingModel(goai.ApiGoogleGenerativeAI, "gemini-3.7-flash", map[goai.ModelThinkingLevel]*string{})
 		got, err := resolveGoogleThinkingLevel(model, goai.ModelThinkingLevel(level))
 		if err != nil || got != level {
 			t.Errorf("default %s: %s/%v", level, got, err)
 		}
 	}
-	for _, mapped := range []string{"minimal", "low", "medium", "high", "MINIMAL", "LOW", "MEDIUM", "HIGH"} {
+	for _, mapped := range []string{"minimal", "low", "medium", "high", "xhigh", "MINIMAL", "LOW", "MEDIUM", "HIGH", "XHIGH"} {
 		model := upstreamGoogleThinkingModel(goai.ApiGoogleGenerativeAI, "gemini-3.7-flash", map[goai.ModelThinkingLevel]*string{"high": upstreamGoogleString(mapped), "xhigh": upstreamGoogleString(mapped), "max": upstreamGoogleString(mapped)})
 		for _, level := range []string{"high", "xhigh", "max"} {
 			got, err := resolveGoogleThinkingLevel(model, goai.ModelThinkingLevel(level))

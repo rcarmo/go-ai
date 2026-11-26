@@ -37,9 +37,24 @@ func TestV0843GoogleThinkingLevelMapRejectsUnsupportedMappings(t *testing.T) {
 	if config := requireThinkingConfig(t, req); config.ThinkingLevel != "MEDIUM" {
 		t.Fatalf("unsupported low must clamp to medium: %#v", config)
 	}
+	// v1.6.1 recognizes xhigh, but an explicit null still excludes it
+	// when choosing the model's supported level for a request.
 	model.ThinkingLevelMap[goai.ModelThinkingLevel(goai.ThinkingXHigh)] = nil
-	if _, err := resolveGoogleThinkingLevel(model, goai.ModelThinkingLevel(goai.ThinkingXHigh)); err == nil {
-		t.Fatal("expected unsupported null extended mapping error for xhigh")
+	if level, err := resolveGoogleThinkingLevel(model, goai.ModelThinkingLevel(goai.ThinkingXHigh)); err != nil || level != "xhigh" {
+		t.Fatalf("null xhigh mapping: %q / %v", level, err)
+	}
+	delete(model.ThinkingLevelMap, goai.ModelThinkingLevel(goai.ThinkingHigh))
+	xhigh := goai.ThinkingXHigh
+	req, err = buildRequest(model, &goai.Context{}, &goai.StreamOptions{Reasoning: &xhigh})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config := requireThinkingConfig(t, req); config.ThinkingLevel != "HIGH" {
+		t.Fatalf("unsupported xhigh must clamp to high: %#v", config)
+	}
+	model.ThinkingLevelMap[goai.ModelThinkingLevel(goai.ThinkingMax)] = nil
+	if _, err := resolveGoogleThinkingLevel(model, goai.ModelThinkingLevel(goai.ThinkingMax)); err == nil {
+		t.Fatal("expected unsupported null extended mapping error for max")
 	}
 }
 

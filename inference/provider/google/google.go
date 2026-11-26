@@ -1085,7 +1085,7 @@ func resolveGoogleThinkingLevel(model *goai.Model, level goai.ModelThinkingLevel
 		}
 	}
 	switch resolved {
-	case "minimal", "low", "medium", "high":
+	case "minimal", "low", "medium", "high", "xhigh":
 		return resolved, nil
 	default:
 		//lint:ignore ST1005 pinned upstream diagnostic is capitalized.
@@ -1111,6 +1111,10 @@ func getGoogleThinkingLevel(effort string, model *goai.Model) string {
 }
 
 func getGoogleBudget(model *goai.Model, effort string, custom ...*goai.ThinkingBudgets) int {
+	// Budget-based models have no xhigh budget; use high for custom and defaults.
+	if effort == "xhigh" {
+		effort = "high"
+	}
 	if len(custom) > 0 && custom[0] != nil {
 		var budget *int
 		switch effort {
