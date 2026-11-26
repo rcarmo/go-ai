@@ -25,7 +25,16 @@ func TestSourceV160CodemodeForkScopedStore(t *testing.T) {
 // Also exercise the saved historical entry after reopening SQLite, using
 // the same three source scripts in the verified published portable guest.
 func TestSourceV160CodemodePublishedWorkerForkScopedStore(t *testing.T) {
-	sandbox, remote := newJournalWorkerSandboxV160(t)
+	checkPublishedWorkerForkScopedStore(t, officialWorkerPackageRootV160(t))
+}
+
+func TestSourceV161CodemodePublishedWorkerForkScopedStore(t *testing.T) {
+	checkPublishedWorkerForkScopedStore(t, officialWorkerPackageRoot(t, "GOAI_CODEMODE_V161_PACKAGE_ROOT", "1.6.1"))
+}
+
+func checkPublishedWorkerForkScopedStore(t *testing.T, packageRoot string) {
+	t.Helper()
+	sandbox, remote := newJournalWorkerSandbox(packageRoot)
 	checkV160CodemodeForkScopedStore(t, sandbox, true)
 	if got := remote.starts.Load(); got != 3 {
 		t.Errorf("portable guest starts = %d; want 3", got)
