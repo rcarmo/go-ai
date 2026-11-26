@@ -225,3 +225,9 @@ Both unchanged provider variants passed. The old native stream reported a generi
 The scripted REST fixture made no live provider call and does not compare SDK constructors. Six fault controls failed as intended. The complete native Google provider package passed in this integration; shared retry policy and retry attempts were not changed.
 
 At `d92b7467`, 103 Go tests passed twice without skips in this scope. Vet and Staticcheck passed.
+
+### Prepared Schema keeps the enum cap and exact contains messages
+
+All 40 unchanged validator originals passed. The prepared Go validator reports exactly 20 values and `4980 more` when a 5,000-member enum fails. It accepts the final member of both the 5,000- and 10,000-member enums. The four `contains` cases match the exact singular, plural, maximum and range wording. The short enum check also matches the complete diagnostic record. Three faults changed the cap, dropped the final member or changed `contains` wording. Each failed the intended test. No production code changed.
+
+At `8cbfe2ff`, 6 Go tests passed twice without skips in this scope. Vet and Staticcheck passed.
