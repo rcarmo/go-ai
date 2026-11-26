@@ -199,3 +199,9 @@ The native tests check contiguous success receipts, a refused batch that cannot 
 This scope does not reproduce Chord's private outbox or count its backend transactions. The native method and refusal value also do not reproduce the TypeScript object's property and `Error` string envelope. Those limits stay explicit in the ledger.
 
 At `1650f5be`, 5 focused Go tests passed twice, with vet and Staticcheck.
+
+At the combined Round 4 code checkpoint `7aab002c`, 11 focused Go tests and all 102 Google provider tests passed twice without skips. Vet and Staticcheck passed on the root, Durable and Google packages. The active v1.6.1 ledger contains 114 scoped sites: 106 mapped, six partial and two unmatched. The unmatched sites concern Chord transaction counting and outbox state. Full parity remains open.
+
+### Next: Codex request-level reasoning baseline
+
+Three changed v1.6.1 Codex originals passed: retained replies establish the first request effort, replies from the wrong model are ignored, and simple mode with omitted reasoning starts at `none`. On the unchanged native baseline, a scripted public `StreamSimple` call for the last case keeps the `none` reply marker but sends `medium` with an extra `configuration_update:none` item. Upstream expects `none` with only the user item. This is a reproduced request gap, not a fix. The distinct raw versus simple dispatch decision remains open.
