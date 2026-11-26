@@ -217,3 +217,11 @@ The cached WebSocket test preserves one full request and two deltas, with the or
 Only request projection changed. Raw versus simple dispatch, response markers, credentials, and cache ownership policies were not changed. No live request was made.
 
 At `b2ce9574`, all 111 Codex provider tests passed twice without skips. Vet and Staticcheck passed.
+
+### Google distinguishes a blocked prompt from an unfinished stream
+
+Both unchanged provider variants passed. The old native stream reported a generic missing-finish error. Now both Google adapters report the first prompt block with its message and safety ratings, or, if there is no block, the exact number of chunks received before the stream ended. The scoped blocks are not retryable; the unfinished streams are. A valid terminal frame still wins. Malformed optional feedback cannot discard a valid candidate.
+
+The scripted REST fixture made no live provider call and does not compare SDK constructors. Six fault controls failed as intended. The complete native Google provider package passed in this integration; shared retry policy and retry attempts were not changed.
+
+At `d92b7467`, 103 Go tests passed twice without skips in this scope. Vet and Staticcheck passed.
