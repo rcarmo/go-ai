@@ -245,3 +245,7 @@ At `4955153f`, 5 Go tests passed twice without skips in this scope. Vet and Stat
 Both unchanged originals passed. The published worker reports `Error: boom` with one `echo (ok)` receipt. After a SQLite reopen with a changed host sandbox identity, it refuses the run without another guest start or echo effect. The saved start and journal remain unchanged. The source's version-0 variant remains partial because native storage refuses that saved-start rewrite before replay. See the [failure receipt and controls](codemode-failure-receipts.md).
 
 At `32c954a6`, eight focused Go tests passed twice without skips. Vet and Staticcheck passed.
+
+At the integrated Round 5 checkpoint `42225aca`, 24 focused Go tests passed twice without skips. Vet and Staticcheck passed across the five checked packages. The active v1.6.1 ledger has 153 scoped sites: 142 mapped, nine partial and two unmatched. This was not full local acceptance.
+
+The historical v1.6.0 log remains a snapshot. Running its locator validator against current native files stops at a Completions test anchor that had already changed before Round 5 during catalog-test reconciliation. The original source receipts remain pinned; that check is not an active v1.6.1 result.
