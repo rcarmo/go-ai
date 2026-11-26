@@ -11,9 +11,13 @@ import (
 	goai "github.com/rcarmo/go-ai"
 )
 
-// validator.test.ts:384–400. Reuse the same prepared validator for checks
-// and explanations where the pinned test holds a compiled schema.
-func TestSourceV160SchemaEnumMessages(t *testing.T) {
+// validator.test.ts:384–400. The v1.6.1 source case is byte-identical to
+// v1.6.0; use the same prepared comparisons for both pinned receipts.
+func TestSourceV160SchemaEnumMessages(t *testing.T) { checkPinnedSchemaEnumMessages(t) }
+func TestSourceV161SchemaEnumMessages(t *testing.T) { checkPinnedSchemaEnumMessages(t) }
+
+func checkPinnedSchemaEnumMessages(t *testing.T) {
+	t.Helper()
 	values := make([]string, 5000)
 	for i := range values {
 		values[i] = "v" + strconv.Itoa(i)
@@ -54,7 +58,11 @@ func TestSourceV160SchemaEnumMessages(t *testing.T) {
 }
 
 // validator.test.ts:402–412. Every input is ["a"]; only the schema changes.
-func TestSourceV160SchemaContainsMessages(t *testing.T) {
+func TestSourceV160SchemaContainsMessages(t *testing.T) { checkPinnedSchemaContainsMessages(t) }
+func TestSourceV161SchemaContainsMessages(t *testing.T) { checkPinnedSchemaContainsMessages(t) }
+
+func checkPinnedSchemaContainsMessages(t *testing.T) {
+	t.Helper()
 	for _, tc := range []struct{ name, keywords, want string }{
 		{"L404-at-least-one", `"contains":{"type":"number"}`, "expected at least 1 matching item"},
 		{"L405-at-least-two", `"contains":{"type":"number"},"minContains":2`, "expected at least 2 matching items"},
