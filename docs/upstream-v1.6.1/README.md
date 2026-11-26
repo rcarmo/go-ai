@@ -165,3 +165,11 @@ The unchanged fork-scoped store original passed. With the published v1.6.1 worke
 Five focused Go tests passed twice, including the native inline and earlier published worker controls, large-store recovery, and refusal before delivery. Vet and Staticcheck passed.
 
 Exact native test code: `b7f4ddd4`.
+
+### The published worker preserves nested structured and text results
+
+Three unchanged Codemode originals passed. The published v1.6.1 worker gets the exact schema-less failure text and structured value, reads a schema tool's failure value when present, and catches the failure without a value otherwise. A schema-less tool with an image returns its caption or the empty string, not an image value. A separate diagnostic control checks that the reported error message takes precedence over the result text.
+
+Four focused Go tests passed twice, including the v1.6.0 worker and SQLite controls. Vet and Staticcheck passed. No tool runtime or storage code changed.
+
+Exact native test code: `9e5e9040`.
