@@ -21,7 +21,7 @@ func TestStreamViaWebSocketAutoUsesCachedDeltaAndDebugStats(t *testing.T) {
 	testCodexWebSocketCachedEffort(t, nil)
 }
 
-// Source: openai-codex-stream.test.ts, cached deltas across thinking levels.
+// Source: pi v1.6.1 openai-codex-stream.test.ts:2464–2553, cached deltas across thinking levels.
 func TestSourceV160CodexWebSocketCachedEffort(t *testing.T) {
 	t.Run("source-low-high-high", func(t *testing.T) {
 		testCodexWebSocketCachedEffort(t, []goai.ThinkingLevel{goai.ThinkingLow, goai.ThinkingHigh, goai.ThinkingHigh})
@@ -131,8 +131,11 @@ func testCodexWebSocketCachedEffort(t *testing.T, levels []goai.ThinkingLevel) {
 			if marker == "off" {
 				marker = "none"
 			}
-			want := []any{map[string]any{"role": "user", "content": []any{map[string]any{"type": "input_text", "text": fmt.Sprintf("Turn %d", i+1)}}}, map[string]any{"type": "configuration_update", "reasoning": map[string]any{"effort": marker}}}
-			if !reflect.DeepEqual(input, want) || !reflect.DeepEqual(body["reasoning"], map[string]any{"effort": "medium", "summary": "auto"}) || done.ProviderThinkingLevel != marker {
+			want := []any{map[string]any{"role": "user", "content": []any{map[string]any{"type": "input_text", "text": fmt.Sprintf("Turn %d", i+1)}}}}
+			if i > 0 && levels[i] != levels[i-1] {
+				want = append(want, map[string]any{"type": "configuration_update", "reasoning": map[string]any{"effort": marker}})
+			}
+			if !reflect.DeepEqual(input, want) || !reflect.DeepEqual(body["reasoning"], map[string]any{"effort": "low", "summary": "auto"}) || done.ProviderThinkingLevel != marker {
 				t.Fatalf("cached request = %v; thinking level=%q, want %q", body, done.ProviderThinkingLevel, marker)
 			}
 		} else if len(input) != 1 {

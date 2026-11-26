@@ -1843,9 +1843,17 @@ func buildCodexRequest(model *goai.Model, convCtx *goai.Context, opts *goai.Stre
 	}
 
 	configuration := codexConfigurationUpdateEffort(model, opts)
+	// Leading instructions belong to the stable input prefix, not a top-level field.
+	view := codexToolView{}
+	if len(views) > 0 {
+		view = views[0]
+	} else {
+		view, _ = newCodexToolView(model, original)
+	}
+	input, baseline := renderCodexInput(model, convCtx, view, configuration)
 	if effort, ok := codexEffort(model, opts); ok {
-		if configuration != "" {
-			effort = "medium"
+		if baseline != "" {
+			effort = baseline
 		}
 		reasoning := map[string]any{"effort": effort}
 		// The unset-effort fallback has no summary. Explicit efforts and
@@ -1859,14 +1867,6 @@ func buildCodexRequest(model *goai.Model, convCtx *goai.Context, opts *goai.Stre
 		}
 		req.Reasoning = reasoning
 	}
-	// Leading instructions belong to the stable input prefix, not a top-level field.
-	view := codexToolView{}
-	if len(views) > 0 {
-		view = views[0]
-	} else {
-		view, _ = newCodexToolView(model, original)
-	}
-	input := buildCodexInputWithToolView(model, convCtx, view, configuration)
 	inputJSON, _ := json.Marshal(input)
 	req.Input = inputJSON
 
@@ -1898,16 +1898,28 @@ func buildCodexToolDeclarations(model *goai.Model, tools []goai.Tool) []codexToo
 	return result
 }
 
-func buildCodexInputWithToolView(model *goai.Model, convCtx *goai.Context, view codexToolView, current ...string) []interface{} {
+func buildCodexInputWithToolView(model *goai.Model, convCtx *goai.Context, view codexToolView) []interface{} {
+	input, _ := renderCodexInput(model, convCtx, view, "")
+	return input
+}
+
+func renderCodexInput(model *goai.Model, convCtx *goai.Context, view codexToolView, configuration string) ([]interface{}, string) {
 	input := make([]interface{}, 0)
 	if convCtx.SystemPrompt != "" {
 		input = append(input, map[string]any{"role": codexInstructionRole(model), "content": goai.SanitizeSurrogates(convCtx.SystemPrompt)})
 	}
-	configuration := ""
-	if len(current) > 0 {
-		configuration = current[0]
-	}
+	// The first retained effort belongs on the request. The input carries
+	// only later changes, which keeps cached prefixes stable across turns.
+	var baseline, previous string
 	pushConfiguration := func(effort string) {
+		if effort == previous {
+			return
+		}
+		previous = effort
+		if baseline == "" {
+			baseline = effort
+			return
+		}
 		input = append(input, map[string]any{"type": "configuration_update", "reasoning": map[string]any{"effort": effort}})
 	}
 	var toolState codexAdditionalToolState
@@ -1959,7 +1971,7 @@ func buildCodexInputWithToolView(model *goai.Model, convCtx *goai.Context, view 
 	if configuration != "" {
 		pushConfiguration(configuration)
 	}
-	return input
+	return input, baseline
 }
 
 func buildCodexAssistantItems(msg goai.Message, model *goai.Model) []interface{} {

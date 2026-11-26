@@ -125,8 +125,8 @@ func TestBuildCodexHeadersAddsAccountAndExperimentalHeaders(t *testing.T) {
 	}
 }
 
-// Source: openai-codex-stream.test.ts, request projection. Capture the SSE
-// request and inspect the returned assistant's provider effort marker.
+// Capture the SSE request and inspect the returned assistant's provider
+// effort marker. v1.6.1 supersedes the older fixed-medium request baseline.
 func TestSourceV160CodexRequestProjection(t *testing.T) {
 	for _, tc := range []struct {
 		name, system, level       string
@@ -135,9 +135,9 @@ func TestSourceV160CodexRequestProjection(t *testing.T) {
 		supportEffort, capAllowed bool
 		wantEffort, wantMarker    string
 	}{
-		{"first", "Be terse.", "low", false, 5000, 5000, true, true, "medium", "low"},
-		{"later", "Be terse.", "high", true, 5000, 5000, true, true, "medium", "high"},
-		{"off", "", "", false, 2, 16, true, true, "medium", "none"},
+		{"first", "Be terse.", "low", false, 5000, 5000, true, true, "low", "low"},
+		{"later", "Be terse.", "high", true, 5000, 5000, true, true, "low", "high"},
+		{"off", "", "", false, 2, 16, true, true, "none", "none"},
 		{"plain", "", "high", false, 2, 0, false, false, "high", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -201,10 +201,7 @@ func TestSourceV160CodexRequestProjection(t *testing.T) {
 			}
 			want = append(want, "user")
 			if tc.previous {
-				want = append(want, "configuration_update:low", "assistant", "user")
-			}
-			if tc.wantMarker != "" {
-				want = append(want, "configuration_update:"+tc.wantMarker)
+				want = append(want, "assistant", "user", "configuration_update:"+tc.wantMarker)
 			}
 			if !reflect.DeepEqual(order, want) {
 				t.Errorf("input order=%v, want %v", order, want)
@@ -315,10 +312,10 @@ func TestSourceV160CodexRequestProjectionExact(t *testing.T) {
 				if first.ProviderThinkingLevel != "low" || second.ProviderThinkingLevel != "high" {
 					t.Errorf("response markers = %q, %q; want low then high", first.ProviderThinkingLevel, second.ProviderThinkingLevel)
 				}
-				want := [][]string{{"user", "configuration_update:low"}, {"user", "configuration_update:low", "assistant", "user", "configuration_update:high"}}
+				want := [][]string{{"user"}, {"user", "assistant", "user", "configuration_update:high"}}
 				for i, body := range []map[string]any{firstBody, secondBody} {
-					if !reflect.DeepEqual(body["reasoning"], map[string]any{"effort": "medium", "summary": "auto"}) {
-						t.Errorf("request %d reasoning = %v; want medium auto", i+1, body["reasoning"])
+					if !reflect.DeepEqual(body["reasoning"], map[string]any{"effort": "low", "summary": "auto"}) {
+						t.Errorf("request %d reasoning = %v; want retained low auto baseline", i+1, body["reasoning"])
 					}
 					if got := summarizeCodexProjection(t, body["input"]); !reflect.DeepEqual(got, want[i]) {
 						t.Errorf("request %d input order = %v; want %v", i+1, got, want[i])
@@ -368,7 +365,8 @@ func summarizeCodexProjection(t *testing.T, input any) []string {
 	return order
 }
 
-// max-thinking.test.ts captures real provider payloads before transport.
+// v1.6.1 max-thinking.test.ts captures real provider payloads before transport.
+// A first request carries max as the baseline, not a configuration item.
 func TestSourceV160CodexMaxThinkingRequest(t *testing.T) {
 	goai.RegisterBuiltinModels()
 	for _, id := range []string{"gpt-5.6-sol", "gpt-6-astra", "gpt-6-sol", "gpt-6-luna", "gpt-6.1-sol", "gpt-6.1-terra", "gpt-6.2-astra", "gpt-6.2-sol"} {
@@ -413,17 +411,18 @@ func TestSourceV160CodexMaxThinkingRequest(t *testing.T) {
 			if captured != 1 || stopped != 1 || requests.Load() != 0 {
 				t.Fatalf("payload captures = %d, stops = %d, network calls = %d; want 1, 1, 0", captured, stopped, requests.Load())
 			}
-			if id == "gpt-5.6-sol" {
-				var reasoning map[string]any
-				if err := json.Unmarshal(payload["reasoning"], &reasoning); err != nil || !reflect.DeepEqual(reasoning, map[string]any{"effort": "max", "summary": "auto"}) {
-					t.Errorf("Codex reasoning = %s; want max effort and auto summary", payload["reasoning"])
-				}
-				return
+			var reasoning map[string]any
+			if err := json.Unmarshal(payload["reasoning"], &reasoning); err != nil || !reflect.DeepEqual(reasoning, map[string]any{"effort": "max", "summary": "auto"}) {
+				t.Errorf("Codex reasoning = %s; want max effort and auto summary", payload["reasoning"])
 			}
 			var items []map[string]any
-			want := map[string]any{"type": "configuration_update", "reasoning": map[string]any{"effort": "max"}}
-			if err := json.Unmarshal(payload["input"], &items); err != nil || len(items) == 0 || !reflect.DeepEqual(items[len(items)-1], want) {
-				t.Errorf("Codex request input = %s; want exact terminal max configuration_update", payload["input"])
+			if err := json.Unmarshal(payload["input"], &items); err != nil || len(items) == 0 {
+				t.Fatalf("Codex request input = %s, %v; want a nonempty array", payload["input"], err)
+			}
+			for _, item := range items {
+				if item["type"] == "configuration_update" {
+					t.Fatalf("initial max request includes configuration_update: %v", item)
+				}
 			}
 		})
 	}

@@ -139,7 +139,8 @@ func TestSourceV160CodexSSEReasoningDefaults(t *testing.T) {
 			mapping: map[goai.ModelThinkingLevel]*string{goai.ModelThinkingLevel(goai.ThinkingXHigh): &nativeXHigh},
 			want:    map[string]any{"effort": "xhigh", "summary": "detailed"}},
 		{name: "explicit-off", effort: &off, want: map[string]any{"effort": "none", "summary": "auto"}},
-		{name: "configured-off", mid: true, mapping: offMap(&none), level: "none", want: map[string]any{"effort": "medium", "summary": "auto"}},
+		// v1.6.1 sends the initial off effort on the request, not in an input item.
+		{name: "configured-off", mid: true, mapping: offMap(&none), level: "none", want: map[string]any{"effort": "none", "summary": "auto"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			model := &goai.Model{ID: "gpt-5.5", Provider: goai.ProviderOpenAICodex, Api: goai.ApiOpenAICodexResponses,
@@ -160,9 +161,6 @@ func TestSourceV160CodexSSEReasoningDefaults(t *testing.T) {
 				t.Errorf("reasoning = %#v, want %#v", got, tc.want)
 			}
 			wantOrder := []string{"user"}
-			if tc.level != "" {
-				wantOrder = append(wantOrder, "configuration_update:"+tc.level)
-			}
 			if order := summarizeCodexProjection(t, payload["input"]); !slices.Equal(order, wantOrder) || result.ProviderThinkingLevel != tc.level {
 				t.Errorf("input/level = %v/%q, want %v/%q", order, result.ProviderThinkingLevel, wantOrder, tc.level)
 			}
