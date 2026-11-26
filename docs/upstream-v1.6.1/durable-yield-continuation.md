@@ -1,0 +1,7 @@
+# Durable keeps an onYield continuation across a queued write
+
+The unchanged inbox test `harness-inbox.test.ts:675–700` passed in the pinned v1.6.1 Node fixture; the other 36 cases in that file were not selected. The test file, chat and harness support, and Vitest config matched the pinned Git bytes. Five focused Go groups passed on the unchanged native base `87cacdd3` before new assertions were added.
+
+The public SQLite test holds the first provider answer open while submitting a plain note. The committed entries are exactly `pi.user:a`, `pi.assistant:first`, `note:w`, `pi.user:more`, `pi.assistant:second`, in that order. The original input settles against the second answer; the write settles against its own note entry. The named continuation uses Go's typed `*Input`, not the upstream TypeScript hook union.
+
+The gated test also shows that the note is queued before the first answer, the successor request sees the note before `more`, and the hook sees the original run and input on the successor task. There are two provider requests and two hook invocations. The native suite passed six focused groups twice with shuffle seed 42; vet and Staticcheck passed. In two bounded compiled controls, dropping the continuation caused premature settlement, and moving the continuation ahead of the note changed the successor request. Both failed at those assertions and joined their test-owned streams.
