@@ -181,3 +181,11 @@ All 40 unchanged validator originals passed. Prepared Go validation reports `/1/
 Three focused Go tests passed twice, with vet and Staticcheck. No production validation, coercion or tool rules changed.
 
 Exact native test code: `e1550863`.
+
+### Google preserves XHIGH on level models and uses the high budget on older models
+
+All 20 unchanged thinking-map originals passed. The old Go resolver rejected `xhigh` even when the model mapped it. Google Generative AI and Vertex now send `XHIGH` on the level-based Gemini 4 fixture. The budget-based fixtures use the existing high budget: 1,234 for the explicit Generative AI override and 32,768 for Vertex's Gemini 2.5 Pro default. The separate Flash-Lite minimal control remains 512. Uppercase maps, a zero override, the dynamic budget, and unsupported-level clamping remain independently checked.
+
+The native tests inspect the public payload hook and a scripted REST request. They do not compare Vertex SDK constructors or call a live provider. Five fault controls isolated the level, budget, case, zero, and Flash-Lite behaviors. The delegated Google package run passed without exclusions.
+
+At `fe46a5cd`, 6 focused Go tests passed twice, with vet and Staticcheck.
