@@ -36,3 +36,7 @@ The [catalog delta](catalog-module-delta.jsonl) compares complete exported recor
 | Classifier | 81 | 81 | 5 | 5 | 4 |
 
 Use `bun run docs/upstream-v1.6.1/dependencies/catalog-module-delta.ts "$V160_MODELS_JS" "$V161_MODELS_JS"` with the two verified archives' intact `dist` trees. This compares upstream packages only. The [Round 2 comparison](../README.md#the-go-catalog-regenerates-from-the-verified-v161-archive) separately verifies the native generation, registry and local gate.
+
+## Google SDK input used by the stream tests
+
+The [`@google/genai` 3.6.1 receipt](google-sdk-input.json) records the exact npm lock placement and verified archive. The packed package manifest and Node entry point match the staged oracle bytes. Node loaded the `GoogleGenAI` export in a network-isolated process. This verifies the SDK input used by the scoped upstream comparisons, not a live SDK connection or constructor equivalence. The full static workspace closure also reproduced byte for byte.
