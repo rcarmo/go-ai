@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
@@ -41,6 +41,11 @@ function requireCheck(ok: unknown, message: string): asserts ok {
 	if (!ok) throw Error(message);
 }
 
+function requireReachable(commit: string, label: string) {
+	const ancestry = spawnSync("git", ["merge-base", "--is-ancestor", commit, "HEAD"], { cwd: root });
+	requireCheck(ancestry.status === 0, `${label}: ${commit} is not in the current branch history`);
+}
+
 let total = 0;
 const globalIds = new Set<string>();
 const maps = readdirSync(import.meta.dir).filter(name => name.endsWith(".jsonl")).sort();
@@ -48,7 +53,7 @@ requireCheck(maps.length > 0, "no assertion ledgers");
 for (const name of maps) {
 	const [manifest, ...rows] = readFileSync(join(import.meta.dir, name), "utf8").trimEnd().split("\n").map(line => JSON.parse(line) as Row);
 	requireCheck(manifest?.kind === "manifest" && manifest.schema === 1 && manifest.pin === pin && sha.test(manifest.base), `${name}: manifest`);
-	git(root, "cat-file", "-e", `${manifest.base}^{commit}`);
+	requireReachable(manifest.base, `${name}: base`);
 	const sources = new Map<string, string[]>();
 	for (const [file, digest] of Object.entries(manifest.files)) {
 		const bytes = readFileSync(join(oracle, file));
@@ -58,6 +63,7 @@ for (const name of maps) {
 	}
 	for (const [id, receipt] of Object.entries(manifest.receipts)) {
 		requireCheck(sha.test(receipt.commit), `${name}:${id}: receipt commit`);
+		requireReachable(receipt.commit, `${name}:${id}: receipt`);
 		const doc = git(root, "show", `${receipt.commit}:${receipt.file}`).toString().split("\n");
 		requireCheck(doc.some(line => line.replace(/^#+ /, "") === receipt.heading), `${name}:${id}: receipt heading absent`);
 	}
