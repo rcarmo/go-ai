@@ -189,3 +189,13 @@ All 20 unchanged thinking-map originals passed. The old Go resolver rejected `xh
 The native tests inspect the public payload hook and a scripted REST request. They do not compare Vertex SDK constructors or call a live provider. Five fault controls isolated the level, budget, case, zero, and Flash-Lite behaviors. The delegated Google package run passed without exclusions.
 
 At `fe46a5cd`, 6 focused Go tests passed twice, with vet and Staticcheck.
+
+### SQLite distinguishes stored and refused commits without changing the saved format
+
+Four unchanged originals passed: two `StoreStorage` cases and the SQLite replacement case in both write orders. Go's public `CommitResult.Kind()` now returns `stored` or `refused` after the caller checks the separate Go error. A refusal with a null, undefined or false value still counts as a refusal. Existing Go fields, JSON encoding and SQLite records are unchanged.
+
+The native tests check contiguous success receipts, a refused batch that cannot write any of its entries, and a suffix that is not attempted. The committed prefix and its sequence survive reopen, and another write continues from that sequence. The replacement probe checks that a third document incarnation is refused and only the replacement stays current. Fault controls misclassify a null refusal, shift a receipt and leak a suffix. They all fail as intended.
+
+This scope does not reproduce Chord's private outbox or count its backend transactions. The native method and refusal value also do not reproduce the TypeScript object's property and `Error` string envelope. Those limits stay explicit in the ledger.
+
+At `1650f5be`, 5 focused Go tests passed twice, with vet and Staticcheck.
