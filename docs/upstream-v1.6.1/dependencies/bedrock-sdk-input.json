@@ -1,0 +1,38 @@
+{
+  "pin": "ef4a1cfcca62b77ad3558337ff3e1c7f6beeadfe",
+  "lockfileSHA256": "f05391f49b31146692ff2ac76239d78a52fe72d0d694a1624e8580a6ea8fec41",
+  "lock": {
+    "version": "3.1127.0",
+    "resolved": "https://registry.npmjs.org/@aws-sdk/client-bedrock-runtime/-/client-bedrock-runtime-3.1127.0.tgz",
+    "integrity": "sha512-IDl/lrPb90aH+pZFHGNDmgH9nAUQj5PlZH1sJ3w7RikctyjHSnY3oNjZhrLoaBoQn/rNK0zsP6OHEqEhj2tdLA==",
+    "engines": {
+      "node": ">=20.0.0"
+    },
+    "key": "node_modules/@aws-sdk/client-bedrock-runtime"
+  },
+  "archive": {
+    "sha256": "cb983616e2e7a81d0b9f454ca3bbc0892a58e3997e188a82f6c69d65191ab6ed",
+    "bytes": 118992,
+    "manifestSHA256": "d38839f240b6f89020c1abf351691d9749f7d35e6680abd6a6fc4415823c10e0",
+    "entry": {
+      "member": "package/dist-cjs/index.js",
+      "sha256": "bf93cc27238615833b7f5741a65914bab9ca7be929c8e9ff359cb5e4ca9ebe43",
+      "bytes": 100694
+    }
+  },
+  "staged": {
+    "manifestAndEntryMatchArchive": true,
+    "providerSHA256": "67597ae6671f34cfb00ad3a45fb0e6bc5f22b1338f35b821135e27a299d60eda"
+  },
+  "runtime": {
+    "action": "import only",
+    "node": "v26.13.0",
+    "provider": "packages/ai/src/api/bedrock-converse-stream.ts",
+    "resolved": "node_modules/@aws-sdk/client-bedrock-runtime/dist-cjs/index.js",
+    "load": {
+      "format": "commonjs",
+      "bytes": 100694,
+      "sha256": "bf93cc27238615833b7f5741a65914bab9ca7be929c8e9ff359cb5e4ca9ebe43"
+    }
+  }
+}
