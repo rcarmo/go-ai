@@ -155,3 +155,13 @@ The four failing tests were asserting stale catalog inputs. The active Qwen expe
 The scoped original tests and four fault controls distinguish the current metadata from the historical wire behavior. This is native test reconciliation, not new v1.6.1 direct assertion mapping.
 
 At `5fe42737`, all 101 top-level tests in `./inference/provider/openai` passed twice with no exclusions or skips. Vet and Staticcheck passed. The active v1.6.1 ledger remains 90 scoped sites: 86 mapped and four partial. No full repository or release acceptance is claimed.
+
+## Round 4: independent verification slices
+
+### A reopened fork sees its own historical Codemode store
+
+The unchanged fork-scoped store original passed. With the published v1.6.1 worker and native SQLite, the parent returns `1` and `[1]`. After reopening the database, a fork at the original input returns `[null]`. The native fixture also checks the two distinct rewindable, as-of store records and three guest starts. No production code or saved format changed.
+
+Five focused Go tests passed twice, including the native inline and earlier published worker controls, large-store recovery, and refusal before delivery. Vet and Staticcheck passed.
+
+Exact native test code: `b7f4ddd4`.
