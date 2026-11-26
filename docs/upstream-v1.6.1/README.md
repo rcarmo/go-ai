@@ -231,3 +231,11 @@ At `d92b7467`, 103 Go tests passed twice without skips in this scope. Vet and St
 All 40 unchanged validator originals passed. The prepared Go validator reports exactly 20 values and `4980 more` when a 5,000-member enum fails. It accepts the final member of both the 5,000- and 10,000-member enums. The four `contains` cases match the exact singular, plural, maximum and range wording. The short enum check also matches the complete diagnostic record. Three faults changed the cap, dropped the final member or changed `contains` wording. Each failed the intended test. No production code changed.
 
 At `8cbfe2ff`, 6 Go tests passed twice without skips in this scope. Vet and Staticcheck passed.
+
+### Compaction hook decisions do not spend provider usage
+
+Three unchanged originals passed. Public SQLite verifies that a hook decline completes with an empty result, changes no usage, and makes no provider summary request. A supplied summary also leaves the existing nonzero usage unchanged. When the hook creates owned work, the summary can land and leave the live compaction view while the task is still completing. The task becomes terminal only after its owned child completes.
+
+A supplemental busy-conversation control leaves the summary queued through child completion and places it only when the generation settles. Separate controls admitted a provider request or dropped the owned child; both failed. No production API or stored record changed.
+
+At `4955153f`, 5 Go tests passed twice without skips in this scope. Vet and Staticcheck passed.
