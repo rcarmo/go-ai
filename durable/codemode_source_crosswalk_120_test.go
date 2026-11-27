@@ -41,7 +41,7 @@ func TestSourceV170CodemodeOriginal(t *testing.T) {
 	t.Run("only treats the first line as an options line", func(t *testing.T) {
 		for _, code := range []string{"// @optionsx {}\ntext(1)", `text("// @options: {}")`} {
 			got, err := ParseCodemodeSource(code)
-			if err != nil || got.Code != code {
+			if err != nil || got.Code != code || got.TimeoutMs != defaultCodemodeTimeoutMs || got.MaxOutputTokens != defaultCodemodeOutputTokens {
 				t.Fatalf("ParseCodemodeSource(%q) = %+v, %v", code, got, err)
 			}
 		}
