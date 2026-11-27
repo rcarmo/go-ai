@@ -423,6 +423,9 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 			if model.Reasoning && anthropicThinkingRequested(opts) && !compat.forceAdaptiveThinking {
 				betas = append(betas, interleavedThinkingBeta)
 			}
+			if isAnthropicOAuthToken {
+				betas = append(betas, anthropicFederationOAuthBeta)
+			}
 			if !compat.supportsEagerToolInputStreaming && len(convCtx.Tools) > 0 {
 				betas = append(betas, fineGrainedToolStreamingBeta)
 			}
@@ -488,11 +491,15 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 			return response, err
 		}
 		failureMessage := func(reason goai.StopReason, err error) *goai.Message {
-			if len(threadDiagnostics) == 0 {
+			if len(threadDiagnostics) == 0 && reason != goai.StopReasonAborted {
 				return nil
 			}
-			return &goai.Message{Role: goai.RoleAssistant, Api: model.Api, Provider: model.Provider, Model: model.ID,
-				Timestamp: time.Now().UnixMilli(), StopReason: reason, ErrorMessage: err.Error(), Diagnostics: threadDiagnostics}
+			message := &goai.Message{Role: goai.RoleAssistant, Api: model.Api, Provider: model.Provider, Model: model.ID,
+				Timestamp: time.Now().UnixMilli(), StopReason: reason, Usage: &goai.Usage{}, Diagnostics: threadDiagnostics}
+			if reason != goai.StopReasonAborted {
+				message.ErrorMessage = err.Error()
+			}
+			return message
 		}
 		resp, err := sendRequest(bodyJSON)
 		if err != nil {
