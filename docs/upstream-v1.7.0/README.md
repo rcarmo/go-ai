@@ -33,6 +33,7 @@ Before retargeting, four focused native tests passed on `3c59c42f` with Go 1.27.
 | Bedrock | [Reasoning replay and effort](bedrock-reasoning.md), with detached copies of both optional compatibility fields. |
 | Catalog | [Readiness audit](catalog-readiness.md) and [regeneration](catalog-regeneration.md): all 1,858 published records matched using the production Go types, without an overlay. Retired rows were not restored; wire tests use matching historical fixtures. |
 | Codemode | [Published portable batching](codemode-portable-batching.md): 5,000 ordered console items, six exchanges, same published distribution and QuickJS WASM as v1.6.1. |
+| Dependencies and release | [Exact closure and release receipt](dependencies/README.md): 305 npm slots, six links, 547 edges, 122 installer placements, ten publisher packages and eight release artifacts independently verified. Both Linux arm64 binaries passed an offline `--version` and Codemode smoke. |
 | Durable | [Grouped SQLite visibility and reopened heads](durable-storage.md). Chord-only assertions remain unmatched. |
 | Schema | [Prepared absolute IRI](schema-prepared-iri.md): 26 vectors; legacy and tool validation policy is unchanged. |
 | Radius | [Image discovery diagnostic](radius-image-discovery.md): ten unchanged originals passed. Explicit native image requests work; shared live refresh and cache-only discovery are still chat-only. |
@@ -47,7 +48,7 @@ The Go image fixtures, OpenAI reasoning replay and SSE helpers, Durable turn lim
 
 - Radius needs a kind-aware runtime and persisted cache before typed discovery can match v1.7.0.
 - The unchanged native base reproduces the Durable M1c ordering failure: invalid finite usage can enter the app callback before validation. SQLite rollback cannot undo callback execution. The distinct Go result-plus-error settlement needs a contract decision.
-- Wider provider, Durable, Codemode and Schema coverage and the full dependency and installer closure remain open. Live replay still needs the authorised credentials. Full acceptance and acceptance profiling were not run.
+- Wider provider, Durable, Codemode and Schema coverage remains open. Live replay still needs the authorised credentials. Dependency and installer provenance is closed by the [exact release receipt](dependencies/README.md); full acceptance and acceptance profiling were not run.
 
 ```sh
 bun run docs/upstream-v1.7.0/assertions/validate.ts "$PI_ORACLE" "$PI_MIRROR"

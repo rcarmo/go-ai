@@ -1,0 +1,50 @@
+[
+  {
+    "name": "@earendil-works/chord",
+    "version": "1.7.0",
+    "url": "https://registry.npmjs.org/@earendil-works/chord/-/chord-1.7.0.tgz",
+    "integrity": "sha512-/zBlRrJkNbw0dJ4OrUzk08PC48mzOIFZQKTUE1qxQUWoPlf/xms95lEigzC30MllS+k5qqih7Clg0cTzYgPs1w==",
+    "sha256": "077dc99d325b84143c04736490a06fb760ce296e3c9c5f9ac0a687650d3f8605",
+    "file": "chord-1.7.0.tgz"
+  },
+  {
+    "name": "@earendil-works/pi-agent-core",
+    "version": "1.7.0",
+    "url": "https://registry.npmjs.org/@earendil-works/pi-agent-core/-/pi-agent-core-1.7.0.tgz",
+    "integrity": "sha512-pLs/wTAcrUnKDILPHjnd7RiDZSotAhJ965LwVc8x37TeWF+k+vKPMmAW6Z1T8XMQuICbIYusjkT7K0lmjgQwrg==",
+    "sha256": "60a49caed275e32f899e14a2555caf15944f01e8505a7bf889e14fa8550b2638",
+    "file": "pi-agent-core-1.7.0.tgz"
+  },
+  {
+    "name": "@earendil-works/pi-coding-agent",
+    "version": "1.7.0",
+    "url": "https://registry.npmjs.org/@earendil-works/pi-coding-agent/-/pi-coding-agent-1.7.0.tgz",
+    "integrity": "sha512-opRelA1oqV/o+cByICMYU87oiHuICeCkghHMqsZsDwDz9F6qo8HFhoH4J/wZkr6tBeFor7ryOSwEmpZsusYrbA==",
+    "sha256": "cb031ff39b75d042797d748033987dd9c0e567373397172c0b4ed661d0bf4824",
+    "file": "pi-coding-agent-1.7.0.tgz"
+  },
+  {
+    "name": "@earendil-works/pi-mcp",
+    "version": "1.7.0",
+    "url": "https://registry.npmjs.org/@earendil-works/pi-mcp/-/pi-mcp-1.7.0.tgz",
+    "integrity": "sha512-ScsDjuFXjT9eKioD5oyZqofDXtaWCMhCBa+1aDSh7WmRACLsohfGQJtAX1rv5OmEbaerrRPgyD5jgwJFBjTFNw==",
+    "sha256": "c6e771cdd17d01470f2e38295c5c29de66077fd245f3a84d98f82682b6abc977",
+    "file": "pi-mcp-1.7.0.tgz"
+  },
+  {
+    "name": "@earendil-works/pi-telemetry",
+    "version": "1.7.0",
+    "url": "https://registry.npmjs.org/@earendil-works/pi-telemetry/-/pi-telemetry-1.7.0.tgz",
+    "integrity": "sha512-QZkngqktohuFZ2TZuJSXDuUntld4sCMW1tkUPaD4moMEX/z1lwcjycXnd9ChO9HNxm/Jfo+UTiC+N2hkAF9b0w==",
+    "sha256": "43e8a99697b3b0e3f8acc78e173d026b554dae1fac3316adba0721c914b48fcf",
+    "file": "pi-telemetry-1.7.0.tgz"
+  },
+  {
+    "name": "@earendil-works/pi-tui",
+    "version": "1.7.0",
+    "url": "https://registry.npmjs.org/@earendil-works/pi-tui/-/pi-tui-1.7.0.tgz",
+    "integrity": "sha512-C6vkUYGTeDdl/cMIbFOabSEPMRy9HuaUV76PS2BhvSmWifO5y8Rz8/LgFWqGIIFS7RMqu0gdeEpdXfH8jIp05g==",
+    "sha256": "6c7a96f2012685c3a6a4323bec7b06a46adb560e31d65e34e60fb4627d82d5b1",
+    "file": "pi-tui-1.7.0.tgz"
+  }
+]
