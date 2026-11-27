@@ -261,3 +261,44 @@ The historical v1.6.0 log remains a snapshot. Running its locator validator agai
 - [Responses tool-call replay](responses-tool-call-replay.md): OpenAI Responses and Codex now send `status: "completed"` on replayed function and custom tool calls. Full replay was checked offline. The Codex suite passed on rerun after one timeout-order failure; that test and live WebSocket prefix checks are not covered by the replay fix.
 
 At the integrated checkpoint `aa2b72e4`, 11 focused Go tests passed without skips across five packages, with vet and Staticcheck. The pinned ledger has 175 sites: 163 mapped, ten partial and two unmatched. This was not full local acceptance or a live provider run.
+
+## Round 7: provider errors, Durable boundaries and verified dependency inputs
+
+- [Mistral raw stops and strict tools](mistral-stop-schema.md): the published catalog origin uses `/v1/chat/completions` without changing custom Go base paths. The exact provider error is `Provider stopped with: error` and remains retryable. The catalog-dependent strict-tool test uses the current model without restoring a retired ID.
+- [Provider error response hooks](provider-error-responses.md): OpenAI Completions, OpenAI Responses, Azure Responses, Anthropic, and Google Gen AI notify the hook for each failed attempt. Google Gen AI presents an empty SDK-style error header map without dropping transport retry headers. Explicit native `RetryConfig` keeps precedence.
+- [Durable yield boundaries](durable-yield-boundaries.md): when a queued reset or follow-up wins the boundary, the original input settles against the first answer and the continuation does not enter the transcript.
+- [Published worker held replay and call details](codemode-held-replay-and-call-details.md): held calls are all checked before any new effect, while mixed success, failure, and cancellation produce exact call rows. Literal arguments in the conflicting-call diagnostic remain redacted in Go.
+- [Prepared numeric and UTF-16 Schema](dependencies/schema-prepared-numeric-unicode.md): nonfinite values and lossless UTF-16 inputs matched the pinned predicates and scoped records.
+- [Photon image worker](dependencies/README.md#photon-image-worker) and [shipped installer](dependencies/README.md#shipped-coding-agent-installer): Node loaded verified image-codec bytes; the separate static comparison identified the shipped lock's placement and peer differences without running an installer or CLI.
+
+## Rounds 8–9: classifier, schema formats and Durable commit boundaries
+
+- [Pi Decision](pi-decision.md) sends the pinned request shape, validates typed answers and preserves reported cost and response ID. Its error hook runs before reading the final error body. The five originals ran offline; live provider behaviour and intermediate retried classifier responses were outside those cases.
+- [Google tool replay](google-tool-replay.md) preserves call and response IDs on prefixed Gemini models. [Google strict mode](google-strict-compat.md) honours explicit true and false overrides without changing the published model catalog.
+- Prepared Schema now asserts [both pointer formats](dependencies/schema-pointer-formats.md), [URI references and templates](dependencies/schema-uri-formats.md), and [IPv6](dependencies/schema-ipv6-format.md) when enabled. All 196 draft 2020-12 fixture vectors compare the verdict and exact error array. Default annotations, legacy checks and tool validation stay unchanged.
+- [Separate child wakes](durable-child-wakes.md) keep the original caller and attribute its final tool result after both children finish. [Terminal admission](durable-terminal-admission.md) checks the attributed input and same-commit SQLite publication.
+- [Early Codemode store replay](codemode-early-store-replay.md) checks that a divergent return cannot publish a store write; finishing the pending call first commits the write in the supplemental case.
+- The [local workerd example](dependencies/README.md#cloudflare-codemode-example-on-local-workerd) used a lock-verified binary and the verified published Codemode archive. The separate Durable Cloudflare suite still lacks its staged runtime dependencies.
+- [llama.cpp response hooks](llama-cpp-response-hooks.md) and [Pi Decision retry hooks](pi-decision-retry-hooks.md) report every completion response before reading its body. A hook refusal closes the unread body and stops retry even when the hook returns a retryable HTTP error. Other classifier hook timing stays unchanged.
+- [Bedrock profile credentials](bedrock-profile-proxy.md) reach the loopback proxy in a fresh subprocess. No AWS endpoint or provisioned credential was used.
+- [Inline image admission](codemode-inline-image-admission.md) still differs: the verified published guest accepts the 1,048,684-byte original, 108 bytes above Go's 1 MiB setup cap. Native controls check the exact boundary. The cap and both partial assertions remain.
+
+At the integrated checkpoint `2d800501`, 62 focused Go tests passed across 9 packages without skips. Vet and Staticcheck passed. The active ledger has 686 sites: 668 mapped, 13 partial and five unmatched. This was a focused run, not full local acceptance. The test-file crosswalk indexes at least one source case in 24 of the 68 changed test-file paths. Other receipts can exist outside the index.
+
+### Upstream test-file crosswalk
+
+[`test-crosswalk.tsv`](test-crosswalk.tsv) lists the pinned AI, Codemode, Durable and Schema test files, their change status since v1.6.0, and the cases indexed in the assertion ledger. Fixture cases count against their test runner. `scoped-mapped-sites` means all indexed sites in that file are mapped; unindexed cases in the same file can still need work. `not-indexed` means the active ledger has no entry. Standalone receipts and historical runs can coexist with that state.
+
+```sh
+bun run docs/upstream-v1.6.1/assertions/validate.ts "$PI_ORACLE" "$PI_MIRROR"
+bun run docs/upstream-v1.6.1/test-crosswalk.ts "$PI_MIRROR" --write
+bun run docs/upstream-v1.6.1/test-crosswalk.ts "$PI_MIRROR" --check
+```
+
+The crosswalk rejects duplicate source sites and stale output. These checks use pinned Git and ledger bytes; they do not run upstream or native tests.
+
+### Open parity decisions
+
+Go still refuses a raw version-0 saved-start rewrite and a source above its setup cap. The replay diagnostic redacts literal arguments, and the output writer failure has a separate redaction difference. The typed Go park API cannot receive the raw JavaScript `nap` value. The two Chord-specific transaction and outbox sites and three TypeBox symbol-key sites are unmatched. SQLite commit envelopes and SSE raw comments also differ.
+
+Live OpenAI and Codex replay is authorised, but the workspace has neither an OpenAI key nor a Codex auth entry. Codex raw/simple dispatch and early settlement of cancelled host callbacks at capacity one still need decisions. Continue using the crosswalk for offline provider, scheduler, storage and schema cases. Full acceptance, profiling, hosted CI and release have separate approval gates.
