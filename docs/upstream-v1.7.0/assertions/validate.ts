@@ -33,8 +33,8 @@ const git = (cwd: string, ...args: string[]) => execFileSync("git", args, { cwd 
 const root = git(import.meta.dir, "rev-parse", "--show-toplevel").toString().trim();
 const hash = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
 const sha = /^[0-9a-f]{40}$/;
-// Include direct assertions guarded by a simple inline condition.
-const expectLine = /^\s*(?:if\s*\([^()\n]*\)\s*)?(?:await\s+)?expect\(/;
+// Include direct assertions guarded by a simple inline condition or loop.
+const expectLine = /^\s*(?:(?:if|for)\s*\([^()\n]*\)\s*)?(?:await\s+)?expect\(/;
 const conformanceRunner = "packages/schema/test/conformance.test.ts";
 const conformanceChecks = [40, 45];
 const testLine = /^\s*it(?:\(|\.each(?:<\[[^\n>]+\]>)?\(|\.skipIf\()/;
