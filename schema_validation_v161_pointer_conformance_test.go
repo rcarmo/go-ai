@@ -30,13 +30,18 @@ func TestSourceV161SchemaPreparedDurationFormatConformance(t *testing.T) {
 	checkV161SchemaPreparedFormatConformance(t, preparedFormatFixture{"duration", 51})
 }
 
+func checkV161SchemaPreparedFormatConformance(t *testing.T, fixtures ...preparedFormatFixture) {
+	t.Helper()
+	checkPinnedSchemaPreparedFormatConformance(t, "v161", fixtures...)
+}
+
 // Compare both the original validity/error agreement and the exact records
 // captured from the unchanged pinned explainer.
-func checkV161SchemaPreparedFormatConformance(t *testing.T, fixtures ...preparedFormatFixture) {
+func checkPinnedSchemaPreparedFormatConformance(t *testing.T, pin string, fixtures ...preparedFormatFixture) {
 	t.Helper()
 	for _, fixture := range fixtures {
 		t.Run(fixture.format, func(t *testing.T) {
-			data, err := os.ReadFile("tests/testdata/upstream-main/" + fixture.format + "-format-2020-12-v161.json")
+			data, err := os.ReadFile("tests/testdata/upstream-main/" + fixture.format + "-format-2020-12-" + pin + ".json")
 			if err != nil {
 				t.Fatal(err)
 			}

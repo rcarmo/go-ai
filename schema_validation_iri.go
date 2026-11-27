@@ -1,14 +1,68 @@
 package goai
 
-import "strings"
+import (
+	"regexp"
+	"strings"
+)
 
-// The guards follow TypeBox's pinned iri_reference.ts (MIT, Copyright (c)
-// 2017-2026 Haydn Paterson; see THIRD_PARTY_NOTICES.md). Check them before the
-// URL parser, which can normalize characters the format must reject.
+// These checks follow TypeBox's pinned iri.ts and iri_reference.ts (MIT,
+// Copyright (c) 2017-2026 Haydn Paterson; see THIRD_PARTY_NOTICES.md).
+var schemaIRIIPvFuture = regexp.MustCompile(`\[[vV][0-9a-fA-F]+\.[^\]]+\]`)
+
+func schemaFormatIRI(value any, text string) bool {
+	if !schemaIRITextOK(text, "<>^`{|}") {
+		return false
+	}
+	// The pinned absolute IRI format substitutes only the first matching
+	// IPvFuture literal and only below 2048 JS UTF-16 code units.
+	if schemaIRIShortEnoughForIPvFuture(value, text) {
+		if span := schemaIRIIPvFuture.FindStringIndex(text); span != nil {
+			text = text[:span[0]] + "[::1]" + text[span[1]:]
+		}
+	}
+	_, err := parseSchemaURL("", text)
+	return err == nil
+}
+
 func schemaFormatIRIReference(text string) bool {
+	if !schemaIRITextOK(text, "\x7f") || schemaIRIMalformedScheme(text) {
+		return false
+	}
+	_, err := parseSchemaURL("http://example.com", text)
+	return err == nil
+}
+
+func schemaIRIShortEnoughForIPvFuture(value any, text string) bool {
+	const limit = 2048
+	if len(text) < limit {
+		return true
+	}
+	// A UTF-16 code unit accounts for at most three UTF-8 bytes.
+	if len(text) >= limit*3 {
+		return false
+	}
+	if exceptional, ok := value.(UTF16String); ok {
+		return len(exceptional.CodeUnits()) < limit
+	}
+	units := 0
+	for _, r := range text {
+		units++
+		if r > 0xffff {
+			units++
+		}
+		if units >= limit {
+			return false
+		}
+	}
+	return true
+}
+
+// Check the text before the URL parser, which may normalize characters the
+// format must reject. Each format supplies its additional forbidden bytes.
+func schemaIRITextOK(text, forbidden string) bool {
 	for i := 0; i < len(text); i++ {
 		c := text[i]
-		if c <= 0x20 || c == 0x7f || c == '\\' {
+		if c <= 0x20 || c == '\\' || strings.IndexByte(forbidden, c) >= 0 {
 			return false
 		}
 		if c == '%' {
@@ -18,11 +72,7 @@ func schemaFormatIRIReference(text string) bool {
 			i += 2
 		}
 	}
-	if schemaIRIMalformedScheme(text) {
-		return false
-	}
-	_, err := parseSchemaURL("http://example.com", text)
-	return err == nil
+	return true
 }
 
 func schemaIRIHex(c byte) bool {
