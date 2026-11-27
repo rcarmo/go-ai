@@ -111,7 +111,7 @@ packages/ai/test/openai-codex-cache-affinity-e2e.test.ts	unchanged	present	0	0	0
 packages/ai/test/openai-codex-oauth.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/openai-codex-stream.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/openai-completions-cache-control-format.test.ts	unchanged	present	0	0	0	0	0	0
-packages/ai/test/openai-completions-empty-tools.test.ts	M	present	3	3	12	0	0	0
+packages/ai/test/openai-completions-empty-tools.test.ts	M	present	5	5	14	0	0	0
 packages/ai/test/openai-completions-non-null-assistant-content.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/openai-completions-prompt-cache.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/openai-completions-provider-stream-event.test.ts	unchanged	present	0	0	0	0	0	0
