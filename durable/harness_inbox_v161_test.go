@@ -176,3 +176,151 @@ func TestSourceV161YieldContinuationKeepsOriginalInputAcrossWrite(t *testing.T) 
 		t.Fatal("expected two requests and two yield calls, one continuation", requests.Load(), yields.Load())
 	}
 }
+
+// harness-inbox.test.ts:522–544,702–718. Unlike a plain write, a queued
+// follow-up or reset ends the original run even when onYield asks to continue.
+func TestSourceV161YieldDropsContinuationAtFinalBoundary(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		transcript []string
+	}{
+		{"reset", []string{"pi.user:a", "pi.assistant:first", "pi.reset"}},
+		{"follow-up", []string{"pi.user:a", "pi.assistant:first", "pi.user:f", "pi.assistant:second"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(t.Context(), 8*time.Second)
+			defer cancel()
+			var yields, requests atomic.Int64
+			registry := NewRegistry()
+			if err := registry.Install(&Extension{Name: "keep-going", Hooks: GenerationHooks{
+				OnYield: func(context.Context, MessageReceipt, *HookAPI) (*Input, error) {
+					if yields.Add(1) == 1 {
+						return &Input{Content: "more"}, nil
+					}
+					// No second yield is expected in the reset case. Make an
+					// unexpected continuation terminate rather than recurse.
+					return nil, nil
+				},
+			}}); err != nil {
+				t.Fatal(err)
+			}
+			first := make(chan goai.Event, 1)
+			firstReached := make(chan struct{})
+			closeFirst := sync.OnceFunc(func() { close(first) })
+			defer closeFirst() // Harness cleanup drains the stream on failure.
+			secondRequest := make(chan []string, 1)
+			ref, options := setupFakeAPI(t, func(_ context.Context, _ *goai.Model, request *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
+				switch requests.Add(1) {
+				case 1:
+					close(firstReached)
+					return first
+				case 2:
+					messages := make([]string, len(request.Messages))
+					for i, m := range request.Messages {
+						if len(m.Content) == 1 {
+							messages[i] = string(m.Role) + ":" + m.Content[0].Text
+						}
+					}
+					secondRequest <- messages
+				}
+				ch := make(chan goai.Event, 1)
+				ch <- terminal("second")
+				close(ch)
+				return ch
+			})
+			options.Registry = registry
+			store, err := newTestSQLite(t)
+			if err != nil {
+				t.Fatal(err)
+			}
+			h := openHarness(t, store, options)
+			c := root(t, h, ref)
+			input, err := c.Submit(ctx, Input{Content: "a"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			awaitTaskSignal(t, firstReached)
+			var competing *SubmissionHandle
+			if tc.name == "reset" {
+				if err := c.Reset(ctx, ""); err != nil {
+					t.Fatal(err)
+				}
+				inbox, found, err := c.SnapshotDefinition(ctx, InboxDoc(), nil)
+				if err != nil || !found {
+					t.Fatal("missing inbox during first request", found, err)
+				}
+				items, _ := generationObject(inbox.Copy())["items"].([]any)
+				if len(items) != 1 {
+					t.Fatal("reset was not the sole queued item", items)
+				}
+				item := generationObject(items[0])
+				if draft := generationObject(item["entry"]); item["mode"] != "write" || draft["kind"] != "pi.reset" || draft["head"] != "self" {
+					t.Fatal("wrong queued reset", item)
+				}
+				competing, err = h.Submission(ctx, submissionEntryID(item["id"]))
+				if err != nil || competing == nil {
+					t.Fatal("missing queued reset receipt", competing, err)
+				}
+			} else {
+				competing, err = c.Submit(ctx, Input{Content: "f"})
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			if got, err := competing.Status(ctx); err != nil || got.Status != "queued" || got.Entry != 0 || got.Answer != 0 {
+				t.Fatal("expected the competing submission queued and unplaced", got, err)
+			}
+			first <- terminal("first")
+			closeFirst()
+			if err := h.WaitForIdle(ctx); err != nil {
+				t.Fatal(err)
+			}
+
+			page, err := c.Entries(ctx, EntryQuery{Order: Ascending}, 16, nil)
+			if err != nil || page.Next != nil {
+				t.Fatal("expected the entire short transcript", page.Next, err)
+			}
+			entries := slices.DeleteFunc(page.Items, func(entry Entry) bool { return entry.Kind == "pi.system" })
+			transcript := make([]string, len(entries))
+			for i, entry := range entries {
+				if entry.Kind == "pi.reset" && len(entry.Model) == 0 {
+					transcript[i] = entry.Kind
+					continue
+				}
+				if len(entry.Model) != 1 {
+					t.Fatal("expected one message per transcript entry", entry)
+				}
+				m := receiptMessage(entry.Model[0])
+				if len(m.Content) != 1 || m.Content[0].Type != "text" {
+					t.Fatal("expected one text in transcript message", m)
+				}
+				transcript[i] = entry.Kind + ":" + m.Content[0].Text
+			}
+			if !slices.Equal(transcript, tc.transcript) {
+				t.Fatalf("committed transcript = %q; want %q", transcript, tc.transcript)
+			}
+			if got, err := input.Status(ctx); err != nil || got.Status != "done" || got.Entry != entries[0].ID || got.Answer != entries[1].ID {
+				t.Fatal("original input did not settle on the first answer", got, err)
+			}
+			got, err := competing.Status(ctx)
+			if err != nil || got.Status != "done" || got.Entry != entries[2].ID {
+				t.Fatal("competing submission did not settle on its entry", got, err)
+			}
+			if tc.name == "reset" {
+				if requests.Load() != 1 || yields.Load() != 1 {
+					t.Fatal("reset must allow one provider request and one yield", requests.Load(), yields.Load())
+				}
+				if got.Answer != 0 || entries[2].Head != entries[2].ID {
+					t.Fatal("reset did not mark its own entry as head", got, entries[2])
+				}
+			} else {
+				if requests.Load() != 2 || yields.Load() != 2 || got.Answer != entries[3].ID {
+					t.Fatal("follow-up did not run once and settle on the second answer", requests.Load(), yields.Load(), got)
+				}
+				if messages, want := <-secondRequest, []string{"user:a", "assistant:first", "user:f"}; !slices.Equal(messages, want) {
+					t.Fatalf("follow-up request = %q; want %q", messages, want)
+				}
+			}
+		})
+	}
+}
