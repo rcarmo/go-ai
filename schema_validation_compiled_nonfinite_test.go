@@ -8,10 +8,14 @@ import (
 	goai "github.com/rcarmo/go-ai"
 )
 
-// validator.test.ts:113–133. Each native value is actually NaN or infinity;
-// JSON cannot carry these values. The pinned compile and TypeBox Check
-// independently both returned false for all 18 combinations.
-func TestSourceV160SchemaNonFiniteNumberChecks(t *testing.T) {
+// validator.test.ts:113–133. Both releases use the same schema and native
+// comparisons; their pinned compiler and TypeBox runs are separate receipts.
+func TestSourceV160SchemaNonFiniteNumberChecks(t *testing.T) { checkPinnedSchemaNonFiniteNumbers(t) }
+func TestSourceV161SchemaNonFiniteNumberChecks(t *testing.T) { checkPinnedSchemaNonFiniteNumbers(t) }
+
+func checkPinnedSchemaNonFiniteNumbers(t *testing.T) {
+	t.Helper()
+	// Use actual NaN and infinity values; JSON would change their domain.
 	for _, tc := range []struct {
 		name, schema string
 		member       bool

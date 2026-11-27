@@ -9,11 +9,15 @@ import (
 	goai "github.com/rcarmo/go-ai"
 )
 
-// validator.test.ts:373–380. Decode the actual escaped JSON through the
-// public lossless argument decoder, then pass the value to schema validation.
-// A normalized replacement rune could produce the same length, so also check
-// the exact UTF-16 units before asserting the upstream verdict.
-func TestSourceV160SchemaCompiledUTF16Length(t *testing.T) {
+// validator.test.ts:373–380. The case is byte-identical across the two
+// releases; the pinned runs and code-unit captures are separate receipts.
+func TestSourceV160SchemaCompiledUTF16Length(t *testing.T) { checkPinnedSchemaUTF16Length(t) }
+func TestSourceV161SchemaCompiledUTF16Length(t *testing.T) { checkPinnedSchemaUTF16Length(t) }
+
+func checkPinnedSchemaUTF16Length(t *testing.T) {
+	t.Helper()
+	// Verify the exact UTF-16 units before checking length: a replacement
+	// rune could produce the same verdict despite losing an original unit.
 	const minTwo = `{"type":"string","minLength":2}`
 	const maxOne = `{"type":"string","maxLength":1}`
 	for _, tc := range []struct {
