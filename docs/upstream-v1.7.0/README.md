@@ -21,19 +21,33 @@ bun run docs/upstream-v1.7.0/inventory.ts "$PI_MIRROR" --check
 
 The mirror must contain both official tags at the recorded commits. Use `--write` to reproduce the inventory. The checker verifies the Git inputs and tracked inventory bytes. It does not download npm archives or run tests.
 
-## Native baseline and next comparisons
+## Scoped comparisons
 
-Before changing the target, four focused native tests passed on `3c59c42f` with Go 1.27.3 and `CGO_ENABLED=0`: prepared temporal boundaries, request-size overflow boundaries, Codemode store checkpoints and independent Durable turn limits. No Go production code, dependency pins, catalog output or format generator changed in this retarget. The old generation gates still verify their recorded inputs.
+Before retargeting, four focused native tests passed on `3c59c42f` with Go 1.27.3 and `CGO_ENABLED=0`. Each comparison below has its own unchanged source run, native evidence and limits.
 
-Stage the locked dependencies and verify release assets before executing the first v1.7.0 originals. Start with Pi Image and Radius routing, OpenAI Completions reasoning and empty tools, Bedrock messages and Durable usage and storage-commit cases. Compare the published model records before changing the Go generator pin. Verify Codemode and Schema distribution contents separately from source-file changes. This retarget establishes the new comparison inputs; runtime parity and release acceptance remain open.
+| Area | Evidence |
+| --- | --- |
+| AI inputs | [Locked AI test stage](ai-originals.md): 59 originals in five files. [OpenRouter](openrouter-images.md) adds eight image and 46 models-runtime originals. |
+| Images and pricing | [Pi Image](pi-image.md) and [OpenRouter](openrouter-images.md): canonical requests, output, errors, authoritative cost and separate image-output rates. |
+| Completions | [Opaque replay](openai-completions-opaque.md), [stored signatures](openai-completions-stored-reasoning.md) and [Cloudflare Gateway](openai-cloudflare-compat.md). |
+| Bedrock | [Reasoning replay and effort](bedrock-reasoning.md), with detached copies of both optional compatibility fields. |
+| Catalog | [Readiness audit](catalog-readiness.md) and [regeneration](catalog-regeneration.md): all 1,858 published records matched using the production Go types, without an overlay. Retired rows were not restored; wire tests use matching historical fixtures. |
+| Codemode | [Published portable batching](codemode-portable-batching.md): 5,000 ordered console items, six exchanges, same published distribution and QuickJS WASM as v1.6.1. |
+| Durable | [Grouped SQLite visibility and reopened heads](durable-storage.md). Chord-only assertions remain unmatched. |
+| Schema | [Prepared absolute IRI](schema-prepared-iri.md): 26 vectors; legacy and tool validation policy is unchanged. |
+| Radius | [Image discovery diagnostic](radius-image-discovery.md): ten unchanged originals passed. Explicit native image requests work; shared live refresh and cache-only discovery are still chat-only. |
 
-## First unchanged AI originals
+## Integrated checkpoint
 
-The [locked AI test stage](ai-originals.md) ran 59 unchanged originals from five files. The selected release assets, installed lock placements and published catalog payloads have separate checks. Durable, Codemode and Schema test execution and the full dependency closure remain open.
+The exact candidate `5f724c1e3cc6423ec697088dbb339e176b342243` passed 97 focused Go tests twice across 6 packages without skips, with vet and Staticcheck v0.8.2. A fresh full-history clone of `main` reproduced both versions’ locator checks, the v1.7.0 inventory and crosswalks. The [v1.7.0 crosswalk](test-crosswalk.tsv) records 184 scoped sites across 14 of 324 files: 166 mapped, 10 partial and 8 unmatched. It does not count unrun source tests as coverage.
 
-## Pi Image
+The Go image fixtures, OpenAI reasoning replay and SSE helpers, Durable turn limits, usage and SQLite grouping, and the current Bedrock, Schema and Codemode cases use behaviour names. Source pins and published comparison inputs remain in the ledgers and fixtures. The turn-limit migration preserved all nine native scenarios and revalidated 1,354 historical locators.
 
-The [Pi Image comparison](pi-image.md) maps the eight original cases to the public native registry path. The adapter preserves the canonical options and output, provider cost, and response observation before body reading. The [assertion crosswalk](test-crosswalk.tsv) counts verified sites without claiming whole-file or release coverage.
+## Open gaps
+
+- Radius needs a kind-aware runtime and persisted cache before typed discovery can match v1.7.0.
+- The unchanged native base reproduces the Durable M1c ordering failure: invalid finite usage can enter the app callback before validation. SQLite rollback cannot undo callback execution. The distinct Go result-plus-error settlement needs a contract decision.
+- Wider provider, Durable, Codemode and Schema coverage and the full dependency and installer closure remain open. Live replay still needs the authorised credentials. Full acceptance and acceptance profiling were not run.
 
 ```sh
 bun run docs/upstream-v1.7.0/assertions/validate.ts "$PI_ORACLE" "$PI_MIRROR"

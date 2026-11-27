@@ -37,3 +37,7 @@ The two published snapshots differ by 38 retired chat identities. The candidate 
 Six newly failing tests still assert 1,696 chat records: `TestRegisterBuiltinModels`, `TestV0844CatalogCountsAndProviderAPIs`, `TestV0850CatalogCountsAndGrokRemoval`, `TestV100UnifiedTypedLookupAndImageCompatibility`, `TestV100TypedRegistryCountsAndRepresentativeMetadata`, and `TestV101CatalogTypedCountsAndNewClassifierPrices`. The last also contains an older `deepseek-ai/DeepSeek-V4-Pro-0813` lookup after its count assertion. `TestV101SingleFieldCompatibilityMetadataRetained` fails on the OpenCode affinity count on both trees. These historical native tests were left unchanged.
 
 The catalog verification does not exercise Bedrock replay behavior, image usage/cost accounting, Pi Image runtime registration, or native pointer ownership.
+
+## Production type verification
+
+The integrated gate on `ce632ba13b7b17de891601e555e65dc7adf63103` reproduced the generated files and verified all 1,858 public records with the production types, without an overlay. The regeneration self-test and the focused catalog and retired-model checks passed. The stale expectations listed above describe the candidate audit before the test reconciliation; they are not remaining failures. Historical wire fixtures do not register any retired rows.
