@@ -205,7 +205,7 @@ packages/codemode/test/deterministic.test.ts	unchanged	present	0	0	0	0	0	0
 packages/codemode/test/portable.test.ts	unchanged	present	1	1	4	0	0	0
 packages/codemode/test/sandbox.test.ts	unchanged	present	0	0	0	0	0	0
 packages/codemode/test/source.test.ts	unchanged	present	0	0	0	0	0	0
-packages/codemode/test/worker-lifetime.test.ts	unchanged	present	2	2	4	2	0	0
+packages/codemode/test/worker-lifetime.test.ts	unchanged	present	3	3	6	3	0	0
 packages/durable/test-workers/storage.test.ts	unchanged	present	0	0	0	0	0	0
 packages/durable/test-workers/wake.test.ts	unchanged	present	0	0	0	0	0	0
 packages/durable/test/codemode-checkpoints.test.ts	unchanged	present	0	0	0	0	0	0
