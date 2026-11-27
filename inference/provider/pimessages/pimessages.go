@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"strings"
@@ -234,7 +235,21 @@ func newConverter(model *goai.Model, observe func(any, *goai.Model) error) func(
 			}
 		}
 		typ, _ := e["type"].(string)
-		idx := int(num(e["contentIndex"]))
+		idx := 0
+		switch typ {
+		case "text_start", "text_delta", "text_end", "thinking_start", "thinking_delta", "thinking_end", "toolcall_start", "toolcall_delta", "toolcall_end":
+			limit := len(partial.Content)
+			if !strings.HasSuffix(typ, "_start") {
+				limit--
+			}
+			index, ok := e["contentIndex"].(float64)
+			// Check the bound before converting or indexing the slice.
+			if !ok || index < 0 || index > float64(limit) || math.Trunc(index) != index {
+				//lint:ignore ST1005 Preserve the upstream diagnostic prefix.
+				return nil, false, fmt.Errorf("Invalid contentIndex in pi-messages %s event", typ)
+			}
+			idx = int(index)
+		}
 		switch typ {
 		case "done":
 			finish(partial, e)
