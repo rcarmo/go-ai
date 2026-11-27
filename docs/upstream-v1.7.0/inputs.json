@@ -1,0 +1,38 @@
+{
+  "upstreamCommit": "fb0fe823539f6d04850f6e34748c01f01f212e1f",
+  "packageLockSHA256": "2a2523fdeacf04ccc5f707132d62ba6a091df196d0b56ff07da1d527f1ff7502",
+  "npm": [
+    {
+      "name": "@earendil-works/pi-ai",
+      "version": "1.7.0",
+      "url": "https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-1.7.0.tgz",
+      "sha256": "d0dd546e7c7c1dfdab6582be8a177ed1184cc857b6a876d3ef576a1cc8088a12",
+      "integrity": "sha512-iKryMlUYniwWbU7YU0uS7W0+cGd9c6oJ6PzRLOn8j4+1njG4c+BQq1cNawctx/npDqGeOx8ME7Gkgl6K6arPuw==",
+      "gitManifestSHA256": "5586cb6758e1e9165c92da0c66ac9b7248dd309cfc6e2314620b56b98f8d4448"
+    },
+    {
+      "name": "@earendil-works/pi-codemode",
+      "version": "1.7.0",
+      "url": "https://registry.npmjs.org/@earendil-works/pi-codemode/-/pi-codemode-1.7.0.tgz",
+      "sha256": "423b548f690cab0800d1fccf0bb034108cf535652a5072e0bf35f84ed0a919d1",
+      "integrity": "sha512-fhCoh8TLxhdRTOWSEplwp39Uv+JTsu9pCqtgu9gorO8zcaw92vsbVI/G89yFs92csTo2+yB7EsJq/+725Vj+eA==",
+      "gitManifestSHA256": "618603ad202eacbef4bb47eaef2829000cc6c967dc8a16de58d885b3b116eadd"
+    },
+    {
+      "name": "@earendil-works/pi-durable",
+      "version": "1.7.0",
+      "url": "https://registry.npmjs.org/@earendil-works/pi-durable/-/pi-durable-1.7.0.tgz",
+      "sha256": "1ca07905ca99245860798ed387813f78292000ee8b113f752b5814d4c61dd2ef",
+      "integrity": "sha512-qL9PlFfXrirBNt7QR2bjZfviN6ZVcsGTHEqaj6U4Lxqqx9Vtth7LyIuGNlG2chDKMr3/ABamH8qZ9ggMgTGDOQ==",
+      "gitManifestSHA256": "2b4c00c45b70d854a36a7b79832b625eab9c7d09e2f4fc77394b0a467c352f92"
+    },
+    {
+      "name": "@earendil-works/pi-schema",
+      "version": "1.7.0",
+      "url": "https://registry.npmjs.org/@earendil-works/pi-schema/-/pi-schema-1.7.0.tgz",
+      "sha256": "37a41ff7758ce75da128176954d0c1b4db3892a5d476ec1649dcbdb51dfd313c",
+      "integrity": "sha512-skji4McLg9jum3NFWzFa/4QRGEZhMGnSi3QL8b9VljJkc/QopH2/BFuGKI+VcEwYzKGwsd0I8RzvXGnZGfGltQ==",
+      "gitManifestSHA256": "48dee9d94ebcba379c5367e327b8e36c2f4bcdb7ae70211a94fb21942a7f48b4"
+    }
+  ]
+}
