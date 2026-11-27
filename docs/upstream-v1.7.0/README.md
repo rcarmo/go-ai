@@ -29,7 +29,7 @@ Before retargeting, four focused native tests passed on `3c59c42f` with Go 1.27.
 | --- | --- |
 | AI inputs | [Locked AI test stage](ai-originals.md): 59 originals in five files. [OpenRouter](openrouter-images.md) adds eight image and 46 models-runtime originals. |
 | Images and pricing | [Pi Image](pi-image.md) and [OpenRouter](openrouter-images.md): canonical requests, output, errors, authoritative cost and separate image-output rates. |
-| Completions | [Opaque replay](openai-completions-opaque.md), [stored signatures](openai-completions-stored-reasoning.md) and [Cloudflare Gateway](openai-cloudflare-compat.md). |
+| Completions | [Opaque replay](openai-completions-opaque.md), [stored signatures](openai-completions-stored-reasoning.md), [Cloudflare Gateway](openai-cloudflare-compat.md) and [Ant Ling thinking](openai-completions-ant-ling.md). |
 | Bedrock | [Reasoning replay and effort](bedrock-reasoning.md), with detached copies of both optional compatibility fields. |
 | Catalog | [Readiness audit](catalog-readiness.md) and [regeneration](catalog-regeneration.md): all 1,858 published records matched using the production Go types, without an overlay. Retired rows were not restored; wire tests use matching historical fixtures. |
 | Codemode | [Published portable batching](codemode-portable-batching.md): 5,000 ordered console items, six exchanges, same published distribution and QuickJS WASM as v1.6.1. |
@@ -40,7 +40,7 @@ Before retargeting, four focused native tests passed on `3c59c42f` with Go 1.27.
 
 ## Integrated checkpoint
 
-The exact candidate `5f724c1e3cc6423ec697088dbb339e176b342243` passed 97 focused Go tests twice across 6 packages without skips, with vet and Staticcheck v0.8.2. A fresh full-history clone of `main` reproduced both versions’ locator checks, the v1.7.0 inventory and crosswalks. The [v1.7.0 crosswalk](test-crosswalk.tsv) records 184 scoped sites across 13 of 324 files: 166 mapped, 10 partial and 8 unmatched. It does not count unrun source tests as coverage.
+The exact candidate `5f724c1e3cc6423ec697088dbb339e176b342243` passed 97 focused Go tests twice across 6 packages without skips, with vet and Staticcheck v0.8.2. A fresh full-history clone of `main` reproduced both versions’ locator checks, the v1.7.0 inventory and crosswalks. The [v1.7.0 crosswalk](test-crosswalk.tsv) records 199 scoped sites across 14 of 324 files: 181 mapped, 10 partial and 8 unmatched. It does not count unrun source tests as coverage. Ant Ling contributes 15 mapped locators and preserves the original oracle test SHA in a separate receipt.
 
 The Go image fixtures, OpenAI reasoning replay and SSE helpers, Durable turn limits, usage and SQLite grouping, and the current Bedrock, Schema and Codemode cases use behaviour names. Source pins and published comparison inputs remain in the ledgers and fixtures. The turn-limit migration preserved all nine native scenarios and revalidated 1,354 historical locators.
 
