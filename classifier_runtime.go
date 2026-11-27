@@ -19,6 +19,7 @@ type ClassifierResult struct {
 	StopReason   StopReason                  `json:"stopReason"`
 	Timestamp    int64                       `json:"timestamp"`
 	Usage        *Usage                      `json:"usage,omitempty"`
+	ResponseID   string                      `json:"responseId,omitempty"`
 	ErrorMessage string                      `json:"errorMessage,omitempty"`
 	// ErrorMessagePresent retains an explicit empty optional error string.
 	ErrorMessagePresent bool `json:"-"`
@@ -35,10 +36,12 @@ type ClassifierResponseMetadata struct {
 type ClassifierOptions struct {
 	// Telemetry carries process-local caller context to classifier providers.
 	// It is never part of serialized requests.
-	Telemetry       *TelemetrySpan `json:"-"`
-	Identity        *ClientIdentity
-	APIKey          string
-	Temperature     float64
+	Telemetry   *TelemetrySpan `json:"-"`
+	Identity    *ClientIdentity
+	APIKey      string
+	Temperature float64
+	// SessionID is the optional pi-decision correlation identifier.
+	SessionID       *string
 	Headers         map[string]string
 	SuppressHeaders []string
 	Context         context.Context
@@ -104,6 +107,9 @@ func normalizeClassifierContext(model *ClassifierModel, ctx ClassifierContext) (
 			acceptsImages = acceptsImages || input == "image"
 		}
 		if !acceptsImages {
+			if model.Api == ClassifierApiPiDecision {
+				return ClassifierContext{}, piDecisionUnsupportedImages(model)
+			}
 			return ClassifierContext{}, fmt.Errorf("model %s/%s does not accept image input", model.Provider, model.ID)
 		}
 	}
@@ -156,6 +162,7 @@ func init() {
 	}})
 	RegisterClassifierApiProvider(&ClassifierApiProvider{Api: ClassifierApiLlamaCPP, Classify: classifyLlamaCPP})
 	RegisterClassifierApiProvider(&ClassifierApiProvider{Api: ClassifierApiOpenAIDecisions, Classify: classifyOpenAIDecisions})
+	RegisterClassifierApiProvider(&ClassifierApiProvider{Api: ClassifierApiPiDecision, Classify: classifyPiDecision})
 }
 
 func ProviderEnvFromClassifierOptions(opts *ClassifierOptions) ProviderEnv {
@@ -470,6 +477,10 @@ func requiredFloat(label string, value any, field string) (float64, error) {
 
 // postClassifierRequest shares the bounded HTTP/retry/timeout/hook boundary.
 func postClassifierRequest(ctx context.Context, label, endpoint string, model *ClassifierModel, payload map[string]any, opts *ClassifierOptions, noRetryStatuses []int) (any, error) {
+	return postClassifierRequestWithResponsePhase(ctx, label, endpoint, model, payload, opts, noRetryStatuses, false)
+}
+
+func postClassifierRequestWithResponsePhase(ctx context.Context, label, endpoint string, model *ClassifierModel, payload map[string]any, opts *ClassifierOptions, noRetryStatuses []int, observeHeaders bool) (any, error) {
 	apiKey := ""
 	if opts != nil {
 		apiKey = opts.APIKey
@@ -507,6 +518,17 @@ func postClassifierRequest(ctx context.Context, label, endpoint string, model *C
 		return nil, err
 	}
 	defer resp.Body.Close()
+	reportResponse := func() error {
+		if opts == nil || opts.OnResponse == nil {
+			return nil
+		}
+		return opts.OnResponse(ClassifierResponseMetadata{Status: resp.StatusCode, Headers: responseHeaders(resp.Header)}, model)
+	}
+	if observeHeaders {
+		if err := reportResponse(); err != nil {
+			return nil, err
+		}
+	}
 	data, err := io.ReadAll(io.LimitReader(resp.Body, (1<<20)+1))
 	if err != nil || len(data) > 1<<20 {
 		return nil, classifierResponseReadError(label, err)
@@ -525,10 +547,9 @@ func postClassifierRequest(ctx context.Context, label, endpoint string, model *C
 	if err := decoder.Decode(&value); err != nil {
 		return nil, fmt.Errorf("%s returned invalid JSON", label)
 	}
-	// Match upstream: only successfully read/decoded 2xx replies are observed,
-	// including valid JSON whose answers or transport envelope are malformed.
-	if opts != nil && opts.OnResponse != nil {
-		if err := opts.OnResponse(ClassifierResponseMetadata{Status: resp.StatusCode, Headers: responseHeaders(resp.Header)}, model); err != nil {
+	// Existing classifiers retain their post-decode response hook timing.
+	if !observeHeaders {
+		if err := reportResponse(); err != nil {
 			return nil, err
 		}
 	}

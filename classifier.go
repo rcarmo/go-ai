@@ -11,6 +11,7 @@ type ClassifierProvider string
 
 const (
 	ClassifierApiOpenAIDecisions          ClassifierApi      = "openai-decisions"
+	ClassifierApiPiDecision               ClassifierApi      = "pi-decision"
 	ClassifierProviderOpenAI              ClassifierProvider = "openai"
 	ClassifierApiTypeSafeSystemOne        ClassifierApi      = "typesafe-system-one"
 	ClassifierApiCloudflareWorkersAI      ClassifierApi      = "cloudflare-workers-ai-system-one"
