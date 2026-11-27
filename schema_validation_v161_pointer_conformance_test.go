@@ -26,6 +26,10 @@ func TestSourceV161SchemaPreparedIPv6FormatConformance(t *testing.T) {
 	checkV161SchemaPreparedFormatConformance(t, preparedFormatFixture{"ipv6", 51})
 }
 
+func TestSourceV161SchemaPreparedDurationFormatConformance(t *testing.T) {
+	checkV161SchemaPreparedFormatConformance(t, preparedFormatFixture{"duration", 51})
+}
+
 // Compare both the original validity/error agreement and the exact records
 // captured from the unchanged pinned explainer.
 func checkV161SchemaPreparedFormatConformance(t *testing.T, fixtures ...preparedFormatFixture) {
@@ -94,6 +98,10 @@ func TestSchemaURIFormatsPreserveToolPolicy(t *testing.T) {
 
 func TestSchemaIPv6FormatPreservesToolPolicy(t *testing.T) {
 	checkSchemaFormatsPreserveToolPolicy(t, "ipv6")
+}
+
+func TestSchemaDurationFormatPreservesToolPolicy(t *testing.T) {
+	checkSchemaFormatsPreserveToolPolicy(t, "duration")
 }
 
 func checkSchemaFormatsPreserveToolPolicy(t *testing.T, formats ...string) {

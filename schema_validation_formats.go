@@ -43,7 +43,7 @@ func (v *toolSchemaValidator) stringFormatReason(value interface{}, schema map[s
 		// These formats are available only in explicitly configured checks.
 		// Existing tool and legacy validation must keep them as annotations.
 		switch name {
-		case "json-pointer", "relative-json-pointer", "json-pointer-uri-fragment", "uri-reference", "uri-template", "ipv6":
+		case "json-pointer", "relative-json-pointer", "json-pointer-uri-fragment", "uri-reference", "uri-template", "ipv6", "duration":
 			return ""
 		}
 	}
@@ -83,11 +83,13 @@ func (v *toolSchemaValidator) stringFormatReason(value interface{}, schema map[s
 	case "date-time":
 		valid = schemaFormatDateTime(text)
 	default:
-		pattern := schemaFormatPatterns[name]
-		if pattern == nil {
+		if pattern := schemaFormatPatterns[name]; pattern != nil {
+			valid = pattern.MatchString(schemaFormatASCIIToLower(text))
+		} else if pattern := schemaCaseSensitiveFormatPatterns[name]; pattern != nil {
+			valid = pattern.MatchString(text)
+		} else {
 			return ""
 		}
-		valid = pattern.MatchString(schemaFormatASCIIToLower(text))
 	}
 	if valid {
 		return ""
