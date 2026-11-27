@@ -73,16 +73,16 @@ func TestQuickJS130CapacityReleasedOnActualExit(t *testing.T) {
 }
 
 // Source: pi v1.7.0 packages/codemode/test/worker-lifetime.test.ts:34-51.
-// The native failure point is a closed, precompiled WASM module: Node's worker
-// constructor and Go's module instantiation are different hosts, but both fail
-// after capacity admission and before the worker-start notification.
+// The native failure point is a closed WASM runtime: Node's worker constructor
+// and Go's module instantiation are different hosts, but both fail after
+// capacity admission and before the worker-start notification.
 func TestSourceV170CapacityReleasedOnModuleConstructionFailure(t *testing.T) {
 	engine, err := NewEngine(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer engine.Close(context.Background())
-	if err := engine.compiled.Close(context.Background()); err != nil {
+	if err := engine.runtime.Close(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	var acquired, released, started int
