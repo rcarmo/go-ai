@@ -223,11 +223,14 @@ func schemaNumberMultiple(value interface{}, divisor float64) bool {
 
 // Canonical exact numeric spellings make 1 and 1.0 equal without conflating
 // numbers and strings. Encoding/json sorts object keys. Hash-map membership
-// avoids quadratic comparison work for large arrays.
+// avoids quadratic comparison work for large arrays. Explicit undefined values
+// cannot be encoded as JSON, so their structural class falls back to SchemaEqual.
 func schemaUniqueItems(items []interface{}) bool {
 	seen := make(map[string]bool, len(items))
+	var undefinedItems []interface{}
 	active := make(map[toolSchemaValueKey]bool)
 	nodes := 0
+	hasUndefined := false
 	var canonical func(interface{}, int) (interface{}, error)
 	canonical = func(value interface{}, depth int) (interface{}, error) {
 		nodes++
@@ -269,6 +272,9 @@ func schemaUniqueItems(items []interface{}) bool {
 			return out, nil
 		case nil, string, bool:
 			return value, nil
+		case SchemaUndefined:
+			hasUndefined = true
+			return nil, nil
 		default:
 			return nil, fmt.Errorf("non-JSON unique item")
 		}
@@ -304,9 +310,19 @@ func schemaUniqueItems(items []interface{}) bool {
 		case nil:
 			key = "null"
 		default:
+			hasUndefined = false
 			value, err := canonical(item, 0)
 			if err != nil {
 				return false
+			}
+			if hasUndefined {
+				for _, previous := range undefinedItems {
+					if SchemaEqual(item, previous) {
+						return false
+					}
+				}
+				undefinedItems = append(undefinedItems, item)
+				continue
 			}
 			data, err := json.Marshal(value)
 			if err != nil {
