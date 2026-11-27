@@ -48,3 +48,7 @@ The [Bedrock SDK receipt](bedrock-sdk-input.json) compares the pinned `@aws-sdk/
 ## Photon image worker
 
 The [Photon receipt](photon-codec-input.json) records archive, JavaScript glue and WebAssembly byte checks for Photon 0.3.3. The unchanged Node BMP-to-PNG test passed offline, and a trace confirmed that the worker loaded the verified glue and instantiated the matching WASM. A comment-only change to the private glue copy kept the test green but failed the archive identity check. This did not compare the Go encoder or run a workerd worker.
+
+## Shipped coding-agent installer
+
+The [installer receipt](coding-agent-install-input.json) compares the shipped manifest and lock with the release source, pinned Git and workspace lock. Of 122 install placements, 88 match the workspace closure at the same slot and artifact; 24 match workspace lock entries outside that closure; two move under published `pi-ai`; and eight workspace links become registry entries. Seven optional peers are absent. The read-only upstream lock check passed. A separate offline probe loaded the pinned `photon-node` wrapper and round-tripped exact pixels through PNG. Neither probe ran an npm install, lifecycle scripts or the CLI.
