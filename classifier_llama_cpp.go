@@ -476,7 +476,13 @@ func llamaPost(request llamaCPPRequest, path string, body map[string]any, observ
 	if err != nil {
 		return nil, err
 	}
-	resp, err := doProviderRequestWithRetry(request.ctx, client, req, cfg, nil, true)
+	var beforeBody func(*http.Response) error
+	if observe && request.options != nil && request.options.OnResponse != nil {
+		beforeBody = func(response *http.Response) error {
+			return request.options.OnResponse(ClassifierResponseMetadata{Status: response.StatusCode, Headers: responseHeaders(response.Header)}, request.model)
+		}
+	}
+	resp, err := doProviderRequestWithRetryObserved(request.ctx, client, req, cfg, nil, true, nil, beforeBody)
 	if err != nil {
 		return nil, err
 	}
@@ -493,13 +499,8 @@ func llamaPost(request llamaCPPRequest, path string, body map[string]any, observ
 	if err := json.Unmarshal(responseBody, &value); err != nil {
 		return nil, fmt.Errorf("%s returned invalid JSON", llamaCPPLabel)
 	}
-	if observe && request.options != nil && request.options.OnResponse != nil {
-		if err := request.options.OnResponse(ClassifierResponseMetadata{Status: resp.StatusCode, Headers: responseHeaders(resp.Header)}, request.model); err != nil {
-			return nil, err
-		}
-	}
-	// A non-object is valid JSON, so its observation precedes the stable
-	// endpoint-specific semantic error just as it does for malformed objects.
+
+	// A non-object is valid JSON but still fails the endpoint's semantic check.
 	decoded, ok := value.(map[string]any)
 	if !ok {
 		switch path {

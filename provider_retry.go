@@ -63,7 +63,7 @@ func DoObservedProviderStreamRequest(ctx context.Context, client *http.Client, r
 			cfg.MaxRetryDelayMs = DefaultRetryConfig().MaxRetryDelayMs
 		}
 	}
-	return doProviderRequestWithRetryObserved(ctx, client, req, cfg, nil, false, onRetryResponse)
+	return doProviderRequestWithRetryObserved(ctx, client, req, cfg, nil, false, onRetryResponse, nil)
 }
 
 var errClassifierAttemptDeadline = errors.New("classifier attempt deadline")
@@ -104,10 +104,12 @@ func classifierAttemptError(err error, caller, attempt context.Context, timeout 
 }
 
 func doProviderRequestWithRetry(ctx context.Context, client *http.Client, req *http.Request, cfg RetryConfig, noRetryStatuses []int, stopOnTransportError bool) (*http.Response, error) {
-	return doProviderRequestWithRetryObserved(ctx, client, req, cfg, noRetryStatuses, stopOnTransportError, nil)
+	return doProviderRequestWithRetryObserved(ctx, client, req, cfg, noRetryStatuses, stopOnTransportError, nil, nil)
 }
 
-func doProviderRequestWithRetryObserved(ctx context.Context, client *http.Client, req *http.Request, cfg RetryConfig, noRetryStatuses []int, stopOnTransportError bool, onRetryResponse func(*http.Response)) (*http.Response, error) {
+// beforeBody observes every received response before body reading or retry handling.
+// onRetryResponse is the existing stream notification for discarded responses only.
+func doProviderRequestWithRetryObserved(ctx context.Context, client *http.Client, req *http.Request, cfg RetryConfig, noRetryStatuses []int, stopOnTransportError bool, onRetryResponse func(*http.Response), beforeBody func(*http.Response) error) (*http.Response, error) {
 	attemptTimeout := cfg.RequestTimeout
 	cfg.applyDefaults()
 	if client == nil {
@@ -149,6 +151,12 @@ func doProviderRequestWithRetryObserved(ctx context.Context, client *http.Client
 		}
 		if stopOnTransportError && attemptTimeout > 0 {
 			resp.Body = &classifierAttemptBody{ReadCloser: resp.Body, attempt: attemptCtx, caller: ctx, cancel: cancel, timeout: attemptTimeout}
+		}
+		if beforeBody != nil {
+			if err := beforeBody(resp); err != nil {
+				resp.Body.Close()
+				return nil, err
+			}
 		}
 		// Retry directives apply to failures, never an opened successful stream.
 		if resp.StatusCode >= 200 && resp.StatusCode < 300 {

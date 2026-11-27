@@ -271,9 +271,13 @@ func TestIssue1LlamaCPPResponseHookDispatchAfterDecodedSuccess(t *testing.T) {
 				// identities distinct so every malformed tokenize fixture is exercised.
 				model := llamaModelV0991(server.URL)
 				model.ID = fmt.Sprintf("hook-fixture-%d", issue1HookFixtureID.Add(1))
+				wantStatus := http.StatusOK
+				if endpoint == "/completion" && mode == "http error" {
+					wantStatus = http.StatusBadRequest
+				}
 				result, err := goai.Classify(model, ctx, &goai.ClassifierOptions{OnResponse: func(metadata goai.ClassifierResponseMetadata, _ *goai.ClassifierModel) error {
 					hooks++
-					if metadata.Status != 200 {
+					if metadata.Status != wantStatus {
 						t.Errorf("metadata=%#v", metadata)
 					}
 					if mode == "hook error" {
@@ -284,8 +288,10 @@ func TestIssue1LlamaCPPResponseHookDispatchAfterDecodedSuccess(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
+				// v1.6.1 observes completion headers before reading the body,
+				// including HTTP failures and bodies that cannot decode.
 				wantHooks := 0
-				if mode == "success" || (endpoint == "/completion" && (mode == "malformed object" || mode == "hook error" || mode == "scalar" || mode == "array" || mode == "null")) {
+				if mode == "success" || endpoint == "/completion" {
 					wantHooks = 1
 				}
 				if hooks != wantHooks {
