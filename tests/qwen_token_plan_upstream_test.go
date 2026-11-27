@@ -5,7 +5,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -14,8 +13,8 @@ import (
 	_ "github.com/rcarmo/go-ai/inference/provider/openai"
 )
 
-// Source: pi v1.6.0 packages/ai/test/qwen-token-plan-models.test.ts:143,151,188,195,287.
-func TestQwenTokenPlanModelsExposeTextAndOmitImageModels(t *testing.T) {
+// Source: pi v1.7.0 packages/ai/test/qwen-token-plan-models.test.ts:143-201,299.
+func TestQwenTokenPlanModelsExposeCurrentCatalogAndOmitRetiredModels(t *testing.T) {
 	goai.RegisterBuiltinModels()
 	// The current published catalogs replace qwen4-max-preview with qwen4-max in all four plans.
 	team := []string{"MiniMax-M2.5", "deepseek-v4-pro", "glm-5", "glm-5.1", "glm-5.2", "kimi-k2.5", "kimi-k2.6", "kimi-k2.7-code", "qwen3.6-flash", "qwen3.6-plus", "qwen3.7-max", "qwen3.7-plus", "qwen3.8-flash", "qwen3.8-max", "qwen4-max"}
@@ -122,8 +121,8 @@ func TestQwenTokenPlanEnvKeys(t *testing.T) {
 	})
 }
 
-// Source: pi v1.6.0 packages/ai/test/qwen-token-plan-models.test.ts:203-285,300-365.
-func TestSourceV160QwenTokenPlanReasoning(t *testing.T) {
+// Source: pi v1.7.0 packages/ai/test/qwen-token-plan-models.test.ts:203-285,300-365.
+func TestQwenTokenPlanReasoning(t *testing.T) {
 	teamThinking := []string{"deepseek-v4-pro", "glm-5", "glm-5.1", "glm-5.2", "kimi-k2.5", "kimi-k2.6", "kimi-k2.7-code", "qwen3.6-flash", "qwen3.6-plus", "qwen3.7-max", "qwen3.7-plus", "qwen3.8-flash", "qwen3.8-max"}
 	individualThinking := []string{"deepseek-v4-flash-0731", "deepseek-v4-pro", "deepseek-v4-pro-0813", "deepseek-v4.1-flash", "deepseek-v4.1-flash-1017", "glm-5.2", "glm-5.3", "qwen3.6-flash", "qwen3.7-max", "qwen3.7-plus", "qwen3.8-flash", "qwen3.8-max", "qwen4-max"}
 	teamEffort := []string{"deepseek-v4-pro", "glm-5", "glm-5.1", "glm-5.2"}
@@ -150,16 +149,6 @@ func TestSourceV160QwenTokenPlanReasoning(t *testing.T) {
 			for _, id := range p.thinking {
 				t.Run("thinking-fields/"+id, func(t *testing.T) {
 					payload := qwenStreamPayload(t, p.provider, id, goai.ThinkingHigh)
-					assertCompletionsPayloadField(t, payload, "enable_thinking", "true")
-					assertCompletionsPayloadField(t, payload, "thinking", "")
-				})
-			}
-			if p.provider == goai.ProviderQwenTokenPlanIndividual || p.provider == "qwen-token-plan-individual-cn" {
-				// The retired preview's high level was disabled; keep that wire case separate from the live successor.
-				t.Run("historical-thinking-fields/qwen4-max-preview", func(t *testing.T) {
-					preview := loadHistoricalCompletionsModel(t, "qwen-token-plan-preview-v160.json", 2, p.provider, "qwen4-max-preview")
-					payload := captureCompletionsPayload(t, preview, goai.ThinkingHigh)
-					assertCompletionsPayloadField(t, payload, "model", `"qwen4-max-preview"`)
 					assertCompletionsPayloadField(t, payload, "enable_thinking", "true")
 					assertCompletionsPayloadField(t, payload, "thinking", "")
 				})
@@ -201,36 +190,6 @@ func assertQwenThinkingMap(t *testing.T, provider goai.Provider, id string, want
 			t.Errorf("%s = %q (present=%t, nil=%t); want %q (nil=%t)", level, ptrValue(got), ok, got == nil, ptrValue(expected), expected == nil)
 		}
 	}
-}
-
-// Load a detached, archived model without adding it to the live registry.
-func loadHistoricalCompletionsModel(t *testing.T, file string, records int, provider goai.Provider, id string) goai.Model {
-	t.Helper()
-	data, err := os.ReadFile("testdata/" + file)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var fixture struct {
-		UpstreamCommit string `json:"upstreamCommit"`
-		Models         []struct {
-			goai.Model
-			Compat *goai.OpenAICompletionsCompat `json:"compat"`
-		} `json:"models"`
-	}
-	if err := json.Unmarshal(data, &fixture); err != nil {
-		t.Fatal(err)
-	}
-	if fixture.UpstreamCommit != "faac585884ae2c013a6b1400f3e9e77f10b34bac" || len(fixture.Models) != records {
-		t.Fatalf("invalid v1.6.0 fixture %s", file)
-	}
-	for _, entry := range fixture.Models {
-		if entry.Provider == provider && entry.ID == id && entry.Api == goai.ApiOpenAICompletions && entry.Compat != nil {
-			entry.Model.CompletionsCompat = entry.Compat
-			return entry.Model
-		}
-	}
-	t.Fatalf("missing historical Completions record %s/%s in %s", provider, id, file)
-	return goai.Model{}
 }
 
 func qwenStreamPayload(t *testing.T, provider goai.Provider, id string, effort goai.ThinkingLevel) map[string]json.RawMessage {
