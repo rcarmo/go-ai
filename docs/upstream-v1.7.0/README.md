@@ -35,7 +35,7 @@ Before retargeting, four focused native tests passed on `3c59c42f` with Go 1.27.
 | Codemode | [Published portable batching](codemode-portable-batching.md): 5,000 ordered console items, six exchanges, same published distribution and QuickJS WASM as v1.6.1. |
 | Dependencies and release | [Exact closure and release receipt](dependencies/README.md): 305 npm slots, six links, 547 edges, 122 installer placements, ten publisher packages and eight release artifacts independently verified. Both Linux arm64 binaries passed an offline `--version` and Codemode smoke. |
 | Durable | [Grouped SQLite visibility and reopened heads](durable-storage.md). Chord-only assertions remain unmatched. |
-| Schema | [Prepared absolute IRI](schema-prepared-iri.md): 26 vectors; legacy and tool validation policy is unchanged. |
+| Schema | [Prepared absolute IRI](schema-prepared-iri.md): 26 vectors; [prepared IDN-email](schema-prepared-idn-email.md): 24 vectors with bounded QuickJS host input. Legacy and tool validation policy is unchanged. |
 | Radius | [Image discovery diagnostic](radius-image-discovery.md): ten unchanged originals passed. Explicit native image requests work; shared live refresh and cache-only discovery are still chat-only. |
 
 ## Integrated checkpoint

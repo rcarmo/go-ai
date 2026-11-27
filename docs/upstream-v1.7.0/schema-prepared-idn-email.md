@@ -1,0 +1,13 @@
+# Prepared Schema IDN-email format checks
+
+## Pinned source and native behavior
+
+The v1.7.0 source pin is `fb0fe823539f6d04850f6e34748c01f01f212e1f`; this lane begins at exact native base `15d9040d37157d03fc739d82b89d8a9ad25aa5be`. The retained `draft2020-12/optional/format/idn-email.json` fixture has 24 vectors and SHA-256 `800790e2d8122c05d2fbb5ebcd2d84c80979ceefb03c0f8dc7e307c35a975672`. The pinned conformance runner is `packages/schema/test/conformance.test.ts`, SHA-256 `c8a4ff57f6a93a380b9ac1020ad6fc1cb8ce1805657fd4b761ede18340f3fcf0`. The assertion ledger records all 48 L40/L45 fixture locators.
+
+Implementation commit `5c21690e7bd5420a78c09e66571a4dcaa6b91d24` uses the exact pinned TypeBox IDN-email expression through the isolated QuickJS ECMAScript `/iu` path, with NFC normalization before matching. The format remains opt-in: prepared default annotation checks, legacy checks and tool validation retain their prior behavior. The 24 retained vectors cover integer/float/object/array/boolean/null annotations, Unicode local parts, NFC normalization, quoted local parts, C1 and noncharacter values, supplementary characters, label rules and required domains.
+
+Review added a host-input preflight to both the schema matcher and direct QuickJS regexp bridge. Pattern plus candidate input is bounded by the existing 4 MiB schema input limit before guest allocation or copying. Over-limit input is an error rather than a validity result. A pre-change control on each supplied shape—an overlong local part and an overlong domain—entered QuickJS and returned the non-specific `regexp compiler initialization or execution failed`; the completed implementation returns the deterministic `schema regexp input exceeds 4194304-byte limit` from both `Check` and `Explain`. Existing in-bounds invalid values remain format failures rather than checker errors.
+
+`TestSourceV170SchemaPreparedIDNEmailFormatConformance` uses the existing neutral prepared-format suite and checks validity, diagnostic agreement, exact records and default annotation behavior for every retained vector. Boundary tests cover NFC case-folding, quoted local syntax, label length, hyphens, address literals, trailing newline and the oversized host-local/domain controls. The existing legacy/tool-policy control remains enabled, and the pattern memoization test distinguishes `/iu` from plain `/u` behavior.
+
+Focused root and QuickJS `Schema|RegExp` tests passed twice with `-shuffle=42 -count=2`, followed by `go vet ./...` and Staticcheck v0.8.2. Go commands used `CGO_ENABLED=0` and the project environment. No network, provider credentials or release publication was used. The evidence is limited to this pinned fixture, these prepared-schema controls and the local static gates.
