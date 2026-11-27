@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -68,6 +69,38 @@ func TestQuickJS130CapacityReleasedOnActualExit(t *testing.T) {
 				t.Fatal("Execute returned before exit")
 			}
 		})
+	}
+}
+
+// Source: pi v1.7.0 packages/codemode/test/worker-lifetime.test.ts:34-51.
+// The native failure point is a closed, precompiled WASM module: Node's worker
+// constructor and Go's module instantiation are different hosts, but both fail
+// after capacity admission and before the worker-start notification.
+func TestSourceV170CapacityReleasedOnModuleConstructionFailure(t *testing.T) {
+	engine, err := NewEngine(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer engine.Close(context.Background())
+	if err := engine.compiled.Close(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	var acquired, released, started int
+	result := engine.Execute(context.Background(), `return 1`, Options{
+		AcquireWorker: func() (func(), error) {
+			acquired++
+			return func() { released++ }, nil
+		},
+		OnWorkerStarted: func(<-chan struct{}) error {
+			started++
+			return nil
+		},
+	})
+	if result.Error == nil || result.Error.Kind != ErrorSandbox || !strings.Contains(result.Error.Message, "Failed to start QuickJS:") {
+		t.Errorf("construction failure=%+v", result.Error)
+	}
+	if acquired != 1 || released != 1 || started != 0 {
+		t.Errorf("acquired=%d, released=%d, started=%d; want 1, 1 and 0", acquired, released, started)
 	}
 }
 
