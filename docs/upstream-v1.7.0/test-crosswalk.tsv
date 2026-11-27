@@ -257,7 +257,7 @@ packages/durable/test/harness-registry.test.ts	unchanged	present	0	0	0	0	0	0
 packages/durable/test/harness-reports.test.ts	unchanged	present	0	0	0	0	0	0
 packages/durable/test/harness-restart-failure.test.ts	unchanged	present	0	0	0	0	0	0
 packages/durable/test/harness-run-failure.test.ts	unchanged	present	0	0	0	0	0	0
-packages/durable/test/harness-scheduler-indexes.test.ts	unchanged	present	0	0	0	0	0	0
+packages/durable/test/harness-scheduler-indexes.test.ts	unchanged	present	1	1	1	0	0	0
 packages/durable/test/harness-scheduler-retention.test.ts	unchanged	present	0	0	0	0	0	0
 packages/durable/test/harness-signals.test.ts	unchanged	present	0	0	0	0	0	0
 packages/durable/test/harness-sleep.test.ts	unchanged	present	0	0	0	0	0	0
