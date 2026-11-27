@@ -55,7 +55,10 @@ func applyAnthropicUsage(usage *goai.Usage, raw *anthropicUsage, model *goai.Mod
 	usage.TotalTokens = usage.Input + usage.Output + usage.CacheRead + usage.CacheWrite
 	computeCosts(usage, model)
 	// Upstream applies billed accounting on deltas, not message_start.
-	if !initial && raw != nil && openroutercost.IsModel(model) {
-		openroutercost.Apply(usage, raw.Accounting)
+	if !initial && raw != nil && model != nil && openroutercost.IsModel(string(model.Provider), model.BaseURL) {
+		if total, ok := openroutercost.BilledTotal(raw.Accounting); ok {
+			usage.Cost.Total = total
+			usage.Cost.TotalFromProvider = &ok
+		}
 	}
 }

@@ -8,8 +8,6 @@ import (
 	"encoding/json"
 	"math"
 	"strings"
-
-	goai "github.com/rcarmo/go-ai"
 )
 
 type Accounting struct {
@@ -18,8 +16,8 @@ type Accounting struct {
 	CostDetails json.RawMessage `json:"cost_details,omitempty"`
 }
 
-func IsModel(model *goai.Model) bool {
-	return model != nil && (model.Provider == "openrouter" || strings.Contains(model.BaseURL, "openrouter.ai"))
+func IsModel(provider, baseURL string) bool {
+	return provider == "openrouter" || strings.Contains(baseURL, "openrouter.ai")
 }
 
 func validCost(raw json.RawMessage) (float64, bool) {
@@ -34,15 +32,12 @@ func validCost(raw json.RawMessage) (float64, bool) {
 	return value, !math.IsNaN(value) && !math.IsInf(value, 0) && value >= 0
 }
 
-// Apply changes only the total and its provenance, never the catalogue's cost
-// components. server_tool_cost is already included in cost, so is not added.
-func Apply(usage *goai.Usage, reported Accounting) {
-	if usage == nil {
-		return
-	}
+// BilledTotal returns the authoritative total when the wire accounting is
+// sufficient. server_tool_cost is already included in cost, so is not added.
+func BilledTotal(reported Accounting) (float64, bool) {
 	cost, ok := validCost(reported.Cost)
 	if !ok {
-		return
+		return 0, false
 	}
 	switch string(bytes.TrimSpace(reported.IsBYOK)) {
 	case "false":
@@ -53,26 +48,24 @@ func Apply(usage *goai.Usage, reported Accounting) {
 			Completion json.RawMessage `json:"upstream_inference_completions_cost"`
 		}
 		if json.Unmarshal(reported.CostDetails, &details) != nil {
-			return
+			return 0, false
 		}
 		upstream, valid := validCost(details.Total)
 		if bytes.Equal(bytes.TrimSpace(details.Total), []byte("null")) {
 			prompt, p := validCost(details.Prompt)
 			completion, c := validCost(details.Completion)
 			if !p || !c {
-				return
+				return 0, false
 			}
 			upstream = prompt + completion
 			valid = !math.IsInf(upstream, 0)
 		}
 		if !valid {
-			return
+			return 0, false
 		}
 		cost += upstream
 	default:
-		return
+		return 0, false
 	}
-	usage.Cost.Total = cost
-	fromProvider := true
-	usage.Cost.TotalFromProvider = &fromProvider
+	return cost, true
 }

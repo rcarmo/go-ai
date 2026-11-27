@@ -1,8 +1,9 @@
-package openroutercost
+package openroutercost_test
 
 import (
 	"encoding/json"
 	goai "github.com/rcarmo/go-ai"
+	"github.com/rcarmo/go-ai/internal/openroutercost"
 	"testing"
 )
 
@@ -11,7 +12,7 @@ var benchmarkUsage goai.Usage
 func BenchmarkReportedCostMain(b *testing.B) {
 	for _, test := range []struct{ name, wire string }{{"non-byok", `{"cost":0.1,"is_byok":false}`}, {"byok-components", `{"cost":0.1,"is_byok":true,"cost_details":{"upstream_inference_cost":null,"upstream_inference_prompt_cost":0.6,"upstream_inference_completions_cost":0.3}}`}} {
 		b.Run(test.name, func(b *testing.B) {
-			var reported Accounting
+			var reported openroutercost.Accounting
 			if err := json.Unmarshal([]byte(test.wire), &reported); err != nil {
 				b.Fatal(err)
 			}
@@ -19,7 +20,10 @@ func BenchmarkReportedCostMain(b *testing.B) {
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				usage := goai.Usage{Cost: goai.CostBreakdown{Total: 1}}
-				Apply(&usage, reported)
+				if total, ok := openroutercost.BilledTotal(reported); ok {
+					usage.Cost.Total = total
+					usage.Cost.TotalFromProvider = &ok
+				}
 				benchmarkUsage = usage
 			}
 		})

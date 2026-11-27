@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/rcarmo/go-ai/internal/openroutercost"
 )
 
 type ClassifierResult struct {
@@ -244,7 +246,21 @@ func classifySystemOne(transport systemOneTransport, model *ClassifierModel, cla
 			}
 		}
 	}
+	if transport.api == ClassifierApiTypeSafeSystemOne {
+		out.ResponseID, _ = decoded["id"].(string)
+	}
 	if usage := parseClassifierUsage(decoded["usage"], model); usage != nil {
+		if transport.api == ClassifierApiTypeSafeSystemOne && openroutercost.IsModel(string(model.Provider), model.BaseURL) {
+			// Keep missing, null and wrongly typed accounting fields distinct.
+			wireUsage, err := json.Marshal(decoded["usage"])
+			var accounting openroutercost.Accounting
+			if err == nil && json.Unmarshal(wireUsage, &accounting) == nil {
+				if total, ok := openroutercost.BilledTotal(accounting); ok {
+					usage.Cost.Total = total
+					usage.Cost.TotalFromProvider = &ok
+				}
+			}
+		}
 		out.Usage = usage
 	}
 	answers, err := parseClassifierAnswers(transport.label, decoded["answers"], classCtx)

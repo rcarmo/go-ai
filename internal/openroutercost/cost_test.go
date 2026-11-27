@@ -1,8 +1,9 @@
-package openroutercost
+package openroutercost_test
 
 import (
 	"encoding/json"
 	goai "github.com/rcarmo/go-ai"
+	"github.com/rcarmo/go-ai/internal/openroutercost"
 	"math"
 	"testing"
 )
@@ -35,13 +36,16 @@ func TestReportedCostMainContract(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			var reported Accounting
+			var reported openroutercost.Accounting
 			if err := json.Unmarshal([]byte(test.wire), &reported); err != nil {
 				t.Fatal(err)
 			}
 			estimated := false
 			usage := &goai.Usage{Cost: goai.CostBreakdown{Input: .25, Output: .75, Total: 1, TotalFromProvider: &estimated}}
-			Apply(usage, reported)
+			if total, ok := openroutercost.BilledTotal(reported); ok {
+				usage.Cost.Total = total
+				usage.Cost.TotalFromProvider = &ok
+			}
 			if math.Abs(usage.Cost.Total-test.want) > 1e-12 || *usage.Cost.TotalFromProvider != test.applied || usage.Cost.Input != .25 || usage.Cost.Output != .75 {
 				t.Fatalf("cost=%+v flag=%v", usage.Cost, *usage.Cost.TotalFromProvider)
 			}
@@ -54,7 +58,7 @@ func TestModelAndCatalogueProvenanceMain(t *testing.T) {
 		provider, base string
 		want           bool
 	}{{"openrouter", "https://example.com", true}, {"openrouter-work", "https://openrouter.ai/api/v1", true}, {"custom", "https://example.com/v1", false}} {
-		if IsModel(&goai.Model{Provider: goai.Provider(test.provider), BaseURL: test.base}) != test.want {
+		if openroutercost.IsModel(test.provider, test.base) != test.want {
 			t.Fatal(test)
 		}
 	}

@@ -1570,8 +1570,11 @@ func applyUsage(usage *goai.Usage, raw *sseUsage, model *goai.Model) {
 		usage.Reasoning = raw.ReasoningTokens
 	}
 	computeCosts(usage, model)
-	if openroutercost.IsModel(model) {
-		openroutercost.Apply(usage, raw.Accounting)
+	if model != nil && openroutercost.IsModel(string(model.Provider), model.BaseURL) {
+		if total, ok := openroutercost.BilledTotal(raw.Accounting); ok {
+			usage.Cost.Total = total
+			usage.Cost.TotalFromProvider = &ok
+		}
 	}
 }
 
