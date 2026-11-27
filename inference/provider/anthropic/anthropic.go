@@ -454,7 +454,9 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 			attempt.Body = io.NopCloser(bytes.NewReader(payload))
 			attempt.ContentLength = int64(len(payload))
 			attempt.GetBody = func() (io.ReadCloser, error) { return io.NopCloser(bytes.NewReader(payload)), nil }
-			return goai.DoProviderRequestWithRetry(ctx, client, attempt, retryCfg)
+			return goai.DoObservedProviderStreamRequest(ctx, client, attempt, retryCfg, opts, func(response *http.Response) {
+				goai.InvokeOnResponse(opts, response, model)
+			})
 		}
 		sendRequest := func(full []byte) (*http.Response, error) {
 			thread = nil

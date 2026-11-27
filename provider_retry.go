@@ -53,6 +53,19 @@ func DoProviderRequestWithRetry(ctx context.Context, client *http.Client, req *h
 	return doProviderRequestWithRetry(ctx, client, req, cfg, nil, false)
 }
 
+// DoObservedProviderStreamRequest honors the adapter's explicit retry limit and
+// reports HTTP responses the retry loop discards. The caller still owns and
+// reports the final response. Native RetryConfig retains its precedence.
+func DoObservedProviderStreamRequest(ctx context.Context, client *http.Client, req *http.Request, cfg RetryConfig, opts *StreamOptions, onRetryResponse func(*http.Response)) (*http.Response, error) {
+	if opts != nil && opts.RetryConfig == nil && opts.MaxRetries != nil {
+		cfg.MaxRetries = max(0, *opts.MaxRetries)
+		if opts.MaxRetryDelayMs == nil {
+			cfg.MaxRetryDelayMs = DefaultRetryConfig().MaxRetryDelayMs
+		}
+	}
+	return doProviderRequestWithRetryObserved(ctx, client, req, cfg, nil, false, onRetryResponse)
+}
+
 var errClassifierAttemptDeadline = errors.New("classifier attempt deadline")
 
 // The caller owns cancel until it transfers ownership to the response body.
@@ -91,6 +104,10 @@ func classifierAttemptError(err error, caller, attempt context.Context, timeout 
 }
 
 func doProviderRequestWithRetry(ctx context.Context, client *http.Client, req *http.Request, cfg RetryConfig, noRetryStatuses []int, stopOnTransportError bool) (*http.Response, error) {
+	return doProviderRequestWithRetryObserved(ctx, client, req, cfg, noRetryStatuses, stopOnTransportError, nil)
+}
+
+func doProviderRequestWithRetryObserved(ctx context.Context, client *http.Client, req *http.Request, cfg RetryConfig, noRetryStatuses []int, stopOnTransportError bool, onRetryResponse func(*http.Response)) (*http.Response, error) {
 	attemptTimeout := cfg.RequestTimeout
 	cfg.applyDefaults()
 	if client == nil {
@@ -168,6 +185,9 @@ func doProviderRequestWithRetry(ctx context.Context, client *http.Client, req *h
 				headers = make(http.Header)
 			}
 			headers.Set("x-should-retry", "true")
+		}
+		if onRetryResponse != nil {
+			onRetryResponse(resp)
 		}
 		resp.Body.Close()
 		return nil, &ProviderRequestError{Status: resp.StatusCode, Headers: headers, Message: fmt.Sprintf("HTTP %d", resp.StatusCode)}

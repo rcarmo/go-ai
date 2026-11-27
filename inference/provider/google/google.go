@@ -171,7 +171,19 @@ func streamGoogle(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 			client.Transport = http.DefaultTransport
 		}
 		goai.GetLogger().Debug("HTTP request", "url", req.URL.String(), "provider", model.Provider, "model", model.ID, "retries", retryCfg.MaxRetries)
-		resp, err := doGoogleRequest(ctx, client, req, retryCfg, opts)
+		observed := model.Api == goai.ApiGoogleGenerativeAI && (opts == nil || opts.RetryConfig == nil)
+		reportResponse := func(response *http.Response) {
+			if observed && (response.StatusCode < 200 || response.StatusCode >= 300) {
+				// The GenAI SDK error contains a status but no response headers.
+				response = &http.Response{StatusCode: response.StatusCode}
+			}
+			goai.InvokeOnResponse(opts, response, model)
+		}
+		var onRetryResponse func(*http.Response)
+		if observed {
+			onRetryResponse = reportResponse
+		}
+		resp, err := doGoogleRequest(ctx, client, req, retryCfg, opts, onRetryResponse)
 		if err != nil {
 			if ctx.Err() != nil {
 				goai.GetLogger().Debug("request aborted", "provider", model.Provider, "model", model.ID)
@@ -187,7 +199,7 @@ func streamGoogle(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 		}
 		defer resp.Body.Close()
 
-		goai.InvokeOnResponse(opts, resp, model)
+		reportResponse(resp)
 
 		if resp.StatusCode != 200 {
 			goai.GetLogger().Warn("HTTP error response", "status", resp.StatusCode, "provider", model.Provider, "model", model.ID)

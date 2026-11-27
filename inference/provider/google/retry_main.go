@@ -2,8 +2,9 @@ package google
 
 import (
 	"context"
-	goai "github.com/rcarmo/go-ai"
 	"net/http"
+
+	goai "github.com/rcarmo/go-ai"
 )
 
 func googleRetryConfig(opts *goai.StreamOptions) goai.RetryConfig {
@@ -24,9 +25,12 @@ func googleRetryConfig(opts *goai.StreamOptions) goai.RetryConfig {
 	return cfg
 }
 
-func doGoogleRequest(ctx context.Context, client *http.Client, req *http.Request, cfg goai.RetryConfig, opts *goai.StreamOptions) (*http.Response, error) {
+func doGoogleRequest(ctx context.Context, client *http.Client, req *http.Request, cfg goai.RetryConfig, opts *goai.StreamOptions, onRetryResponse func(*http.Response)) (*http.Response, error) {
 	if opts != nil && opts.RetryConfig != nil {
 		return goai.DoWithRetry(ctx, client, req, cfg)
+	}
+	if onRetryResponse != nil {
+		return goai.DoObservedProviderStreamRequest(ctx, client, req, cfg, opts, onRetryResponse)
 	}
 	return goai.DoProviderRequestWithRetry(ctx, client, req, cfg)
 }

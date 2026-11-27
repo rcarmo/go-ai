@@ -181,7 +181,9 @@ func streamOpenAIWithReasoningMode(ctx context.Context, model *goai.Model, convC
 			client.Transport = opts.HTTPTransport
 		}
 		goai.GetLogger().Debug("HTTP request", "url", req.URL.String(), "provider", model.Provider, "model", model.ID, "retries", retryCfg.MaxRetries)
-		resp, err := goai.DoProviderRequestWithRetry(ctx, client, req, retryCfg)
+		resp, err := goai.DoObservedProviderStreamRequest(ctx, client, req, retryCfg, opts, func(response *http.Response) {
+			goai.InvokeOnResponse(opts, response, model)
+		})
 		if err != nil {
 			if ctx.Err() != nil {
 				goai.GetLogger().Debug("request aborted", "provider", model.Provider, "model", model.ID)
