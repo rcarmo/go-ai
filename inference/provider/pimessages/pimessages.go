@@ -94,9 +94,16 @@ func stream(ctx context.Context, model *goai.Model, convCtx *goai.Context, opts 
 			send(createErrorEvent(model, newResponseError(model, u.String(), resp, string(b)), false))
 			return
 		}
-		sawTerminal := false
-		convert := newConverter(model)
-		for ev := range sse.Parse(resp.Body) {
+		var observe func(any, *goai.Model) error
+		if opts != nil {
+			observe = opts.OnProviderStreamEvent
+		}
+		convert := newConverter(model, observe)
+		// The HTTP request owns cancellation of Read. Stop the parser's channel
+		// sends as well when a terminal event or hook ends the stream early.
+		readerCtx, stopReader := context.WithCancel(context.Background())
+		defer stopReader()
+		for ev := range sse.ParseContext(readerCtx, resp.Body) {
 			if ev.Event == sse.EventError {
 				send(createErrorEvent(model, fmt.Errorf("%s", ev.Data), false))
 				return
@@ -113,13 +120,10 @@ func stream(ctx context.Context, model *goai.Model, convCtx *goai.Context, opts 
 				send(out)
 			}
 			if terminal {
-				sawTerminal = true
 				return
 			}
 		}
-		if !sawTerminal {
-			send(createErrorEvent(model, fmt.Errorf("%s stream ended without a terminal event", model.Provider), false))
-		}
+		send(createErrorEvent(model, fmt.Errorf("%s stream ended without a terminal event", model.Provider), false))
 	}()
 	return ch
 }
@@ -213,13 +217,21 @@ func createErrorEvent(model *goai.Model, err error, aborted bool) goai.Event {
 	return &goai.ErrorEvent{Reason: reason, Error: msg, Err: err}
 }
 
-func newConverter(model *goai.Model) func([]byte) (goai.Event, bool, error) {
+func newConverter(model *goai.Model, observe func(any, *goai.Model) error) func([]byte) (goai.Event, bool, error) {
 	partial := &goai.Message{Role: goai.RoleAssistant, Api: model.Api, Provider: model.Provider, Model: model.ID, Usage: emptyUsage(), StopReason: goai.StopReasonStop, Timestamp: time.Now().UnixMilli()}
 	toolJSON := map[int]string{}
 	return func(data []byte) (goai.Event, bool, error) {
 		var e map[string]any
 		if err := json.Unmarshal(data, &e); err != nil {
 			return nil, false, err
+		}
+		if e == nil { // A JSON null is a wire no-op, not a start event.
+			return nil, false, nil
+		}
+		if observe != nil {
+			if err := observe(e, model); err != nil {
+				return nil, false, err
+			}
 		}
 		typ, _ := e["type"].(string)
 		idx := int(num(e["contentIndex"]))

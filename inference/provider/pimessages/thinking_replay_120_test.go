@@ -10,7 +10,7 @@ func TestPiMessages120TerminalPreservesProviderThinkingLevel(t *testing.T) {
 	for _, terminal := range []string{"done", "error"} {
 		for _, level := range []string{"high", ""} {
 			t.Run(terminal+"/"+level, func(t *testing.T) {
-				convert := newConverter(&goai.Model{ID: "claude-opus-5-5", Provider: "radius", Api: goai.ApiPiMessages})
+				convert := newConverter(&goai.Model{ID: "claude-opus-5-5", Provider: "radius", Api: goai.ApiPiMessages}, nil)
 				for _, raw := range []string{`{"type":"thinking_start","contentIndex":0}`, `{"type":"thinking_end","contentIndex":0,"content":"reasoning","contentSignature":"opaque-signature"}`} {
 					if _, _, err := convert([]byte(raw)); err != nil {
 						t.Fatal(err)

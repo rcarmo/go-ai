@@ -6,7 +6,7 @@ import (
 )
 
 func TestPiMessages130ToolEndPreservesArgumentError(t *testing.T) {
-	convert := newConverter(&goai.Model{Api: goai.ApiPiMessages, Provider: "test", ID: "model"})
+	convert := newConverter(&goai.Model{Api: goai.ApiPiMessages, Provider: "test", ID: "model"}, nil)
 	if _, _, err := convert([]byte(`{"type":"toolcall_start","contentIndex":0,"id":"call","name":"leaf"}`)); err != nil {
 		t.Fatal(err)
 	}
