@@ -15,8 +15,8 @@ func TestV101CatalogTypedCountsAndNewClassifierPrices(t *testing.T) {
 	goai.RegisterBuiltinModels()
 	goai.RegisterBuiltinImageModels()
 	goai.RegisterBuiltinClassifierModels()
-	// Current v1.6.1 catalogue: independently checked against all published records.
-	for kind, count := range map[goai.ModelType]int{goai.ModelTypeChat: 1696, goai.ModelTypeImage: 74, goai.ModelTypeClassifier: 81} {
+	// These live typed counts use the shared published catalog expectations.
+	for kind, count := range map[goai.ModelType]int{goai.ModelTypeChat: publishedChatModels, goai.ModelTypeImage: publishedImageModels, goai.ModelTypeClassifier: publishedClassifierModels} {
 		if got := len(goai.ListTypedModels(kind, "")); got != count {
 			t.Fatalf("%s count=%d want=%d", kind, got, count)
 		}
@@ -30,11 +30,21 @@ func TestV101CatalogTypedCountsAndNewClassifierPrices(t *testing.T) {
 			t.Fatalf("classifier %s=%#v", id, m)
 		}
 	}
-	if m := goai.GetModel(goai.ProviderTogether, "deepseek-ai/DeepSeek-V4-Pro"); m != nil {
-		t.Fatalf("removed Together model=%#v", m)
+	for _, id := range []string{"deepseek-ai/DeepSeek-V4-Pro", "deepseek-ai/DeepSeek-V4-Pro-0813"} {
+		if m := goai.GetModel(goai.ProviderTogether, id); m != nil {
+			t.Fatalf("removed Together model %s=%#v", id, m)
+		}
 	}
-	if m := goai.GetModel(goai.ProviderTogether, "deepseek-ai/DeepSeek-V4-Pro-0813"); m == nil || m.ThinkingLevelMap == nil {
-		t.Fatalf("replacement Together=%#v", m)
+	// The published Together catalog keeps the dated V4.1 Flash with these explicit nil levels.
+	const flashID = "deepseek-ai/DeepSeek-V4.1-Flash-1017"
+	flash := goai.GetModel(goai.ProviderTogether, flashID)
+	if flash == nil || !flash.Reasoning || len(flash.ThinkingLevelMap) != 3 {
+		t.Fatalf("Together %s=%#v", flashID, flash)
+	}
+	for _, level := range []goai.ModelThinkingLevel{"minimal", "low", "medium"} {
+		if got, ok := flash.ThinkingLevelMap[level]; !ok || got != nil {
+			t.Errorf("Together %s %s = %v, present=%t; want explicit nil", flashID, level, got, ok)
+		}
 	}
 	for _, id := range []string{"claude-opus-4-6", "claude-sonnet-4-6"} {
 		if goai.GetModel(goai.ProviderCloudflareAIGateway, id) == nil {

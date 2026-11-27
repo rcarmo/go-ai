@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -15,11 +16,12 @@ import (
 // Source: pi v1.6.0 packages/ai/test/qwen-token-plan-models.test.ts:143,151,188,195,287.
 func TestQwenTokenPlanModelsExposeTextAndOmitImageModels(t *testing.T) {
 	goai.RegisterBuiltinModels()
-	team := []string{"MiniMax-M2.5", "deepseek-v4-pro", "glm-5", "glm-5.1", "glm-5.2", "kimi-k2.5", "kimi-k2.6", "kimi-k2.7-code", "qwen3.6-flash", "qwen3.6-plus", "qwen3.7-max", "qwen3.7-plus", "qwen3.8-flash", "qwen3.8-max"}
-	individual := []string{"deepseek-v4-flash-0731", "deepseek-v4-pro", "deepseek-v4-pro-0813", "deepseek-v4.1-flash", "deepseek-v4.1-flash-1017", "glm-5.2", "glm-5.3", "qwen3.6-flash", "qwen3.7-max", "qwen3.7-plus", "qwen3.8-flash", "qwen3.8-max", "qwen4-max-preview"}
+	// The current published catalogs replace qwen4-max-preview with qwen4-max in all four plans.
+	team := []string{"MiniMax-M2.5", "deepseek-v4-pro", "glm-5", "glm-5.1", "glm-5.2", "kimi-k2.5", "kimi-k2.6", "kimi-k2.7-code", "qwen3.6-flash", "qwen3.6-plus", "qwen3.7-max", "qwen3.7-plus", "qwen3.8-flash", "qwen3.8-max", "qwen4-max"}
+	individual := []string{"deepseek-v4-flash-0731", "deepseek-v4-pro", "deepseek-v4-pro-0813", "deepseek-v4.1-flash", "deepseek-v4.1-flash-1017", "glm-5.2", "glm-5.3", "qwen3.6-flash", "qwen3.7-max", "qwen3.7-plus", "qwen3.8-flash", "qwen3.8-max", "qwen4-max"}
 	slices.Sort(individual)
 	imageModels := []string{"qwen-image-2.0", "qwen-image-2.0-pro", "wan2.7-image", "wan2.7-image-pro"}
-	retired := []string{"qwen3.8-max-preview", "deepseek-v3.2", "deepseek-v4-flash"}
+	retired := []string{"qwen3.8-max-preview", "qwen4-max-preview", "deepseek-v3.2", "deepseek-v4-flash"}
 	for _, tc := range []struct {
 		provider      goai.Provider
 		individualURL string
@@ -34,8 +36,7 @@ func TestQwenTokenPlanModelsExposeTextAndOmitImageModels(t *testing.T) {
 			ids := make([]string, 0, len(models))
 			for _, model := range models {
 				ids = append(ids, model.ID)
-				// Preserve the existing supplemental catalog metadata checks. The
-				// Individual URLs come from the exact v1.6.0 archive records.
+				// The Individual endpoints come from the current published catalog.
 				if model.Api != goai.ApiOpenAICompletions || model.Provider != tc.provider || tc.individualURL != "" && model.BaseURL != tc.individualURL {
 					t.Fatalf("unexpected %s model route: %s %s %s", tc.provider, model.ID, model.Api, model.BaseURL)
 				}
@@ -123,7 +124,7 @@ func TestQwenTokenPlanEnvKeys(t *testing.T) {
 // Source: pi v1.6.0 packages/ai/test/qwen-token-plan-models.test.ts:203-285,300-365.
 func TestSourceV160QwenTokenPlanReasoning(t *testing.T) {
 	teamThinking := []string{"deepseek-v4-pro", "glm-5", "glm-5.1", "glm-5.2", "kimi-k2.5", "kimi-k2.6", "kimi-k2.7-code", "qwen3.6-flash", "qwen3.6-plus", "qwen3.7-max", "qwen3.7-plus", "qwen3.8-flash", "qwen3.8-max"}
-	individualThinking := []string{"deepseek-v4-flash-0731", "deepseek-v4-pro", "deepseek-v4-pro-0813", "deepseek-v4.1-flash", "deepseek-v4.1-flash-1017", "glm-5.2", "glm-5.3", "qwen3.6-flash", "qwen3.7-max", "qwen3.7-plus", "qwen3.8-flash", "qwen3.8-max", "qwen4-max-preview"}
+	individualThinking := []string{"deepseek-v4-flash-0731", "deepseek-v4-pro", "deepseek-v4-pro-0813", "deepseek-v4.1-flash", "deepseek-v4.1-flash-1017", "glm-5.2", "glm-5.3", "qwen3.6-flash", "qwen3.7-max", "qwen3.7-plus", "qwen3.8-flash", "qwen3.8-max", "qwen4-max"}
 	teamEffort := []string{"deepseek-v4-pro", "glm-5", "glm-5.1", "glm-5.2"}
 	individualEffort := []string{"deepseek-v4-flash-0731", "deepseek-v4-pro", "deepseek-v4-pro-0813", "glm-5.2", "glm-5.3"}
 	low, medium, high, xhigh, max := "low", "medium", "high", "xhigh", "max"
@@ -148,6 +149,16 @@ func TestSourceV160QwenTokenPlanReasoning(t *testing.T) {
 			for _, id := range p.thinking {
 				t.Run("thinking-fields/"+id, func(t *testing.T) {
 					payload := qwenStreamPayload(t, p.provider, id, goai.ThinkingHigh)
+					assertQwenField(t, payload, "enable_thinking", "true")
+					assertQwenField(t, payload, "thinking", "")
+				})
+			}
+			if p.provider == goai.ProviderQwenTokenPlanIndividual || p.provider == "qwen-token-plan-individual-cn" {
+				// The retired preview's high level was disabled; keep that wire case separate from the live successor.
+				t.Run("historical-thinking-fields/qwen4-max-preview", func(t *testing.T) {
+					preview := loadHistoricalQwenPreview(t, p.provider)
+					payload := captureQwenPayload(t, preview, goai.ThinkingHigh)
+					assertQwenField(t, payload, "model", `"qwen4-max-preview"`)
 					assertQwenField(t, payload, "enable_thinking", "true")
 					assertQwenField(t, payload, "thinking", "")
 				})
@@ -191,9 +202,42 @@ func assertQwenThinkingMap(t *testing.T, provider goai.Provider, id string, want
 	}
 }
 
+func loadHistoricalQwenPreview(t *testing.T, provider goai.Provider) goai.Model {
+	t.Helper()
+	data, err := os.ReadFile("testdata/qwen-token-plan-preview-v160.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixture struct {
+		UpstreamCommit string `json:"upstreamCommit"`
+		Models         []struct {
+			goai.Model
+			Compat *goai.OpenAICompletionsCompat `json:"compat"`
+		} `json:"models"`
+	}
+	if err := json.Unmarshal(data, &fixture); err != nil {
+		t.Fatal(err)
+	}
+	if fixture.UpstreamCommit != "faac585884ae2c013a6b1400f3e9e77f10b34bac" || len(fixture.Models) != 2 {
+		t.Fatal("invalid v1.6.0 Qwen preview fixture")
+	}
+	for _, entry := range fixture.Models {
+		if entry.Provider == provider && entry.ID == "qwen4-max-preview" && entry.Compat != nil {
+			entry.Model.CompletionsCompat = entry.Compat
+			return entry.Model
+		}
+	}
+	t.Fatalf("missing v1.6.0 Qwen preview record for %s", provider)
+	return goai.Model{}
+}
+
 func qwenStreamPayload(t *testing.T, provider goai.Provider, id string, effort goai.ThinkingLevel) map[string]json.RawMessage {
 	t.Helper()
-	model := *requireModel(t, provider, id)
+	return captureQwenPayload(t, *requireModel(t, provider, id), effort)
+}
+
+func captureQwenPayload(t *testing.T, model goai.Model, effort goai.ThinkingLevel) map[string]json.RawMessage {
+	t.Helper()
 	if model.Api != goai.ApiOpenAICompletions {
 		t.Fatalf("unexpected API %q", model.Api)
 	}

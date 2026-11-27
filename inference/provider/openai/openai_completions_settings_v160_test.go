@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -156,13 +157,42 @@ func TestSourceV160CompletionsReasoningFormats(t *testing.T) {
 	}
 }
 
+// Load a detached, published v1.6.0 model. These retired IDs are not registered.
+func loadHistoricalAntLingModel(t *testing.T, id string) *goai.Model {
+	t.Helper()
+	data, err := os.ReadFile("testdata/ant-ling-retired-v160.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixture struct {
+		UpstreamCommit string `json:"upstreamCommit"`
+		Models         []struct {
+			goai.Model
+			Compat *goai.OpenAICompletionsCompat `json:"compat"`
+		} `json:"models"`
+	}
+	if err := json.Unmarshal(data, &fixture); err != nil {
+		t.Fatal(err)
+	}
+	if fixture.UpstreamCommit != "faac585884ae2c013a6b1400f3e9e77f10b34bac" || len(fixture.Models) != 2 {
+		t.Fatal("invalid v1.6.0 Ant-Ling fixture")
+	}
+	for _, entry := range fixture.Models {
+		if entry.ID == id && entry.Provider == "ant-ling" && entry.Api == goai.ApiOpenAICompletions && entry.Compat != nil {
+			entry.Model.CompletionsCompat = entry.Compat
+			return &entry.Model
+		}
+	}
+	t.Fatalf("missing v1.6.0 Ant-Ling fixture %s", id)
+	return nil
+}
+
 // Source: pi v1.6.0 openai-completions-tool-choice.test.ts:1900–1988.
 func TestSourceV160CompletionsAntLingSettings(t *testing.T) {
-	goai.RegisterBuiltinModels()
 	t.Setenv("PI_CACHE_RETENTION", "")
-	ring := promptCacheCatalogueV160(t, "ant-ling", "Ring-2.6-1T")
+	ring := loadHistoricalAntLingModel(t, "Ring-2.6-1T")
 	hi := completionsChoiceContextV160("Hi")
-	t.Run("catalogue and simple high", func(t *testing.T) {
+	t.Run("historical catalogue and simple high", func(t *testing.T) {
 		compat := ring.CompletionsCompat
 		if compat == nil {
 			t.Fatal("missing Ant Ling compat")
@@ -178,6 +208,7 @@ func TestSourceV160CompletionsAntLingSettings(t *testing.T) {
 		level, limit := goai.ThinkingHigh, 123
 		conv := &goai.Context{SystemPrompt: "Follow instructions.", Messages: hi.Messages}
 		got := captureCompletionsWireV160(t, ring, conv, goai.StreamOptions{Reasoning: &level, MaxTokens: &limit, CacheRetention: goai.CacheRetentionLong, SessionID: "ant-ling-session"})
+		assertCompletionsValueV160(t, got.payload, "model", "Ring-2.6-1T")
 		assertCompletionsValueV160(t, got.payload, "max_tokens", float64(123))
 		assertCompletionsValueV160(t, got.payload, "reasoning", map[string]any{"effort": "high"})
 		for _, field := range []string{"max_completion_tokens", "reasoning_effort", "store", "prompt_cache_key", "prompt_cache_retention"} {
@@ -202,17 +233,17 @@ func TestSourceV160CompletionsAntLingSettings(t *testing.T) {
 		got.field(t, "reasoning", "")
 	})
 	t.Run("non-reasoning model", func(t *testing.T) {
-		ling := promptCacheCatalogueV160(t, "ant-ling", "Ling-2.6-flash")
+		ling := loadHistoricalAntLingModel(t, "Ling-2.6-flash")
 		got := captureCompletionsEffortV160(t, ling, hi, goai.ThinkingHigh)
+		assertCompletionsValueV160(t, got.payload, "model", "Ling-2.6-flash")
 		got.field(t, "reasoning", "")
 	})
 }
 
 // Supplemental: the simple route still clamps a requested medium to high.
 func TestCompletionsAntLingSimpleClampV160(t *testing.T) {
-	goai.RegisterBuiltinModels()
 	t.Setenv("PI_CACHE_RETENTION", "")
-	model := promptCacheCatalogueV160(t, "ant-ling", "Ring-2.6-1T")
+	model := loadHistoricalAntLingModel(t, "Ring-2.6-1T")
 	got := captureCompletionsEffortV160(t, model, completionsChoiceContextV160("Hi"), goai.ThinkingMedium)
 	assertCompletionsValueV160(t, got.payload, "reasoning", map[string]any{"effort": "high"})
 }
