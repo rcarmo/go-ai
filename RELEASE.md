@@ -4,6 +4,8 @@ The active port targets official upstream **v1.6.1**, `ef4a1cfcca62b77ad3558337f
 
 [Rounds 10–12](docs/upstream-v1.6.1/README.md#rounds-1012-provider-scheduler-and-storage-comparisons) add verified provider metadata, tool-round limits, prepared formats and local Durable Object storage evidence. The combined code at `bc1753b02324865d82dc554a0f40c2556ecb081a` passed 125 focused tests across 14 packages, with vet and Staticcheck. The [changed-path disposition](docs/upstream-v1.6.1/upstream-disposition.tsv) and refreshed crosswalk describe the scope. Full parity and release acceptance remain open.
 
+The [final turn-limit comparison](docs/upstream-v1.6.1/README.md#final-turn-limit-comparison) executed the three remaining originals in the 11-case suite. The updated combined candidate `a4ef1b0d03f55323e18693881507b42a976f66fb` passed 128 focused Go tests across 14 packages, vet and Staticcheck. The scoped ledger and inventories reproduced from a fresh `main` checkout.
+
 ## Historical v1.5.0 evidence
 
 The target for the receipts below was official upstream **v1.5.0**, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Alignment is unverified. Older entries below are historical receipts, not compatibility requirements or v1.5.0 acceptance. Retained tests and active identity/schema/catalogue/regeneration pins must be reconciled with this release; obsolete behaviour must change.

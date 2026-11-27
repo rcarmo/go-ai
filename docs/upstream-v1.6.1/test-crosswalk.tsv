@@ -273,7 +273,7 @@ packages/durable/test/harness-tool-hooks.test.ts	unchanged	not-indexed	0	0	0	0	0
 packages/durable/test/harness-tool-parks.test.ts	M	scoped-open-sites	1	1	0	4	0	0
 packages/durable/test/harness-tools-recovery.test.ts	unchanged	not-indexed	0	0	0	0	0	0
 packages/durable/test/harness-tools.test.ts	M	not-indexed	0	0	0	0	0	0
-packages/durable/test/harness-turn-limit.test.ts	M	scoped-open-sites	8	8	25	1	0	0
+packages/durable/test/harness-turn-limit.test.ts	M	scoped-open-sites	11	11	34	1	0	0
 packages/durable/test/harness-view-run.test.ts	unchanged	not-indexed	0	0	0	0	0	0
 packages/durable/test/harness-view.test.ts	unchanged	not-indexed	0	0	0	0	0	0
 packages/durable/test/images-fit.test.ts	unchanged	not-indexed	0	0	0	0	0	0
