@@ -101,6 +101,7 @@ type workerReplayChangesV160 struct {
 	now              func() int64
 	beforeStart      func(*RemoteCodemodeSandbox)
 	beforeResume     func(context.Context, Storage, *RemoteCodemodeSandbox)
+	observeFinal     func(Snapshot, ID)
 }
 
 func runV160PublishedWorkerNestedReplay(t *testing.T, source string, changes workerReplayChangesV160) workerNestedReplayV160 {
@@ -290,7 +291,7 @@ func runPublishedWorkerNestedReplay(t *testing.T, packageRoot, source string, ch
 	if requests.Load() != 2 {
 		t.Errorf("model requests = %d; want 2", requests.Load())
 	}
-	if changes.unchangedJournal || changes.unchangedStart {
+	if changes.unchangedJournal || changes.unchangedStart || changes.observeFinal != nil {
 		final, err := next.Snapshot(ctx)
 		if err != nil {
 			t.Fatal(err)
@@ -304,8 +305,11 @@ func runPublishedWorkerNestedReplay(t *testing.T, packageRoot, source string, ch
 		if changes.unchangedStart {
 			after, found := final.Documents[beforeRun.ID]
 			if !found || !equalJSONValue(beforeRun.Value["start"], after.Value["start"]) {
-				t.Fatal("replay refusal changed the saved start", found)
+				t.Fatal("replay changed the saved start", found)
 			}
+		}
+		if changes.observeFinal != nil {
+			changes.observeFinal(final, conversation.ID())
 		}
 	}
 	page, err := next.Commit(ctx, func(tx *Tx) (any, error) {
