@@ -60,6 +60,8 @@ func TestAnthropicProviderStreamEventsForwardInOrder(t *testing.T) {
 
 func TestAnthropicReturnedModelIsSeparateFromRequestedModel(t *testing.T) {
 	body := "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_test\",\"model\":\"proxy-model\",\"usage\":{\"input_tokens\":1,\"output_tokens\":0}}}\n\n" +
+		"event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"thinking\",\"thinking\":\"reasoning\",\"signature\":\"signature\"}}\n\n" +
+		"event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n" +
 		"event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":1}}\n\n" +
 		"event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"
 	model := &goai.Model{ID: "claude-test", Provider: goai.ProviderAnthropic, Api: goai.ApiAnthropicMessages}
@@ -73,6 +75,10 @@ func TestAnthropicReturnedModelIsSeparateFromRequestedModel(t *testing.T) {
 		}
 		if done.Message.Model != model.ID || done.Message.ResponseModel != "proxy-model" {
 			t.Fatalf("model/responseModel = %q/%q, want %q/proxy-model", done.Message.Model, done.Message.ResponseModel, model.ID)
+		}
+		transformed := goai.TransformMessages([]goai.Message{*done.Message}, model)
+		if len(transformed) != 1 || len(transformed[0].Content) != 1 || transformed[0].Content[0].Type != "thinking" || transformed[0].Content[0].ThinkingSignature != "signature" {
+			t.Fatalf("replayed thinking = %#v", transformed)
 		}
 		return
 	}
