@@ -1,0 +1,12 @@
+{
+  "output": [{ "type": "image", "data": "iVBORw0KGgo=", "mimeType": "image/png" }],
+  "usage": {
+    "input": 12,
+    "output": 1290,
+    "cacheRead": 0,
+    "cacheWrite": 0,
+    "totalTokens": 1302,
+    "cost": { "input": 0.000004, "output": 0.003225, "cacheRead": 0, "cacheWrite": 0, "total": 0.003229, "totalFromProvider": true }
+  },
+  "responseId": "gen-img-radius-1"
+}

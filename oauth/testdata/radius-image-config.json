@@ -1,0 +1,32 @@
+{
+  "baseUrl": "https://radius.example/v1",
+  "models": [
+    {
+      "id": "balanced",
+      "name": "Fresh Balanced",
+      "reasoning": true,
+      "input": ["text"],
+      "cost": { "input": 1, "output": 2, "cacheRead": 0.1, "cacheWrite": 0 },
+      "contextWindow": 424242,
+      "maxTokens": 32000
+    },
+    {
+      "id": "organization-only",
+      "name": "Organization Only",
+      "reasoning": false,
+      "input": ["text"],
+      "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 },
+      "contextWindow": 128000,
+      "maxTokens": 16000
+    }
+  ],
+  "images": [
+    {
+      "id": "nano-banana",
+      "name": "Nano Banana",
+      "input": ["text", "image"],
+      "output": ["image", "text"],
+      "cost": { "input": 0.3, "output": 2.5, "cacheRead": 0.03, "cacheWrite": 0.083333 }
+    }
+  ]
+}
