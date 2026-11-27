@@ -1,0 +1,178 @@
+{
+  "closure": {
+    "pin": "ef4a1cfcca62b77ad3558337ff3e1c7f6beeadfe",
+    "lockSHA256": "f05391f49b31146692ff2ac76239d78a52fe72d0d694a1624e8580a6ea8fec41",
+    "roots": [
+      "workspace:packages/durable",
+      "npm:node_modules/vitest",
+      "npm:node_modules/@cloudflare/vitest-plugin"
+    ],
+    "platform": {
+      "os": "linux",
+      "cpu": "arm64",
+      "libc": "glibc"
+    },
+    "npmPlacements": 164,
+    "workspaceLinks": [
+      {
+        "key": "node_modules/@earendil-works/pi-ai",
+        "path": "packages/ai"
+      },
+      {
+        "key": "node_modules/@earendil-works/chord",
+        "path": "packages/chord"
+      },
+      {
+        "key": "node_modules/@earendil-works/pi-codemode",
+        "path": "packages/codemode"
+      },
+      {
+        "key": "node_modules/@earendil-works/pi-durable",
+        "path": "packages/durable"
+      },
+      {
+        "key": "node_modules/@earendil-works/pi-schema",
+        "path": "packages/schema"
+      },
+      {
+        "key": "node_modules/@earendil-works/pi-telemetry",
+        "path": "packages/telemetry"
+      }
+    ],
+    "platformOmitted": 77,
+    "optionalPeerEdgesNotTraversed": 43,
+    "optionalPeerOnlyOmitted": [
+      {
+        "from": "workspace:packages/chord",
+        "to": "npm:node_modules/react"
+      },
+      {
+        "from": "npm:node_modules/vite",
+        "to": "npm:node_modules/jiti"
+      },
+      {
+        "from": "npm:node_modules/vite",
+        "to": "npm:node_modules/yaml"
+      },
+      {
+        "from": "npm:node_modules/@anthropic-ai/sdk",
+        "to": "npm:node_modules/zod"
+      },
+      {
+        "from": "npm:node_modules/openai",
+        "to": "npm:node_modules/undici"
+      },
+      {
+        "from": "npm:node_modules/openai",
+        "to": "npm:node_modules/zod"
+      }
+    ],
+    "archiveRecordsSHA256": "3c82e6203d1fa55edd746b72cfb0eb70bb36ebe8b33ec1f0972152c03907ecc4",
+    "selectedNpmArchives": [
+      {
+        "key": "node_modules/@cloudflare/vitest-plugin",
+        "name": "@cloudflare/vitest-plugin",
+        "version": "1.4.10",
+        "integrity": "sha512-F6klOeT/Wx0gKvZ4zpYVBixP6TjcT4OD/L/RJK3Yq3SwRmd+v96/y037xUEsvGytdUisL9X5Jw3ADuNdvwBHdg==",
+        "sha256": "bfcb26bcb3d2bb62a09d92c1ce2b635df15c40c1b6e2316698ba9949afc8a5b6",
+        "source": "npm-content-cache"
+      },
+      {
+        "key": "node_modules/@cloudflare/workerd-linux-arm64",
+        "name": "@cloudflare/workerd-linux-arm64",
+        "version": "1.20261023.1",
+        "integrity": "sha512-ilpRHzfDN8YFRM5CLRKuFw40x/LJBS89yVdhdQmxehlVDuBqjKpJB++zPFbTgKRRFaNupgnXc8RHktXAIhgCmQ==",
+        "sha256": "338f91707eebaaf4728e225154af318b1e929561e7f4db80b79fd040f6bd6e67",
+        "source": "npm-content-cache"
+      },
+      {
+        "key": "node_modules/@google/genai",
+        "name": "@google/genai",
+        "version": "3.6.1",
+        "integrity": "sha512-DQIkZkl+VoZc+RUSaJ41vRuywjQDpP0t/oUf5/ddQhNW6JsPjVULW2EgHmuJ1mrr6ACtrmUdPlqtNXF1yfKySg==",
+        "sha256": "eb9ceeb55a32365b596e3c0aa6ed0c91704a107cd907ee499e35c48ec536e9b9",
+        "source": "retained-tarball"
+      },
+      {
+        "key": "node_modules/miniflare",
+        "name": "miniflare",
+        "version": "5.20261023.2-beta",
+        "integrity": "sha512-sXpZloQnIUe4raXXdwwqd2ioRHox9a/1B4nB2/p4JWKDwGuVgEK4DugCNgIeQf0iVuSgBItdYpodJe4iwY6SrQ==",
+        "sha256": "8928d21bd5c2bd0c48cd5cb7a878335932143ea7c9112893ed92e54b8a7d17ae",
+        "source": "npm-content-cache"
+      },
+      {
+        "key": "node_modules/openai",
+        "name": "openai",
+        "version": "7.59.0",
+        "integrity": "sha512-wPYKJkLPFEdNJ2tThSg4jE1Ptsv4X3u8g8LIvu0Qz/UIhsKeCzl73rl48PtQsDVrJL/ku0liXOsbyd2TsRsPJw==",
+        "sha256": "7f1deacae8d17efc9c02622b032851c7e28e148b62b1da7747eb8b426ea4dba9",
+        "source": "retained-tarball"
+      },
+      {
+        "key": "node_modules/vitest",
+        "name": "vitest",
+        "version": "4.1.12",
+        "integrity": "sha512-5eWdz2yb3ajxWF3C8C4TjkXl7FGm3n2E/VlazALrQHzK7nYMSGFnCZto0bbPNl77AwkOZVLk0YnBAejUu0NiWA==",
+        "sha256": "ac79c9561c99eabc1cc29e0a839cbd03d1ff0e45bbecb5a2edfa6c3827c823d1",
+        "source": "npm-content-cache"
+      },
+      {
+        "key": "node_modules/workerd",
+        "name": "workerd",
+        "version": "1.20261023.1",
+        "integrity": "sha512-NeofJFyaYNpqKpFRJW3ApuonaerPd6/JWlfTtLDYf2A6ygqrDEFnYgEXmc0hhOxqnJsSM+kXJN6VebPojzRrsg==",
+        "sha256": "5766328bb67d7f294647e346950b17370717816ac61f014e97305865a1ca8fe4",
+        "source": "npm-content-cache"
+      },
+      {
+        "key": "node_modules/wrangler",
+        "name": "wrangler",
+        "version": "4.155.0",
+        "integrity": "sha512-gBKtAg2e0abQDvXPRQu611YMTd/cfAaJTOLAs/89tTxFxEeUyC260MRJRK+m3gLmQjDYWFwJv+ErwuJ/GuALpA==",
+        "sha256": "b7735eef797a2d85a5802e845a561d951a249ba98a6638ad52f1079f821ccf75",
+        "source": "npm-content-cache"
+      }
+    ],
+    "aiArchiveSHA256": "192c407bd69c06358c68519aa6290adc8362b132bee9117480c7604456d5073b",
+    "inputs": [
+      {
+        "path": "packages/durable/test-workers/storage.test.ts",
+        "sha256": "5db861cef8bedf21f5c2fcad8b4a6ea742e8700f97c4445a2d49c4402a66b66c"
+      },
+      {
+        "path": "packages/durable/test-workers/vitest.config.ts",
+        "sha256": "988445ade9d78c56e97952bd0cef5a6111425fac99347af347cb7dd82f05e4fd"
+      },
+      {
+        "path": "packages/durable/test-workers/worker.ts",
+        "sha256": "a629bebd82841fd09835d0f6dcce9c63ccbb7f0b68e2e7bce090bdd44e258520"
+      },
+      {
+        "path": "packages/durable/test-workers/wrangler.jsonc",
+        "sha256": "ef6f8e283d81afbdd2afb534c844a6e0af0fc03074748631cf2698167bbe6663"
+      }
+    ],
+    "scope": "Private Linux arm64/glibc staging; selected runtime, optional dependency and required peer edges only. No npm installation or lifecycle scripts."
+  },
+  "execution": {
+    "file": "packages/durable/test-workers/storage.test.ts",
+    "selector": "Durable Object SQLite schema migrates a version 1 schema to admit sleeping tasks, keeping tasks and indexes",
+    "node": "v26.13.0",
+    "vitest": "4.1.12",
+    "result": {
+      "passed": 1,
+      "failed": 0,
+      "selectedSkipped": 0,
+      "filteredOut": 34
+    },
+    "workerd": {
+      "version": "workerd 2026-10-23",
+      "path": "node_modules/@cloudflare/workerd-linux-arm64/bin/workerd",
+      "sha256": "c9c4d377aa0ae66889b497b8df08247f0642d803d36cd4c7f123715ee2c548d7",
+      "successfulExecveByVitest": 1
+    },
+    "isolation": "private mount namespace; private network with loopback only; no hosted services"
+  },
+  "scope": "One unchanged Durable Cloudflare Vitest migration original. No other test-workers cases, native Go parity, full workspace install, or deployment."
+}
