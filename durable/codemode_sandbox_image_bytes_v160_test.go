@@ -35,7 +35,11 @@ type v160ImageFingerprint struct {
 // Source: pi v1.6.0 packages/codemode/test/sandbox.test.ts:192–204.
 // This compares the image() output bytes and MIME, not a decoded image.
 func TestSourceV160CodemodePublishedLargeImageData(t *testing.T) {
-	root := officialWorkerPackageRootV160(t)
+	checkPublishedLargeImageData(t, officialWorkerPackageRootV160(t), v160LargeImageScript(v160LargePNGData()))
+}
+
+func checkPublishedLargeImageData(t *testing.T, root, source string) {
+	t.Helper()
 	large := v160LargePNGData()
 	for _, placement := range []string{"inline", "portable", "node-worker"} {
 		t.Run(placement, func(t *testing.T) {
@@ -43,7 +47,7 @@ func TestSourceV160CodemodePublishedLargeImageData(t *testing.T) {
 			defer cancel()
 			cmd := exec.CommandContext(ctx, "node", "testdata/worker-large-image-bytes-v160.mjs", placement)
 			cmd.Env = append(os.Environ(), "GOAI_WORKER_PACKAGE_ROOT="+root)
-			cmd.Stdin = strings.NewReader(v160LargeImageScript(large))
+			cmd.Stdin = strings.NewReader(source)
 			raw, err := cmd.CombinedOutput()
 			if err != nil {
 				t.Fatalf("published image probe failed: %v\n%s", err, raw)
