@@ -1,6 +1,6 @@
 # Unchanged Durable blocked scheduler and recovery
 
-This bounded packet ports the deterministic SQLite and public scheduler behavior in unchanged pi v1.7.0 `packages/durable/test/harness-blocked.test.ts` at `fb0fe823539f6d04850f6e34748c01f01f212e1f`. The isolated lane starts at exact native main `59c6ed7e4cd8c0ff73236615d345d8d974060d4d`. The runtime fix is `d52fdefded37a08628480f25190037b88aea8148`.
+This bounded packet ports the deterministic SQLite and public scheduler behavior in unchanged pi v1.7.0 `packages/durable/test/harness-blocked.test.ts` at `fb0fe823539f6d04850f6e34748c01f01f212e1f`. The isolated lane starts at exact native main `59c6ed7e4cd8c0ff73236615d345d8d974060d4d`. The runtime fix is `e70accc59102abbfc55b04e25448348192825355`.
 
 ## Pinned original
 
