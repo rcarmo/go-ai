@@ -107,6 +107,10 @@ func doProviderRequestWithRetry(ctx context.Context, client *http.Client, req *h
 	return doProviderRequestWithRetryObserved(ctx, client, req, cfg, noRetryStatuses, stopOnTransportError, nil, nil)
 }
 
+// providerResponseHookRefusal keeps a hook error out of retry classification.
+// The original error is returned unchanged after leaving the retry loop.
+type providerResponseHookRefusal struct{ error }
+
 // beforeBody observes every received response before body reading or retry handling.
 // onRetryResponse is the existing stream notification for discarded responses only.
 func doProviderRequestWithRetryObserved(ctx context.Context, client *http.Client, req *http.Request, cfg RetryConfig, noRetryStatuses []int, stopOnTransportError bool, onRetryResponse func(*http.Response), beforeBody func(*http.Response) error) (*http.Response, error) {
@@ -123,7 +127,7 @@ func doProviderRequestWithRetryObserved(ctx context.Context, client *http.Client
 	}
 	options := ProviderRetryOptions{MaxRetries: cfg.MaxRetries, MaxRetryDelay: boundedRetryCap(cfg.MaxRetryDelayMs), DisableDelayCap: cfg.MaxRetryDelayMs <= 0}
 	attempt := 0
-	return retryProviderRequest(ctx, func() (*http.Response, error) {
+	result, err := retryProviderRequest(ctx, func() (*http.Response, error) {
 		attempt++
 		attemptCtx := ctx
 		cancel := func() {}
@@ -155,7 +159,7 @@ func doProviderRequestWithRetryObserved(ctx context.Context, client *http.Client
 		if beforeBody != nil {
 			if err := beforeBody(resp); err != nil {
 				resp.Body.Close()
-				return nil, err
+				return nil, &providerResponseHookRefusal{err}
 			}
 		}
 		// Retry directives apply to failures, never an opened successful stream.
@@ -200,6 +204,10 @@ func doProviderRequestWithRetryObserved(ctx context.Context, client *http.Client
 		resp.Body.Close()
 		return nil, &ProviderRequestError{Status: resp.StatusCode, Headers: headers, Message: fmt.Sprintf("HTTP %d", resp.StatusCode)}
 	}, options, cfg.OnRetry)
+	if refusal, ok := err.(*providerResponseHookRefusal); ok {
+		return result, refusal.error
+	}
+	return result, err
 }
 
 func RetryProviderRequest[T any](ctx context.Context, request func() (T, error), options ProviderRetryOptions) (T, error) {

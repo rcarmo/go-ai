@@ -28,4 +28,4 @@ unshare -Urn sh -ec 'ip link set lo up; exec "$@"' sh go test . ./tests \
 go vet -p 1 . ./tests
 ```
 
-Pi Decision reports the final HTTP status and headers before reading the body. The existing classifier helper still does not report intermediate HTTP responses consumed by its retry loop. No live service, unusual SDK error metadata or arbitrary JavaScript-number token counters are claimed; Go keeps its existing integer usage counters and the other classifier adapters keep their established hook timing.
+This packet reports the final HTTP status and headers before reading the body. The [retry-hook follow-up](pi-decision-retry-hooks.md) covers intermediate responses discarded by the retry loop. The tests do not use a live service or unusual SDK error metadata. Go keeps its existing integer usage counters, and the other classifier adapters keep their established hook timing.

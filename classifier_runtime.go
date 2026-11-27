@@ -513,22 +513,21 @@ func postClassifierRequestWithResponsePhase(ctx context.Context, label, endpoint
 	if err != nil {
 		return nil, err
 	}
-	resp, err := doProviderRequestWithRetry(ctx, client, req, retryCfg, noRetryStatuses, true)
+	reportResponse := func(response *http.Response) error {
+		if opts == nil || opts.OnResponse == nil {
+			return nil
+		}
+		return opts.OnResponse(ClassifierResponseMetadata{Status: response.StatusCode, Headers: responseHeaders(response.Header)}, model)
+	}
+	var beforeBody func(*http.Response) error
+	if observeHeaders && opts != nil && opts.OnResponse != nil {
+		beforeBody = reportResponse
+	}
+	resp, err := doProviderRequestWithRetryObserved(ctx, client, req, retryCfg, noRetryStatuses, true, nil, beforeBody)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	reportResponse := func() error {
-		if opts == nil || opts.OnResponse == nil {
-			return nil
-		}
-		return opts.OnResponse(ClassifierResponseMetadata{Status: resp.StatusCode, Headers: responseHeaders(resp.Header)}, model)
-	}
-	if observeHeaders {
-		if err := reportResponse(); err != nil {
-			return nil, err
-		}
-	}
 	data, err := io.ReadAll(io.LimitReader(resp.Body, (1<<20)+1))
 	if err != nil || len(data) > 1<<20 {
 		return nil, classifierResponseReadError(label, err)
@@ -549,7 +548,7 @@ func postClassifierRequestWithResponsePhase(ctx context.Context, label, endpoint
 	}
 	// Existing classifiers retain their post-decode response hook timing.
 	if !observeHeaders {
-		if err := reportResponse(); err != nil {
+		if err := reportResponse(resp); err != nil {
 			return nil, err
 		}
 	}

@@ -38,6 +38,7 @@ func TestSourceV161LlamaCPPResponseHooks(t *testing.T) {
 		{"failed-retry", 1, []int{503, 503}, goai.StopReasonError},
 		{"unreadable-body", 0, []int{503}, goai.StopReasonError},
 		{"hook-rejection", 1, []int{503}, goai.StopReasonError},
+		{"typed-hook-rejection", 1, []int{503}, goai.StopReasonError},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			base := fmt.Sprintf("http://llama-%d.test:9931", llamaResponseFixtureIDV161.Add(1))
@@ -64,6 +65,7 @@ func TestSourceV161LlamaCPPResponseHooks(t *testing.T) {
 			var payloads []map[string]any
 			var sentIDSlot any
 			broken := new(unreadableLlamaResponseV161)
+			reject := strings.HasSuffix(tc.name, "hook-rejection")
 			opts := &goai.ClassifierOptions{Context: t.Context(), MaxRetriesOverride: &tc.maxRetries}
 			opts.OnResponse = func(response goai.ClassifierResponseMetadata, m *goai.ClassifierModel) error {
 				responses = append(responses, response.Status)
@@ -74,7 +76,10 @@ func TestSourceV161LlamaCPPResponseHooks(t *testing.T) {
 				if broken.reads != 0 {
 					t.Error("response hook ran after reading the body")
 				}
-				if tc.name == "hook-rejection" {
+				if tc.name == "typed-hook-rejection" {
+					return &goai.ProviderRequestError{Status: 503, Message: "fixture refused response"}
+				}
+				if reject {
 					return errors.New("fixture refused response")
 				}
 				return nil
@@ -124,7 +129,7 @@ func TestSourceV161LlamaCPPResponseHooks(t *testing.T) {
 						resp.StatusCode = 503
 						resp.Header.Set("Retry-After-Ms", "0")
 						resp.Body = io.NopCloser(strings.NewReader("busy"))
-						if tc.name == "unreadable-body" || tc.name == "hook-rejection" {
+						if tc.name == "unreadable-body" || reject {
 							resp.Body = broken
 						}
 					}
@@ -165,7 +170,7 @@ func TestSourceV161LlamaCPPResponseHooks(t *testing.T) {
 			if tc.name == "unreadable-body" && (broken.reads != 1 || broken.closes != 1) {
 				t.Errorf("unreadable body read/close=%d/%d, want 1/1", broken.reads, broken.closes)
 			}
-			if tc.name == "hook-rejection" && (broken.reads != 0 || broken.closes != 1 || !strings.Contains(result.ErrorMessage, "fixture refused response")) {
+			if reject && (broken.reads != 0 || broken.closes != 1 || !strings.Contains(result.ErrorMessage, "fixture refused response")) {
 				t.Errorf("rejected hook read/close=%d/%d result=%+v", broken.reads, broken.closes, result)
 			}
 		})
