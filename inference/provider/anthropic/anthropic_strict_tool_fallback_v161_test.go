@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	goai "github.com/rcarmo/go-ai"
+	_ "github.com/rcarmo/go-ai/inference/provider/pimessages"
 )
 
 const strictGrammarErrorV161 = "The compiled grammar is too large, which would cause performance issues. Simplify your tool schemas or reduce the number of strict tools."
@@ -360,6 +361,62 @@ func TestAnthropicStrictFallbackResponseAbortV161(t *testing.T) {
 	runStrictFallbackV161(t.Context(), model, input, opts)
 	if got := strictFlagsV161(wire.payloads); !reflect.DeepEqual(got, [][]any{{true}, {true}}) {
 		t.Errorf("strict flags after hook cancellation = %v, want both strict", got)
+	}
+}
+
+func TestAnthropicStrictToolFallbackPiMessagesPublicAdapter(t *testing.T) {
+	model, input := strictFallbackFixtureV161(false, false)
+	var wire strictFallbackWireV161
+	anthropicOpts := wire.options(t, strictLimitFirstV161(strictGrammarErrorV161))
+	gateway := &goai.Model{ID: "gateway-claude", Provider: "radius", Api: goai.ApiPiMessages, BaseURL: "https://radius.example/v1"}
+	var gatewayContext json.RawMessage
+	gatewayOpts := goai.StreamOptions{
+		APIKey: "radius-test",
+		HTTPTransport: anthropicThreadTestTransport(func(r *http.Request) (*http.Response, error) {
+			defer r.Body.Close()
+			if r.Method != http.MethodPost || r.URL.String() != "https://radius.example/v1/messages" {
+				return nil, fmt.Errorf("unexpected gateway request %s %s", r.Method, r.URL)
+			}
+			var request struct {
+				Context json.RawMessage `json:"context"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				return nil, err
+			}
+			gatewayContext = append(json.RawMessage(nil), request.Context...)
+			var forwarded goai.Context
+			if err := json.Unmarshal(request.Context, &forwarded); err != nil {
+				return nil, err
+			}
+			upstream := runStrictFallbackV161(t.Context(), model, &forwarded, anthropicOpts)
+			if upstream.stop != goai.StopReasonStop {
+				return nil, fmt.Errorf("upstream stop reason %q", upstream.stop)
+			}
+			body := `data: {"type":"done","reason":"stop","usage":{"input":10,"output":1,"totalTokens":11,"cost":{"total":0}}}` + "\n\n"
+			return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {"text/event-stream"}}, Body: io.NopCloser(strings.NewReader(body))}, nil
+		}),
+	}
+
+	result := runStrictFallbackV161(t.Context(), gateway, input, gatewayOpts)
+	if result.stop != goai.StopReasonStop {
+		t.Fatalf("gateway result = %+v", result)
+	}
+	if got := strictFlagsV161(wire.payloads); !reflect.DeepEqual(got, [][]any{{true}, {nil}}) {
+		t.Errorf("gateway Anthropic strict flags = %v, want [[true] [nil]]", got)
+	}
+	original, err := json.Marshal(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var want, got any
+	if err := json.Unmarshal(original, &want); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(gatewayContext, &got); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("pi-messages context = %s, want %s", gatewayContext, original)
 	}
 }
 
