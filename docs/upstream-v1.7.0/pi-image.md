@@ -1,0 +1,9 @@
+# Pi Image uses the canonical gateway request and response
+
+All eight examples in the [locked AI run](ai-originals.md) passed unchanged on v1.7.0. The previous native image regression group passed before adding the translated fixtures. The translation initially could not compile because the options were absent; adding only those fields then showed that the public image registry had no `pi-image` adapter. All eight native cases failed at that boundary.
+
+The adapter posts the model, ordered input and optional image settings to `/image`. It keeps mixed output, response identity, optional token splits and authoritative provider cost. A cost-only response is valid. An error or cancellation resolves with an empty output array. The response hook receives headers before a failed body read. Durable registers the adapter for explicitly configured models; this does not add catalog models or change Radius discovery.
+
+The supplemental retry fixture observes `[503,200]`, checks explicit zero token splits and verifies JSON round-trip. Durable's bounded encoder charges for the new member only when present, so older usage records keep their existing budget. The checked reducer keeps an aggregate image split without adding it again to total output. These are native controls for the v1.7.0 usage shape and `harness/usage.ts` delta, separate from the eight direct AI originals.
+
+The exact native cases and focused image and usage groups passed twice. Three compiled controls caught a dropped session ID, acceptance of an empty image payload and a missing header-phase callback. Vet and Staticcheck passed. The separate `TestM1cInvalidToolUsageSettlesOnceNoAppOrReplay` failure reproduced on unchanged `4bbf033e`; it is not included as a passing check here. Full provider, catalog, priced-image split and release acceptance remain open.

@@ -7,6 +7,7 @@ import (
 	goai "github.com/rcarmo/go-ai"
 	"github.com/rcarmo/go-ai/images"
 	_ "github.com/rcarmo/go-ai/images/openrouter"
+	_ "github.com/rcarmo/go-ai/images/piimage"
 )
 
 const classifierToolName = "pi.codemode.models.classify"

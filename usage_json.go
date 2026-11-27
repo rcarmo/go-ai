@@ -12,18 +12,22 @@ type usageJSONAlias Usage
 // MarshalJSON preserves optional zero counters without changing the public
 // integer fields. Nonzero counters are reported even without presence flags.
 func (u Usage) MarshalJSON() ([]byte, error) {
-	var long, reasoning *int
+	var long, reasoning, imageOutput *int
 	if u.CacheWrite1hSet || u.CacheWrite1h != 0 {
 		long = &u.CacheWrite1h
 	}
 	if u.ReasoningSet || u.Reasoning != 0 {
 		reasoning = &u.Reasoning
 	}
+	if u.ImageOutputSet || u.ImageOutput != 0 {
+		imageOutput = &u.ImageOutput
+	}
 	return json.Marshal(struct {
 		usageJSONAlias
 		CacheWrite1h *int `json:"cacheWrite1h,omitempty"`
 		Reasoning    *int `json:"reasoning,omitempty"`
-	}{usageJSONAlias(u), long, reasoning})
+		ImageOutput  *int `json:"imageOutput,omitempty"`
+	}{usageJSONAlias(u), long, reasoning, imageOutput})
 }
 
 // UnmarshalJSON retains optional-counter presence. Public JSON decoding keeps
@@ -38,6 +42,7 @@ func (u *Usage) UnmarshalJSON(data []byte) error {
 		*usageJSONAlias
 		CacheWrite1h *int `json:"cacheWrite1h"`
 		Reasoning    *int `json:"reasoning"`
+		ImageOutput  *int `json:"imageOutput"`
 	}
 	wire.usageJSONAlias = (*usageJSONAlias)(&next)
 	if next.CacheWrite1hSet || next.CacheWrite1h != 0 {
@@ -47,6 +52,10 @@ func (u *Usage) UnmarshalJSON(data []byte) error {
 	if next.ReasoningSet || next.Reasoning != 0 {
 		value := next.Reasoning
 		wire.Reasoning = &value
+	}
+	if next.ImageOutputSet || next.ImageOutput != 0 {
+		value := next.ImageOutput
+		wire.ImageOutput = &value
 	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
@@ -75,6 +84,11 @@ func (u *Usage) UnmarshalJSON(data []byte) error {
 	}
 	if wire.Reasoning != nil {
 		next.Reasoning = *wire.Reasoning
+	}
+	next.ImageOutputSet = wire.ImageOutput != nil
+	next.ImageOutput = 0
+	if wire.ImageOutput != nil {
+		next.ImageOutput = *wire.ImageOutput
 	}
 	*u = next
 	return nil

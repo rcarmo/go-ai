@@ -19,6 +19,8 @@ func usageZeroIsPresent(v reflect.Value, name string) bool {
 		return v.FieldByName("CacheWrite1hSet").Bool()
 	case "reasoning":
 		return v.FieldByName("ReasoningSet").Bool()
+	case "imageOutput":
+		return v.FieldByName("ImageOutputSet").Bool()
 	}
 	return false
 }

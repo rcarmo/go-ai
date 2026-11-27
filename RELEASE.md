@@ -1,6 +1,6 @@
 # Release acceptance
 
-The active port targets official upstream **v1.7.0**, `fb0fe823539f6d04850f6e34748c01f01f212e1f`. The [v1.7.0 verification log](docs/upstream-v1.7.0/README.md) records the pinned Git and npm inputs, the 1,400 changed paths and the initial test inventory. The native v1.6.1 smoke baseline passed. No v1.7.0 originals have been executed, and runtime parity and release acceptance remain open.
+The active port targets official upstream **v1.7.0**, `fb0fe823539f6d04850f6e34748c01f01f212e1f`. The [v1.7.0 verification log](docs/upstream-v1.7.0/README.md) records the pinned Git and npm inputs, the 1,400 changed paths and the initial test inventory. The native v1.6.1 smoke baseline passed. The first locked AI run passed 59 unchanged originals, and the native Pi Image comparisons passed. Broader runtime parity and release acceptance remain open.
 
 ## Historical v1.6.1 evidence
 

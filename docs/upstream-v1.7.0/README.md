@@ -6,7 +6,7 @@
 
 ## Verified inputs
 
-A clean detached source checkout was staged at the exact pin. Its four package manifests and `package-lock.json` match the Git objects byte for byte. [Input fingerprints](inputs.json) record the manifest and lock SHA-256 values and the four published npm tarballs. Each tarball matched the registry's SHA-512 integrity value; its embedded package name and version matched the source manifest. No npm install, lifecycle scripts or v1.7.0 original tests were run. Release assets, the lockfile dependency closure and generated catalog records still need separate verification.
+A clean detached source checkout was staged at the exact pin. Its four package manifests and `package-lock.json` match the Git objects byte for byte. [Input fingerprints](inputs.json) record the manifest and lock SHA-256 values and the four published npm tarballs. Each tarball matched the registry's SHA-512 integrity value; its embedded package name and version matched the source manifest. No packages were installed or tested during the retarget. The results below record the later release, dependency and runtime checks separately.
 
 ## Change inventory
 
@@ -30,3 +30,12 @@ Stage the locked dependencies and verify release assets before executing the fir
 ## First unchanged AI originals
 
 The [locked AI test stage](ai-originals.md) ran 59 unchanged originals from five files. The selected release assets, installed lock placements and published catalog payloads have separate checks. Durable, Codemode and Schema test execution and the full dependency closure remain open.
+
+## Pi Image
+
+The [Pi Image comparison](pi-image.md) maps the eight original cases to the public native registry path. The adapter preserves the canonical options and output, provider cost, and response observation before body reading. The [assertion crosswalk](test-crosswalk.tsv) counts verified sites without claiming whole-file or release coverage.
+
+```sh
+bun run docs/upstream-v1.7.0/assertions/validate.ts "$PI_ORACLE" "$PI_MIRROR"
+bun run docs/upstream-v1.7.0/test-crosswalk.ts --check
+```

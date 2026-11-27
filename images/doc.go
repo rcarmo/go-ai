@@ -2,5 +2,6 @@
 // and provider interfaces.
 //
 // Import provider packages such as github.com/rcarmo/go-ai/images/openrouter
-// for registration side effects, then call RegisterBuiltinModels and Generate.
+// or github.com/rcarmo/go-ai/images/piimage to register the corresponding API.
+// Call GenerateImages with a registered or explicitly configured model.
 package images

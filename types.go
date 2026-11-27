@@ -244,12 +244,14 @@ type Usage struct {
 	CacheWrite   int           `json:"cacheWrite"`
 	CacheWrite1h int           `json:"cacheWrite1h,omitempty"`
 	Reasoning    int           `json:"reasoning,omitempty"`
+	ImageOutput  int           `json:"imageOutput,omitempty"`
 	TotalTokens  int           `json:"totalTokens"`
 	Cost         CostBreakdown `json:"cost"`
 	// Presence flags retain explicitly reported zero optional counters. Nonzero
 	// values are always emitted; callers can keep using the integer fields.
 	CacheWrite1hSet   bool `json:"-"`
 	ReasoningSet      bool `json:"-"`
+	ImageOutputSet    bool `json:"-"`
 	jsonUnknownFields bool
 }
 

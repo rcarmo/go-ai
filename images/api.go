@@ -16,7 +16,9 @@ type ImagesProvider string
 
 const (
 	ImagesApiOpenRouter      ImagesApi      = "openrouter-images"
+	ImagesApiPiImage         ImagesApi      = "pi-image"
 	ImagesProviderOpenRouter ImagesProvider = "openrouter"
+	ImagesProviderRadius     ImagesProvider = "radius"
 )
 
 type ImageInput struct {
@@ -87,9 +89,15 @@ type ImagesOptions struct {
 	Timeout time.Duration
 	// TimeoutMs mirrors upstream's timeoutMs option for JSON/JS parity. Prefer
 	// Timeout in idiomatic Go code.
-	TimeoutMs               int
-	MaxRetries              int
-	MaxRetryDelayMs         int
+	TimeoutMs  int
+	MaxRetries int
+	// MaxRetriesSet lets Pi Image distinguish explicit zero from the default.
+	MaxRetriesSet   bool
+	MaxRetryDelayMs int
+	// Pi Image forwards only non-nil wire options, retaining explicit empty values.
+	AspectRatio             *string
+	Size                    *string
+	SessionID               *string
 	Metadata                map[string]any
 	Telemetry               *goai.TelemetrySpan `json:"-"`
 	Env                     goai.ProviderEnv

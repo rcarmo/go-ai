@@ -53,6 +53,12 @@ func DoProviderRequestWithRetry(ctx context.Context, client *http.Client, req *h
 	return doProviderRequestWithRetry(ctx, client, req, cfg, nil, false)
 }
 
+// DoObservedProviderJSONRequest observes headers before reading a body. Only
+// HTTP failures can trigger retries; the caller owns the final response body.
+func DoObservedProviderJSONRequest(ctx context.Context, client *http.Client, req *http.Request, cfg RetryConfig, beforeBody func(*http.Response) error) (*http.Response, error) {
+	return doProviderRequestWithRetryObserved(ctx, client, req, cfg, nil, true, nil, beforeBody)
+}
+
 // DoObservedProviderStreamRequest honors the adapter's explicit retry limit and
 // reports HTTP responses the retry loop discards. The caller still owns and
 // reports the final response. Native RetryConfig retains its precedence.

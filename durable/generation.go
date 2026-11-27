@@ -1232,7 +1232,7 @@ func validUsage(usage *goai.Usage) bool {
 	if usage == nil {
 		return true
 	}
-	for _, n := range []int{usage.Input, usage.Output, usage.CacheRead, usage.CacheWrite, usage.CacheWrite1h, usage.Reasoning, usage.TotalTokens} {
+	for _, n := range []int{usage.Input, usage.Output, usage.CacheRead, usage.CacheWrite, usage.CacheWrite1h, usage.Reasoning, usage.ImageOutput, usage.TotalTokens} {
 		if n < 0 || uint64(n) > MaxID {
 			return false
 		}
@@ -1282,6 +1282,7 @@ func addModelUsage(state JSON, r messageReceipt, l Limits) error {
 	current := *r.Usage
 	current.CacheWrite1hSet = current.CacheWrite1hSet || prior.CacheWrite1hSet
 	current.ReasoningSet = current.ReasoningSet || prior.ReasoningSet
+	current.ImageOutputSet = current.ImageOutputSet || prior.ImageOutputSet
 	// Upstream copies the first record, then adds only numeric counters. Its
 	// optional cost provenance is not replaced by later records' provenance.
 	if _, exists := models[key]; exists {
@@ -1290,7 +1291,7 @@ func addModelUsage(state JSON, r messageReceipt, l Limits) error {
 	for _, pair := range []struct {
 		out  *int
 		a, b int
-	}{{&current.Input, prior.Input, current.Input}, {&current.Output, prior.Output, current.Output}, {&current.CacheRead, prior.CacheRead, current.CacheRead}, {&current.CacheWrite, prior.CacheWrite, current.CacheWrite}, {&current.CacheWrite1h, prior.CacheWrite1h, current.CacheWrite1h}, {&current.Reasoning, prior.Reasoning, current.Reasoning}, {&current.TotalTokens, prior.TotalTokens, current.TotalTokens}} {
+	}{{&current.Input, prior.Input, current.Input}, {&current.Output, prior.Output, current.Output}, {&current.CacheRead, prior.CacheRead, current.CacheRead}, {&current.CacheWrite, prior.CacheWrite, current.CacheWrite}, {&current.CacheWrite1h, prior.CacheWrite1h, current.CacheWrite1h}, {&current.Reasoning, prior.Reasoning, current.Reasoning}, {&current.ImageOutput, prior.ImageOutput, current.ImageOutput}, {&current.TotalTokens, prior.TotalTokens, current.TotalTokens}} {
 		n, e := add(pair.a, pair.b)
 		if e != nil {
 			return e

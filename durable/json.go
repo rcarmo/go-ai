@@ -286,14 +286,23 @@ func (b *jsonBudget) walk(v reflect.Value, depth int, objectsOnly bool) error {
 		if v.Type() == nativeToolCallType || v.Type() == nativeContentBlockType {
 			members--
 		}
+		omitImageOutput := v.Type() == nativeUsageType && v.FieldByName("ImageOutput").IsZero() && !usageZeroIsPresent(v, "imageOutput")
 		if v.Type() == nativeUsageType || v.Type() == reflect.TypeFor[Submission]() {
 			members = len(structJSONFields(v.Type()))
+			// An older usage document has no imageOutput member. Charge the
+			// new member only when the counter will actually be emitted.
+			if omitImageOutput {
+				members--
+			}
 		}
 		if depth > b.l.MaxDepth || members > b.l.MaxMembers {
 			return reject("JSON container limit")
 		}
 		b.hint(2)
 		for _, field := range structJSONFields(v.Type()) {
+			if omitImageOutput && field.name == "imageOutput" {
+				continue
+			}
 			b.hint(len(field.name) + 4)
 			if err := b.walkNativeField(v, field, depth+1, objectsOnly); err != nil {
 				return err
