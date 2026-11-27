@@ -1,0 +1,13 @@
+# Prepared Schema IDN-hostname format checks
+
+## Pinned source and native behavior
+
+The v1.7.0 source pin is `fb0fe823539f6d04850f6e34748c01f01f212e1f`; this lane begins at `c3d842af811484b502da7aebfa9d03042ca99fff` after the prepared IDN-email slice. The retained `draft2020-12/optional/format/idn-hostname.json` fixture is an exact copy of the pinned file (101 vectors, SHA-256 `75c21f48aaf6798e3fd73afba365c8964aa10c5f6c1251acab80280579bbc1a0`). The unchanged conformance runner is `packages/schema/test/conformance.test.ts`, SHA-256 `c8a4ff57f6a93a380b9ac1020ad6fc1cb8ce1805657fd4b761ede18340f3fcf0`. Its IDN-hostname selection passed all 202 original `check` and error-agreement assertions on Node `v26.13.0` and Vitest `4.1.12` (202 passed, 8,224 outside the selection).
+
+Implementation commit `f0025645dcb41102004420a7857f1a811dbb3a2f` is opt-in on configured prepared and standalone format paths. The unchanged prepared implementation exposed 58 invalid-vector verdict mismatches through public `CompileJSONSchema`: the unknown `idn-hostname` name was treated as an annotation. The port retains annotation behavior by default and leaves legacy and tool checks unchanged. Public `CompileJSONSchema.Check`, `Explain`, and `CheckJSONSchemaValueWithOptions` are compared in the regression; no helper-only acceptance path is used.
+
+The implementation follows the pinned TypeBox IDNA hostname, Unicode-label, Punycode, contextual, UTF-16 and Bidi rules rather than substituting URI host policy. A profile-only `x/net/idna` control did not match TypeBox: it disagreed on 31 of the 101 string fixture verdicts, including label/hostname length, empty labels, contextual exceptions, disallowed characters and ACE decoding. `x/net/idna` remains only the ACE decoder for `xn--` labels; normalization, contextual rules, encoded-label limits and domain-wide Bidi behavior are explicit.
+
+`TestSourceV170SchemaPreparedIDNHostnameFormatConformance` preserves all 101 pinned vectors, exact format diagnostics and the default-annotation control. Boundary controls were captured from the unchanged pinned predicate for full-width mapping, ignored characters, NFC, contextual rules, Bidi scope, 63/64-label limits, 253/254-domain limits, ACE validation and the TypeBox-permitted plus/colon/comma/slash characters. Tool and legacy controls reject no additional values.
+
+Focused `IDNHostname` tests passed twice with `-shuffle=42 -count=2` under `CGO_ENABLED=0`. `go vet .` and Staticcheck `v0.8.2` passed. The fixture byte comparison was exact. The evidence is bounded to the pinned fixture, the recorded controls and these local static gates; no network, credentials, acceptance, profiling or publication work is included.
