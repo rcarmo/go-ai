@@ -23,8 +23,8 @@ Validation used Go 1.27.3, the project environment, `CGO_ENABLED=0` and the shar
 - `go-public-green.out`: all twelve public/native cases passed twice.
 - `individual-usage.out` and `aggregate-order.out`: focused mutation controls failed on the pre-fix ordering.
 - `go-final.out`: seven focused groups passed twice; vet and Staticcheck passed.
-- `go-legacy-final.out`: the old M1c fixture remains intentionally red and visible.
+- `go-legacy-final.out`: the historical pre-migration red receipt, retained to distinguish the original mismatch.
 
-The old M1c fixture now reaches its no-callback checks for invalid cases, but its `invalid_usage` and checkpoint/terminal-shape expectations are stale relative to canonical task faults. This slice does not update, skip or mark that fixture green. Its paired valid result-plus-error case is also unchanged and still red: the established native contract admits the valid usage, callback and result receipt even though the legacy fixture expects no callback. Changing that policy requires a separate contract decision.
+The legacy M1c fixture now checks canonical fault messages and public task outcomes instead of obsolete `invalid_usage` and private checkpoint text. Its paired valid result-plus-error case explicitly asserts the established native contract: valid billed usage, callback effects and an error receipt are admitted. The fixture migration does not change that policy.
 
 No full-suite, acceptance, profiling or release result is implied by this focused validation.

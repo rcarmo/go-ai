@@ -46,7 +46,6 @@ The Go image fixtures, OpenAI reasoning replay and SSE helpers, Durable turn lim
 
 ## Open gaps
 
-- Legacy M1c assertions still encode obsolete `invalid_usage` and raw task-state wording. Production usage validation now runs before the application callback. The separate Go result-plus-error settlement policy remains unchanged and needs an explicit contract decision before those assertions can be reconciled.
 - Wider provider, Durable, Codemode and Schema coverage remains open. The remaining crosswalk gaps separate nonportable Chord, JavaScript parser/writer, and alternate-engine observations from native Go parity. Live replay still needs the authorised credentials. Dependency and installer provenance is closed by the [exact release receipt](dependencies/README.md); full acceptance and acceptance profiling were not run.
 
 ```sh

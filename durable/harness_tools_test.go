@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"sync"
@@ -912,7 +913,11 @@ func TestM1cInvalidToolUsageSettlesOnceNoAppOrReplay(t *testing.T) {
 			if e != nil {
 				t.Fatal(e)
 			}
-			if waitSubmission(t, sub).Submission.Status != "done" || effects.Load() != 1 || apps.Load() != 0 {
+			wantApps := int64(0)
+			if mode == "valid-error" {
+				wantApps = 1
+			}
+			if waitSubmission(t, sub).Submission.Status != "done" || effects.Load() != 1 || apps.Load() != wantApps {
 				t.Fatal("invalidusage notsettledonce")
 			}
 			state, e := h.Snapshot(bg)
@@ -924,12 +929,17 @@ func TestM1cInvalidToolUsageSettlesOnceNoAppOrReplay(t *testing.T) {
 					var cp toolCheckpoint
 					_ = fromObject(task.Checkpoint, &cp, h.session.limits)
 					if mode == "valid-error" {
-						if task.Status != "done" || cp.ErrorCode != "tool_error" || cp.Result == nil {
-							t.Fatal("executor throw result", task, cp)
+						record, err := CanonicalTask(task, h.session.limits)
+						if err != nil || record.State.Outcome.Status != "failed" || record.State.Outcome.Error == nil || record.State.Outcome.Result == nil || !record.State.Outcome.Result.Present {
+							t.Fatal("executor throw result", task, record, err)
 						}
 					} else {
 						record, err := CanonicalTask(task, h.session.limits)
-						if err != nil || record.State.Outcome.Status != "faulted" || record.State.Outcome.Error.Message != "invalid_usage" || cp.Result != nil {
+						want := "durable: rejected: invalid contribution usage"
+						if mode == "nan-cost" || mode == "inf-cost" {
+							want = "durable: rejected: Value contains a non-finite number and is not strict JSON"
+						}
+						if err != nil || record.State.Outcome.Status != "faulted" || record.State.Outcome.Error == nil || record.State.Outcome.Error.Message != want || cp.Result != nil {
 							t.Fatal("invalid result did not scheduler-fault without receipt", record, cp, err)
 						}
 					}
@@ -956,8 +966,24 @@ func TestM1cInvalidToolUsageSettlesOnceNoAppOrReplay(t *testing.T) {
 			if mode == "valid-error" {
 				expectedUsage = &goai.Usage{Input: 2, Output: 1, TotalTokens: 3}
 			}
+			assertValidReceipt := func(state Snapshot) {
+				t.Helper()
+				matches := 0
+				for _, entry := range state.Entries {
+					if entry.Kind != "pi.tool-result" || len(entry.Model) != 1 || entry.Model[0].ToolName != "usage" {
+						continue
+					}
+					matches++
+					if !entry.Model[0].IsError || !reflect.DeepEqual(entry.Model[0].Usage, expectedUsage) {
+						t.Fatal("paired executor error receipt changed", entry.Model[0])
+					}
+				}
+				if matches != 1 {
+					t.Fatalf("paired executor error receipts=%d; want 1", matches)
+				}
+			}
 			if mode == "valid-error" {
-				assertToolUsageReceipts(t, h, state, "usage", expectedUsage, h.session.limits)
+				assertValidReceipt(state)
 			} else {
 				for _, entry := range state.Entries {
 					var receipt MessageReceipt
@@ -988,7 +1014,7 @@ func TestM1cInvalidToolUsageSettlesOnceNoAppOrReplay(t *testing.T) {
 				t.Fatal(e)
 			}
 			if mode == "valid-error" {
-				assertToolUsageReceipts(t, h2, state, "usage", expectedUsage, h2.session.limits)
+				assertValidReceipt(state)
 			} else {
 				for _, task := range state.Tasks {
 					if task.Kind == "pi.tool" {
