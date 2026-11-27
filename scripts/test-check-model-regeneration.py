@@ -30,7 +30,7 @@ def replace_once(path: pathlib.Path, old: str, new: str) -> None:
     path.write_text(text.replace(old, new, 1), encoding="utf-8")
 
 
-MISMATCH_PHRASE = "does not match regeneration from exact v1.6.1 schema-v6 catalog"
+MISMATCH_PHRASE = "does not match regeneration from exact v1.7.0 schema-v6 catalog"
 
 
 def run_check(repo: pathlib.Path, name: str, filename: str, corrupt_marker: str) -> None:
@@ -60,10 +60,10 @@ def main() -> int:
         copy_repo(text_repo)
         copy_repo(image_repo)
         copy_repo(classifier_repo)
-        replace_once(text_repo / "models_generated.go", "Name:             \"GPT-6 Astra (Global)\"", "Name:             \"GPT-6 Astra (Global) Corrupt\"")
-        run_check(text_repo, "chat non-ID metadata", "models_generated.go", "GPT-6 Astra (Global) Corrupt")
-        replace_once(image_repo / "image_models_generated.go", "Name:          \"Google: Nano Banana Pro (Gemini 3 Pro Image)\"", "Name:          \"Google: Nano Banana Pro (Gemini 3 Pro Image) Corrupt\"")
-        run_check(image_repo, "image non-ID metadata", "image_models_generated.go", "Google: Nano Banana Pro (Gemini 3 Pro Image) Corrupt")
+        replace_once(text_repo / "models_generated.go", "SupportsReasoningReplay: boolPtr(false)", "SupportsReasoningReplay: boolPtr(true)")
+        run_check(text_repo, "Bedrock reasoning replay metadata", "models_generated.go", "SupportsReasoningReplay: boolPtr(true)")
+        replace_once(image_repo / "image_models_generated.go", "ImageOutput: new(float64(9.820359))", "ImageOutput: new(float64(9.82036))")
+        run_check(image_repo, "image-output price metadata", "image_models_generated.go", "ImageOutput: new(float64(9.82036))")
         replace_once(classifier_repo / "classifier_models_generated.go", "Name:          \"Jev 1.13\"", "Name:          \"Jev 1.13 Corrupt\"")
         run_check(classifier_repo, "classifier non-ID metadata", "classifier_models_generated.go", "Jev 1.13 Corrupt")
     print("model regeneration negative self-test passed")

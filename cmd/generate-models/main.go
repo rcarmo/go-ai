@@ -162,6 +162,7 @@ type compatEntry struct {
 	SupportsStore                               *bool                        `json:"supportsStore"`
 	SupportsDeveloperRole                       *bool                        `json:"supportsDeveloperRole"`
 	SupportsReasoningEffort                     *bool                        `json:"supportsReasoningEffort"`
+	SupportsReasoningReplay                     *bool                        `json:"supportsReasoningReplay"`
 	SupportsUsageInStreaming                    *bool                        `json:"supportsUsageInStreaming"`
 	SupportsFinishReason                        *bool                        `json:"supportsFinishReason"`
 	MaxTokensField                              string                       `json:"maxTokensField"`
@@ -270,11 +271,12 @@ type providerInfoEntry struct {
 }
 
 type costEntry struct {
-	Input      float64         `json:"input"`
-	Output     float64         `json:"output"`
-	CacheRead  float64         `json:"cacheRead"`
-	CacheWrite float64         `json:"cacheWrite"`
-	Tiers      []costTierEntry `json:"tiers"`
+	Input       float64         `json:"input"`
+	Output      float64         `json:"output"`
+	CacheRead   float64         `json:"cacheRead"`
+	CacheWrite  float64         `json:"cacheWrite"`
+	ImageOutput *float64        `json:"imageOutput"`
+	Tiers       []costTierEntry `json:"tiers"`
 }
 
 type costTierEntry struct {
@@ -601,6 +603,9 @@ func generateGoSource(models map[string]map[string]modelEntry, total int, kind s
 			writeProvidersField(&b, m.Providers)
 			b.WriteString(fmt.Sprintf("\t\tCost:          ModelCost{Input: %v, Output: %v, CacheRead: %v, CacheWrite: %v",
 				m.Cost.Input, m.Cost.Output, m.Cost.CacheRead, m.Cost.CacheWrite))
+			if m.Cost.ImageOutput != nil {
+				fmt.Fprintf(&b, ", ImageOutput: new(float64(%v))", *m.Cost.ImageOutput)
+			}
 			if len(m.Cost.Tiers) > 0 {
 				b.WriteString(", Tiers: []ModelCostTier{")
 				for _, tier := range m.Cost.Tiers {
@@ -714,12 +719,13 @@ func writeCompat(b *strings.Builder, api string, c compatEntry) {
 	case "bedrock-converse-stream":
 		b.WriteString("\t\tBedrockCompat: &BedrockCompat{")
 		writeBoolField(b, "SupportsStrictMode", c.SupportsStrictMode)
+		writeBoolField(b, "SupportsReasoningReplay", c.SupportsReasoningReplay)
 		b.WriteString("},\n")
 	}
 }
 
 func hasCompat(c compatEntry) bool {
-	return c.PromptCacheKeyMode != "" || c.SupportsStore != nil || c.SupportsDeveloperRole != nil || c.SupportsReasoningEffort != nil || c.SupportsUsageInStreaming != nil || c.SupportsFinishReason != nil || c.MaxTokensField != "" || c.RequiresToolResultName != nil || c.RequiresAssistantAfterToolResult != nil || c.RequiresNonNullAssistantContent != nil || c.RequiresThinkingAsText != nil || c.RequiresReasoningContentOnAssistantMessages != nil || c.ThinkingFormat != "" || len(c.ChatTemplateKwargs) > 0 || len(c.ChatTemplateArgs) > 0 || c.ThinkingTokenBudgetField != "" || c.SupportsThinkingTokenBudget != nil || c.OpenRouterRouting != nil || c.VercelGatewayRouting != nil || c.ZaiToolStream != nil || c.SupportsStrictMode != nil || c.SupportsOpenAIGrammarTools != nil || c.CacheControlFormat != "" || c.SendSessionAffinityHeaders != nil || c.DeferredToolsMode != "" || c.SupportsLongCacheRetention != nil || c.SupportsTemperature != nil || c.VLLMPriority != nil || c.ForceAdaptiveThinking != nil || len(c.AllowedFallbackModels) > 0 || c.SupportsMidConvoEffort != nil || c.SupportsMidConvoSystemMessages != nil || c.SupportsMidConvoToolAdditions != nil || c.SupportsMidConvoToolChanges != nil || c.AllowEmptySignature != nil || c.SendSessionIdHeader != nil || c.SupportsAdditionalTools != nil || c.SupportsToolSearch != nil || c.SupportsMaxOutputTokens != nil || c.SupportsEagerToolInputStreaming != nil || c.SupportsToolReferences != nil || c.SupportsStrictTools != nil || c.SupportsCacheControlOnTools != nil || c.SessionAffinityFormat != "" || c.SupportsExplicitPromptCacheMode != nil
+	return c.SupportsReasoningReplay != nil || c.PromptCacheKeyMode != "" || c.SupportsStore != nil || c.SupportsDeveloperRole != nil || c.SupportsReasoningEffort != nil || c.SupportsUsageInStreaming != nil || c.SupportsFinishReason != nil || c.MaxTokensField != "" || c.RequiresToolResultName != nil || c.RequiresAssistantAfterToolResult != nil || c.RequiresNonNullAssistantContent != nil || c.RequiresThinkingAsText != nil || c.RequiresReasoningContentOnAssistantMessages != nil || c.ThinkingFormat != "" || len(c.ChatTemplateKwargs) > 0 || len(c.ChatTemplateArgs) > 0 || c.ThinkingTokenBudgetField != "" || c.SupportsThinkingTokenBudget != nil || c.OpenRouterRouting != nil || c.VercelGatewayRouting != nil || c.ZaiToolStream != nil || c.SupportsStrictMode != nil || c.SupportsOpenAIGrammarTools != nil || c.CacheControlFormat != "" || c.SendSessionAffinityHeaders != nil || c.DeferredToolsMode != "" || c.SupportsLongCacheRetention != nil || c.SupportsTemperature != nil || c.VLLMPriority != nil || c.ForceAdaptiveThinking != nil || len(c.AllowedFallbackModels) > 0 || c.SupportsMidConvoEffort != nil || c.SupportsMidConvoSystemMessages != nil || c.SupportsMidConvoToolAdditions != nil || c.SupportsMidConvoToolChanges != nil || c.AllowEmptySignature != nil || c.SendSessionIdHeader != nil || c.SupportsAdditionalTools != nil || c.SupportsToolSearch != nil || c.SupportsMaxOutputTokens != nil || c.SupportsEagerToolInputStreaming != nil || c.SupportsToolReferences != nil || c.SupportsStrictTools != nil || c.SupportsCacheControlOnTools != nil || c.SessionAffinityFormat != "" || c.SupportsExplicitPromptCacheMode != nil
 }
 
 func writeInputLimitsField(b *strings.Builder, value *inputLimitsEntry) {
@@ -938,6 +944,10 @@ func readOfflineCatalog(dir string) (map[string]map[string]modelEntry, error) {
 		if len(manifest.Files) != 43 || fmt.Sprintf("%x", sha256.Sum256(data)) != "85ea40a8ec8e2b5327533d3fd0559072046fde37808c3d869da51fc52470a82c" {
 			return nil, fmt.Errorf("invalid v1.6.1 catalog manifest digest")
 		}
+	case "3ee288633d9a75c317bc3d661808279975a41591576b865c2000e09567e422ab": // v1.7.0
+		if len(manifest.Files) != 43 || fmt.Sprintf("%x", sha256.Sum256(data)) != "d9c5aa7766128bc032ebd68e055760530bdf5b3ef56af445c01cc6ab0ba3fce3" {
+			return nil, fmt.Errorf("invalid v1.7.0 catalog manifest digest")
+		}
 	default:
 		return nil, fmt.Errorf("unsupported catalog structure hash %q", manifest.StructureHash)
 	}
@@ -1052,6 +1062,12 @@ func readOfflineCatalog(dir string) (map[string]map[string]modelEntry, error) {
 					f, ok := costs[field].(float64)
 					if !ok || math.IsNaN(f) || math.IsInf(f, 0) {
 						return nil, fmt.Errorf("invalid cost %s", field)
+					}
+				}
+				if value, present := costs["imageOutput"]; present {
+					f, ok := value.(float64)
+					if !ok || math.IsNaN(f) || math.IsInf(f, 0) {
+						return nil, fmt.Errorf("invalid cost imageOutput")
 					}
 				}
 				structure[provider][key] = api

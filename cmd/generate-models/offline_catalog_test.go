@@ -22,6 +22,36 @@ func TestSourceV161OfflineCatalogueChecksReleasedManifest(t *testing.T) {
 	testReleasedManifest(t, "v1.6.1", "2026-11-25T13:18:26.631Z", "2026-11-25T13:18:26.632Z")
 }
 
+func TestSourceV170OfflineCatalogueChecksReleasedManifest(t *testing.T) {
+	testReleasedManifest(t, "v1.7.0", "2026-11-27T16:40:10.684Z", "2026-11-27T16:40:10.685Z")
+}
+
+func TestV170OptionalMetadataProjection(t *testing.T) {
+	cases := []struct {
+		name, kind, api, field, metadata, want string
+	}{
+		{"image price absent", "image", "openrouter-images", "ImageOutput", `"cost":{}`, ""},
+		{"image price zero", "image", "openrouter-images", "ImageOutput", `"cost":{"imageOutput":0}`, "ImageOutput: new(float64(0))"},
+		{"image price decimal", "image", "openrouter-images", "ImageOutput", `"cost":{"imageOutput":9.820359}`, "ImageOutput: new(float64(9.820359))"},
+		{"replay absent", "chat", "bedrock-converse-stream", "BedrockCompat", `"compat":{}`, ""},
+		{"replay false", "chat", "bedrock-converse-stream", "BedrockCompat", `"compat":{"supportsReasoningReplay":false}`, "BedrockCompat: &BedrockCompat{SupportsReasoningReplay: boolPtr(false)"},
+		{"replay true", "chat", "bedrock-converse-stream", "BedrockCompat", `"compat":{"supportsReasoningReplay":true}`, "BedrockCompat: &BedrockCompat{SupportsReasoningReplay: boolPtr(true)"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var model modelEntry
+			if err := json.Unmarshal([]byte(`{`+tc.metadata+`}`), &model); err != nil {
+				t.Fatal(err)
+			}
+			model.ID, model.Provider, model.Api, model.Type = "fixture", "oracle", tc.api, tc.kind
+			source := generateGoSource(map[string]map[string]modelEntry{"oracle": {"fixture": model}}, 1, tc.kind)
+			if tc.want == "" && strings.Contains(source, tc.field) || tc.want != "" && !strings.Contains(source, tc.want) {
+				t.Fatalf("projection does not preserve %s: want %q\n%s", tc.field, tc.want, source)
+			}
+		})
+	}
+}
+
 func testReleasedManifest(t *testing.T, version, generatedAt, altered string) {
 	t.Helper()
 	data, err := os.ReadFile("testdata/catalog-" + version + "-manifest.json")

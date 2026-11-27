@@ -91,9 +91,8 @@ func compare(dir string) error {
 				if got["type"] == nil {
 					got["type"] = "chat"
 				}
-				// Go exposes the source compat union as four typed fields.
-				// Collapse exactly one active field without changing its contents.
-				for _, field := range []string{"completionsCompat", "responsesCompat", "anthropicCompat", "bedrockCompat"} {
+				// Collapse exactly one active native compat variant. Compare its fields unchanged.
+				for _, field := range []string{"completionsCompat", "responsesCompat", "anthropicCompat", "mistralCompat", "bedrockCompat", "googleCompat"} {
 					if value, ok := got[field]; ok {
 						if got["compat"] != nil {
 							return fmt.Errorf("multiple native compat variants: %s", key)
