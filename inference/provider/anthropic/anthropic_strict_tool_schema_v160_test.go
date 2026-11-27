@@ -125,3 +125,31 @@ func assertAnthropicStrictToolProjectionV160(t *testing.T, tool goai.Tool, want 
 		t.Errorf("wire tools = %#v, want %#v", wire.Tools, wantTools)
 	}
 }
+
+const anthropicDraft7TupleV161 = `{"$schema":"http://json-schema.org/draft-07/schema#","type":"object","properties":{"pair":{"type":"array","items":[{"type":"string"},{"type":"string"}],"minItems":2,"maxItems":2}},"required":["pair"]}`
+
+// Source: pi v1.6.1 anthropic-strict-tool-schema.test.ts:128–145.
+func TestSourceV161AnthropicNonStrictTupleDialect(t *testing.T) {
+	assertAnthropicNonStrictTupleV161(t, anthropicDraft7TupleV161, anthropicDraft7TupleV161)
+}
+
+func TestAnthropicNonStrictTupleRootFilteringV161(t *testing.T) {
+	want := strings.TrimSuffix(anthropicDraft7TupleV161, "}") + `,"additionalProperties":false,"definitions":{"Other":{"type":"string"}}}`
+	input := strings.TrimSuffix(want, "}") + `,"title":"keep out","allOf":[{}],"anyOf":[{}],"oneOf":[{}]}`
+	assertAnthropicNonStrictTupleV161(t, input, want)
+}
+
+func assertAnthropicNonStrictTupleV161(t *testing.T, parameters, expectedSchema string) {
+	t.Helper()
+	var schema map[string]any
+	if err := json.Unmarshal([]byte(expectedSchema), &schema); err != nil {
+		t.Fatal(err)
+	}
+	// Exact tool equality also proves the strict key is absent, not false.
+	want := map[string]any{
+		"name": "lookup", "description": "Look up a value", "eager_input_streaming": true, "input_schema": schema,
+	}
+	tool := strictLookupTool(parameters, "")
+	assertAnthropicStrictToolProjectionV160(t, tool, want, true)
+	assertAnthropicStrictToolProjectionV160(t, tool, want, false)
+}

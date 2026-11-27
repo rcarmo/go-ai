@@ -265,8 +265,9 @@ func legacyAnthropicToolInputSchema(parameters json.RawMessage) json.RawMessage 
 	} else {
 		legacy["required"] = json.RawMessage(`[]`)
 	}
-	// Keep root definitions for property references and the extra-argument policy.
-	for _, key := range []string{"$defs", "definitions", "additionalProperties"} {
+	// Keep the declared dialect for nested syntax such as draft-07 tuples.
+	// Keep definitions for property references and the extra-argument policy.
+	for _, key := range []string{"$schema", "$defs", "definitions", "additionalProperties"} {
 		if value, ok := schema[key]; ok {
 			legacy[key] = value
 		}
