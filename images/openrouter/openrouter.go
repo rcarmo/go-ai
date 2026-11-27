@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/rcarmo/go-ai/images"
 	"io"
 	"net/http"
 	"strconv"
@@ -14,13 +13,15 @@ import (
 	"time"
 
 	goai "github.com/rcarmo/go-ai"
+	"github.com/rcarmo/go-ai/images"
+	"github.com/rcarmo/go-ai/internal/openroutercost"
 )
 
 // GenerateImagesOpenRouter mirrors upstream's openrouter-images provider: it
 // sends an OpenAI-compatible chat completions request with image modalities and
 // extracts data: URL image outputs from choice.message.images.
 func GenerateImagesOpenRouter(model *images.ImagesModel, ictx images.ImagesContext, opts *images.ImagesOptions) (*images.AssistantImages, error) {
-	out := &images.AssistantImages{Api: model.Api, Provider: model.Provider, Model: model.ID, StopReason: goai.StopReasonStop, Timestamp: time.Now().UnixMilli()}
+	out := &images.AssistantImages{Api: model.Api, Provider: model.Provider, Model: model.ID, Output: []images.ImageOutput{}, StopReason: goai.StopReasonStop, Timestamp: time.Now().UnixMilli()}
 	apiKey := ""
 	if opts != nil {
 		apiKey = opts.APIKey
@@ -38,7 +39,7 @@ func GenerateImagesOpenRouter(model *images.ImagesModel, ictx images.ImagesConte
 		return out, nil
 	}
 
-	payload, err := buildImagesPayload(model, ictx)
+	payload, err := buildImagesPayload(model, ictx, opts)
 	if err != nil {
 		out.StopReason = goai.StopReasonError
 		out.ErrorMessage = err.Error()
@@ -150,7 +151,7 @@ func GenerateImagesOpenRouter(model *images.ImagesModel, ictx images.ImagesConte
 	return out, nil
 }
 
-func buildImagesPayload(model *images.ImagesModel, ictx images.ImagesContext) (map[string]any, error) {
+func buildImagesPayload(model *images.ImagesModel, ictx images.ImagesContext, opts *images.ImagesOptions) (map[string]any, error) {
 	content := make([]any, 0, len(ictx.Input))
 	for _, in := range ictx.Input {
 		if in.Type == "text" {
@@ -167,16 +168,29 @@ func buildImagesPayload(model *images.ImagesModel, ictx images.ImagesContext) (m
 			break
 		}
 	}
-	return map[string]any{
+	payload := map[string]any{
 		"model":      model.ID,
 		"messages":   []any{map[string]any{"role": "user", "content": content}},
 		"stream":     false,
 		"modalities": modes,
-	}, nil
+	}
+	if opts != nil {
+		config := map[string]string{}
+		if opts.AspectRatio != nil && *opts.AspectRatio != "" {
+			config["aspect_ratio"] = *opts.AspectRatio
+		}
+		if opts.Size != nil && *opts.Size != "" {
+			config["image_size"] = *opts.Size
+		}
+		if len(config) != 0 {
+			payload["image_config"] = config
+		}
+	}
+	return payload, nil
 }
 
 func doOpenRouterImageRequest(ctx context.Context, client *http.Client, model *images.ImagesModel, opts *images.ImagesOptions, apiKey string, body []byte) (*images.AssistantImages, time.Duration, bool, error) {
-	out := &images.AssistantImages{Api: model.Api, Provider: model.Provider, Model: model.ID, StopReason: goai.StopReasonStop, Timestamp: time.Now().UnixMilli()}
+	out := &images.AssistantImages{Api: model.Api, Provider: model.Provider, Model: model.ID, Output: []images.ImageOutput{}, StopReason: goai.StopReasonStop, Timestamp: time.Now().UnixMilli()}
 	req, err := http.NewRequestWithContext(ctx, "POST", strings.TrimRight(model.BaseURL, "/")+"/chat/completions", bytes.NewReader(body))
 	if err != nil {
 		return nil, 0, false, err
@@ -236,12 +250,34 @@ func parseOpenRouterImageResponse(decoded map[string]any, model *images.ImagesMo
 	if usage, ok := decoded["usage"].(map[string]any); ok {
 		out.Usage = parseOpenRouterImageUsage(usage, model)
 	}
-	choices, ok := decoded["choices"].([]any)
-	if !ok || len(choices) == 0 {
+	choices, _ := decoded["choices"].([]any)
+	var c map[string]any
+	if len(choices) != 0 {
+		c, _ = choices[0].(map[string]any)
+	}
+	topError := imageChoiceError(decoded["error"])
+	if c == nil {
+		out.StopReason = goai.StopReasonError
+		out.ErrorMessage = topError
+		if out.ErrorMessage == "" {
+			out.ErrorMessage = "Provider returned no choices"
+		}
 		return
 	}
-	c, ok := choices[0].(map[string]any)
-	if !ok {
+	choiceError := imageChoiceError(c["error"])
+	if choiceError == "" {
+		choiceError = topError
+	}
+	if choiceError != "" {
+		out.StopReason, out.ErrorMessage = goai.StopReasonError, choiceError
+		return
+	}
+	if finish, _ := c["finish_reason"].(string); finish != "" && finish != "stop" && finish != "end" {
+		out.StopReason = goai.StopReasonError
+		out.ErrorMessage = "Provider finish_reason: " + finish
+		if native, _ := c["native_finish_reason"].(string); native != "" && native != finish {
+			out.ErrorMessage += " (native_finish_reason: " + native + ")"
+		}
 		return
 	}
 	msg, ok := c["message"].(map[string]any)
@@ -276,6 +312,19 @@ func parseOpenRouterImageResponse(decoded map[string]any, model *images.ImagesMo
 	}
 }
 
+func imageChoiceError(value any) string {
+	detail, _ := value.(map[string]any)
+	if message, _ := detail["message"].(string); strings.TrimSpace(message) != "" {
+		return strings.TrimSpace(message)
+	}
+	if value := detail["code"]; value != nil {
+		if code := strings.TrimSpace(fmt.Sprint(value)); code != "" {
+			return "Provider error (" + code + ")"
+		}
+	}
+	return ""
+}
+
 func parseOpenRouterImageUsage(raw map[string]any, model *images.ImagesModel) *goai.Usage {
 	prompt := intFromAny(raw["prompt_tokens"])
 	completion := intFromAny(raw["completion_tokens"])
@@ -292,11 +341,20 @@ func parseOpenRouterImageUsage(raw map[string]any, model *images.ImagesModel) *g
 	}
 	input := max(0, prompt-cacheRead-cacheWrite)
 	u := &goai.Usage{Input: input, Output: completion, CacheRead: cacheRead, CacheWrite: cacheWrite, TotalTokens: input + completion + cacheRead + cacheWrite}
-	u.Cost.Input = model.Cost.Input / 1_000_000 * float64(input)
-	u.Cost.Output = model.Cost.Output / 1_000_000 * float64(completion)
-	u.Cost.CacheRead = model.Cost.CacheRead / 1_000_000 * float64(cacheRead)
-	u.Cost.CacheWrite = model.Cost.CacheWrite / 1_000_000 * float64(cacheWrite)
-	u.Cost.Total = u.Cost.Input + u.Cost.Output + u.Cost.CacheRead + u.Cost.CacheWrite
+	u.ReasoningSet = true
+	if details, ok := raw["completion_tokens_details"].(map[string]any); ok {
+		u.Reasoning = intFromAny(details["reasoning_tokens"])
+		if n, ok := details["image_tokens"].(float64); ok {
+			u.ImageOutput, u.ImageOutputSet = int(n), true
+		}
+	}
+	u.Cost = goai.CalculateCost(&goai.Model{Cost: model.Cost}, u)
+	var accounting openroutercost.Accounting
+	if encoded, err := json.Marshal(raw); err == nil && json.Unmarshal(encoded, &accounting) == nil {
+		if total, reported := openroutercost.BilledTotal(accounting); reported {
+			u.Cost.Total, u.Cost.TotalFromProvider = total, new(true)
+		}
+	}
 	return u
 }
 

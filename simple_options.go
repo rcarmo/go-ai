@@ -237,9 +237,17 @@ func CalculateCost(model *Model, usage *Usage) CostBreakdown {
 		}
 	}
 
+	outputCost := float64(usage.Output) * rates.Output / m
+	if rate := model.Cost.ImageOutput; rate != nil {
+		images := usage.Output
+		if usage.ImageOutputSet || usage.ImageOutput != 0 {
+			images = min(usage.Output, usage.ImageOutput)
+		}
+		outputCost = (rates.Output*float64(usage.Output-images) + *rate*float64(images)) / m
+	}
 	c := CostBreakdown{
 		Input:      float64(usage.Input) * rates.Input / m,
-		Output:     float64(usage.Output) * rates.Output / m,
+		Output:     outputCost,
 		CacheRead:  float64(usage.CacheRead) * rates.CacheRead / m,
 		CacheWrite: (float64(shortWrite)*rates.CacheWrite + float64(longWrite)*rates.Input*2) / m,
 	}

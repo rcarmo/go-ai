@@ -428,6 +428,9 @@ func cloneModel(model *Model) *Model {
 		return nil
 	}
 	copy := *model
+	if rate := model.Cost.ImageOutput; rate != nil {
+		copy.Cost.ImageOutput = new(*rate)
+	}
 	copy.Input = append([]string{}, model.Input...)
 	if model.InputLimits != nil {
 		limits := *model.InputLimits

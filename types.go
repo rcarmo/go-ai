@@ -407,11 +407,12 @@ type Context struct {
 
 // ModelCost holds per-million-token costs.
 type ModelCost struct {
-	Input      float64         `json:"input"`
-	Output     float64         `json:"output"`
-	CacheRead  float64         `json:"cacheRead"`
-	CacheWrite float64         `json:"cacheWrite"`
-	Tiers      []ModelCostTier `json:"tiers,omitempty"`
+	Input       float64         `json:"input"`
+	Output      float64         `json:"output"`
+	ImageOutput *float64        `json:"imageOutput,omitempty"`
+	CacheRead   float64         `json:"cacheRead"`
+	CacheWrite  float64         `json:"cacheWrite"`
+	Tiers       []ModelCostTier `json:"tiers,omitempty"`
 }
 
 // ModelCostTier overrides model costs when request input usage exceeds a threshold.

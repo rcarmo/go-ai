@@ -119,6 +119,9 @@ func cloneClassifierModel(model *ClassifierModel) *ClassifierModel {
 		copy.Compat = &compat
 	}
 	copy.Input = append([]string{}, model.Input...)
+	if rate := model.Cost.ImageOutput; rate != nil {
+		copy.Cost.ImageOutput = new(*rate)
+	}
 	copy.Cost.Tiers = append([]ModelCostTier(nil), model.Cost.Tiers...)
 	if model.Headers != nil {
 		copy.Headers = map[string]string{}
