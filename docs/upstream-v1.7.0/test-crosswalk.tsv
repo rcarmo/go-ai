@@ -162,7 +162,7 @@ packages/ai/test/provider-error-body-regression.test.ts	unchanged	present	0	0	0	
 packages/ai/test/provider-error-response.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/provider-retry.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/providers.test.ts	M	present	3	0	8	6	0	0
-packages/ai/test/qwen-token-plan-models.test.ts	M	present	0	0	0	0	0	0
+packages/ai/test/qwen-token-plan-models.test.ts	M	present	2	2	2	0	0	0
 packages/ai/test/radius-oauth.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/radius-provider.test.ts	M	present	2	2	1	4	4	0
 packages/ai/test/radius-thinking-replay-e2e.test.ts	unchanged	present	0	0	0	0	0	0
@@ -180,7 +180,7 @@ packages/ai/test/system-message-replay.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/telemetry-options.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/telemetry.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/text.test.ts	unchanged	present	0	0	0	0	0	0
-packages/ai/test/together-models.test.ts	M	present	0	0	0	0	0	0
+packages/ai/test/together-models.test.ts	M	present	1	1	3	0	0	0
 packages/ai/test/tokens.test.ts	M	present	0	0	0	0	0	0
 packages/ai/test/tool-call-id-normalization.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/tool-call-without-result.test.ts	M	present	0	0	0	0	0	0
