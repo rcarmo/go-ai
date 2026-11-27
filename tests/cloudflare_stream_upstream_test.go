@@ -2,8 +2,11 @@ package goai_test
 
 import (
 	"context"
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	goai "github.com/rcarmo/go-ai"
@@ -121,6 +124,89 @@ func TestCloudflareBaseURLUnresolvedPlaceholdersReachDispatch(t *testing.T) {
 			}
 			if gotPath != tc.wantPath {
 				t.Fatalf("path=%q, want %q", gotPath, tc.wantPath)
+			}
+		})
+	}
+}
+
+// The compatibility flags describe the wire contract; the model registry is
+// verified separately against the published catalog.
+func TestCloudflareGatewayWorkersCompatibility(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		prompt  string
+		limit   *int
+		session string
+	}{
+		{name: "conservative-fields", prompt: "You are helpful.", limit: new(1234)},
+		{name: "provider-auth"},
+		{name: "session-affinity", session: "session-1"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			model := &goai.Model{
+				ID: "workers-ai/@cf/example/chat", Provider: goai.ProviderCloudflareAIGateway, Api: goai.ApiOpenAICompletions,
+				BaseURL:   "https://gateway.ai.cloudflare.com/v1/{CLOUDFLARE_ACCOUNT_ID}/{CLOUDFLARE_GATEWAY_ID}/compat",
+				Reasoning: true, ContextWindow: 10240, MaxTokens: 4096,
+				CompletionsCompat: &goai.OpenAICompletionsCompat{
+					SupportsStore: new(false), SupportsReasoningEffort: new(false), MaxTokensField: "max_tokens",
+					SendSessionAffinityHeaders: new(true), SupportsLongCacheRetention: new(false),
+				},
+			}
+			var url string
+			var header http.Header
+			var wire map[string]json.RawMessage
+			opts := &goai.StreamOptions{
+				Env:       goai.ProviderEnv{"CLOUDFLARE_ACCOUNT_ID": "account-id", "CLOUDFLARE_GATEWAY_ID": "gateway-id", "CLOUDFLARE_API_KEY": "cf-token"},
+				Reasoning: new(goai.ThinkingHigh), MaxTokens: tc.limit, SessionID: tc.session,
+				HTTPTransport: providerRetryTransportMain(func(req *http.Request) (*http.Response, error) {
+					defer req.Body.Close()
+					url, header = req.URL.String(), req.Header.Clone()
+					if err := json.NewDecoder(req.Body).Decode(&wire); err != nil {
+						return nil, err
+					}
+					res := &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: io.NopCloser(strings.NewReader("data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"ok\"},\"finish_reason\":\"stop\"}]}\n\n"))}
+					res.Header.Set("Content-Type", "text/event-stream")
+					return res, nil
+				}),
+			}
+			done := false
+			for evt := range goai.Stream(t.Context(), model, &goai.Context{SystemPrompt: tc.prompt, Messages: []goai.Message{goai.UserMessage("hi")}}, opts) {
+				switch event := evt.(type) {
+				case *goai.ErrorEvent:
+					t.Errorf("stream: %v", event.Err)
+				case *goai.DoneEvent:
+					done = true
+				}
+			}
+			if !done || url != "https://gateway.ai.cloudflare.com/v1/account-id/gateway-id/compat/chat/completions" {
+				t.Fatalf("completed=%v, url=%q", done, url)
+			}
+			if got := header.Values("Authorization"); len(got) != 0 {
+				t.Errorf("unexpected standard authorization: %v", got)
+			}
+			if got := header.Get("cf-aig-authorization"); got != "Bearer cf-token" {
+				t.Errorf("gateway authorization: %q", got)
+			}
+			if tc.limit != nil {
+				var messages []struct{ Role string }
+				if err := json.Unmarshal(wire["messages"], &messages); err != nil || len(messages) == 0 || messages[0].Role != "system" {
+					t.Errorf("system role: %s, %v", wire["messages"], err)
+				}
+				if got := string(wire["max_tokens"]); got != "1234" {
+					t.Errorf("max_tokens: %q", got)
+				}
+				for _, key := range []string{"max_completion_tokens", "reasoning_effort", "store"} {
+					if _, exists := wire[key]; exists {
+						t.Errorf("unexpected %s: %s", key, wire[key])
+					}
+				}
+			}
+			if tc.session != "" {
+				for _, key := range []string{"session_id", "x-client-request-id", "x-session-affinity"} {
+					if got := header.Get(key); got != "session-1" {
+						t.Errorf("%s = %q, want session-1", key, got)
+					}
+				}
 			}
 		})
 	}
