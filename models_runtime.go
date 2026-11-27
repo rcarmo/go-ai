@@ -445,6 +445,14 @@ func cloneModel(model *Model) *Model {
 		compat := *model.MistralCompat
 		copy.MistralCompat = &compat
 	}
+	if model.GoogleCompat != nil {
+		compat := *model.GoogleCompat
+		if compat.SupportsStrictMode != nil {
+			enabled := *compat.SupportsStrictMode
+			compat.SupportsStrictMode = &enabled
+		}
+		copy.GoogleCompat = &compat
+	}
 	if model.PromptCache != nil {
 		promptCache := *model.PromptCache
 		copy.PromptCache = &promptCache

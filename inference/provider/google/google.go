@@ -395,7 +395,7 @@ type geminiFuncCallingConfig struct {
 
 func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions) (geminiRequest, error) {
 	req := geminiRequest{}
-	supportsStrictMode := supportsGoogleStrictToolSampling(model.ID)
+	supportsStrictMode := supportsGoogleStrictToolSampling(model)
 	// Validate every requirement, even when an explicit choice bypasses mode
 	// resolution or an earlier strict tool already selects VALIDATED.
 	for _, tool := range convCtx.Tools {
@@ -700,9 +700,11 @@ func requiresToolCallID(modelID string) bool {
 
 // supportsMultimodalFunctionResponse returns true for Gemini 3+ models which
 // support image parts directly in functionResponse.
-func supportsGoogleStrictToolSampling(modelID string) bool {
-	v := getGeminiMajorVersion(modelID)
-	return v >= 3
+func supportsGoogleStrictToolSampling(model *goai.Model) bool {
+	if compat := model.GoogleCompat; compat != nil && compat.SupportsStrictMode != nil {
+		return *compat.SupportsStrictMode
+	}
+	return getGeminiMajorVersion(model.ID) >= 3
 }
 
 func supportsMultimodalFunctionResponse(modelID string) bool {

@@ -491,6 +491,7 @@ type Model struct {
 	AnthropicCompat   *AnthropicMessagesCompat    `json:"anthropicCompat,omitempty"`
 	MistralCompat     *MistralConversationsCompat `json:"mistralCompat,omitempty"`
 	BedrockCompat     *BedrockCompat              `json:"bedrockCompat,omitempty"`
+	GoogleCompat      *GoogleCompat               `json:"googleCompat,omitempty"`
 }
 
 type ImageApi string

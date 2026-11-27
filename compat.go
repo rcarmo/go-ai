@@ -172,6 +172,12 @@ type MistralConversationsCompat struct {
 	SupportsStrictMode bool `json:"supportsStrictMode"`
 }
 
+// GoogleCompat holds compatibility overrides for Gemini and Vertex models.
+type GoogleCompat struct {
+	// SupportsStrictMode overrides strict tool-mode detection from the model ID.
+	SupportsStrictMode *bool `json:"supportsStrictMode,omitempty"`
+}
+
 // BedrockCompat holds compatibility overrides for Bedrock Converse models.
 type BedrockCompat struct {
 	// Whether the provider supports strict JSON-schema function tools.
