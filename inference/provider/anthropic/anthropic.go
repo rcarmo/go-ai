@@ -347,13 +347,24 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 			return
 		}
 
-		body := buildRequest(model, convCtx, opts)
-		payload, err := goai.InvokeOnPayload(opts, body, model)
-		if err != nil {
-			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
-			return
+		compat := getAnthropicCompat(model)
+		strictSessionID := ""
+		if opts != nil {
+			strictSessionID = opts.SessionID
 		}
-		bodyJSON, err := json.Marshal(payload)
+		remembered := hasStrictToolLimitRejection(strictSessionID)
+		requestContext := convCtx
+		if remembered {
+			requestContext, _ = withoutPreferredStrictTools(convCtx, compat.supportsStrictTools)
+		}
+		buildPayload := func(input *goai.Context) ([]byte, error) {
+			payload, err := goai.InvokeOnPayload(opts, buildRequest(model, input, opts), model)
+			if err != nil {
+				return nil, err
+			}
+			return marshalStreamingPayload(payload)
+		}
+		bodyJSON, err := buildPayload(requestContext)
 		if err != nil {
 			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
 			return
@@ -406,7 +417,6 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 
 		// Beta features
 		var betas []string
-		compat := getAnthropicCompat(model)
 		threadSession := anthropicThreadSession(model, opts)
 		if !hasAnthropicBetaHeader(model.Headers, optHeaders) {
 			if model.Reasoning && anthropicThinkingRequested(opts) && !compat.forceAdaptiveThinking {
@@ -495,17 +505,19 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 			return
 		}
 		var fallbackDiagnostic *goai.AssistantMessageDiagnostic
-		if resp.StatusCode == http.StatusBadRequest && ctx.Err() == nil {
+		if resp.StatusCode == http.StatusBadRequest && ctx.Err() == nil && !remembered {
 			fallbackContext, hasPreferred := withoutPreferredStrictTools(convCtx, compat.supportsStrictTools)
 			if hasPreferred {
 				original, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 				resp.Body.Close()
 				if strictLimitError(original) {
-					body = buildRequest(model, fallbackContext, opts)
-					payload, err = goai.InvokeOnPayload(opts, body, model)
-					if err == nil {
-						bodyJSON, err = json.Marshal(payload)
+					goai.InvokeOnResponse(opts, resp, model)
+					if err := ctx.Err(); err != nil {
+						send(&goai.ErrorEvent{Reason: goai.StopReasonAborted, Error: failureMessage(goai.StopReasonAborted, err), Err: err})
+						return
 					}
+					rememberStrictToolLimitRejection(strictSessionID)
+					bodyJSON, err = buildPayload(fallbackContext)
 					if err != nil {
 						send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: failureMessage(goai.StopReasonError, err), Err: err})
 						return
@@ -573,6 +585,25 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 }
 
 // --- Request ---
+
+func marshalStreamingPayload(payload any) ([]byte, error) {
+	if request, ok := payload.(anthropicRequest); ok {
+		request.Stream = true
+		return json.Marshal(request)
+	}
+	// Payload hooks can replace the request with an object, but the consumer
+	// still expects an SSE response. Keep all other fields as raw JSON.
+	raw, err := json.Marshal(payload)
+	if err != nil || len(raw) == 0 || raw[0] != '{' {
+		return raw, err
+	}
+	var replacement map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &replacement); err != nil {
+		return nil, err
+	}
+	replacement["stream"] = json.RawMessage(`true`)
+	return json.Marshal(replacement)
+}
 
 type anthropicRequest struct {
 	Model        string              `json:"model"`

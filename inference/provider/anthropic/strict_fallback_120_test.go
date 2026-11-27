@@ -92,7 +92,7 @@ func TestAnthropic120PreferredStrictLimitFallbackOnce(t *testing.T) {
 				want = 1
 			}
 			success := mode == "fallback" || mode == "tool-count" || mode == "union-count"
-			if payloadHooks != want || responseHooks != 1 {
+			if payloadHooks != want || responseHooks != want {
 				t.Error("fallback hook counts", payloadHooks, responseHooks, want)
 			}
 			if requests != want || done != success {
