@@ -596,7 +596,7 @@ func buildRequestBodyWithCompat(model *goai.Model, convCtx *goai.Context, opts *
 			req.ToolStream = &t
 		}
 		req.Tools = append(req.Tools, convertToolDefs(activeTools, compat, cacheMarker)...)
-	} else if hasToolHistory(convCtx) {
+	} else if compat.RequiresToolsWithToolHistory != nil && *compat.RequiresToolsWithToolHistory && hasToolHistory(convCtx) {
 		req.EmitEmptyTools = true
 	}
 

@@ -58,6 +58,10 @@ type OpenAICompletionsCompat struct {
 	// Whether a tool-call-only assistant message needs empty string content instead of null.
 	RequiresNonNullAssistantContent *bool `json:"requiresNonNullAssistantContent,omitempty"`
 
+	// Whether an explicit empty tools array is required when the conversation
+	// already contains tool-call/tool-result history but has no active tools.
+	RequiresToolsWithToolHistory *bool `json:"requiresToolsWithToolHistory,omitempty"`
+
 	// Whether thinking blocks must be converted to text with <thinking> delimiters.
 	RequiresThinkingAsText *bool `json:"requiresThinkingAsText,omitempty"`
 
@@ -282,6 +286,9 @@ func DetectCompatForModel(model *Model) OpenAICompletionsCompat {
 	if o.RequiresNonNullAssistantContent != nil {
 		c.RequiresNonNullAssistantContent = o.RequiresNonNullAssistantContent
 	}
+	if o.RequiresToolsWithToolHistory != nil {
+		c.RequiresToolsWithToolHistory = o.RequiresToolsWithToolHistory
+	}
 	if o.RequiresThinkingAsText != nil {
 		c.RequiresThinkingAsText = o.RequiresThinkingAsText
 	}
@@ -406,6 +413,7 @@ func detectCompat(provider Provider, modelID string, baseURL string) OpenAICompl
 
 	c.SupportsUsageInStreaming = &t
 	c.SupportsFinishReason = &t
+	c.RequiresToolsWithToolHistory = &f
 
 	// maxTokensField
 	if useMaxTokens {

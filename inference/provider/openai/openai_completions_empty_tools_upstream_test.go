@@ -57,27 +57,39 @@ func TestOpenAICompletionsEmptyToolsUpstream(t *testing.T) {
 		}
 	})
 
-	t.Run("emits tools empty array when conversation has tool history", func(t *testing.T) {
-		req := buildRequestBody(model, &goai.Context{
-			Messages: []goai.Message{
-				goai.UserMessage("use the tool"),
-				{
-					Role:       goai.RoleAssistant,
-					Api:        goai.ApiOpenAICompletions,
-					Provider:   goai.ProviderOpenAI,
-					Model:      "gpt-4o-mini",
-					StopReason: goai.StopReasonToolUse,
-					Content:    []goai.ContentBlock{{Type: "toolCall", ID: "t1", Name: "noop", Arguments: map[string]interface{}{}}},
-				},
-				{
-					Role:       goai.RoleToolResult,
-					ToolCallID: "t1",
-					ToolName:   "noop",
-					Content:    []goai.ContentBlock{{Type: "text", Text: "done"}},
-				},
+	toolHistory := &goai.Context{
+		Messages: []goai.Message{
+			goai.UserMessage("use the tool"),
+			{
+				Role:       goai.RoleAssistant,
+				Api:        goai.ApiOpenAICompletions,
+				Provider:   goai.ProviderOpenAI,
+				Model:      "gpt-4o-mini",
+				StopReason: goai.StopReasonToolUse,
+				Content:    []goai.ContentBlock{{Type: "toolCall", ID: "t1", Name: "noop", Arguments: map[string]interface{}{}}},
 			},
-			Tools: []goai.Tool{},
-		}, &goai.StreamOptions{APIKey: "test"})
+			{
+				Role:       goai.RoleToolResult,
+				ToolCallID: "t1",
+				ToolName:   "noop",
+				Content:    []goai.ContentBlock{{Type: "text", Text: "done"}},
+			},
+		},
+		Tools: []goai.Tool{},
+	}
+
+	// Source: pi v1.7.0 openai-completions-empty-tools.test.ts:274-306.
+	// Tool history alone must not force an empty tools field.
+	t.Run("omits tools with tool history by default", func(t *testing.T) {
+		req := buildRequestBody(model, toolHistory, &goai.StreamOptions{APIKey: "test"})
+		assertJSONHasNoKey(t, req, "tools")
+	})
+
+	t.Run("emits explicit empty tools for compatible tool history", func(t *testing.T) {
+		requiresTools := true
+		compatibleModel := *model
+		compatibleModel.CompletionsCompat = &goai.OpenAICompletionsCompat{RequiresToolsWithToolHistory: &requiresTools}
+		req := buildRequestBody(&compatibleModel, toolHistory, &goai.StreamOptions{APIKey: "test"})
 		payload := marshalRequestMap(t, req)
 		tools, ok := payload["tools"].([]interface{})
 		if !ok || len(tools) != 0 {
