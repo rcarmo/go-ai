@@ -220,3 +220,48 @@ func TestSourceV160OpenAIModelsDoNotInferCacheWarming(t *testing.T) {
 		})
 	}
 }
+
+// Source: pi v1.7.0 packages/ai/test/providers.test.ts.
+func TestBuiltinCatalogPreservesProviderConversationCapabilities(t *testing.T) {
+	opus := requireModel(t, goai.ProviderGitHubCopilot, "claude-opus-5.5")
+	if opus.AnthropicCompat == nil || ptrValue(opus.AnthropicCompat.SupportsMidConvoEffort) != true {
+		t.Fatalf("Claude Opus effort compatibility=%#v", opus.AnthropicCompat)
+	}
+	if opus.PromptCache == nil || opus.PromptCache.Short != 300 || opus.PromptCache.Long != 3600 {
+		t.Fatalf("Claude Opus prompt cache=%#v", opus.PromptCache)
+	}
+	supportedEffort := requireModel(t, goai.ProviderGitHubCopilot, "gpt-6-sol")
+	if supportedEffort.ResponsesCompat == nil || ptrValue(supportedEffort.ResponsesCompat.SupportsMidConvoEffort) != true {
+		t.Errorf("gpt-6-sol effort compatibility=%#v", supportedEffort.ResponsesCompat)
+	}
+	unsupportedEffort := requireModel(t, goai.ProviderGitHubCopilot, "gpt-5.6-sol")
+	if unsupportedEffort.ResponsesCompat == nil || unsupportedEffort.ResponsesCompat.SupportsMidConvoEffort != nil {
+		t.Errorf("gpt-5.6-sol unexpectedly supports mid-conversation effort: %#v", unsupportedEffort.ResponsesCompat)
+	}
+	for _, id := range []string{"gpt-5.3-codex", "mai-code-2-flash"} {
+		model := requireModel(t, goai.ProviderGitHubCopilot, id)
+		if model.ResponsesCompat == nil || ptrValue(model.ResponsesCompat.SupportsMidConvoSystemMessages) != true {
+			t.Errorf("%s system-message compatibility=%#v", id, model.ResponsesCompat)
+		}
+	}
+	grok := requireModel(t, goai.ProviderGitHubCopilot, "grok-4.7")
+	if grok.ResponsesCompat == nil || grok.ResponsesCompat.SupportsMidConvoSystemMessages != nil {
+		t.Fatalf("Grok 4.7 unexpectedly supports mid-conversation system messages: %#v", grok.ResponsesCompat)
+	}
+
+	for _, pair := range []struct {
+		provider goai.Provider
+		id       string
+		want     bool
+	}{
+		{goai.ProviderOpenCode, "claude-opus-5", false},
+		{goai.ProviderAnthropic, "claude-opus-5", true},
+		{goai.ProviderGitHubCopilot, "claude-opus-5.5", true},
+	} {
+		model := requireModel(t, pair.provider, pair.id)
+		got := model.AnthropicCompat != nil && ptrValue(model.AnthropicCompat.SupportsMidConvoToolChanges)
+		if got != pair.want {
+			t.Errorf("%s/%s tool-change compatibility=%v, want %v (%#v)", pair.provider, pair.id, got, pair.want, model.AnthropicCompat)
+		}
+	}
+}

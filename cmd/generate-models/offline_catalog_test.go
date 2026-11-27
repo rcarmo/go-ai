@@ -26,7 +26,7 @@ func TestSourceV170OfflineCatalogueChecksReleasedManifest(t *testing.T) {
 	testReleasedManifest(t, "v1.7.0", "2026-11-27T16:40:10.684Z", "2026-11-27T16:40:10.685Z")
 }
 
-func TestV170OptionalMetadataProjection(t *testing.T) {
+func TestOptionalMetadataProjection(t *testing.T) {
 	cases := []struct {
 		name, kind, api, field, metadata, want string
 	}{
