@@ -39,8 +39,13 @@ func (v *toolSchemaValidator) stringFormatReason(value interface{}, schema map[s
 		return ""
 	}
 	name, _ := schema["format"].(string)
-	if v.formatPolicy == schemaFormatsLegacy && name == "json-pointer-uri-fragment" {
-		return ""
+	if v.formatPolicy == schemaFormatsLegacy {
+		// These formats are available only in explicitly configured checks.
+		// Existing tool and legacy validation must keep them as annotations.
+		switch name {
+		case "json-pointer", "relative-json-pointer", "json-pointer-uri-fragment":
+			return ""
+		}
 	}
 	var valid bool
 	switch name {
