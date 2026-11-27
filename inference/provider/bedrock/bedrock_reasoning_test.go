@@ -70,6 +70,66 @@ func bedrockPayload(t *testing.T, model *goai.Model, messages []goai.Message, re
 	return input
 }
 
+func TestBedrockReasoningCatalogPayload(t *testing.T) {
+	goai.RegisterBuiltinModels()
+	fixtures := bedrockReasoningModels(t)
+	catalogModel := func(t *testing.T, id string) (*goai.Model, goai.Model) {
+		t.Helper()
+		fixture, ok := fixtures[id]
+		if !ok {
+			t.Fatalf("missing fixture metadata for %s", id)
+		}
+		model := goai.GetModel(goai.ProviderAmazonBedrock, id)
+		if model == nil {
+			t.Fatalf("catalog lookup failed for %s", id)
+		}
+		return model, fixture
+	}
+
+	t.Run("replay-opt-out", func(t *testing.T) {
+		for _, id := range []string{"global.moonshotai.kimi-k3", "us.moonshotai.kimi-k3.1"} {
+			t.Run(id, func(t *testing.T) {
+				model, fixture := catalogModel(t, id)
+				if !reflect.DeepEqual(model.BedrockCompat, fixture.BedrockCompat) {
+					t.Fatalf("catalog compat = %#v, fixture = %#v", model.BedrockCompat, fixture.BedrockCompat)
+				}
+				messages := []goai.Message{
+					goai.UserMessage("Read the file"),
+					{Role: goai.RoleAssistant, Api: model.Api, Provider: model.Provider, Model: model.ID, StopReason: goai.StopReasonToolUse, Content: []goai.ContentBlock{{Type: "thinking", Thinking: "I should read it."}, {Type: "toolCall", ID: "tool-1", Name: "read", Arguments: map[string]any{"path": "a.txt"}}}},
+					{Role: goai.RoleToolResult, ToolCallID: "tool-1", ToolName: "read", Content: []goai.ContentBlock{{Type: "text", Text: "hello"}}},
+				}
+				content := bedrockPayload(t, model, messages, nil).Messages[1].Content
+				if len(content) != 1 {
+					t.Fatalf("assistant blocks = %d, want only tool use", len(content))
+				}
+				if _, ok := content[0].(*types.ContentBlockMemberToolUse); !ok {
+					t.Fatalf("assistant block = %T, want tool use", content[0])
+				}
+			})
+		}
+	})
+
+	t.Run("flat-effort-levels", func(t *testing.T) {
+		for _, id := range []string{"global.moonshotai.kimi-k3.1", "us.moonshotai.kimi-k3.1", "global.zai.glm-5.3"} {
+			t.Run(id, func(t *testing.T) {
+				model, fixture := catalogModel(t, id)
+				if got, want := goai.GetSupportedThinkingLevels(model), goai.GetSupportedThinkingLevels(&fixture); !reflect.DeepEqual(got, want) {
+					t.Fatalf("catalog levels = %v, fixture levels = %v", got, want)
+				}
+				medium := goai.ThinkingMedium
+				fields := bedrockPayload(t, model, []goai.Message{goai.UserMessage("Hello")}, &medium).AdditionalModelRequestFields
+				if fields == nil {
+					t.Fatal("additional model request fields absent")
+				}
+				got, err := fields.MarshalSmithyDocument()
+				if err != nil || string(got) != `{"reasoning_effort":"medium"}` {
+					t.Fatalf("additional model request fields = %s (%v)", got, err)
+				}
+			})
+		}
+	})
+}
+
 func TestBedrockFlatReasoningEffort(t *testing.T) {
 	const (
 		globalKimi = "global.moonshotai.kimi-k3.1"

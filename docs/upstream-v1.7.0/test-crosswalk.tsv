@@ -28,7 +28,7 @@ packages/ai/test/azure-openai-responses-reasoning-replay.test.ts	unchanged	prese
 packages/ai/test/azure-openai-tool-choice.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/baseten-models.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/bedrock-cache-write-1h-cost.test.ts	unchanged	present	0	0	0	0	0	0
-packages/ai/test/bedrock-convert-messages.test.ts	M	present	2	2	2	1	0	0
+packages/ai/test/bedrock-convert-messages.test.ts	M	present	2	2	3	0	0	0
 packages/ai/test/bedrock-credentials.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/bedrock-custom-headers.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/bedrock-endpoint-resolution.test.ts	unchanged	present	0	0	0	0	0	0
@@ -40,7 +40,7 @@ packages/ai/test/bedrock-redacted-reasoning.test.ts	unchanged	present	0	0	0	0	0	
 packages/ai/test/bedrock-response-headers.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/bedrock-stream-state.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/bedrock-strict-tool-fallback.test.ts	unchanged	present	0	0	0	0	0	0
-packages/ai/test/bedrock-thinking-payload.test.ts	M	present	5	5	4	1	0	0
+packages/ai/test/bedrock-thinking-payload.test.ts	M	present	5	5	5	0	0	0
 packages/ai/test/cache-retention.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/clamp-max-tokens.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/classifier-images-live.test.ts	unchanged	present	0	0	0	0	0	0
