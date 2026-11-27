@@ -16,7 +16,9 @@ import (
 var overflowPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)prompt (?:is )?too long`),
 	regexp.MustCompile(`(?i)prompt exceeds max length`),
-	regexp.MustCompile(`(?i)request_too_large`),
+	// Go's word boundary is ASCII. Keep S ASCII-only too: JavaScript's
+	// non-Unicode /i does not equate it with the long s (ſ).
+	regexp.MustCompile(`(?i)\breque(?-i:[sS])t_too_large\b`),
 	regexp.MustCompile(`(?i)input is too long for requested model`),
 	regexp.MustCompile(`(?i)exceeds the context window`),
 	regexp.MustCompile(`(?i)exceeds (?:the )?(?:model'?s )?maximum context length(?: of [\d,]+ tokens?|\s*\([\d,]+\))`), // OpenAI/LiteLLM specific
