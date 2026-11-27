@@ -31,4 +31,8 @@ Two mutation controls deliberately changed test expectations back to a retired Q
 
 ## Native verification
 
-Focused native tests ran twice with shuffle under one bounded lock. The current Qwen, Together, Cloudflare direct/gateway and Ant Ling production routes passed. This receipt does not claim live credential tests: Cloudflare and Ant Ling network scenarios remain unavailable without their upstream credentials.
+Focused native tests ran twice with shuffle under one bounded lock. The current Qwen, Together, Cloudflare direct/gateway and Ant Ling production routes passed. Project-wide `make vet` and pinned Staticcheck v0.8.2 passed, as did all 466 assertion-locator checks and crosswalk regeneration.
+
+A full run of the two owning packages exposed two unrelated baseline failures: the unchanged v1.6.0 cache-retention test still requests retired OpenCode Kimi IDs, and an unchanged Durable/Codemode consumer test reported its historical result-shape mismatch. The failing test files and relevant production packages are byte-unchanged from the lane base; they were not folded into this catalog-fixture scope.
+
+This receipt does not claim live credential tests: Cloudflare and Ant Ling network scenarios remain unavailable without their upstream credentials.
