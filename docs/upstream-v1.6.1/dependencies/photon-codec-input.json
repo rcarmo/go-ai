@@ -1,0 +1,127 @@
+{
+  "pin": "ef4a1cfcca62b77ad3558337ff3e1c7f6beeadfe",
+  "lockSHA256": "f05391f49b31146692ff2ac76239d78a52fe72d0d694a1624e8580a6ea8fec41",
+  "photon": {
+    "lock": {
+      "version": "0.3.3",
+      "resolved": "https://registry.npmjs.org/@silvia-odwyer/photon/-/photon-0.3.3.tgz",
+      "integrity": "sha512-8BhUjEch4slwRe8uXnaA4vcA5uiiOTT90UMsxulOj2gN98X1p0q9Z4Ysk4DkD05uNgbR9XoSqtZ37w+33w4QKQ==",
+      "key": "node_modules/@silvia-odwyer/photon"
+    },
+    "archiveSHA256": "eed5c8f7d10b319d1c58e9bd8eef24646affb9b697cf3792b42b8832fcbf4bae",
+    "archiveBytes": 714094,
+    "matchedStagedMembers": [
+      {
+        "name": "package.json",
+        "sha256": "20bd07f096f177f4fb12d1cb7893c788bda42edf1722ca5450dc2355701769f8",
+        "bytes": 585
+      },
+      {
+        "name": "photon_rs.js",
+        "sha256": "d51ba7a7ef9c23fbfec5423e01afd3fa9f6ad9c7ac4c20789aa9e4b3f9e0c157",
+        "bytes": 139647
+      },
+      {
+        "name": "photon_rs_bg.wasm",
+        "sha256": "06e9f6b245d53b488244e04dfe30e6731c029526101c6400e6490057fcfbdd04",
+        "bytes": 1880773
+      }
+    ]
+  },
+  "aiArchiveSHA256": "192c407bd69c06358c68519aa6290adc8362b132bee9117480c7604456d5073b",
+  "sourceFiles": [
+    {
+      "path": "packages/durable/test/tools-images.test.ts",
+      "sha256": "ae800f074a9c959b8be69afb10950f6d6a1fc8f3d0aea254d040e186c21790aa"
+    },
+    {
+      "path": "packages/durable/test/image-fixtures.ts",
+      "sha256": "23f6666f26e55c412de5dcdb2472c4e629215ab4244aadd6aad69082d23c6ce6"
+    },
+    {
+      "path": "packages/durable/test/setup-document-retention.ts",
+      "sha256": "48936565bf35afc78025d1b3b60d95f85851f20d6003fbc4d54a72e4d411ac65"
+    },
+    {
+      "path": "packages/durable/vitest.config.ts",
+      "sha256": "0325cd2e313a95a6c67f3b3dc3f45608307df0a6dfcab38bcf0d7319f7c9d817"
+    },
+    {
+      "path": "packages/durable/src/images/index.ts",
+      "sha256": "dbe59efe444d9816a74088ea27cd74c40b254efbd479e420ea8b723b5d5eeaf3"
+    },
+    {
+      "path": "packages/durable/src/images/node.ts",
+      "sha256": "3df812e39d86fb152403b6b7eba6d72d0c62128c0382971621aa584b294575d2"
+    },
+    {
+      "path": "packages/durable/src/images/node-worker.ts",
+      "sha256": "84d7065f9f1b46130d40883c136c668c4f9a38da404308aa975f6be17b5a966d"
+    }
+  ],
+  "execution": {
+    "node": "v26.13.0",
+    "vitest": "4.1.12",
+    "network": "isolated Linux network namespace",
+    "suite": "packages/durable/test/tools-images.test.ts",
+    "selector": "read of images, with the Photon image processor converts a format providers do not take inline to PNG",
+    "passed": 1,
+    "failed": 0,
+    "selectedSkipped": 0,
+    "filteredOut": 33,
+    "observed": {
+      "fork": [
+        {
+          "kind": "instantiate-wasm",
+          "caller": "packages/durable/test/image-fixtures.ts",
+          "bytes": 1880773,
+          "sha256": "06e9f6b245d53b488244e04dfe30e6731c029526101c6400e6490057fcfbdd04"
+        }
+      ],
+      "worker": [
+        {
+          "kind": "load-glue",
+          "format": "module",
+          "bytes": 139647,
+          "sha256": "d51ba7a7ef9c23fbfec5423e01afd3fa9f6ad9c7ac4c20789aa9e4b3f9e0c157"
+        },
+        {
+          "kind": "instantiate-wasm",
+          "caller": "packages/durable/src/images/node-worker.ts",
+          "bytes": 1880773,
+          "sha256": "06e9f6b245d53b488244e04dfe30e6731c029526101c6400e6490057fcfbdd04"
+        },
+        {
+          "kind": "request",
+          "id": 0,
+          "mimeType": "image/bmp",
+          "bytes": 102,
+          "sha256": "4499ad0bf6c952deb705f2893cee0fb3a0a067b0af4dc323ef20ba585ae23a79"
+        },
+        {
+          "kind": "reply",
+          "tag": "prepared",
+          "id": 0,
+          "mimeType": "image/png",
+          "convertedFrom": "image/bmp",
+          "signature": "89504e470d0a1a0a",
+          "bytes": 129,
+          "sha256": "088d900b349d4c533932f8aec10628b1ce8b51e03581e72e5beed61ffd12f890"
+        }
+      ]
+    }
+  },
+  "scope": "One pinned Node original; no workerd, timing, idle restart, failure-tag or Go encoder coverage.",
+  "control": {
+    "change": "append valid JS comment to the private staged glue",
+    "passed": 1,
+    "archiveMatch": false,
+    "otherTraceEventsUnchanged": true,
+    "workerGlue": {
+      "kind": "load-glue",
+      "format": "module",
+      "bytes": 139684,
+      "sha256": "7038f1b1481798124f4b42a59765e271e14ca1222b49ebf5ec3d1f1744e14cca"
+    }
+  }
+}
