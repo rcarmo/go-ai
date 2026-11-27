@@ -415,7 +415,8 @@ func buildConverseInput(model *goai.Model, convCtx *goai.Context, opts *goai.Str
 
 	// Thinking config for Claude models. Newer Claude models on Bedrock support
 	// adaptive thinking with native effort strings; older models use token budgets.
-	if model.Reasoning && opts != nil && opts.Reasoning != nil && isAnthropicClaudeModel(model) {
+	isClaude := isAnthropicClaudeModel(model)
+	if model.Reasoning && opts != nil && opts.Reasoning != nil && isClaude {
 		var addFields map[string]interface{}
 		govCloud := isGovCloudBedrockTarget(model, opts, goai.ProviderEnvFromOptions(opts))
 		if supportsAdaptiveThinking(model) {
@@ -451,14 +452,27 @@ func buildConverseInput(model *goai.Model, convCtx *goai.Context, opts *goai.Str
 		input.AdditionalModelRequestFields = mustDocument(mustJSON(addFields))
 	}
 
-	// OpenAI models on Converse use native reasoning fields, not Claude
-	// thinking/budget controls. Prefer gpt-oss across both ID/name matches.
-	if model.Reasoning && opts != nil && opts.Reasoning != nil && !isAnthropicClaudeModel(model) {
+	if model.Reasoning && !isClaude {
 		isGPT, isGPTOSS := false, false
 		for _, candidate := range getModelMatchCandidates(model.ID, model.Name) {
 			isGPT = isGPT || strings.Contains(candidate, "gpt-")
 			isGPTOSS = isGPTOSS || strings.Contains(candidate, "gpt-oss")
 		}
+		if !isGPT {
+			// Other families send only explicit mappings, including off when present.
+			level := goai.ThinkingOff
+			if opts != nil && opts.Reasoning != nil {
+				level = goai.ModelThinkingLevel(*opts.Reasoning)
+			}
+			if effort := model.ThinkingLevelMap[level]; effort != nil {
+				input.AdditionalModelRequestFields = mustDocument(mustJSON(map[string]any{"reasoning_effort": *effort}))
+			}
+			return input
+		}
+		if opts == nil || opts.Reasoning == nil {
+			return input
+		}
+
 		level := *opts.Reasoning
 		effort := string(level)
 		if level == goai.ThinkingMinimal {
@@ -469,7 +483,7 @@ func buildConverseInput(model *goai.Model, convCtx *goai.Context, opts *goai.Str
 				effort = "high"
 			}
 			input.AdditionalModelRequestFields = mustDocument(mustJSON(map[string]any{"reasoning_effort": effort}))
-		} else if isGPT {
+		} else {
 			if mapped, ok := model.ThinkingLevelMap[goai.ModelThinkingLevel(level)]; ok && mapped != nil {
 				effort = *mapped
 			}
@@ -535,6 +549,9 @@ func convertMessages(convCtx *goai.Context, model *goai.Model, cacheRetention st
 						},
 					})
 				case "thinking":
+					if compat := model.BedrockCompat; compat != nil && compat.SupportsReasoningReplay != nil && !*compat.SupportsReasoningReplay {
+						continue
+					}
 					if b.Redacted {
 						if decoded, err := base64.StdEncoding.DecodeString(b.ThinkingSignature); err == nil && len(decoded) > 0 {
 							content = append(content, &types.ContentBlockMemberReasoningContent{Value: &types.ReasoningContentBlockMemberRedactedContent{Value: decoded}})
@@ -544,23 +561,19 @@ func convertMessages(convCtx *goai.Context, model *goai.Model, cacheRetention st
 					if strings.TrimSpace(b.Thinking) == "" {
 						continue
 					}
-					// Thinking blocks are sent via reasoningContent for Claude
-					if supportsThinkingSignature(model) && b.ThinkingSignature != "" {
-						text := goai.SanitizeSurrogates(b.Thinking)
-						sig := b.ThinkingSignature
-						content = append(content, &types.ContentBlockMemberReasoningContent{
-							Value: &types.ReasoningContentBlockMemberReasoningText{
-								Value: types.ReasoningTextBlock{
-									Text:      &text,
-									Signature: &sig,
-								},
-							},
-						})
-					} else {
-						content = append(content, &types.ContentBlockMemberText{
-							Value: goai.SanitizeSurrogates(b.Thinking),
-						})
+					text := goai.SanitizeSurrogates(b.Thinking)
+					reasoning := types.ReasoningTextBlock{Text: &text}
+					if supportsThinkingSignature(model) {
+						// Claude rejects unsigned reasoning blocks; keep the plain-text fallback.
+						if b.ThinkingSignature == "" {
+							content = append(content, &types.ContentBlockMemberText{Value: text})
+							continue
+						}
+						reasoning.Signature = aws.String(b.ThinkingSignature)
 					}
+					content = append(content, &types.ContentBlockMemberReasoningContent{
+						Value: &types.ReasoningContentBlockMemberReasoningText{Value: reasoning},
+					})
 				}
 			}
 			if len(content) > 0 {

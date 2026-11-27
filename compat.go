@@ -182,6 +182,9 @@ type GoogleCompat struct {
 type BedrockCompat struct {
 	// Whether the provider supports strict JSON-schema function tools.
 	SupportsStrictMode *bool `json:"supportsStrictMode,omitempty"`
+
+	// SupportsReasoningReplay defaults to true. Set false to omit earlier reasoning blocks.
+	SupportsReasoningReplay *bool `json:"supportsReasoningReplay,omitempty"`
 }
 
 // AnthropicMessagesCompat holds compatibility overrides for Anthropic-compatible APIs.

@@ -1,0 +1,81 @@
+{
+  "global.moonshotai.kimi-k3": {
+    "compat": {
+      "supportsReasoningReplay": false,
+      "supportsStrictMode": true
+    },
+    "id": "global.moonshotai.kimi-k3",
+    "name": "Kimi K3 (Global)",
+    "reasoning": true
+  },
+  "global.moonshotai.kimi-k3.1": {
+    "compat": {
+      "supportsReasoningReplay": false,
+      "supportsStrictMode": true
+    },
+    "id": "global.moonshotai.kimi-k3.1",
+    "name": "Kimi K3.1 Pro Highspeed (Global)",
+    "reasoning": true,
+    "thinkingLevelMap": {
+      "high": "high",
+      "low": "low",
+      "max": "max",
+      "medium": "medium",
+      "minimal": null,
+      "off": "none",
+      "xhigh": "xhigh"
+    }
+  },
+  "global.zai.glm-5.3": {
+    "compat": {
+      "supportsStrictMode": true
+    },
+    "id": "global.zai.glm-5.3",
+    "name": "GLM-5.3 (Global)",
+    "reasoning": true,
+    "thinkingLevelMap": {
+      "high": "high",
+      "low": "low",
+      "max": "max",
+      "medium": "medium",
+      "minimal": null,
+      "off": null,
+      "xhigh": "xhigh"
+    }
+  },
+  "us.moonshotai.kimi-k3.1": {
+    "compat": {
+      "supportsReasoningReplay": false,
+      "supportsStrictMode": true
+    },
+    "id": "us.moonshotai.kimi-k3.1",
+    "name": "Kimi K3.1 Pro Highspeed (US)",
+    "reasoning": true,
+    "thinkingLevelMap": {
+      "high": "high",
+      "low": "low",
+      "max": "max",
+      "medium": "medium",
+      "minimal": null,
+      "off": "none",
+      "xhigh": "xhigh"
+    }
+  },
+  "us.zai.glm-5.3": {
+    "compat": {
+      "supportsStrictMode": true
+    },
+    "id": "us.zai.glm-5.3",
+    "name": "GLM-5.3 (US)",
+    "reasoning": true,
+    "thinkingLevelMap": {
+      "high": "high",
+      "low": "low",
+      "max": "max",
+      "medium": "medium",
+      "minimal": null,
+      "off": null,
+      "xhigh": "xhigh"
+    }
+  }
+}
