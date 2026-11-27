@@ -32,3 +32,7 @@ go test ./cmd/generate-models -run '^(TestOptionalMetadataProjection|TestSourceV
 ```
 
 No demonstrated native semantic difference was found, so the audit adds only consolidated tests/locators and evidence. The credential-gated live handoff and empty-message requests are not claimed as native runtime coverage.
+
+## Control status
+
+Focused native tests passed twice, as did vet, Staticcheck v0.8.2, logging checks, both assertion/crosswalk validators, `git diff --check`, and a clean-status inspection. The full `make test` did not pass: failures are outside this audit's changed files, concentrated in Durable scheduler/storage, QuickJS, one retired OpenCode fixture, and an existing durable consumer expectation. Production was not changed to address those unrelated failures.
