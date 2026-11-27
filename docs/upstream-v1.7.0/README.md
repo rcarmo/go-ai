@@ -38,9 +38,13 @@ Before retargeting, four focused native tests passed on `3c59c42f` with Go 1.27.
 | Schema | [Prepared absolute IRI](schema-prepared-iri.md): 26 vectors; [prepared IDN-email](schema-prepared-idn-email.md): 24 vectors; [prepared IDN-hostname](schema-prepared-idn-hostname.md): 101 vectors. Legacy and tool annotation behavior is unchanged. |
 | Radius | [Typed runtime receipt](radius-typed-runtime-receipt.md): chat, image and classifier models now refresh, replace, retain validators and restore from cache with credential-owned detached snapshots. |
 
+## Unchanged-source batches
+
+Round 3 adds bounded unchanged-source comparisons beyond the 23 changed tests: two Anthropic batches, two Durable batches, and Codemode source parsing. The unchanged originals, native controls and source-level limitations are recorded in `unchanged-ai-batch1.md`, `ai-unchanged-batch2.md`, `durable-unchanged-batch1.md`, `durable-unchanged-views.md` and `codemode-source.md`.
+
 ## Integrated checkpoint
 
-The exact candidate `5f724c1e3cc6423ec697088dbb339e176b342243` passed 97 focused Go tests twice across six packages without skips, with vet and Staticcheck v0.8.2. A fresh full-history clone reproduced the round-1 checks. The latest integrated candidate `0e919b9d` plus the verified AI changed-test slices passed the combined touched-slice selector twice with vet and Staticcheck; separate focused selections covered the 101 prepared IDN-hostname and 24 IDN-email vectors. The [v1.7.0 crosswalk](test-crosswalk.tsv) records 492 scoped sites across 21 of 324 files: 475 mapped, 13 partial and 4 unmatched. It counts scoped assertions, not unrun source tests.
+The exact candidate `5f724c1e3cc6423ec697088dbb339e176b342243` passed 97 focused Go tests twice across six packages without skips, with vet and Staticcheck v0.8.2. A fresh full-history clone reproduced the round-1 checks. The latest integrated candidate `0e919b9d` plus the verified AI changed-test slices passed the combined touched-slice selector twice with vet and Staticcheck; separate focused selections covered the 101 prepared IDN-hostname and 24 IDN-email vectors. The [v1.7.0 crosswalk](test-crosswalk.tsv) records 664 scoped sites across 49 of 324 files: 573 mapped, 82 partial and 9 unmatched. It counts scoped assertions, not unrun source tests.
 
 The Go image fixtures, OpenAI reasoning replay and SSE helpers, Durable turn limits, usage and SQLite grouping, and the current Bedrock, Schema and Codemode cases use behaviour names. Source pins and published comparison inputs remain in the ledgers and fixtures. The turn-limit migration preserved all nine native scenarios and revalidated 1,354 historical locators.
 
