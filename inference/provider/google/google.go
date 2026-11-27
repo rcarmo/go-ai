@@ -714,26 +714,18 @@ func supportsMultimodalFunctionResponse(modelID string) bool {
 	return true
 }
 
-// getGeminiMajorVersion extracts the major version from a Gemini model ID.
+// Gateways may prefix the Gemini name inside a model ID.
+var geminiMajorVersionPattern = regexp.MustCompile(`gemini(?:-live)?-([0-9]+)`)
+
+// getGeminiMajorVersion extracts the first Gemini major version in a model ID.
 func getGeminiMajorVersion(modelID string) int {
-	lower := strings.ToLower(modelID)
-	// Match patterns like gemini-3, gemini-live-3, etc.
-	var prefix string
-	if strings.HasPrefix(lower, "gemini-live-") {
-		prefix = lower[len("gemini-live-"):]
-	} else if strings.HasPrefix(lower, "gemini-") {
-		prefix = lower[len("gemini-"):]
-	} else {
+	match := geminiMajorVersionPattern.FindStringSubmatch(strings.ToLower(modelID))
+	if match == nil {
 		return 0
 	}
-	// Extract leading digits
 	n := 0
-	for _, c := range prefix {
-		if c >= '0' && c <= '9' {
-			n = n*10 + int(c-'0')
-		} else {
-			break
-		}
+	for _, c := range match[1] {
+		n = n*10 + int(c-'0')
 	}
 	return n
 }
