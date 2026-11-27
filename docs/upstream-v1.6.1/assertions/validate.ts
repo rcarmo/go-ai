@@ -87,7 +87,10 @@ for (const name of maps) {
 			const lines = sources.get(row.file);
 			requireCheck(lines && Number.isInteger(row.first) && Number.isInteger(row.last) && row.first >= 1 && row.first < row.last && row.last <= lines.length, `${row.id}: invalid source span`);
 			const declaration = row.nameLine ?? row.first;
-			requireCheck(declaration >= row.first && declaration <= row.last && testLine.test(lines[row.first - 1]) && lines[declaration - 1].includes(`"${row.name}"`), `${row.id}: source test declaration differs`);
+			const nameSource = lines[declaration - 1] ?? "";
+			// Template names are matched as written; interpolation is never evaluated.
+			const nameMatches = nameSource.includes(`"${row.name}"`) || nameSource.includes("`" + row.name + "`");
+			requireCheck(declaration >= row.first && declaration <= row.last && testLine.test(lines[row.first - 1]) && nameMatches, `${row.id}: source test declaration differs`);
 			requireCheck(!lines.slice(row.first, row.last).some(line => testLine.test(line)), `${row.id}: span contains another case`);
 			requireCheck(row.original === null || manifest.receipts[row.original], `${row.id}: unknown original receipt`);
 			const expected = new Set<number>();
