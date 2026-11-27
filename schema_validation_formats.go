@@ -43,7 +43,7 @@ func (v *toolSchemaValidator) stringFormatReason(value interface{}, schema map[s
 		// These formats are available only in explicitly configured checks.
 		// Existing tool and legacy validation must keep them as annotations.
 		switch name {
-		case "json-pointer", "relative-json-pointer", "json-pointer-uri-fragment", "uri-reference", "uri-template", "ipv6", "duration":
+		case "json-pointer", "relative-json-pointer", "json-pointer-uri-fragment", "uri-reference", "uri-template", "ipv6", "duration", "iri-reference":
 			return ""
 		}
 	}
@@ -74,6 +74,8 @@ func (v *toolSchemaValidator) stringFormatReason(value interface{}, schema map[s
 	case "url":
 		_, err := parseSchemaURL("", text)
 		valid = err == nil
+	case "iri-reference":
+		valid = schemaFormatIRIReference(text)
 	case "hostname":
 		valid = schemaFormatHostname(text)
 	case "date":
