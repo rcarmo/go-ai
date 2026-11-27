@@ -588,6 +588,9 @@ func settleCanonicalTool(ctx context.Context, r *TaskRuntime, input canonicalToo
 	if err != nil {
 		return err
 	}
+	if !validUsage(owned.Usage) {
+		return reject("invalid contribution usage")
+	}
 	if err := validateToolDiagnostics(owned.Diagnostics, l); err != nil {
 		return err
 	}
@@ -679,6 +682,24 @@ func settleCanonicalTool(ctx context.Context, r *TaskRuntime, input canonicalToo
 			elapsed := now - *current.StartedAt
 			duration = &elapsed
 		}
+		// Validate and stage usage against this transaction's current ledger
+		// before invoking app code. A later rollback cannot undo the invocation.
+		if owned.Usage != nil {
+			doc, err := builtin(tx, r.conversation, "pi.usage")
+			if err != nil {
+				return nil, err
+			}
+			value, err := doc.Get()
+			if err != nil {
+				return nil, err
+			}
+			if err := addToolUsage(value, call.Name, owned.Usage, l); err != nil {
+				return nil, err
+			}
+			if err := doc.Set(value); err != nil {
+				return nil, err
+			}
+		}
 		if owned.Commit != nil {
 			if err := callToolOutcome(owned.Commit, tx); err != nil {
 				return nil, err
@@ -756,22 +777,6 @@ func settleCanonicalTool(ctx context.Context, r *TaskRuntime, input canonicalToo
 					return nil, err
 				}
 				settled["control"] = control
-			}
-		}
-		if owned.Usage != nil {
-			doc, err := builtin(tx, r.conversation, "pi.usage")
-			if err != nil {
-				return nil, err
-			}
-			value, err := doc.Get()
-			if err != nil {
-				return nil, err
-			}
-			if err := addToolUsage(value, call.Name, owned.Usage, l); err != nil {
-				return nil, err
-			}
-			if err := doc.Set(value); err != nil {
-				return nil, err
 			}
 		}
 		if err := canonicalToolSlotUpdate(tx, r.taskID, r.conversation, func(slot JSON) {
