@@ -137,7 +137,7 @@ func RuntimeForProviderWithCatalog(ctx context.Context, id string, creds *Creden
 		SetRuntimeCredentials(*Credentials)
 	}); ok {
 		dynamic.SetRuntimeCredentials(updated)
-		if len(dynamic.StaticModels()) == 0 && updated != nil && updated.Refresh != "" {
+		if !hasDynamicModelCatalog(dynamic) && updated != nil && updated.Refresh != "" {
 			refreshed, err := refreshTokenWithContext(ctx, provider, updated)
 			if err != nil {
 				return nil, err
@@ -185,4 +185,12 @@ func RuntimeForProviderWithCatalog(ctx context.Context, id string, creds *Creden
 // for the GitHub Copilot OAuth provider.
 func RuntimeForGitHubCopilot(creds *Credentials) (*RuntimeCredentials, error) {
 	return RuntimeForProvider("github-copilot", creds)
+}
+
+func hasDynamicModelCatalog(provider goai.DynamicModelProvider) bool {
+	if typed, ok := provider.(goai.DynamicModelStaticEntryProvider); ok {
+		entry := typed.StaticModelEntry()
+		return entry != nil && (len(entry.Models) > 0 || len(entry.ImageModels) > 0 || len(entry.ClassifierModels) > 0)
+	}
+	return len(provider.StaticModels()) > 0
 }

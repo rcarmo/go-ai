@@ -7,6 +7,7 @@ import (
 
 const (
 	ImageApiOpenRouter      ImageApi      = "openrouter-images"
+	ImageApiPiImage         ImageApi      = "pi-image"
 	ImageProviderOpenRouter ImageProvider = "openrouter"
 )
 
@@ -33,17 +34,29 @@ func RegisterImageModel(m *ImageModel) {
 }
 
 func GetImageModel(provider ImageProvider, id string) *ImageModel {
+	if entries, known := RuntimeImageCatalogs(provider)[provider]; known {
+		for _, model := range entries {
+			if model.ID == id {
+				return model
+			}
+		}
+		return nil
+	}
 	imageModelRegistryMu.RLock()
 	defer imageModelRegistryMu.RUnlock()
 	return cloneImageModel(imageModelRegistry[string(provider)+"/"+id])
 }
 
 func ListImageModels(provider ImageProvider) []*ImageModel {
+	catalogs := RuntimeImageCatalogs(provider)
+	out := []*ImageModel{}
+	for _, models := range catalogs {
+		out = append(out, models...)
+	}
 	imageModelRegistryMu.RLock()
 	defer imageModelRegistryMu.RUnlock()
-	out := []*ImageModel{}
 	for _, model := range imageModelRegistry {
-		if provider == "" || model.Provider == provider {
+		if _, overridden := catalogs[model.Provider]; !overridden && (provider == "" || model.Provider == provider) {
 			out = append(out, cloneImageModel(model))
 		}
 	}
@@ -57,10 +70,8 @@ func ListImageModels(provider ImageProvider) []*ImageModel {
 }
 
 func ListImageProviders() []ImageProvider {
-	imageModelRegistryMu.RLock()
-	defer imageModelRegistryMu.RUnlock()
 	seen := map[ImageProvider]bool{}
-	for _, model := range imageModelRegistry {
+	for _, model := range ListImageModels("") {
 		seen[model.Provider] = true
 	}
 	out := make([]ImageProvider, 0, len(seen))
@@ -76,6 +87,11 @@ func cloneImageModel(model *ImageModel) *ImageModel {
 		return nil
 	}
 	copy := *model
+	copy.InputLimits = cloneModelInputLimits(model.InputLimits)
+	if rate := model.Cost.ImageOutput; rate != nil {
+		copy.Cost.ImageOutput = new(*rate)
+	}
+	copy.Cost.Tiers = append([]ModelCostTier(nil), model.Cost.Tiers...)
 	copy.Input = append([]string{}, model.Input...)
 	copy.Output = append([]string{}, model.Output...)
 	if model.Headers != nil {

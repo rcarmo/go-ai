@@ -16,6 +16,29 @@ import (
 	_ "github.com/rcarmo/go-ai/images/piimage"
 )
 
+func TestDynamicModelCatalogPresenceIncludesTypedRows(t *testing.T) {
+	for _, entry := range []*goai.ModelsStoreEntry{
+		{ImageModels: []*goai.ImageModel{{ID: "image"}}},
+		{ClassifierModels: []*goai.ClassifierModel{{ID: "decision"}}},
+	} {
+		if !hasDynamicModelCatalog(radiusStaticEntryProvider{entry: entry}) {
+			t.Fatalf("typed-only entry was treated as missing: %+v", entry)
+		}
+	}
+	if hasDynamicModelCatalog(radiusStaticEntryProvider{entry: &goai.ModelsStoreEntry{}}) {
+		t.Fatal("empty entry was treated as a discovered catalog")
+	}
+}
+
+type radiusStaticEntryProvider struct{ entry *goai.ModelsStoreEntry }
+
+func (radiusStaticEntryProvider) ID() string                                 { return "radius-static-entry" }
+func (radiusStaticEntryProvider) StaticModels() []*goai.Model                { return nil }
+func (p radiusStaticEntryProvider) StaticModelEntry() *goai.ModelsStoreEntry { return p.entry }
+func (radiusStaticEntryProvider) RefreshModels(goai.ModelRefreshContext) ([]*goai.Model, error) {
+	return nil, nil
+}
+
 func TestRadiusRuntimeRefreshUpdatesPackageLookups(t *testing.T) {
 	goai.ClearModels()
 	t.Cleanup(goai.RegisterBuiltinModels)
@@ -134,7 +157,7 @@ func newRadiusImageGateway(t *testing.T) (*httptest.Server, *atomic.Int32, *atom
 	}
 	var configs, images atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if got := r.Header.Get("Authorization"); got != "Bearer radius-key" {
+		if got := r.Header.Get("Authorization"); got != "Bearer "+radiusTestToken("image-owner") {
 			t.Errorf("unexpected synthetic bearer header %q", got)
 			http.Error(w, "fixture authorization failed", http.StatusUnauthorized)
 			return
@@ -172,7 +195,7 @@ func newRadiusImageGateway(t *testing.T) (*httptest.Server, *atomic.Int32, *atom
 func refreshRadiusImageFixture(t *testing.T, gateway *httptest.Server) *goai.InMemoryModelsStore {
 	t.Helper()
 	provider := NewRadiusProvider(RadiusProviderOptions{ID: "radius-image-fixture", Gateway: gateway.URL, Client: gateway.Client()})
-	provider.SetRuntimeCredentials(&Credentials{Access: "radius-key"})
+	provider.SetRuntimeCredentials(&Credentials{Access: radiusTestToken("image-owner")})
 	store := goai.NewInMemoryModelsStore()
 	read := func(allowNetwork bool) {
 		t.Helper()
@@ -206,7 +229,7 @@ func TestRadiusRuntimeImageFixturePreservesChatAndExplicitRoute(t *testing.T) {
 		Provider: images.ImagesProviderRadius, BaseURL: gateway.URL + "/v1", Input: []string{"text", "image"}, Output: []string{"image", "text"},
 		Cost: goai.ModelCost{Input: 0.3, Output: 2.5, CacheRead: 0.03, CacheWrite: 0.083333}}
 	result, err := images.GenerateImages(model, images.ImagesContext{Input: []images.ImageInput{{Type: "text", Text: "A fox"}}},
-		&images.ImagesOptions{APIKey: "radius-key", Context: t.Context(), HTTPClient: gateway.Client(), MaxRetriesSet: true})
+		&images.ImagesOptions{APIKey: radiusTestToken("image-owner"), Context: t.Context(), HTTPClient: gateway.Client(), MaxRetriesSet: true})
 	if err != nil || result == nil || result.StopReason != goai.StopReasonStop || result.ResponseID != "gen-img-radius-1" || result.ErrorMessage != "" {
 		t.Fatalf("Radius Pi Image result = %+v, %v; want gen-img-radius-1 success", result, err)
 	}
@@ -216,5 +239,110 @@ func TestRadiusRuntimeImageFixturePreservesChatAndExplicitRoute(t *testing.T) {
 	}
 	if configs.Load() != 1 || imageRequests.Load() != 1 {
 		t.Fatalf("requests: config=%d image=%d; want one of each and no network refresh of the cache", configs.Load(), imageRequests.Load())
+	}
+}
+
+func TestRadiusRuntimeDetachesCredentialTypedCatalog(t *testing.T) {
+	thinking := "medium"
+	cfg := &RadiusGatewayConfig{
+		BaseURL: "https://radius.example/v1",
+		Models: []RadiusGatewayModel{{ID: "chat", Name: "Chat", Input: []string{"text"}, ContextWindow: 1, MaxTokens: 1,
+			ThinkingLevelMap: map[goai.ModelThinkingLevel]*string{goai.ModelThinkingLevel(goai.ThinkingMedium): &thinking},
+			Cost:             goai.ModelCost{ImageOutput: new(2.0), Tiers: []goai.ModelCostTier{{Output: 3}}}}},
+		Images:   []RadiusGatewayImage{{ID: "image", Name: "Image", Input: []string{"text"}, Output: []string{"image"}, Cost: goai.ModelCost{ImageOutput: new(4.0)}}},
+		Decision: []RadiusGatewayDecision{{ID: "decision", Name: "Decision", Input: []string{"text"}, ContextWindow: 5, Cost: goai.ModelCost{Tiers: []goai.ModelCostTier{{Output: 6}}}}},
+	}
+	provider := NewRadiusProvider(RadiusProviderOptions{ID: "radius-detached"})
+	provider.SetRuntimeCredentials(&Credentials{Extra: map[string]interface{}{"gatewayConfig": cfg}})
+	cfg.Models[0].Input[0] = "mutated"
+	cfg.Models[0].Cost.Tiers[0].Output = 0
+	*cfg.Models[0].ThinkingLevelMap[goai.ModelThinkingLevel(goai.ThinkingMedium)] = "low"
+	cfg.Images[0].Input[0] = "mutated"
+	*cfg.Images[0].Cost.ImageOutput = 0
+	cfg.Decision[0].Cost.Tiers[0].Output = 0
+
+	runtime := goai.NewModelRuntime(nil)
+	runtime.SetProvider(provider)
+	chat := runtime.GetModel("radius-detached", "chat")
+	image := runtime.GetImageModel("radius-detached", "image")
+	decision := runtime.GetClassifierModel("radius-detached", "decision")
+	if chat == nil || chat.Input[0] != "text" || chat.Cost.Tiers[0].Output != 3 || *chat.Cost.ImageOutput != 2 || *chat.ThinkingLevelMap[goai.ModelThinkingLevel(goai.ThinkingMedium)] != "medium" {
+		t.Fatalf("credential chat snapshot leaked: %+v", chat)
+	}
+	if image == nil || image.Input[0] != "text" || *image.Cost.ImageOutput != 4 {
+		t.Fatalf("credential image snapshot leaked: %+v", image)
+	}
+	if decision == nil || decision.Cost.Tiers[0].Output != 6 {
+		t.Fatalf("credential decision snapshot leaked: %+v", decision)
+	}
+	chat.Input[0] = "reader"
+	image.Input[0] = "reader"
+	decision.Input[0] = "reader"
+	if runtime.GetModel("radius-detached", "chat").Input[0] != "text" || runtime.GetImageModel("radius-detached", "image").Input[0] != "text" || runtime.GetClassifierModel("radius-detached", "decision").Input[0] != "text" {
+		t.Fatal("runtime returned mutable typed snapshot fields")
+	}
+}
+
+func TestRadiusRuntimeDiscoversImageRouteFromCache(t *testing.T) {
+	gateway, configs, imageRequests := newRadiusImageGateway(t)
+	provider := NewRadiusProvider(RadiusProviderOptions{ID: "radius-image-discovery", Gateway: gateway.URL, Client: gateway.Client()})
+	provider.SetRuntimeCredentials(&Credentials{Access: radiusTestToken("image-owner")})
+	store := goai.NewInMemoryModelsStore()
+	live := goai.NewModelRuntime(store)
+	live.SetProvider(provider)
+	if got := live.Refresh(t.Context(), true); got.Aborted || len(got.Errors) != 0 {
+		t.Fatalf("live Radius refresh: %+v", got)
+	}
+	const id = "radius-image-discovery"
+	want := &goai.ImageModel{ID: "nano-banana", Name: "Nano Banana", Type: "image", Api: goai.ImageApiPiImage,
+		Provider: id, BaseURL: gateway.URL + "/v1", Input: []string{"text", "image"}, Output: []string{"image", "text"},
+		Cost: goai.ModelCost{Input: 0.3, Output: 2.5, CacheRead: 0.03, CacheWrite: 0.083333}}
+	if got := live.GetImageModel(id, "nano-banana"); !reflect.DeepEqual(got, want) {
+		t.Fatalf("live typed model = %+v; want %+v", got, want)
+	}
+	var ids []string
+	for _, model := range live.GetModels(id) {
+		ids = append(ids, model.ID)
+	}
+	if !reflect.DeepEqual(ids, []string{"balanced", "organization-only"}) {
+		t.Fatalf("live chat IDs = %v", ids)
+	}
+	cached := goai.NewModelRuntime(store)
+	cachedProvider := NewRadiusProvider(RadiusProviderOptions{ID: id, Gateway: gateway.URL, Client: gateway.Client()})
+	cachedProvider.SetRuntimeCredentials(&Credentials{Access: radiusTestToken("image-owner")})
+	cached.SetProvider(cachedProvider)
+	if got := cached.Refresh(t.Context(), false); got.Aborted || len(got.Errors) != 0 {
+		t.Fatalf("cache-only Radius refresh: %+v", got)
+	}
+	if got := cached.GetImageModel(id, "nano-banana"); !reflect.DeepEqual(got, want) {
+		t.Fatalf("cached typed model = %+v; want %+v", got, want)
+	}
+
+	// Exercise both public compatibility lookups over the same installed runtime.
+	if err := goai.RegisterRuntimeModels(cached); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = goai.RegisterRuntimeModels(goai.NewModelRuntime(nil))
+		goai.RegisterBuiltinModels()
+	})
+	if got := goai.GetImageModel(id, "nano-banana"); !reflect.DeepEqual(got, want) {
+		t.Fatalf("public image lookup = %+v; want %+v", got, want)
+	}
+	model := images.GetImageModel(id, "nano-banana")
+	if model == nil || model.Api != images.ImagesApiPiImage || model.Provider != id || !reflect.DeepEqual(model.Output, want.Output) {
+		t.Fatalf("compatibility lookup = %+v", model)
+	}
+	result, err := images.GenerateImages(model, images.ImagesContext{Input: []images.ImageInput{{Type: "text", Text: "A fox"}}},
+		&images.ImagesOptions{APIKey: radiusTestToken("image-owner"), Context: t.Context(), HTTPClient: gateway.Client(), MaxRetriesSet: true})
+	if err != nil || result == nil || result.StopReason != goai.StopReasonStop || result.ResponseID != "gen-img-radius-1" || result.ErrorMessage != "" {
+		t.Fatalf("discovered Radius image result = %+v, %v; want gen-img-radius-1 success", result, err)
+	}
+	wantOutput := []images.ImageOutput{{Type: "image", Data: "iVBORw0KGgo=", MimeType: "image/png"}}
+	if !reflect.DeepEqual(result.Output, wantOutput) {
+		t.Fatalf("discovered Radius image output = %+v; want %+v", result.Output, wantOutput)
+	}
+	if configs.Load() != 1 || imageRequests.Load() != 1 {
+		t.Fatalf("requests: config=%d image=%d; want one of each", configs.Load(), imageRequests.Load())
 	}
 }

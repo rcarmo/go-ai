@@ -374,3 +374,54 @@ func (p *testDynamicProvider) RefreshModels(ctx goai.ModelRefreshContext) ([]*go
 func runtimeModel(id string) *goai.Model {
 	return &goai.Model{ID: id, Name: id, Provider: "dynamic", Api: goai.ApiOpenAICompletions, Input: []string{"text"}, Cost: goai.ModelCost{}, ContextWindow: 1000, MaxTokens: 100}
 }
+
+func TestModelRuntimeTypedCacheDetachesAndReadsLegacyEntries(t *testing.T) {
+	const id = "typed-cache"
+	store := goai.NewInMemoryModelsStore()
+	chat := &goai.Model{Provider: id, ID: "chat"}
+	image := &goai.ImageModel{Provider: id, ID: "image", Input: []string{"image"}, Headers: map[string]string{"X-Test": "original"},
+		InputLimits: &goai.ModelInputLimits{Images: &goai.ModelImageInputLimits{Resize: &goai.ModelImageResizeOptions{MaxWidth: 42}}},
+		Cost:        goai.ModelCost{ImageOutput: new(2.5), Tiers: []goai.ModelCostTier{{Output: 3}}}}
+	decision := &goai.ClassifierModel{Provider: id, ID: "decision", Input: []string{"text"}, Headers: map[string]string{"X-Test": "original"},
+		Cost: goai.ModelCost{ImageOutput: new(1.5), Tiers: []goai.ModelCostTier{{Output: 2}}}}
+	if err := store.Write(id, &goai.ModelsStoreEntry{Models: []*goai.Model{chat},
+		ImageModels: []*goai.ImageModel{image, {Provider: "foreign", ID: "other"}}, ClassifierModels: []*goai.ClassifierModel{decision, {Provider: "foreign", ID: "other"}}}); err != nil {
+		t.Fatal(err)
+	}
+	image.Headers["X-Test"] = "mutated"
+	image.InputLimits.Images.Resize.MaxWidth = 0
+	*image.Cost.ImageOutput = 0
+	image.Cost.Tiers[0].Output = 0
+	decision.Headers["X-Test"] = "mutated"
+	*decision.Cost.ImageOutput = 0
+	decision.Cost.Tiers[0].Output = 0
+
+	runtime := goai.NewModelRuntime(store)
+	runtime.SetProvider(goai.StaticModelProvider{Provider: id})
+	if got := runtime.Refresh(t.Context(), false); got.Aborted || len(got.Errors) != 0 {
+		t.Fatalf("cache-only refresh: %+v", got)
+	}
+	got := runtime.GetImageModel(id, "image")
+	if got == nil || got.Headers["X-Test"] != "original" || got.InputLimits.Images.Resize.MaxWidth != 42 || *got.Cost.ImageOutput != 2.5 || got.Cost.Tiers[0].Output != 3 {
+		t.Fatalf("image store was not detached: %+v", got)
+	}
+	got.Headers["X-Test"] = "reader"
+	if runtime.GetImageModel(id, "image").Headers["X-Test"] != "original" {
+		t.Fatal("runtime image reads share mutable headers")
+	}
+	if got := runtime.GetClassifierModel(id, "decision"); got == nil || got.Headers["X-Test"] != "original" || *got.Cost.ImageOutput != 1.5 || got.Cost.Tiers[0].Output != 2 {
+		t.Fatalf("classifier store was not detached: %+v", got)
+	}
+	if runtime.GetImageModel(id, "other") != nil || runtime.GetClassifierModel(id, "other") != nil || len(runtime.GetModels(id)) != 1 {
+		t.Fatal("typed catalog leaked foreign rows or changed the chat list")
+	}
+	if err := store.Write(id, &goai.ModelsStoreEntry{Models: []*goai.Model{chat}}); err != nil {
+		t.Fatal(err)
+	}
+	if got := runtime.Refresh(t.Context(), false); got.Aborted || len(got.Errors) != 0 {
+		t.Fatalf("legacy cache-only refresh: %+v", got)
+	}
+	if runtime.GetModel(id, "chat") == nil || runtime.GetImageModel(id, "image") != nil || runtime.GetClassifierModel(id, "decision") != nil {
+		t.Fatal("legacy cache did not restore chat only")
+	}
+}

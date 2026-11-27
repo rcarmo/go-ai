@@ -67,17 +67,29 @@ func RegisterClassifierModel(m *ClassifierModel) {
 }
 
 func GetClassifierModel(provider ClassifierProvider, id string) *ClassifierModel {
+	if entries, known := runtimeClassifierCatalogs(provider)[provider]; known {
+		for _, model := range entries {
+			if model.ID == id {
+				return model
+			}
+		}
+		return nil
+	}
 	classifierRegistryMu.RLock()
 	defer classifierRegistryMu.RUnlock()
 	return cloneClassifierModel(classifierModels[string(provider)+"/"+id])
 }
 
 func ListClassifierModels(provider ClassifierProvider) []*ClassifierModel {
+	catalogs := runtimeClassifierCatalogs(provider)
+	out := []*ClassifierModel{}
+	for _, models := range catalogs {
+		out = append(out, models...)
+	}
 	classifierRegistryMu.RLock()
 	defer classifierRegistryMu.RUnlock()
-	out := []*ClassifierModel{}
 	for _, model := range classifierModels {
-		if provider == "" || model.Provider == provider {
+		if _, overridden := catalogs[model.Provider]; !overridden && (provider == "" || model.Provider == provider) {
 			out = append(out, cloneClassifierModel(model))
 		}
 	}
@@ -91,10 +103,8 @@ func ListClassifierModels(provider ClassifierProvider) []*ClassifierModel {
 }
 
 func ListClassifierProviders() []ClassifierProvider {
-	classifierRegistryMu.RLock()
-	defer classifierRegistryMu.RUnlock()
 	seen := map[ClassifierProvider]bool{}
-	for _, model := range classifierModels {
+	for _, model := range ListClassifierModels("") {
 		seen[model.Provider] = true
 	}
 	out := make([]ClassifierProvider, 0, len(seen))

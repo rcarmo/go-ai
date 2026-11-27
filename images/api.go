@@ -170,18 +170,38 @@ func RegisterImageModel(m *ImagesModel) {
 	imageModels[string(m.Provider)+"/"+m.ID] = m
 }
 
+// runtimeImageModel adapts the shared typed catalog without registering it.
+func runtimeImageModel(m *goai.ImageModel) *ImagesModel {
+	return &ImagesModel{ID: m.ID, Name: m.Name, Api: ImagesApi(m.Api), Provider: ImagesProvider(m.Provider),
+		BaseURL: m.BaseURL, Headers: m.Headers, Input: m.Input, Output: m.Output, Cost: m.Cost}
+}
+
 func GetImageModel(provider ImagesProvider, id string) *ImagesModel {
+	if entries, known := goai.RuntimeImageCatalogs(goai.ImageProvider(provider))[goai.ImageProvider(provider)]; known {
+		for _, model := range entries {
+			if model.ID == id {
+				return runtimeImageModel(model)
+			}
+		}
+		return nil
+	}
 	imagesRegistryMu.RLock()
 	defer imagesRegistryMu.RUnlock()
 	return imageModels[string(provider)+"/"+id]
 }
 
 func ListImageModels(provider ImagesProvider) []*ImagesModel {
+	catalogs := goai.RuntimeImageCatalogs(goai.ImageProvider(provider))
+	out := []*ImagesModel{}
+	for _, entries := range catalogs {
+		for _, model := range entries {
+			out = append(out, runtimeImageModel(model))
+		}
+	}
 	imagesRegistryMu.RLock()
 	defer imagesRegistryMu.RUnlock()
-	out := []*ImagesModel{}
 	for _, m := range imageModels {
-		if provider == "" || m.Provider == provider {
+		if _, overridden := catalogs[goai.ImageProvider(m.Provider)]; !overridden && (provider == "" || m.Provider == provider) {
 			out = append(out, m)
 		}
 	}
@@ -195,10 +215,8 @@ func ListImageModels(provider ImagesProvider) []*ImagesModel {
 }
 
 func ListImageProviders() []ImagesProvider {
-	imagesRegistryMu.RLock()
-	defer imagesRegistryMu.RUnlock()
 	seen := map[ImagesProvider]bool{}
-	for _, m := range imageModels {
+	for _, m := range ListImageModels("") {
 		seen[m.Provider] = true
 	}
 	out := make([]ImagesProvider, 0, len(seen))

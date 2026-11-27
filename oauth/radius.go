@@ -2,6 +2,8 @@ package oauth
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -54,8 +56,10 @@ type RadiusGatewayModel struct {
 
 // RadiusGatewayConfig is cached on credentials after login/refresh.
 type RadiusGatewayConfig struct {
-	BaseURL string               `json:"baseUrl"`
-	Models  []RadiusGatewayModel `json:"models"`
+	BaseURL  string                  `json:"baseUrl"`
+	Models   []RadiusGatewayModel    `json:"models"`
+	Images   []RadiusGatewayImage    `json:"images,omitempty"`
+	Decision []RadiusGatewayDecision `json:"decision,omitempty"`
 }
 
 type radiusOAuthConfig struct {
@@ -198,19 +202,42 @@ func (p *RadiusProvider) ModifyModels(models []*goai.Model, creds *Credentials) 
 }
 
 func (p *RadiusProvider) StaticModels() []*goai.Model {
+	if entry := p.StaticModelEntry(); entry != nil {
+		return entry.Models
+	}
+	return nil
+}
+
+func (p *RadiusProvider) StaticModelEntry() *goai.ModelsStoreEntry {
 	p.mu.RLock()
 	creds := cloneCredentials(p.creds)
 	p.mu.RUnlock()
 	if cfg, ok := radiusCredentialConfig(creds); ok {
-		return p.modelsFromGatewayConfig(cfg)
+		entry := p.catalogFromGatewayConfig(cfg)
+		entry.OwnerFingerprint = p.credentialOwnerFingerprint(creds)
+		return entry
 	}
 	return nil
+}
+
+func (p *RadiusProvider) OwnsModelCacheEntry(entry *goai.ModelsStoreEntry) bool {
+	if entry == nil {
+		return false
+	}
+	p.mu.RLock()
+	creds := cloneCredentials(p.creds)
+	p.mu.RUnlock()
+	owner := p.credentialOwnerFingerprint(creds)
+	return owner != "" && entry.OwnerFingerprint == owner
 }
 
 func (p *RadiusProvider) SetRuntimeCredentials(creds *Credentials) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.creds = cloneCredentials(creds)
+	if cfg, ok := radiusCredentialConfig(p.creds); ok && cfg != nil {
+		p.creds.Extra["gatewayConfig"] = cloneRadiusGatewayConfig(cfg)
+	}
 }
 
 func (p *RadiusProvider) RefreshModels(ctx goai.ModelRefreshContext) ([]*goai.Model, error) {
@@ -228,16 +255,40 @@ func (p *RadiusProvider) RefreshModelEntry(ctx goai.ModelRefreshContext) (*goai.
 	if creds == nil || creds.Access == "" {
 		return nil, fmt.Errorf("radius dynamic model refresh requires OAuth credentials")
 	}
-	cached, _ := ctx.Store.Read(goai.Provider(p.id))
-	cfg, resp, err := p.loadGatewayConfigWithValidators(ctx.Signal, creds.Access, cached)
+	owner := p.credentialOwnerFingerprint(creds)
+	var cached *goai.ModelsStoreEntry
+	if stored, _ := ctx.Store.Read(goai.Provider(p.id)); p.ownsCredentialCatalog(stored, owner) {
+		cached = stored
+	}
+	// A legacy chat-only snapshot cannot prove that a 304 would retain typed
+	// image/decision rows. Fetch it without validators so typed discovery gets
+	// an authoritative response.
+	validators := cached
+	if cached != nil && (cached.ImageModels == nil || cached.ClassifierModels == nil) {
+		validators = nil
+	}
+	cfg, resp, err := p.loadGatewayConfigWithValidators(ctx.Signal, creds.Access, validators)
 	if err != nil {
 		return nil, err
 	}
-	if resp != nil && resp.StatusCode == http.StatusNotModified && cached != nil {
-		cached.CheckedAt = time.Now().UnixMilli()
-		return cached, nil
+	if resp != nil && resp.StatusCode == http.StatusNotModified {
+		if cached == nil || cached.ImageModels == nil || cached.ClassifierModels == nil {
+			cfg, resp, err = p.loadGatewayConfigWithValidators(ctx.Signal, creds.Access, nil)
+			if err != nil {
+				return nil, err
+			}
+			if resp != nil && resp.StatusCode == http.StatusNotModified {
+				return nil, fmt.Errorf("radius config returned 304 without an owned typed catalog")
+			}
+		} else {
+			cached.CheckedAt = time.Now().UnixMilli()
+			goai.UpdateModelCatalogValidators(cached, resp)
+			return cached, nil
+		}
 	}
-	entry := &goai.ModelsStoreEntry{Models: p.modelsFromGatewayConfig(cfg), CheckedAt: time.Now().UnixMilli()}
+	entry := p.catalogFromGatewayConfig(cfg)
+	entry.CheckedAt = time.Now().UnixMilli()
+	entry.OwnerFingerprint = owner
 	goai.UpdateModelCatalogValidators(entry, resp)
 	return entry, nil
 }
@@ -284,6 +335,37 @@ func (p *RadiusProvider) loadOAuthConfig(ctx context.Context) (*radiusOAuthConfi
 		cfg.DeviceCodeGrantType = radiusDeviceGrant
 	}
 	return &cfg, nil
+}
+
+func (p *RadiusProvider) credentialOwnerFingerprint(creds *Credentials) string {
+	if creds == nil || creds.Access == "" {
+		return ""
+	}
+	parts := strings.Split(creds.Access, ".")
+	if len(parts) != 3 {
+		return ""
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return ""
+	}
+	var claims struct {
+		Issuer  string `json:"iss"`
+		Subject string `json:"sub"`
+	}
+	if json.Unmarshal(payload, &claims) != nil || claims.Subject == "" {
+		return ""
+	}
+	issuer := claims.Issuer
+	if issuer == "" {
+		issuer = p.gateway
+	}
+	sum := sha256.Sum256([]byte(issuer + "\x00" + claims.Subject))
+	return base64.RawURLEncoding.EncodeToString(sum[:])
+}
+
+func (p *RadiusProvider) ownsCredentialCatalog(entry *goai.ModelsStoreEntry, owner string) bool {
+	return entry != nil && owner != "" && entry.OwnerFingerprint == owner
 }
 
 func (p *RadiusProvider) loadGatewayConfig(ctx context.Context, apiKey string) (*RadiusGatewayConfig, error) {

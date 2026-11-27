@@ -9,10 +9,17 @@ import (
 
 // ModelsStoreEntry is a provider-scoped cached dynamic model catalog.
 type ModelsStoreEntry struct {
-	Models       []*Model
-	CheckedAt    int64
-	LastModified int64
-	ETag         string
+	Models []*Model
+	// Nil typed lists represent a legacy chat-only snapshot; an empty list
+	// replaces the corresponding provider catalog with no models.
+	ImageModels      []*ImageModel
+	ClassifierModels []*ClassifierModel
+	CheckedAt        int64
+	LastModified     int64
+	ETag             string
+	// OwnerFingerprint scopes credential-derived catalogs without persisting
+	// an access or refresh token (or a hash of either token).
+	OwnerFingerprint string
 }
 
 // ModelsStore persists dynamic catalogs keyed by provider ID.
@@ -85,6 +92,17 @@ type DynamicModelEntryProvider interface {
 	RefreshModelEntry(ctx ModelRefreshContext) (*ModelsStoreEntry, error)
 }
 
+// DynamicModelStaticEntryProvider exposes a credential-derived initial catalog.
+type DynamicModelStaticEntryProvider interface {
+	StaticModelEntry() *ModelsStoreEntry
+}
+
+// DynamicModelCacheProvider admits credential-scoped cache entries before
+// either validators or catalog rows are reused.
+type DynamicModelCacheProvider interface {
+	OwnsModelCacheEntry(entry *ModelsStoreEntry) bool
+}
+
 type StaticModelProvider struct {
 	Provider Provider
 	Models   []*Model
@@ -100,7 +118,7 @@ type ModelRuntime struct {
 	mu        sync.RWMutex
 	store     ModelsStore
 	providers map[Provider]DynamicModelProvider
-	models    map[Provider][]*Model
+	catalogs  map[Provider]*ModelsStoreEntry
 	refreshes map[Provider]*modelRefreshState
 }
 
@@ -124,7 +142,7 @@ func NewModelRuntime(store ModelsStore) *ModelRuntime {
 	if store == nil {
 		store = NewInMemoryModelsStore()
 	}
-	return &ModelRuntime{store: store, providers: map[Provider]DynamicModelProvider{}, models: map[Provider][]*Model{}, refreshes: map[Provider]*modelRefreshState{}}
+	return &ModelRuntime{store: store, providers: map[Provider]DynamicModelProvider{}, catalogs: map[Provider]*ModelsStoreEntry{}, refreshes: map[Provider]*modelRefreshState{}}
 }
 
 func (r *ModelRuntime) SetProvider(provider DynamicModelProvider) {
@@ -135,18 +153,28 @@ func (r *ModelRuntime) SetProvider(provider DynamicModelProvider) {
 	defer r.mu.Unlock()
 	id := Provider(provider.ID())
 	r.providers[id] = provider
-	r.models[id] = cloneModels(provider.StaticModels())
+	var entry *ModelsStoreEntry
+	if typed, ok := provider.(DynamicModelStaticEntryProvider); ok {
+		entry = typed.StaticModelEntry()
+	}
+	if entry == nil {
+		entry = &ModelsStoreEntry{Models: provider.StaticModels()}
+	}
+	r.catalogs[id] = filterProviderCatalog(id, entry)
 }
 
 func (r *ModelRuntime) GetModels(provider Provider) []*Model {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	if provider != "" {
-		return cloneModels(r.models[provider])
+		if entry := r.catalogs[provider]; entry != nil {
+			return cloneModels(entry.Models)
+		}
+		return nil
 	}
 	var out []*Model
-	for _, models := range r.models {
-		out = append(out, cloneModels(models)...)
+	for _, entry := range r.catalogs {
+		out = append(out, cloneModels(entry.Models)...)
 	}
 	return out
 }
@@ -155,15 +183,19 @@ func (r *ModelRuntime) GetModel(provider Provider, id string) *Model {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	if provider != "" {
-		for _, model := range r.models[provider] {
+		entry := r.catalogs[provider]
+		if entry == nil {
+			return nil
+		}
+		for _, model := range entry.Models {
 			if model != nil && model.ID == id {
 				return cloneModel(model)
 			}
 		}
 		return nil
 	}
-	for _, models := range r.models {
-		for _, model := range models {
+	for _, entry := range r.catalogs {
+		for _, model := range entry.Models {
 			if model != nil && model.ID == id {
 				return cloneModel(model)
 			}
@@ -275,8 +307,8 @@ func (r *ModelRuntime) refreshProvider(ctx context.Context, provider DynamicMode
 func (r *ModelRuntime) runProviderRefresh(ctx context.Context, id Provider, state *modelRefreshState, call *modelRefreshCall, provider DynamicModelProvider, allowNetwork bool, force bool) error {
 	state.publish.Lock()
 	if r.currentModelRefresh(ctx, state, call) {
-		if stored, err := r.store.Read(id); err == nil && stored != nil {
-			r.setRefreshedModels(ctx, state, call, id, filterProviderModels(id, stored.Models))
+		if stored, err := r.store.Read(id); err == nil && stored != nil && modelCacheEntryOwned(provider, stored) {
+			r.setRefreshedCatalog(ctx, state, call, id, filterProviderCatalog(id, stored))
 		}
 	}
 	state.publish.Unlock()
@@ -302,7 +334,7 @@ func (r *ModelRuntime) runProviderRefresh(ctx context.Context, id Provider, stat
 	if entry == nil {
 		entry = &ModelsStoreEntry{CheckedAt: time.Now().UnixMilli()}
 	}
-	entry.Models = filterProviderModels(id, entry.Models)
+	entry = filterProviderCatalog(id, entry)
 	state.publish.Lock()
 	defer state.publish.Unlock()
 	if !r.currentModelRefresh(ctx, state, call) {
@@ -310,8 +342,8 @@ func (r *ModelRuntime) runProviderRefresh(ctx context.Context, id Provider, stat
 	}
 	// Serialize writes independently of network work. If superseded during
 	// an already-started store write, skip its in-memory update as well.
-	err = r.store.Write(id, entry)
-	r.setRefreshedModels(ctx, state, call, id, entry.Models)
+	err = r.store.Write(id, cloneModelsStoreEntry(entry))
+	r.setRefreshedCatalog(ctx, state, call, id, entry)
 	if err != nil {
 		return NewModelsError(ModelsErrorModelSource, fmt.Sprintf("model store write failed for %s", id), err)
 	}
@@ -324,11 +356,11 @@ func (r *ModelRuntime) currentModelRefresh(ctx context.Context, state *modelRefr
 	return state.current == call && ctx.Err() == nil
 }
 
-func (r *ModelRuntime) setRefreshedModels(ctx context.Context, state *modelRefreshState, call *modelRefreshCall, provider Provider, models []*Model) {
+func (r *ModelRuntime) setRefreshedCatalog(ctx context.Context, state *modelRefreshState, call *modelRefreshCall, provider Provider, entry *ModelsStoreEntry) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if state.current == call && ctx.Err() == nil {
-		r.models[provider] = cloneModels(models)
+		r.catalogs[provider] = cloneModelsStoreEntry(entry)
 	}
 }
 
@@ -412,7 +444,11 @@ func cloneModelsStoreEntry(entry *ModelsStoreEntry) *ModelsStoreEntry {
 	if entry == nil {
 		return nil
 	}
-	return &ModelsStoreEntry{Models: cloneModels(entry.Models), CheckedAt: entry.CheckedAt, LastModified: entry.LastModified, ETag: entry.ETag}
+	out := *entry
+	out.Models = cloneModels(entry.Models)
+	out.ImageModels = copyCatalogModels(entry.ImageModels, cloneImageModel, nil)
+	out.ClassifierModels = copyCatalogModels(entry.ClassifierModels, cloneClassifierModel, nil)
+	return &out
 }
 
 func cloneModels(models []*Model) []*Model {
@@ -431,19 +467,9 @@ func cloneModel(model *Model) *Model {
 	if rate := model.Cost.ImageOutput; rate != nil {
 		copy.Cost.ImageOutput = new(*rate)
 	}
+	copy.Cost.Tiers = append([]ModelCostTier(nil), model.Cost.Tiers...)
 	copy.Input = append([]string{}, model.Input...)
-	if model.InputLimits != nil {
-		limits := *model.InputLimits
-		if model.InputLimits.Images != nil {
-			images := *model.InputLimits.Images
-			if model.InputLimits.Images.Resize != nil {
-				resize := *model.InputLimits.Images.Resize
-				images.Resize = &resize
-			}
-			limits.Images = &images
-		}
-		copy.InputLimits = &limits
-	}
+	copy.InputLimits = cloneModelInputLimits(model.InputLimits)
 	if model.MistralCompat != nil {
 		compat := *model.MistralCompat
 		copy.MistralCompat = &compat
@@ -502,4 +528,27 @@ func modelRefreshBaseURL(provider DynamicModelProvider) string {
 		return endpoint.BaseURL()
 	}
 	return ""
+}
+
+func modelCacheEntryOwned(provider DynamicModelProvider, entry *ModelsStoreEntry) bool {
+	if owner, ok := provider.(DynamicModelCacheProvider); ok {
+		return owner.OwnsModelCacheEntry(entry)
+	}
+	return entry != nil
+}
+
+func cloneModelInputLimits(input *ModelInputLimits) *ModelInputLimits {
+	if input == nil {
+		return nil
+	}
+	limits := *input
+	if input.Images != nil {
+		images := *input.Images
+		if input.Images.Resize != nil {
+			resize := *input.Images.Resize
+			images.Resize = &resize
+		}
+		limits.Images = &images
+	}
+	return &limits
 }
