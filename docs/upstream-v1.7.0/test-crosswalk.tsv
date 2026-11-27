@@ -118,7 +118,7 @@ packages/ai/test/openai-completions-provider-stream-event.test.ts	unchanged	pres
 packages/ai/test/openai-completions-raw-stop-reason.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/openai-completions-reasoning-details.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/openai-completions-reasoning-opaque.test.ts	A	present	7	7	16	0	0	0
-packages/ai/test/openai-completions-reasoning.test.ts	A	present	0	0	0	0	0	0
+packages/ai/test/openai-completions-reasoning.test.ts	A	present	5	5	7	1	0	0
 packages/ai/test/openai-completions-response-model.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/openai-completions-retry.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/openai-completions-thinking-as-text.test.ts	unchanged	present	0	0	0	0	0	0
