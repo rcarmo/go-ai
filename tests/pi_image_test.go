@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"math"
 	"net/http"
 	"reflect"
@@ -16,49 +15,28 @@ import (
 	_ "github.com/rcarmo/go-ai/images/piimage"
 )
 
-func sourceV170PiImageModel() *images.ImagesModel {
+func piImageFixtureModel() *images.ImagesModel {
 	return &images.ImagesModel{ID: "nano-banana", Name: "Nano Banana", Api: "pi-image", Provider: "radius", BaseURL: "https://radius.example/v1", Input: []string{"text", "image"}, Output: []string{"image", "text"}, Cost: goai.ModelCost{Input: .3, Output: 2.5, CacheRead: .03, CacheWrite: .083333}}
 }
 
-func sourceV170PiImageInput() images.ImagesContext {
+func piImageFixtureInput() images.ImagesContext {
 	return images.ImagesContext{Input: []images.ImageInput{{Type: "text", Text: "A red fox in the snow"}}}
 }
 
-type piImageTransport func(*http.Request) (*http.Response, error)
-
-func (f piImageTransport) RoundTrip(req *http.Request) (*http.Response, error) { return f(req) }
-
-func piImageResponse(status int, body string) *http.Response {
-	return &http.Response{StatusCode: status, Header: http.Header{"Content-Type": {"application/json"}}, Body: io.NopCloser(strings.NewReader(body))}
-}
-
-func piImageCall(t *testing.T, model *images.ImagesModel, input images.ImagesContext, opts *images.ImagesOptions, transport piImageTransport) *images.AssistantImages {
-	t.Helper()
-	opts.HTTPClient = &http.Client{Transport: transport}
-	if opts.Context == nil {
-		opts.Context = t.Context()
-	}
-	got, err := images.GenerateImages(model, input, opts)
-	if err != nil || got == nil {
-		t.Fatalf("GenerateImages = %#v, %v", got, err)
-	}
-	return got
-}
-
-func TestSourceV170PiImageCanonicalRequest(t *testing.T) {
+func TestPiImageCanonicalRequest(t *testing.T) {
 	const response = `{"output":[{"type":"text","text":"Here is your fox."},{"type":"image","data":"iVBORw0KGgo=","mimeType":"image/png"}],"usage":{"input":15,"output":1290,"cacheRead":0,"cacheWrite":0,"reasoning":200,"imageOutput":1000,"totalTokens":1305,"cost":{"input":0.0000045,"output":0.003225,"cacheRead":0,"cacheWrite":0,"total":0.0032295,"totalFromProvider":true}},"responseId":"gen-img-1"}`
-	model, input := sourceV170PiImageModel(), sourceV170PiImageInput()
+	model, input := piImageFixtureModel(), piImageFixtureInput()
 	var method, path, bearer string
 	var requests int
 	var payload any
-	got := piImageCall(t, model, input, &images.ImagesOptions{APIKey: "radius-key", AspectRatio: new("16:9"), Size: new("2K"), SessionID: new("sess-1"), Metadata: map[string]any{"tag": "demo"}}, func(req *http.Request) (*http.Response, error) {
+	got := generateImagesWithTransport(t, model, input, &images.ImagesOptions{APIKey: "radius-key", AspectRatio: new("16:9"), Size: new("2K"), SessionID: new("sess-1"), Metadata: map[string]any{"tag": "demo"}}, func(req *http.Request) (*http.Response, error) {
 		defer req.Body.Close()
 		requests++
 		method, path, bearer = req.Method, req.URL.String(), req.Header.Get("Authorization")
 		if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
 			return nil, err
 		}
-		return piImageResponse(200, response), nil
+		return imageJSONResponse(200, response), nil
 	})
 	if requests != 1 || path != "https://radius.example/v1/image" || method != "POST" || bearer != "Bearer radius-key" {
 		t.Errorf("request count=%d path=%q method=%q authorization=%q", requests, path, method, bearer)
@@ -89,10 +67,10 @@ func parsePiImageFixture(t *testing.T, b []byte) map[string]any {
 	return p
 }
 
-func TestSourceV170PiImageCalculatedCost(t *testing.T) {
-	got := piImageCall(t, sourceV170PiImageModel(), sourceV170PiImageInput(), &images.ImagesOptions{APIKey: "radius-key"}, func(req *http.Request) (*http.Response, error) {
+func TestPiImageCalculatedCost(t *testing.T) {
+	got := generateImagesWithTransport(t, piImageFixtureModel(), piImageFixtureInput(), &images.ImagesOptions{APIKey: "radius-key"}, func(req *http.Request) (*http.Response, error) {
 		defer req.Body.Close()
-		return piImageResponse(200, `{"output":[{"type":"image","data":"AAAA","mimeType":"image/png"}],"usage":{"input":1000,"output":2000,"cacheRead":0,"cacheWrite":0,"totalTokens":3000}}`), nil
+		return imageJSONResponse(200, `{"output":[{"type":"image","data":"AAAA","mimeType":"image/png"}],"usage":{"input":1000,"output":2000,"cacheRead":0,"cacheWrite":0,"totalTokens":3000}}`), nil
 	})
 	if got.StopReason != goai.StopReasonStop || got.Usage == nil {
 		t.Fatalf("result=%+v", got)
@@ -113,10 +91,10 @@ func TestSourceV170PiImageCalculatedCost(t *testing.T) {
 	}
 }
 
-func TestSourceV170PiImageCostOnly(t *testing.T) {
-	got := piImageCall(t, sourceV170PiImageModel(), sourceV170PiImageInput(), &images.ImagesOptions{APIKey: "radius-key"}, func(req *http.Request) (*http.Response, error) {
+func TestPiImageCostOnly(t *testing.T) {
+	got := generateImagesWithTransport(t, piImageFixtureModel(), piImageFixtureInput(), &images.ImagesOptions{APIKey: "radius-key"}, func(req *http.Request) (*http.Response, error) {
 		defer req.Body.Close()
-		return piImageResponse(200, `{"output":[{"type":"image","data":"AAAA","mimeType":"image/png"}],"usage":{"cost":{"input":0,"output":0.04,"cacheRead":0,"cacheWrite":0,"total":0.04,"totalFromProvider":true}}}`), nil
+		return imageJSONResponse(200, `{"output":[{"type":"image","data":"AAAA","mimeType":"image/png"}],"usage":{"cost":{"input":0,"output":0.04,"cacheRead":0,"cacheWrite":0,"total":0.04,"totalFromProvider":true}}}`), nil
 	})
 	if got.StopReason != goai.StopReasonStop || got.Usage == nil {
 		t.Fatalf("result=%+v", got)
@@ -126,19 +104,12 @@ func TestSourceV170PiImageCostOnly(t *testing.T) {
 	}
 }
 
-func assertPiImageEmptyOutput(t *testing.T, got *images.AssistantImages, reason goai.StopReason) {
-	t.Helper()
-	if got.StopReason != reason || !reflect.DeepEqual(got.Output, []images.ImageOutput{}) {
-		t.Errorf("result=%+v; want %s and empty array", got, reason)
-	}
-}
-
-func TestSourceV170PiImageHTTPError(t *testing.T) {
-	got := piImageCall(t, sourceV170PiImageModel(), sourceV170PiImageInput(), &images.ImagesOptions{APIKey: "radius-key", MaxRetriesSet: true}, func(req *http.Request) (*http.Response, error) {
+func TestPiImageHTTPError(t *testing.T) {
+	got := generateImagesWithTransport(t, piImageFixtureModel(), piImageFixtureInput(), &images.ImagesOptions{APIKey: "radius-key", MaxRetriesSet: true}, func(req *http.Request) (*http.Response, error) {
 		defer req.Body.Close()
-		return piImageResponse(402, `{"error":{"message":"Insufficient credits","code":"insufficient_credits"}}`), nil
+		return imageJSONResponse(402, `{"error":{"message":"Insufficient credits","code":"insufficient_credits"}}`), nil
 	})
-	assertPiImageEmptyOutput(t, got, goai.StopReasonError)
+	assertImageResultEmpty(t, got, goai.StopReasonError)
 	if !strings.Contains(got.ErrorMessage, "Insufficient credits") {
 		t.Errorf("message=%q", got.ErrorMessage)
 	}
@@ -152,9 +123,9 @@ func (b brokenPiImageBody) Read([]byte) (int, error) {
 }
 func (brokenPiImageBody) Close() error { return nil }
 
-func TestSourceV170PiImageResponseHookBeforeBody(t *testing.T) {
+func TestPiImageResponseHookBeforeBody(t *testing.T) {
 	var observed []images.ImagesResponseMetadata
-	got := piImageCall(t, sourceV170PiImageModel(), sourceV170PiImageInput(), &images.ImagesOptions{APIKey: "radius-key", MaxRetriesSet: true, OnResponse: func(meta images.ImagesResponseMetadata, _ *images.ImagesModel) error {
+	got := generateImagesWithTransport(t, piImageFixtureModel(), piImageFixtureInput(), &images.ImagesOptions{APIKey: "radius-key", MaxRetriesSet: true, OnResponse: func(meta images.ImagesResponseMetadata, _ *images.ImagesModel) error {
 		observed = append(observed, meta)
 		return nil
 	}}, func(req *http.Request) (*http.Response, error) {
@@ -173,18 +144,18 @@ func TestSourceV170PiImageResponseHookBeforeBody(t *testing.T) {
 	}
 }
 
-func TestSourceV170PiImageMalformedOutput(t *testing.T) {
-	got := piImageCall(t, sourceV170PiImageModel(), sourceV170PiImageInput(), &images.ImagesOptions{APIKey: "radius-key"}, func(req *http.Request) (*http.Response, error) {
+func TestPiImageMalformedOutput(t *testing.T) {
+	got := generateImagesWithTransport(t, piImageFixtureModel(), piImageFixtureInput(), &images.ImagesOptions{APIKey: "radius-key"}, func(req *http.Request) (*http.Response, error) {
 		defer req.Body.Close()
-		return piImageResponse(200, `{"output":[{"type":"image","data":"","mimeType":"image/png"}]}`), nil
+		return imageJSONResponse(200, `{"output":[{"type":"image","data":"","mimeType":"image/png"}]}`), nil
 	})
-	assertPiImageEmptyOutput(t, got, goai.StopReasonError)
+	assertImageResultEmpty(t, got, goai.StopReasonError)
 	if !strings.Contains(got.ErrorMessage, "invalid image block") {
 		t.Errorf("message=%q", got.ErrorMessage)
 	}
 }
 
-func TestSourceV170PiImageInputCapability(t *testing.T) {
+func TestPiImageInputCapability(t *testing.T) {
 	var sent any
 	var requests int
 	transport := func(req *http.Request) (*http.Response, error) {
@@ -193,11 +164,11 @@ func TestSourceV170PiImageInputCapability(t *testing.T) {
 		if err := json.NewDecoder(req.Body).Decode(&sent); err != nil {
 			return nil, err
 		}
-		return piImageResponse(200, `{"output":[{"type":"image","data":"BBBB","mimeType":"image/png"}]}`), nil
+		return imageJSONResponse(200, `{"output":[{"type":"image","data":"BBBB","mimeType":"image/png"}]}`), nil
 	}
-	model := sourceV170PiImageModel()
+	model := piImageFixtureModel()
 	input := images.ImagesContext{Input: []images.ImageInput{{Type: "image", Data: "AAAA", MimeType: "image/png"}, {Type: "text", Text: "Make it blue"}}}
-	ok := piImageCall(t, model, input, &images.ImagesOptions{APIKey: "radius-key"}, transport)
+	ok := generateImagesWithTransport(t, model, input, &images.ImagesOptions{APIKey: "radius-key"}, transport)
 	if ok.StopReason != goai.StopReasonStop || requests != 1 {
 		t.Errorf("accepted=%+v requests=%d", ok, requests)
 	}
@@ -206,38 +177,38 @@ func TestSourceV170PiImageInputCapability(t *testing.T) {
 		t.Errorf("forwarded=%#v", sent)
 	}
 	model.Input = []string{"text"}
-	rejected := piImageCall(t, model, input, &images.ImagesOptions{APIKey: "radius-key"}, transport)
+	rejected := generateImagesWithTransport(t, model, input, &images.ImagesOptions{APIKey: "radius-key"}, transport)
 	if rejected.StopReason != goai.StopReasonError || !strings.Contains(rejected.ErrorMessage, "does not support image input") || requests != 1 {
 		t.Errorf("rejected=%+v requests=%d", rejected, requests)
 	}
 }
 
-func TestSourceV170PiImageAborted(t *testing.T) {
+func TestPiImageAborted(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	got := piImageCall(t, sourceV170PiImageModel(), sourceV170PiImageInput(), &images.ImagesOptions{APIKey: "radius-key", Context: ctx}, func(req *http.Request) (*http.Response, error) {
+	got := generateImagesWithTransport(t, piImageFixtureModel(), piImageFixtureInput(), &images.ImagesOptions{APIKey: "radius-key", Context: ctx}, func(req *http.Request) (*http.Response, error) {
 		defer req.Body.Close()
 		return nil, context.Canceled
 	})
-	assertPiImageEmptyOutput(t, got, goai.StopReasonAborted)
+	assertImageResultEmpty(t, got, goai.StopReasonAborted)
 }
 
-func TestPiImageV170RetryAndOptionalZeroCounters(t *testing.T) {
+func TestPiImageRetryAndOptionalZeroCounters(t *testing.T) {
 	var statuses []int
 	requests := 0
 	opts := &images.ImagesOptions{APIKey: "radius-key", MaxRetries: 1, OnResponse: func(meta images.ImagesResponseMetadata, _ *images.ImagesModel) error {
 		statuses = append(statuses, meta.Status)
 		return nil
 	}}
-	got := piImageCall(t, sourceV170PiImageModel(), sourceV170PiImageInput(), opts, func(req *http.Request) (*http.Response, error) {
+	got := generateImagesWithTransport(t, piImageFixtureModel(), piImageFixtureInput(), opts, func(req *http.Request) (*http.Response, error) {
 		defer req.Body.Close()
 		requests++
 		if requests == 1 {
-			resp := piImageResponse(503, `{"error":{"message":"try again"}}`)
+			resp := imageJSONResponse(503, `{"error":{"message":"try again"}}`)
 			resp.Header.Set("Retry-After-Ms", "1")
 			return resp, nil
 		}
-		return piImageResponse(200, `{"output":[],"usage":{"input":0,"output":0,"reasoning":0,"imageOutput":0}}`), nil
+		return imageJSONResponse(200, `{"output":[],"usage":{"input":0,"output":0,"reasoning":0,"imageOutput":0}}`), nil
 	})
 	if requests != 2 || !reflect.DeepEqual(statuses, []int{503, 200}) || got.StopReason != goai.StopReasonStop {
 		t.Fatalf("requests=%d statuses=%v result=%+v", requests, statuses, got)
