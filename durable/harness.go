@@ -164,6 +164,7 @@ func Open(ctx context.Context, store Storage, options Options) (*Harness, error)
 		}
 		return *settings.DocumentRetentionMs
 	}
+	recoveryPending := false
 	failOpen := func(primary error) (*Harness, error) {
 		cancel()
 		s.taskScheduler = nil
@@ -172,6 +173,19 @@ func Open(ctx context.Context, store Storage, options Options) (*Harness, error)
 		// retain the exact primary Open error and bounded callback policy.
 		if closeErr := s.Close(context.Background()); closeErr != nil {
 			h.report(ctx, closeErr, ReportInfo{Type: "listener_error"})
+		}
+		// A failed open cannot publish the scheduler's first wake. Keep the
+		// host active when durable recovery was still needed; there must be no
+		// balancing inactive wake until a later successful open owns the pass.
+		if recoveryPending && options.OnWake != nil {
+			func() {
+				defer func() {
+					if value := recover(); value != nil {
+						h.report(context.Background(), fmt.Errorf("OnWake callback panic: %v", value), ReportInfo{Type: "host_error", Callback: "onWake"})
+					}
+				}()
+				options.OnWake(Wake{Active: true})
+			}()
 		}
 		return nil, primary
 	}
@@ -199,6 +213,7 @@ func Open(ctx context.Context, store Storage, options Options) (*Harness, error)
 	for _, id := range ids(state.Tasks) {
 		task := state.Tasks[id]
 		if (task.Kind == "pi.generation" || task.Kind == "pi.tool" || task.Execution != nil && task.Execution.Native != nil) && task.Status == "running" {
+			recoveryPending = true
 			owned, err := copyTask(task, s.limits)
 			if err != nil {
 				return failOpen(err)
