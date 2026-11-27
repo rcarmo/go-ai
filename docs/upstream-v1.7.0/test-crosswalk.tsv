@@ -164,7 +164,7 @@ packages/ai/test/provider-retry.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/providers.test.ts	M	present	3	0	8	6	0	0
 packages/ai/test/qwen-token-plan-models.test.ts	M	present	2	2	2	0	0	0
 packages/ai/test/radius-oauth.test.ts	unchanged	present	0	0	0	0	0	0
-packages/ai/test/radius-provider.test.ts	M	present	2	2	1	4	4	0
+packages/ai/test/radius-provider.test.ts	M	present	2	2	9	0	0	0
 packages/ai/test/radius-thinking-replay-e2e.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/reasoning-options.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/responseid.test.ts	unchanged	present	0	0	0	0	0	0
