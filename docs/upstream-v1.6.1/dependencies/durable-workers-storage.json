@@ -1,0 +1,70 @@
+{
+  "pin": "ef4a1cfcca62b77ad3558337ff3e1c7f6beeadfe",
+  "closure": {
+    "receipt": "durable-workers-migration.json",
+    "lockSHA256": "f05391f49b31146692ff2ac76239d78a52fe72d0d694a1624e8580a6ea8fec41",
+    "archiveRecordsSHA256": "3c82e6203d1fa55edd746b72cfb0eb70bb36ebe8b33ec1f0972152c03907ecc4",
+    "stageMatchesEarlierReceipt": true
+  },
+  "execution": {
+    "file": "packages/durable/test-workers/storage.test.ts",
+    "selector": null,
+    "node": "v26.13.0",
+    "vitest": "4.1.12",
+    "result": {
+      "passed": 35,
+      "failed": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    "passedOriginals": [
+      "SqliteStorage on Durable Object SQLite in workerd reserves ID 1 for the immutable root conversation",
+      "SqliteStorage on Durable Object SQLite in workerd receives a durable commit once before resolving, and never a refused one",
+      "SqliteStorage on Durable Object SQLite in workerd commits mixed table writes atomically and rolls all of them back on failure",
+      "SqliteStorage on Durable Object SQLite in workerd detaches retained writes and every returned record",
+      "SqliteStorage on Durable Object SQLite in workerd detaches prototype-like JSON keys without changing object prototypes",
+      "SqliteStorage on Durable Object SQLite in workerd indexes entries committed out of ID order",
+      "SqliteStorage on Durable Object SQLite in workerd continues an entry cursor below its last item after a newer commit",
+      "SqliteStorage on Durable Object SQLite in workerd paginates conversations by opaque cursor in ascending ID order",
+      "SqliteStorage on Durable Object SQLite in workerd filters and pages conversations by durable owner edges",
+      "SqliteStorage on Durable Object SQLite in workerd scans deep fork history newest-first through every ancestor cap",
+      "SqliteStorage on Durable Object SQLite in workerd scans tables in either ID order and continues a cursor in its order",
+      "SqliteStorage on Durable Object SQLite in workerd replaces complete task records and pages filtered task scans",
+      "SqliteStorage on Durable Object SQLite in workerd stores owners and scans waiting and completing tasks by status",
+      "SqliteStorage on Durable Object SQLite in workerd stores and scans sleeping tasks by status",
+      "SqliteStorage on Durable Object SQLite in workerd round-trips sleeps on signals, any waits, and wakes",
+      "SqliteStorage on Durable Object SQLite in workerd indexes request IDs per conversation and replaces complete submission records",
+      "SqliteStorage on Durable Object SQLite in workerd stores passive write submissions without input-only lifecycle states",
+      "SqliteStorage on Durable Object SQLite in workerd stores continue submissions, which have no entry and are never queued",
+      "SqliteStorage on Durable Object SQLite in workerd reconstructs rewindable documents and preserves half-open incarnations",
+      "SqliteStorage on Durable Object SQLite in workerd streams long document tails across root replacement deltas",
+      "SqliteStorage on Durable Object SQLite in workerd copies stored document bases independently and rejects ambiguous sources",
+      "SqliteStorage on Durable Object SQLite in workerd uses bases for version transitions and rejects historical reads of current-only documents",
+      "SqliteStorage on Durable Object SQLite in workerd indexes logical addresses and exact-scope scans independently",
+      "SqliteStorage on Durable Object SQLite in workerd keeps document lifecycle failures atomic and gives create-plus-retire an empty lifetime",
+      "SqliteStorage on Durable Object SQLite in workerd refuses a creation and a change of one document in one commit, in either order",
+      "SqliteStorage on Durable Object SQLite in workerd rolls back record tables and secondary indexes when a document command fails",
+      "SqliteStorage on Durable Object SQLite in workerd keeps indexed string identities lossless",
+      "SqliteStorage on Durable Object SQLite in workerd keeps one global record ID namespace and rejects exhausted ID minting",
+      "SqliteStorage on Durable Object SQLite in workerd commits batches in order, each with its seq, checked against the earlier ones",
+      "SqliteStorage on Durable Object SQLite in workerd stores the batches before the first one refused, and none after it",
+      "SqliteStorage on Durable Object SQLite in workerd refuses a later batch its own malformed actions fail, keeping the batches before it",
+      "SqliteStorage on Durable Object SQLite in workerd resolves a batched copy against the state the earlier batches left",
+      "SqliteStorage on Durable Object SQLite in workerd rejects every operation after close",
+      "Durable Object SQLite schema migrates a version 1 schema to admit sleeping tasks, keeping tasks and indexes",
+      "Durable Object SQLite driver in workerd reports the rows a statement changed, without index writes"
+    ],
+    "overlapWithEarlierReceipt": [
+      "Durable Object SQLite schema migrates a version 1 schema to admit sleeping tasks, keeping tasks and indexes"
+    ],
+    "additionalOriginals": 34,
+    "workerd": {
+      "version": "workerd 2026-10-23",
+      "path": "node_modules/@cloudflare/workerd-linux-arm64/bin/workerd",
+      "sha256": "c9c4d377aa0ae66889b497b8df08247f0642d803d36cd4c7f123715ee2c548d7",
+      "successfulExecveByVitest": 1
+    },
+    "isolation": "private mount namespace; private network with loopback only; no hosted services"
+  },
+  "scope": "Full unchanged storage.test.ts file against Cloudflare Durable Object SQLite. Other test-workers files and native Go backend parity were not evaluated."
+}
