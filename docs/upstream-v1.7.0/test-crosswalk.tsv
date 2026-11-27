@@ -101,7 +101,7 @@ packages/ai/test/model-cost-tiers.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/model-data-validation.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/model-types.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/models-entry.test.ts	unchanged	present	0	0	0	0	0	0
-packages/ai/test/models-runtime.test.ts	M	present	0	0	0	0	0	0
+packages/ai/test/models-runtime.test.ts	M	present	1	1	4	0	0	0
 packages/ai/test/node-http-proxy.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/oauth-auth.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/oauth-callback-server.test.ts	unchanged	present	0	0	0	0	0	0
@@ -148,7 +148,7 @@ packages/ai/test/opencode-model-generation.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/opencode-provider-headers.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/openrouter-cache-write-repro.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/openrouter-cost.test.ts	unchanged	present	0	0	0	0	0	0
-packages/ai/test/openrouter-images.test.ts	M	present	0	0	0	0	0	0
+packages/ai/test/openrouter-images.test.ts	M	present	5	5	24	0	0	0
 packages/ai/test/openrouter-oauth.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/openrouter-reasoning-options.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/openrouter-user-models.test.ts	unchanged	present	0	0	0	0	0	0
