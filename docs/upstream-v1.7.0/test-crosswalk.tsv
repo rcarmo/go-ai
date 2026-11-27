@@ -221,7 +221,7 @@ packages/durable/test/env-node-spill.test.ts	unchanged	present	0	0	0	0	0	0
 packages/durable/test/env-node.test.ts	unchanged	present	0	0	0	0	0	0
 packages/durable/test/env-truncate.test.ts	unchanged	present	0	0	0	0	0	0
 packages/durable/test/harness-after-run.test.ts	unchanged	present	0	0	0	0	0	0
-packages/durable/test/harness-blocked.test.ts	unchanged	present	0	0	0	0	0	0
+packages/durable/test/harness-blocked.test.ts	unchanged	present	11	11	19	11	0	0
 packages/durable/test/harness-callers.test.ts	unchanged	present	0	0	0	0	0	0
 packages/durable/test/harness-cancellation-barrier.test.ts	unchanged	present	0	0	0	0	0	0
 packages/durable/test/harness-compaction.test.ts	unchanged	present	0	0	0	0	0	0
