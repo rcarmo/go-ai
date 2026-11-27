@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Usage: bash probe-durable-workers.sh <pinned git mirror> <npm _cacache> <v1.6.1 npm releases> <OpenAI tarball> <Google tarball> [full-storage]
+# Usage: bash probe-durable-workers.sh <pinned git mirror> <npm _cacache> <v1.6.1 npm releases> <OpenAI tarball> <Google tarball> [full-storage|wake]
 set -euo pipefail
-if [[ $# != 5 && ( $# != 6 || $6 != full-storage ) ]]; then
-  printf 'Usage: bash %s <pinned git mirror> <npm _cacache> <v1.6.1 npm releases> <OpenAI tarball> <Google tarball> [full-storage]\n' "$0" >&2
+if [[ $# != 5 && ( $# != 6 || ( $6 != full-storage && $6 != wake ) ) ]]; then
+  printf 'Usage: bash %s <pinned git mirror> <npm _cacache> <v1.6.1 npm releases> <OpenAI tarball> <Google tarball> [full-storage|wake]\n' "$0" >&2
   exit 2
 fi
-full_storage=${6:-}
+mode=${6:-migration}
 here=$(cd -- "$(dirname -- "$0")" && pwd -P)
 # shellcheck source=/dev/null
 source "$here/../../../scripts/project-env.sh"
@@ -17,11 +17,19 @@ engine=node_modules/@cloudflare/workerd-linux-arm64/bin/workerd
 engine_sha=$(sha256sum < "$work/stage/$engine" | cut -d ' ' -f 1)
 # Match the same archive member separately witnessed by the release's direct workerd example.
 [[ $engine_sha == "$(jq -er .engineAvailability.workerd.binary.sha256 "$here/cloudflare-codemode-example.json")" ]]
+file=storage.test.ts
 selector='migrates a version 1 schema to admit sleeping tasks, keeping tasks and indexes'
 full="Durable Object SQLite schema $selector"
-if [[ $full_storage ]]; then
+if [[ $mode != migration ]]; then
   selector=
   cmp <(jq -S .closure "$here/durable-workers-migration.json") <(jq -S . "$work/closure.json")
+fi
+if [[ $mode == wake ]]; then
+  file=wake.test.ts
+  pin=$(jq -er .pin "$work/closure.json")
+  wake_path=packages/durable/test-workers/$file
+  git -C "$1" show "$pin:$wake_path" | cmp - "$work/stage/$wake_path"
+  wake_sha=$(sha256sum < "$work/stage/$wake_path" | cut -d ' ' -f 1)
 fi
 
 # Miniflare needs loopback. The network namespace has no other interface or default route.
@@ -39,24 +47,34 @@ if ! flock -w 900 /tmp/go-ai/v160-focused-verify.lock timeout 80s env -i \
     exec bwrap --die-with-parent --unshare-pid --ro-bind /usr /usr --symlink usr/bin /bin --symlink usr/lib /lib --symlink usr/sbin /sbin \
       --ro-bind /etc/hosts /etc/hosts --ro-bind /etc/nsswitch.conf /etc/nsswitch.conf --ro-bind /etc/passwd /etc/passwd --ro-bind /etc/group /etc/group \
       --ro-bind /etc/ssl/certs /etc/ssl/certs --dev /dev --proc /proc --dir /tmp --bind "$1" "$1" --chdir "$1/stage/packages/durable" sh -ec '\''
-        work=$1 selector=$2 engine=$3
+        work=$1 selector=$2 engine=$3 file=$4
         "./../../$engine" --version > "$work/workerd.version"
         node --version > "$work/node.version"
-        set -- storage.test.ts
+        set -- "$file"
         if [ -n "$selector" ]; then set -- "$@" -t "$selector"; fi
         exec strace -f -qq -o "$work/spawn.log" -e trace=execve,execveat \
           node ../../node_modules/vitest/vitest.mjs run --config test-workers/vitest.config.ts "$@" \
           --maxWorkers=1 --reporter=json --outputFile "$work/result.json"
-      '\'' sh "$1" "$2" "$3"
-  ' sh "$work" "$selector" "$engine" > "$work/vitest.log" 2>&1; then
+      '\'' sh "$1" "$2" "$3" "$4"
+  ' sh "$work" "$selector" "$engine" "$file" > "$work/vitest.log" 2>&1; then
   tail -80 "$work/vitest.log" >&2
+  if [[ -f $work/result.json ]]; then
+    jq '[.testResults[].assertionResults[] | select(.status=="failed") | {fullName,failureMessages}]' "$work/result.json" >&2
+  fi
   exit 1
 fi
-if [[ $full_storage ]]; then
+if [[ $mode == full-storage ]]; then
   jq -e --arg migration "$full" '.success and .numTotalTests==35 and .numPassedTests==35 and .numFailedTests==0 and
     .numPendingTests==0 and .numTodoTests==0 and (.testResults|length)==1 and
     ([.testResults[].assertionResults[] | select(.status=="passed") | .fullName] |
       length==35 and (unique|length)==35 and index($migration)!=null)' "$work/result.json" > "$work/test.check"
+elif [[ $mode == wake ]]; then
+  jq -e '.success and .numTotalTests==3 and .numPassedTests==3 and .numFailedTests==0 and
+    .numPendingTests==0 and .numTodoTests==0 and (.testResults|length)==1 and
+    (.testResults[0].name|endswith("/wake.test.ts")) and
+    ([.testResults[].assertionResults[] | select(.status=="passed") | .fullName] | length==3 and (unique|length)==3)' \
+    "$work/result.json" > "$work/test.check"
+  [[ $(sha256sum < "$work/stage/$wake_path" | cut -d ' ' -f 1) == "$wake_sha" ]]
 else
   jq -e --arg full "$full" '.success and .numPassedTests==1 and .numFailedTests==0 and .numTodoTests==0 and
     ([.testResults[].assertionResults[] | select(.status=="passed") | .fullName] == [$full])' "$work/result.json" > "$work/test.check"
@@ -69,7 +87,23 @@ while IFS=$'\t' read -r path sha; do
   [[ $(sha256sum < "$work/stage/$path" | cut -d ' ' -f 1) == "$sha" ]]
 done < <(jq -r '.inputs[] | [.path,.sha256] | @tsv' "$work/closure.json")
 
-if [[ $full_storage ]]; then
+if [[ $mode == wake ]]; then
+  jq -n --arg node "$(cat "$work/node.version")" --arg workerd "$(cat "$work/workerd.version")" \
+    --arg engine "$engine" --arg sha "$engine_sha" --argjson spawns "$spawns" --arg file "$wake_path" --arg source "$wake_sha" \
+    --slurpfile closure "$work/closure.json" --slurpfile result "$work/result.json" '
+    {pin:$closure[0].pin,closure:{receipt:"durable-workers-migration.json",lockSHA256:$closure[0].lockSHA256,
+       archiveRecordsSHA256:$closure[0].archiveRecordsSHA256,stageMatchesEarlierReceipt:true},
+     execution:{file:$file,fileSHA256:$source,selector:null,node:$node,
+       vitest:($closure[0].selectedNpmArchives[]|select(.name=="vitest").version),
+       result:{passed:$result[0].numPassedTests,failed:$result[0].numFailedTests,skipped:$result[0].numPendingTests,
+         todo:$result[0].numTodoTests},
+       passedOriginals:[$result[0].testResults[].assertionResults[].fullName],
+       workerd:{version:$workerd,path:$engine,sha256:$sha,successfulExecveByVitest:$spawns},
+       isolation:"private mount namespace; private network with loopback only; no hosted services"},
+     scope:"Full unchanged wake.test.ts file exercises local Durable Object alarms and eviction. Disjoint from storage.test.ts; hosted scheduling and native Go parity were not evaluated."}'
+  exit
+fi
+if [[ $mode == full-storage ]]; then
   jq -n --arg node "$(cat "$work/node.version")" --arg workerd "$(cat "$work/workerd.version")" \
     --arg engine "$engine" --arg sha "$engine_sha" --argjson spawns "$spawns" \
     --arg migration "$full" --slurpfile closure "$work/closure.json" --slurpfile result "$work/result.json" '

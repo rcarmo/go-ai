@@ -1,0 +1,35 @@
+{
+  "pin": "ef4a1cfcca62b77ad3558337ff3e1c7f6beeadfe",
+  "closure": {
+    "receipt": "durable-workers-migration.json",
+    "lockSHA256": "f05391f49b31146692ff2ac76239d78a52fe72d0d694a1624e8580a6ea8fec41",
+    "archiveRecordsSHA256": "3c82e6203d1fa55edd746b72cfb0eb70bb36ebe8b33ec1f0972152c03907ecc4",
+    "stageMatchesEarlierReceipt": true
+  },
+  "execution": {
+    "file": "packages/durable/test-workers/wake.test.ts",
+    "fileSHA256": "aed33a3d3354c6317d3604d3411fdd05168b33e2875044020a2dfbda1a210ec0",
+    "selector": null,
+    "node": "v26.13.0",
+    "vitest": "4.1.12",
+    "result": {
+      "passed": 3,
+      "failed": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    "passedOriginals": [
+      "a Harness woken by its Durable Object alarm sleeps through an eviction and resumes the task from its alarm",
+      "a Harness woken by its Durable Object alarm recovers a turn an eviction cut off mid-stream through the alarms, retrying the charged attempt",
+      "a Harness woken by its Durable Object alarm can evict an object whose Harness keeps idle documents and contexts in memory"
+    ],
+    "workerd": {
+      "version": "workerd 2026-10-23",
+      "path": "node_modules/@cloudflare/workerd-linux-arm64/bin/workerd",
+      "sha256": "c9c4d377aa0ae66889b497b8df08247f0642d803d36cd4c7f123715ee2c548d7",
+      "successfulExecveByVitest": 1
+    },
+    "isolation": "private mount namespace; private network with loopback only; no hosted services"
+  },
+  "scope": "Full unchanged wake.test.ts file exercises local Durable Object alarms and eviction. Disjoint from storage.test.ts; hosted scheduling and native Go parity were not evaluated."
+}
