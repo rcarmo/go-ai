@@ -74,6 +74,17 @@ func TestSourceV160CodemodePublishedWorkerBatchRetryFence(t *testing.T) {
 // codemode.test.ts:632–661. The two mismatches have the same saved count.
 // Only the changed hold has an earlier durable nested-call record.
 func TestSourceV160CodemodePublishedWorkerHeldBatchBeforeLaunch(t *testing.T) {
+	checkPublishedWorkerHeldBatchBeforeLaunch(t, officialWorkerPackageRootV160(t))
+}
+
+// Source: pi v1.6.1 codemode.test.ts:632–661. The grouped case is the
+// original-backed translation; the legacy and single-mismatch cases are controls.
+func TestSourceV161CodemodePublishedWorkerHeldBatchBeforeLaunch(t *testing.T) {
+	checkPublishedWorkerHeldBatchBeforeLaunch(t, officialWorkerPackageRoot(t, "GOAI_CODEMODE_V161_PACKAGE_ROOT", "1.6.1"))
+}
+
+func checkPublishedWorkerHeldBatchBeforeLaunch(t *testing.T, packageRoot string) {
+	t.Helper()
 	const source = `const k = load("k");
 		if (k) tools.echo({ text: "new" }); else forever();
 		await tools.hold({ id: k ? 2 : 1 });`
@@ -91,8 +102,9 @@ func TestSourceV160CodemodePublishedWorkerHeldBatchBeforeLaunch(t *testing.T) {
 			if tc.sameSecondCall {
 				code = strings.Replace(code, "id: k ? 2 : 1", "id: 1", 1)
 			}
-			got := runV160PublishedWorkerNestedReplay(t, code, workerReplayChangesV160{
+			got := runPublishedWorkerNestedReplay(t, packageRoot, code, workerReplayChangesV160{
 				unchangedJournal: true,
+				unchangedStart:   true,
 				guestStore:       workerReplayStoreWithKV160,
 				beforeStart:      func(sandbox *RemoteCodemodeSandbox) { sandbox.legacyJournal = tc.legacy },
 				beforeResume: func(_ context.Context, _ Storage, sandbox *RemoteCodemodeSandbox) {

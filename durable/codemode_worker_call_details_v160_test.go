@@ -9,6 +9,16 @@ import (
 
 // Source: pi v1.6.0 codemode.test.ts:448–472.
 func TestSourceV160CodemodePublishedWorkerCallDetails(t *testing.T) {
+	checkPublishedWorkerCallDetails(t, officialWorkerPackageRootV160(t))
+}
+
+// Source: pi v1.6.1 codemode.test.ts:448–472.
+func TestSourceV161CodemodePublishedWorkerCallDetails(t *testing.T) {
+	checkPublishedWorkerCallDetails(t, officialWorkerPackageRoot(t, "GOAI_CODEMODE_V161_PACKAGE_ROOT", "1.6.1"))
+}
+
+func checkPublishedWorkerCallDetails(t *testing.T, packageRoot string) {
+	t.Helper()
 	echo := wrapRegistration("echo")
 	echo.Execute = func(_ context.Context, args any, _ *ToolAPI) (ToolResult, error) {
 		return ToolResult{Content: args.(JSON)["text"].(string)}, nil
@@ -23,7 +33,7 @@ func TestSourceV160CodemodePublishedWorkerCallDetails(t *testing.T) {
 		return ToolResult{}, ctx.Err()
 	}
 	const script = `await tools.echo({ text: "a" }); try { await tools.fails({}); } catch {} tools.hold({ id: 9 }); return 1;`
-	_, result := CheckV160PublishedWorkerOutput(t, script, nil, 2, echo, fails, hold)
+	_, _, result := runPublishedWorkerOutput(t, packageRoot, script, nil, 2, echo, fails, hold)
 	data, err := json.Marshal(result.Details["calls"])
 	if err != nil {
 		t.Fatal(err)
