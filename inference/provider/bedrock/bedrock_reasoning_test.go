@@ -15,7 +15,7 @@ import (
 	goai "github.com/rcarmo/go-ai"
 )
 
-func bedrockReasoningModelsV170(t *testing.T) map[string]goai.Model {
+func bedrockReasoningModels(t *testing.T) map[string]goai.Model {
 	t.Helper()
 	data, err := os.ReadFile("testdata/bedrock_reasoning_v170.json")
 	if err != nil {
@@ -40,7 +40,7 @@ func bedrockReasoningModelsV170(t *testing.T) map[string]goai.Model {
 	return models
 }
 
-func bedrockPayloadV170(t *testing.T, model *goai.Model, messages []goai.Message, reasoning *goai.ThinkingLevel) *bedrockruntime.ConverseStreamInput {
+func bedrockPayload(t *testing.T, model *goai.Model, messages []goai.Message, reasoning *goai.ThinkingLevel) *bedrockruntime.ConverseStreamInput {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -70,14 +70,14 @@ func bedrockPayloadV170(t *testing.T, model *goai.Model, messages []goai.Message
 	return input
 }
 
-func TestBedrockFlatReasoningEffortV170(t *testing.T) {
+func TestBedrockFlatReasoningEffort(t *testing.T) {
 	const (
 		globalKimi = "global.moonshotai.kimi-k3.1"
 		usKimi     = "us.moonshotai.kimi-k3.1"
 		globalGLM  = "global.zai.glm-5.3"
 		usGLM      = "us.zai.glm-5.3"
 	)
-	models := bedrockReasoningModelsV170(t)
+	models := bedrockReasoningModels(t)
 	levels := []goai.ModelThinkingLevel{"off", "low", "medium", "high", "xhigh", "max"}
 	for _, tc := range []struct {
 		id   string
@@ -93,7 +93,7 @@ func TestBedrockFlatReasoningEffortV170(t *testing.T) {
 
 	assertPayload := func(t *testing.T, model goai.Model, level *goai.ThinkingLevel, want string) {
 		t.Helper()
-		fields := bedrockPayloadV170(t, &model, []goai.Message{goai.UserMessage("Hello")}, level).AdditionalModelRequestFields
+		fields := bedrockPayload(t, &model, []goai.Message{goai.UserMessage("Hello")}, level).AdditionalModelRequestFields
 		if want == "" {
 			if fields != nil {
 				got, err := fields.MarshalSmithyDocument()
@@ -133,8 +133,8 @@ func TestBedrockFlatReasoningEffortV170(t *testing.T) {
 	})
 }
 
-func TestBedrockReasoningReplayV170(t *testing.T) {
-	models := bedrockReasoningModelsV170(t)
+func TestBedrockReasoningReplay(t *testing.T) {
+	models := bedrockReasoningModels(t)
 	nova := goai.Model{Api: goai.ApiBedrockConverseStream, Provider: "amazon-bedrock", ID: "amazon.nova-lite-v1:0", Name: "Nova Lite", Reasoning: true}
 	for _, tc := range []struct {
 		name          string
@@ -170,7 +170,7 @@ func TestBedrockReasoningReplayV170(t *testing.T) {
 				{Role: goai.RoleAssistant, Api: model.Api, Provider: model.Provider, Model: model.ID, StopReason: goai.StopReasonToolUse, Content: blocks},
 				{Role: goai.RoleToolResult, ToolCallID: "tool-1", ToolName: "read", Content: []goai.ContentBlock{{Type: "text", Text: "hello"}}},
 			}
-			input := bedrockPayloadV170(t, &model, messages, nil)
+			input := bedrockPayload(t, &model, messages, nil)
 			if len(input.Messages) != 3 || input.Messages[1].Role != types.ConversationRoleAssistant {
 				t.Fatalf("want user, assistant, tool-result messages: %#v", input.Messages)
 			}

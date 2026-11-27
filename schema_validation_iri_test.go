@@ -8,7 +8,7 @@ import (
 	goai "github.com/rcarmo/go-ai"
 )
 
-func TestSourceV170SchemaPreparedIRIFormatConformance(t *testing.T) {
+func TestSchemaPreparedIRIFormatConformance(t *testing.T) {
 	checkPinnedSchemaPreparedFormatConformance(t, "v170", preparedFormatFixture{"iri", 26})
 }
 

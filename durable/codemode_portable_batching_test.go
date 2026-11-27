@@ -10,7 +10,7 @@ import (
 )
 
 // Source: pi v1.7.0 packages/codemode/test/portable.test.ts:83–91.
-func TestSourceV170CodemodePublishedPortableOutputBatching(t *testing.T) {
+func TestCodemodePublishedPortableOutputBatching(t *testing.T) {
 	root := officialWorkerPackageRoot(t, "GOAI_CODEMODE_V170_PACKAGE_ROOT", "1.7.0")
 	var mu sync.Mutex
 	var exchanges int
