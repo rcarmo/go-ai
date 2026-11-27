@@ -30,7 +30,7 @@ func TestMistral110ServerErrorIsRetryable(t *testing.T) {
 	close(ch)
 	for event := range ch {
 		if failure, ok := event.(*goai.ErrorEvent); ok {
-			if failure.Error.RawStopReason != "error" || failure.Error.ErrorMessage != "Provider stopped with: error (server error)" || !goai.IsRetryableAssistantError(failure.Error) {
+			if failure.Error.RawStopReason != "error" || failure.Error.ErrorMessage != "Provider stopped with: error" || !goai.IsRetryableAssistantError(failure.Error) {
 				t.Fatal("1.1.0 server stop must retry", failure.Error)
 			}
 			return

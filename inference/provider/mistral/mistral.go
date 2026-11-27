@@ -23,7 +23,10 @@ import (
 	"github.com/rcarmo/go-ai/transports/sse"
 )
 
-const defaultBaseURL = "https://api.mistral.ai/v1"
+const (
+	serviceBaseURL = "https://api.mistral.ai"
+	defaultBaseURL = serviceBaseURL + "/v1"
+)
 
 func init() {
 	goai.RegisterApi(&goai.ApiProvider{
@@ -66,7 +69,8 @@ func streamMistral(ctx context.Context, model *goai.Model, convCtx *goai.Context
 		}
 
 		baseURL := model.BaseURL
-		if baseURL == "" {
+		// Catalog records name the service origin. Keep custom Go base paths intact.
+		if baseURL == "" || strings.TrimRight(baseURL, "/") == serviceBaseURL {
 			baseURL = defaultBaseURL
 		}
 
@@ -576,9 +580,6 @@ func processSSEStreamWithOptions(ctx context.Context, body io.Reader, model *goa
 				partial.StopReason = goai.StopReasonLength
 			case "tool_calls":
 				partial.StopReason = goai.StopReasonToolUse
-			case "error":
-				partial.StopReason = goai.StopReasonError
-				partial.ErrorMessage = "Provider stopped with: error (server error)"
 			default:
 				partial.StopReason = goai.StopReasonError
 				partial.ErrorMessage = "Provider stopped with: " + *choice.FinishReason

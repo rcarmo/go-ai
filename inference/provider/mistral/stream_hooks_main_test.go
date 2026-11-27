@@ -78,7 +78,7 @@ func TestMistralTerminalReasonSourceMain(t *testing.T) {
 		{`"length"`, goai.StopReasonLength, ""},
 		{`"model_length"`, goai.StopReasonLength, ""},
 		{`"tool_calls"`, goai.StopReasonToolUse, ""},
-		{`"error"`, goai.StopReasonError, "Provider stopped with: error (server error)"},
+		{`"error"`, goai.StopReasonError, "Provider stopped with: error"},
 		{`"unmapped_error"`, goai.StopReasonError, "Provider stopped with: unmapped_error"},
 		{`""`, goai.StopReasonError, "Mistral stream ended without a finish reason"},
 		{`null`, goai.StopReasonError, "Mistral stream ended without a finish reason"},

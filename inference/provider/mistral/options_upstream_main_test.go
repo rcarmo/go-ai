@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"reflect"
 	"slices"
 	"strings"
@@ -135,36 +134,70 @@ func TestUpstreamMainMistralReasoningMode(t *testing.T) {
 	}
 }
 
+// Source: pi v1.6.1 mistral-raw-stop-reason.test.ts. Exercise the public
+// dispatch with the pinned model and complete synthetic provider responses.
 func TestUpstreamMainMistralRawStopReasons(t *testing.T) {
+	goai.RegisterBuiltinModels()
+	model := goai.GetModel(goai.ProviderMistral, "mistral-medium-latest")
+	if model == nil || model.Api != goai.ApiMistralConversations {
+		t.Fatalf("unexpected pinned Mistral model: %+v", model)
+	}
 	for _, tc := range []struct {
 		finish  string
 		reason  goai.StopReason
 		message string
 		retry   bool
-	}{{"stop", goai.StopReasonStop, "", false}, {"error", goai.StopReasonError, "Provider stopped with: error (server error)", true}, {"unmapped_error", goai.StopReasonError, "Provider stopped with: unmapped_error", false}} {
+	}{{"stop", goai.StopReasonStop, "", false}, {"error", goai.StopReasonError, "Provider stopped with: error", true}, {"unmapped_error", goai.StopReasonError, "Provider stopped with: unmapped_error", false}} {
 		t.Run(tc.finish, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.Header().Set("Content-Type", "text/event-stream")
-				fmt.Fprintf(w, "data: {\"id\":\"mistral-response-id\",\"model\":\"devstral-medium-latest\",\"choices\":[{\"index\":0,\"finish_reason\":%q,\"delta\":{}}],\"usage\":{\"prompt_tokens\":1,\"completion_tokens\":0,\"total_tokens\":1}}\n\ndata: [DONE]\n\n", tc.finish)
-			}))
-			defer server.Close()
-			model := upstreamMistralModel("devstral-medium-latest")
-			model.BaseURL = server.URL
-			message := upstreamMistralResult(t, context.Background(), model, makeMistralContext(), &goai.StreamOptions{APIKey: "test"})
-			if message.StopReason != tc.reason || message.RawStopReason != tc.finish || message.ErrorMessage != tc.message {
-				t.Fatalf("message %#v", message)
+			wire := fmt.Sprintf("data: {\"id\":\"mistral-response-id\",\"model\":%q,\"choices\":[{\"index\":0,\"finish_reason\":%q,\"delta\":{}}],\"usage\":{\"prompt_tokens\":1,\"completion_tokens\":0,\"total_tokens\":1}}\n\ndata: [DONE]\n\n", model.ID, tc.finish)
+			requests := 0
+			var requestURL string
+			transport := mistralSchemaTransportV160(func(r *http.Request) (*http.Response, error) {
+				defer r.Body.Close()
+				requests++
+				requestURL = r.URL.String()
+				if r.Method != http.MethodPost || r.Header.Get("Authorization") != "Bearer test" {
+					return nil, fmt.Errorf("unexpected fixture request: %s %s", r.Method, r.URL)
+				}
+				return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {"text/event-stream"}}, Body: io.NopCloser(strings.NewReader(wire))}, nil
+			})
+			zero := 0
+			transcript := &goai.Context{Messages: []goai.Message{goai.UserMessage("hello")}}
+			var message *goai.Message
+			for event := range goai.Stream(t.Context(), model, transcript, &goai.StreamOptions{APIKey: "test", MaxRetries: &zero, HTTPTransport: transport}) {
+				switch e := event.(type) {
+				case *goai.DoneEvent:
+					message = e.Message
+				case *goai.ErrorEvent:
+					message = e.Error
+				}
 			}
-			if goai.IsRetryableAssistantError(message) != tc.retry {
-				t.Fatalf("retryable=%v want %v", goai.IsRetryableAssistantError(message), tc.retry)
+			if requests != 1 || message == nil {
+				t.Fatalf("expected one request and a terminal message, got %d requests and %#v", requests, message)
+			}
+			if requestURL != "https://api.mistral.ai/v1/chat/completions" {
+				t.Errorf("unexpected Mistral catalog endpoint: %q", requestURL)
+			}
+			if message.StopReason != tc.reason {
+				t.Errorf("stop reason = %q; want %q", message.StopReason, tc.reason)
+			}
+			if message.RawStopReason != tc.finish {
+				t.Errorf("raw stop reason = %q; want %q", message.RawStopReason, tc.finish)
+			}
+			if message.ErrorMessage != tc.message {
+				t.Errorf("diagnostic = %q; want %q", message.ErrorMessage, tc.message)
+			}
+			if got := goai.IsRetryableAssistantError(message); got != tc.retry {
+				t.Errorf("retryable = %v; want %v", got, tc.retry)
 			}
 		})
 	}
 }
 
-// Source: pi v1.6.0 mistral-tool-schema.test.ts:18–63. TypeBox's symbol
+// Source: pi v1.6.1 mistral-tool-schema.test.ts:18–63. TypeBox's symbol
 // keys are tested only in JS; this test observes the exact JSON projection.
 func TestUpstreamMainMistralToolSchema(t *testing.T) {
-	testMistralToolSchemaWireV160(t, "devstral-medium-latest", true, goai.Tool{
+	testMistralToolSchemaWireV160(t, "mistral-medium-latest", true, goai.Tool{
 		Name: "inspect_schema", Description: "Inspect the schema",
 		Parameters:          json.RawMessage(`{"type":"object","properties":{"nested":{"type":"object","properties":{"value":{"type":"string"}},"required":["value"]}},"required":["nested"]}`),
 		ConstrainedSampling: &goai.ToolConstrainedSampling{Type: "json_schema", Strict: "require"},
