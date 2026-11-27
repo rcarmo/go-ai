@@ -163,6 +163,8 @@ func buildOptions(opts *goai.StreamOptions) map[string]any {
 	}
 	if v, ok := opts.Metadata["toolChoice"]; ok {
 		m["toolChoice"] = v
+	} else if opts.ToolChoice != "" {
+		m["toolChoice"] = opts.ToolChoice
 	}
 	return m
 }
@@ -219,7 +221,7 @@ func createErrorEvent(model *goai.Model, err error, aborted bool) goai.Event {
 }
 
 func newConverter(model *goai.Model, observe func(any, *goai.Model) error) func([]byte) (goai.Event, bool, error) {
-	partial := &goai.Message{Role: goai.RoleAssistant, Api: model.Api, Provider: model.Provider, Model: model.ID, Usage: emptyUsage(), StopReason: goai.StopReasonStop, Timestamp: time.Now().UnixMilli()}
+	partial := &goai.Message{Role: goai.RoleAssistant, Api: model.Api, Provider: model.Provider, Model: model.ID, Usage: emptyUsage(), StopReason: goai.StopReasonPending, Timestamp: time.Now().UnixMilli()}
 	toolJSON := map[int]string{}
 	return func(data []byte) (goai.Event, bool, error) {
 		var e map[string]any
@@ -330,12 +332,23 @@ func finish(m *goai.Message, e map[string]any) {
 	}
 	if r, _ := e["reason"].(string); r != "" {
 		m.StopReason = goai.StopReason(r)
+	} else if m.StopReason == goai.StopReasonPending {
+		m.StopReason = goai.StopReasonStop
 	}
 	if id, _ := e["responseId"].(string); id != "" {
 		m.ResponseID = id
 	}
+	if name, ok := e["responseModel"].(string); ok {
+		m.ResponseModel = name
+	}
 	if u, ok := e["usage"].(map[string]any); ok {
-		m.Usage = &goai.Usage{Input: int(num(u["input"])), Output: int(num(u["output"])), CacheRead: int(num(u["cacheRead"])), CacheWrite: int(num(u["cacheWrite"])), TotalTokens: int(num(u["totalTokens"])), Reasoning: int(num(u["reasoning"])), Cost: goai.CostBreakdown{}}
+		m.Usage = &goai.Usage{Input: int(num(u["input"])), Output: int(num(u["output"])), CacheRead: int(num(u["cacheRead"])), CacheWrite: int(num(u["cacheWrite"])), TotalTokens: int(num(u["totalTokens"])), Reasoning: int(num(u["reasoning"]))}
+		if cost, ok := u["cost"].(map[string]any); ok {
+			m.Usage.Cost = goai.CostBreakdown{
+				Input: num(cost["input"]), Output: num(cost["output"]), CacheRead: num(cost["cacheRead"]),
+				CacheWrite: num(cost["cacheWrite"]), Total: num(cost["total"]),
+			}
+		}
 	}
 }
 func appendRewrite(m *goai.Message, v any) {
