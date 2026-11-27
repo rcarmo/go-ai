@@ -26,3 +26,7 @@ The mirror must contain both official tags at the recorded commits. Use `--write
 Before changing the target, four focused native tests passed on `3c59c42f` with Go 1.27.3 and `CGO_ENABLED=0`: prepared temporal boundaries, request-size overflow boundaries, Codemode store checkpoints and independent Durable turn limits. No Go production code, dependency pins, catalog output or format generator changed in this retarget. The old generation gates still verify their recorded inputs.
 
 Stage the locked dependencies and verify release assets before executing the first v1.7.0 originals. Start with Pi Image and Radius routing, OpenAI Completions reasoning and empty tools, Bedrock messages and Durable usage and storage-commit cases. Compare the published model records before changing the Go generator pin. Verify Codemode and Schema distribution contents separately from source-file changes. This retarget establishes the new comparison inputs; runtime parity and release acceptance remain open.
+
+## First unchanged AI originals
+
+The [locked AI test stage](ai-originals.md) ran 59 unchanged originals from five files. The selected release assets, installed lock placements and published catalog payloads have separate checks. Durable, Codemode and Schema test execution and the full dependency closure remain open.

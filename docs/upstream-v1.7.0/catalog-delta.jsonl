@@ -1,0 +1,3 @@
+{"kind":"MODELS","previous":1696,"current":1701,"added":43,"removed":38,"changed":66,"changedProviders":["amazon-bedrock","ant-ling","azure","cloudflare-ai-gateway","cloudflare-workers-ai","fireworks","github-copilot","huggingface","openai","opencode","openrouter","qwen-token-plan","qwen-token-plan-cn","qwen-token-plan-individual","qwen-token-plan-individual-cn","radius","together","vercel-ai-gateway"]}
+{"kind":"IMAGE_MODELS","previous":74,"current":74,"added":0,"removed":0,"changed":70,"changedProviders":["openrouter"]}
+{"kind":"CLASSIFIER_MODELS","previous":81,"current":83,"added":2,"removed":0,"changed":0,"changedProviders":["openrouter","vercel-ai-gateway"]}

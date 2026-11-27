@@ -1,0 +1,43 @@
+{
+  "pin": "fb0fe823539f6d04850f6e34748c01f01f212e1f",
+  "node": "26.13.0",
+  "npm": "11.20.0",
+  "stage": {
+    "vitest": "4.1.12",
+    "npmPlacements": 178,
+    "workspaces": [
+      "packages/ai",
+      "packages/schema",
+      "packages/telemetry"
+    ],
+    "providerDataFiles": 43,
+    "modelsModuleSHA256": "523505cb45698abc4f8073d6e64feefbde471fa7d7586962f95e2af7262d1777"
+  },
+  "execution": {
+    "passed": 59,
+    "failed": 0,
+    "skipped": 0,
+    "files": [
+      {
+        "file": "test/bedrock-convert-messages.test.ts",
+        "passed": 16
+      },
+      {
+        "file": "test/openai-completions-empty-tools.test.ts",
+        "passed": 12
+      },
+      {
+        "file": "test/openai-completions-reasoning-opaque.test.ts",
+        "passed": 7
+      },
+      {
+        "file": "test/openai-completions-reasoning.test.ts",
+        "passed": 16
+      },
+      {
+        "file": "test/pi-image.test.ts",
+        "passed": 8
+      }
+    ]
+  }
+}
