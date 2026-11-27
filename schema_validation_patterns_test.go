@@ -23,7 +23,7 @@ func TestValidationStringPatternMemoAndFailure(t *testing.T) {
 	if len(v.patterns) != 2 {
 		t.Fatalf("memo entries=%d", len(v.patterns))
 	}
-	v.patterns[toolSchemaPatternKey{`^a+$`, "aa"}] = toolSchemaPatternResult{err: errors.New("engine unavailable")}
+	v.patterns[toolSchemaPatternKey{pattern: `^a+$`, value: "aa"}] = toolSchemaPatternResult{err: errors.New("engine unavailable")}
 	if v.schemaAcceptsValue("aa", schema) || !strings.Contains(v.stringPatternReason("aa", schema), "engine unavailable") {
 		t.Fatal("engine failure accepted")
 	}
@@ -33,7 +33,7 @@ func TestValidationInvalidPatternCannotBeHiddenByUnion(t *testing.T) {
 	pattern := map[string]interface{}{"type": "string", "pattern": `[`}
 	schema := map[string]interface{}{"anyOf": []interface{}{pattern, map[string]interface{}{"type": "string"}}}
 	v := newToolSchemaValidator(schema)
-	v.patterns = map[toolSchemaPatternKey]toolSchemaPatternResult{{`[`, "aaa"}: {valid: false}}
+	v.patterns = map[toolSchemaPatternKey]toolSchemaPatternResult{{pattern: `[`, value: "aaa"}: {valid: false}}
 	_, err := v.coerceWithJSONSchema("aaa", schema)
 	if err == nil || !strings.Contains(err.Error(), "invalid regular expression") {
 		t.Fatalf("union hid invalid pattern: %v", err)
@@ -44,7 +44,7 @@ func TestValidationPatternFailureCannotBeHiddenByUnion(t *testing.T) {
 	pattern := map[string]interface{}{"type": "string", "pattern": `^a+$`}
 	schema := map[string]interface{}{"anyOf": []interface{}{pattern, map[string]interface{}{"type": "string"}}}
 	v := newToolSchemaValidator(schema)
-	v.patterns = map[toolSchemaPatternKey]toolSchemaPatternResult{{`^a+$`, "aaa"}: {err: errors.New("engine unavailable")}}
+	v.patterns = map[toolSchemaPatternKey]toolSchemaPatternResult{{pattern: `^a+$`, value: "aaa"}: {err: errors.New("engine unavailable")}}
 	_, err := v.coerceWithJSONSchema("aaa", schema)
 	if err == nil || !strings.Contains(err.Error(), "engine unavailable") {
 		t.Fatalf("union hid infrastructure failure: %v", err)
@@ -54,7 +54,7 @@ func TestValidationPatternFailureCannotBeHiddenByUnion(t *testing.T) {
 func TestValidationPatternPropertyFailureIsNotAccepted(t *testing.T) {
 	schema := map[string]interface{}{"type": "object", "patternProperties": map[string]interface{}{`(?<!x)y`: true}}
 	v := newToolSchemaValidator(schema)
-	v.patterns = map[toolSchemaPatternKey]toolSchemaPatternResult{{`(?<!x)y`, "y"}: {err: errors.New("engine unavailable")}}
+	v.patterns = map[toolSchemaPatternKey]toolSchemaPatternResult{{pattern: `(?<!x)y`, value: "y"}: {err: errors.New("engine unavailable")}}
 	value := map[string]interface{}{"y": 1}
 	if v.schemaAcceptsValue(value, schema) {
 		t.Fatal("pattern property engine failure accepted")
@@ -95,5 +95,19 @@ func TestValidationPatternCompileBudgetAndMemo(t *testing.T) {
 	expired.patternDeadline = time.Now().Add(-time.Second)
 	if err := expired.checkSchemaPatternSyntax(`a`); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("expired compile got %v", err)
+	}
+}
+
+func TestValidationPatternMemoSeparatesIDNEmailFlags(t *testing.T) {
+	v := newToolSchemaValidator(nil)
+	// U+0345 folds to a Greek letter under /iu but is a mark under /u.
+	const input = "user@\u0345.test"
+	folded := v.matchSchemaPatternMode(schemaIDNEmailPattern, input, true)
+	plain := v.matchSchemaPattern(schemaIDNEmailPattern, input)
+	if folded.err != nil || !folded.valid || !folded.matched {
+		t.Fatalf("folded format result = %+v; want match", folded)
+	}
+	if plain.err != nil || !plain.valid || plain.matched {
+		t.Fatalf("plain pattern result = %+v; want miss", plain)
 	}
 }

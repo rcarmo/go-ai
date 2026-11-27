@@ -9,10 +9,20 @@ import (
 	"github.com/rcarmo/go-ai/internal/quickjs"
 )
 
-type toolSchemaPatternKey struct{ pattern, value string }
+type toolSchemaPatternKey struct {
+	pattern, value string
+	nfcFolded      bool
+}
 type toolSchemaPatternResult struct {
 	valid, matched bool
 	err            error
+}
+
+func schemaRegExpInputError(pattern, value string) error {
+	if len(pattern) > maxSchemaPatternRawBytes || len(value) > maxSchemaPatternRawBytes-len(pattern) {
+		return fmt.Errorf("schema regexp input exceeds %d-byte limit", maxSchemaPatternRawBytes)
+	}
+	return nil
 }
 
 // checkSchemaPatternSyntax is the bounded compile-only building block for a
@@ -23,6 +33,10 @@ func (v *toolSchemaValidator) checkSchemaPatternSyntax(pattern string) error {
 	}
 	if v.patternSyntax == nil {
 		v.patternSyntax = make(map[string]error)
+	}
+	if err := schemaRegExpInputError(pattern, ""); err != nil {
+		v.patternSyntax[pattern] = err
+		return err
 	}
 	if v.patternDeadline.IsZero() {
 		v.patternDeadline = time.Now().Add(5 * time.Second)
@@ -73,7 +87,18 @@ func (v *toolSchemaValidator) stringPatternReason(value interface{}, schema map[
 }
 
 func (v *toolSchemaValidator) matchSchemaPattern(pattern, text string) toolSchemaPatternResult {
-	key := toolSchemaPatternKey{pattern, text}
+	return v.matchSchemaPatternMode(pattern, text, false)
+}
+
+func (v *toolSchemaValidator) matchSchemaPatternMode(pattern, text string, nfcFolded bool) toolSchemaPatternResult {
+	if err := schemaRegExpInputError(pattern, text); err != nil {
+		result := toolSchemaPatternResult{err: err}
+		if v.patternFailure == nil {
+			v.patternFailure = err
+		}
+		return result
+	}
+	key := toolSchemaPatternKey{pattern, text, nfcFolded}
 	result, found := v.patterns[key]
 	if !found {
 		if v.patterns == nil {
@@ -86,7 +111,11 @@ func (v *toolSchemaValidator) matchSchemaPattern(pattern, text string) toolSchem
 		result.err = err
 		if err == nil {
 			ctx, cancel := context.WithDeadline(context.Background(), v.patternDeadline)
-			result.valid, result.matched, result.err = engine.MatchRegExp(ctx, pattern, text)
+			if nfcFolded {
+				result.valid, result.matched, result.err = engine.MatchNFCRegExpUnicodeCaseInsensitive(ctx, pattern, text)
+			} else {
+				result.valid, result.matched, result.err = engine.MatchRegExp(ctx, pattern, text)
+			}
 			cancel()
 		}
 		v.patterns[key] = result

@@ -34,16 +34,32 @@ func (e *Engine) MatchRegExp(ctx context.Context, pattern, value string) (valid,
 	return err == nil && (result == "match" || result == "miss"), err == nil && result == "match", err
 }
 
+// MatchNFCRegExpUnicodeCaseInsensitive tests an NFC-normalized string with
+// ECMAScript's exact iu flags. Unlike MatchRegExp, it never falls back to
+// legacy syntax. The expression and value are passed as data.
+func (e *Engine) MatchNFCRegExpUnicodeCaseInsensitive(ctx context.Context, pattern, value string) (valid, matched bool, err error) {
+	result, err := e.regExpOperation(ctx, pattern, value, regexpNFCFoldedMatch)
+	return err == nil && (result == "match" || result == "miss"), err == nil && result == "match", err
+}
+
 type regexpOperation uint8
+
+// Keep direct bridge callers within the schema compiler's 4 MiB host-input
+// aggregate limit, before allocating or copying guest strings.
+const maxRegExpInputBytes = 4 << 20
 
 const (
 	regexpUnicodeCheck regexpOperation = iota
 	regexpSchemaCheck
 	regexpMatch
+	regexpNFCFoldedMatch
 )
 
 func (e *Engine) regExpOperation(ctx context.Context, pattern, value string, operation regexpOperation) (resultCode string, err error) {
-	match := operation == regexpMatch
+	match := operation == regexpMatch || operation == regexpNFCFoldedMatch
+	if len(pattern) > maxRegExpInputBytes || len(value) > maxRegExpInputBytes-len(pattern) {
+		return "", fmt.Errorf("regexp input exceeds %d-byte limit", maxRegExpInputBytes)
+	}
 	if ctx == nil {
 		return "", fmt.Errorf("nil regexp context")
 	}
@@ -99,6 +115,8 @@ func (e *Engine) regExpOperation(ctx context.Context, pattern, value string, ope
 		code = `(pattern => { try { new RegExp(pattern, "u"); } catch { try { new RegExp(pattern); } catch { return "invalid"; } } return "valid"; })`
 	case regexpMatch:
 		code = `((pattern, value) => { let re; try { re = new RegExp(pattern, "u"); } catch { try { re = new RegExp(pattern); } catch { return "invalid"; } } return re.test(value) ? "match" : "miss"; })`
+	case regexpNFCFoldedMatch:
+		code = `((pattern, value) => { let re; try { re = new RegExp(pattern, "iu"); } catch { return "invalid"; } return re.test(value.normalize("NFC")) ? "match" : "miss"; })`
 	}
 	codePtr, err := v.writeBytes(wasmCtx, []byte(code))
 	if err != nil {
