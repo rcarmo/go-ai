@@ -318,7 +318,7 @@ packages/durable/test/types.test.ts	unchanged	present	0	0	0	0	0	0
 packages/schema/test/builders.test.ts	unchanged	present	0	0	0	0	0	0
 packages/schema/test/coerce-typebox.test.ts	unchanged	present	0	0	0	0	0	0
 packages/schema/test/coerce.test.ts	unchanged	present	0	0	0	0	0	0
-packages/schema/test/conformance.test.ts	unchanged	present	26	26	52	0	0	0
+packages/schema/test/conformance.test.ts	unchanged	present	50	50	100	0	0	0
 packages/schema/test/equal.test.ts	unchanged	present	0	0	0	0	0	0
 packages/schema/test/shared.test.ts	unchanged	present	0	0	0	0	0	0
 packages/schema/test/typebox-static.test.ts	unchanged	present	0	0	0	0	0	0
