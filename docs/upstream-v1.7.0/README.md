@@ -34,21 +34,20 @@ Before retargeting, four focused native tests passed on `3c59c42f` with Go 1.27.
 | Catalog | [Readiness audit](catalog-readiness.md) and [regeneration](catalog-regeneration.md): all 1,858 published records matched using the production Go types, without an overlay. Retired rows were not restored; wire tests use matching historical fixtures. |
 | Codemode | [Published portable batching](codemode-portable-batching.md): 5,000 ordered console items, six exchanges, same published distribution and QuickJS WASM as v1.6.1. [Worker admission and exit](codemode-worker-lifetime.md) covers refusal and lifetime-hook ordering; [construction failure](codemode-worker-construction.md) separately proves native permit return after WASM setup failure without claiming Node/Bun process semantics. |
 | Dependencies and release | [Exact closure and release receipt](dependencies/README.md): 305 npm slots, six links, 547 edges, 122 installer placements, ten publisher packages and eight release artifacts independently verified. Both Linux arm64 binaries passed an offline `--version` and Codemode smoke. |
-| Durable | [Grouped SQLite visibility and reopened heads](durable-storage.md). Chord-only assertions remain unmatched. |
-| Schema | [Prepared absolute IRI](schema-prepared-iri.md): 26 vectors; [prepared IDN-email](schema-prepared-idn-email.md): 24 vectors with bounded QuickJS host input. Legacy and tool validation policy is unchanged. |
-| Radius | [Image discovery diagnostic](radius-image-discovery.md): ten unchanged originals passed. Explicit native image requests work; shared live refresh and cache-only discovery are still chat-only. |
+| Durable | [Grouped SQLite visibility and reopened heads](durable-storage.md), [pre-callback usage fencing](durable-tool-usage-validation.md), and [nearest-owner cascade reason](durable-scheduler-reason.md). Chord-only assertions remain unmatched. |
+| Schema | [Prepared absolute IRI](schema-prepared-iri.md): 26 vectors; [prepared IDN-email](schema-prepared-idn-email.md): 24 vectors; [prepared IDN-hostname](schema-prepared-idn-hostname.md): 101 vectors. Legacy and tool annotation behavior is unchanged. |
+| Radius | [Typed runtime receipt](radius-typed-runtime-receipt.md): chat, image and classifier models now refresh, replace, retain validators and restore from cache with credential-owned detached snapshots. |
 
 ## Integrated checkpoint
 
-The exact candidate `5f724c1e3cc6423ec697088dbb339e176b342243` passed 97 focused Go tests twice across 6 packages without skips, with vet and Staticcheck v0.8.2. A fresh full-history clone of `main` reproduced both versions’ locator checks, the v1.7.0 inventory and crosswalks. The [v1.7.0 crosswalk](test-crosswalk.tsv) records 199 scoped sites across 14 of 324 files: 181 mapped, 10 partial and 8 unmatched. It does not count unrun source tests as coverage. Ant Ling contributes 15 mapped locators and preserves the original oracle test SHA in a separate receipt.
+The exact candidate `5f724c1e3cc6423ec697088dbb339e176b342243` passed 97 focused Go tests twice across six packages without skips, with vet and Staticcheck v0.8.2. A fresh full-history clone reproduced the round-1 checks. The latest exact candidate `016c041fb016d866273fbbb09bf4d0dfe6830ef5` passed the combined touched-slice selector twice with vet and Staticcheck; separate focused selections covered the 101 prepared IDN-hostname and 24 IDN-email vectors. The [v1.7.0 crosswalk](test-crosswalk.tsv) records 461 scoped sites across 16 of 324 files: 442 mapped, 11 partial and 8 unmatched. It counts scoped assertions, not unrun source tests.
 
 The Go image fixtures, OpenAI reasoning replay and SSE helpers, Durable turn limits, usage and SQLite grouping, and the current Bedrock, Schema and Codemode cases use behaviour names. Source pins and published comparison inputs remain in the ledgers and fixtures. The turn-limit migration preserved all nine native scenarios and revalidated 1,354 historical locators.
 
 ## Open gaps
 
-- Radius needs a kind-aware runtime and persisted cache before typed discovery can match v1.7.0.
-- The unchanged native base reproduces the Durable M1c ordering failure: invalid finite usage can enter the app callback before validation. SQLite rollback cannot undo callback execution. The distinct Go result-plus-error settlement needs a contract decision.
-- Wider provider, Durable, Codemode and Schema coverage remains open. Live replay still needs the authorised credentials. Dependency and installer provenance is closed by the [exact release receipt](dependencies/README.md); full acceptance and acceptance profiling were not run.
+- Legacy M1c assertions still encode obsolete `invalid_usage` and raw task-state wording. Production usage validation now runs before the application callback. The separate Go result-plus-error settlement policy remains unchanged and needs an explicit contract decision before those assertions can be reconciled.
+- Wider provider, Durable, Codemode and Schema coverage remains open. The remaining crosswalk gaps separate nonportable Chord, JavaScript parser/writer, and alternate-engine observations from native Go parity. Live replay still needs the authorised credentials. Dependency and installer provenance is closed by the [exact release receipt](dependencies/README.md); full acceptance and acceptance profiling were not run.
 
 ```sh
 bun run docs/upstream-v1.7.0/assertions/validate.ts "$PI_ORACLE" "$PI_MIRROR"
