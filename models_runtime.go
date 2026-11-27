@@ -453,6 +453,18 @@ func cloneModel(model *Model) *Model {
 		}
 		copy.GoogleCompat = &compat
 	}
+	if model.BedrockCompat != nil {
+		compat := *model.BedrockCompat
+		if compat.SupportsStrictMode != nil {
+			enabled := *compat.SupportsStrictMode
+			compat.SupportsStrictMode = &enabled
+		}
+		if compat.SupportsReasoningReplay != nil {
+			enabled := *compat.SupportsReasoningReplay
+			compat.SupportsReasoningReplay = &enabled
+		}
+		copy.BedrockCompat = &compat
+	}
 	if model.PromptCache != nil {
 		promptCache := *model.PromptCache
 		copy.PromptCache = &promptCache

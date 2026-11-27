@@ -67,6 +67,55 @@ func TestModelRuntimeLookupIssue2MatchOnlyAndDetached(t *testing.T) {
 	}
 }
 
+func TestBedrockModelCompatDetached(t *testing.T) {
+	for _, path := range []string{"static", "lookup"} {
+		t.Run(path, func(t *testing.T) {
+			strict, replay := true, false
+			model := &goai.Model{
+				ID:       "us.moonshotai.kimi-k3.1",
+				Api:      goai.ApiBedrockConverseStream,
+				Provider: "amazon-bedrock",
+				BedrockCompat: &goai.BedrockCompat{
+					SupportsStrictMode:      &strict,
+					SupportsReasoningReplay: &replay,
+				},
+			}
+			provider := goai.StaticModelProvider{Provider: model.Provider, Models: []*goai.Model{model}}
+			get := func() *goai.Model { return provider.StaticModels()[0] }
+			if path == "lookup" {
+				runtime := goai.NewModelRuntime(nil)
+				runtime.SetProvider(provider)
+				get = func() *goai.Model { return runtime.GetModel(model.Provider, model.ID) }
+			}
+			got := get()
+			if got == nil || got.BedrockCompat == nil {
+				t.Fatalf("Bedrock compatibility missing: %#v", got)
+			}
+			compat := got.BedrockCompat
+			if compat.SupportsStrictMode == nil || !*compat.SupportsStrictMode || compat.SupportsReasoningReplay == nil || *compat.SupportsReasoningReplay {
+				t.Fatal("Bedrock compatibility lost explicit strict=true or replay=false")
+			}
+			if compat == model.BedrockCompat {
+				t.Error("returned BedrockCompat aliases the original struct")
+			}
+			if compat.SupportsStrictMode == &strict {
+				t.Error("returned SupportsStrictMode aliases the original bool")
+			}
+			if compat.SupportsReasoningReplay == &replay {
+				t.Error("returned SupportsReasoningReplay aliases the original bool")
+			}
+			*compat.SupportsStrictMode = false
+			*compat.SupportsReasoningReplay = true
+			compat.SupportsStrictMode = nil
+			compat.SupportsReasoningReplay = nil
+			again := get()
+			if again == nil || again.BedrockCompat == nil || again.BedrockCompat.SupportsStrictMode == nil || !*again.BedrockCompat.SupportsStrictMode || again.BedrockCompat.SupportsReasoningReplay == nil || *again.BedrockCompat.SupportsReasoningReplay {
+				t.Fatal("mutating a returned copy changed the next Bedrock compatibility read")
+			}
+		})
+	}
+}
+
 func TestModelRuntimeLookupIssue2NilEntriesAndFirstMatch(t *testing.T) {
 	r := goai.NewModelRuntime(nil)
 	first, second := lookupIssue2Model("same"), lookupIssue2Model("same")
