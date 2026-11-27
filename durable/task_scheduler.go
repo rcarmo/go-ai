@@ -1469,19 +1469,36 @@ func (s *taskScheduler) reconcilePass(requireEnabled bool) error {
 		if len(tx.writes) > 0 {
 			return nil
 		}
+		// Mark unmarked descendants before replacing the reason of an already
+		// restart-marked owner. A descendant's first cascade mark must observe
+		// its nearest cancelling owner, not a rewrite inherited later from that
+		// owner's explicit ancestor.
+		for _, id := range ids(state.Tasks) {
+			task := state.Tasks[id]
+			if terminalStatus(task.Status) || taskAborted(task) || !taskBelowCancelled(state, task) {
+				continue
+			}
+			task = markTask(task)
+			task.AbortReason = restartCascadeReason(state, task)
+			if err := tx.stage(Write{Op: "put-task", Task: &task}); err != nil {
+				return err
+			}
+			return nil // next adoption continues the bounded cascade
+		}
 		for _, id := range ids(state.Tasks) {
 			task := state.Tasks[id]
 			if terminalStatus(task.Status) {
 				continue
 			}
-			if taskBelowCancelled(state, task) && (!taskAborted(task) || task.AbortReason == "restart" && restartCascadeReason(state, task) == "") {
-				reason := restartCascadeReason(state, task)
+			// Explicit owner intent supersedes a restart-only mark after all
+			// unmarked descendants have inherited that nearest restart reason.
+			if task.AbortReason == "restart" && taskBelowCancelled(state, task) && restartCascadeReason(state, task) == "" {
 				task = markTask(task)
-				task.AbortReason = reason
+				task.AbortReason = ""
 				if err := tx.stage(Write{Op: "put-task", Task: &task}); err != nil {
 					return err
 				}
-				return nil // next adoption continues the bounded cascade
+				return nil
 			}
 			if taskAborted(task) {
 				if r := s.invocations[id]; r != nil && !r.abortMode {
