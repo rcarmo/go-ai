@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -157,93 +157,125 @@ func TestSourceV160CompletionsReasoningFormats(t *testing.T) {
 	}
 }
 
-// Load a detached, published v1.6.0 model. These retired IDs are not registered.
-func loadHistoricalAntLingModel(t *testing.T, id string) *goai.Model {
+func captureAntLing(t *testing.T, model *goai.Model, ctx *goai.Context, opts goai.StreamOptions, direct bool) promptCacheRequestV160 {
 	t.Helper()
-	data, err := os.ReadFile("testdata/ant-ling-retired-v160.json")
-	if err != nil {
-		t.Fatal(err)
+	adapter := goai.GetApiProvider(model.Api)
+	if adapter == nil {
+		t.Fatal("missing Completions adapter")
 	}
-	var fixture struct {
-		UpstreamCommit string `json:"upstreamCommit"`
-		Models         []struct {
-			goai.Model
-			Compat *goai.OpenAICompletionsCompat `json:"compat"`
-		} `json:"models"`
+	stream := adapter.StreamSimple
+	if direct {
+		stream = adapter.Stream
 	}
-	if err := json.Unmarshal(data, &fixture); err != nil {
-		t.Fatal(err)
+	if stream == nil {
+		t.Fatal("missing selected Completions route")
 	}
-	if fixture.UpstreamCommit != "faac585884ae2c013a6b1400f3e9e77f10b34bac" || len(fixture.Models) != 2 {
-		t.Fatal("invalid v1.6.0 Ant-Ling fixture")
-	}
-	for _, entry := range fixture.Models {
-		if entry.ID == id && entry.Provider == "ant-ling" && entry.Api == goai.ApiOpenAICompletions && entry.Compat != nil {
-			entry.Model.CompletionsCompat = entry.Compat
-			return &entry.Model
-		}
-	}
-	t.Fatalf("missing v1.6.0 Ant-Ling fixture %s", id)
-	return nil
+	return captureCompletionsWireUsingV160(t, model, ctx, opts, stream)
 }
 
-// Source: pi v1.6.0 openai-completions-tool-choice.test.ts:1900–1988.
-func TestSourceV160CompletionsAntLingSettings(t *testing.T) {
+// Source: pi v1.7.0 openai-completions-tool-choice.test.ts:1828–1901.
+func TestCompletionsAntLingThinkingCompatibility(t *testing.T) {
 	t.Setenv("PI_CACHE_RETENTION", "")
-	ring := loadHistoricalAntLingModel(t, "Ring-2.6-1T")
+	goai.RegisterBuiltinModels()
+	model := promptCacheCatalogueV160(t, goai.ProviderAntLing, "Ling-3.1-flash")
 	hi := completionsChoiceContextV160("Hi")
-	t.Run("historical catalogue and simple high", func(t *testing.T) {
-		compat := ring.CompletionsCompat
+	high := goai.ThinkingHigh
+	t.Run("metadata-and-wire", func(t *testing.T) {
+		compat := model.CompletionsCompat
 		if compat == nil {
-			t.Fatal("missing Ant Ling compat")
+			t.Fatal("missing Ant Ling catalogue compatibility")
 		}
-		for name, value := range map[string]*bool{"supportsStore": compat.SupportsStore, "supportsReasoningEffort": compat.SupportsReasoningEffort, "supportsLongCacheRetention": compat.SupportsLongCacheRetention} {
-			if value == nil || *value {
-				t.Errorf("%s must be explicitly false", name)
-			}
+		if compat.SupportsStore == nil || *compat.SupportsStore || compat.SupportsReasoningEffort == nil || *compat.SupportsReasoningEffort ||
+			compat.MaxTokensField != "max_tokens" || compat.ThinkingFormat != "deepseek" || compat.SupportsStrictMode == nil || !*compat.SupportsStrictMode ||
+			compat.SupportsLongCacheRetention == nil || *compat.SupportsLongCacheRetention {
+			t.Errorf("published Ant Ling compatibility = %+v", compat)
 		}
-		if compat.MaxTokensField != "max_tokens" || compat.ThinkingFormat != "ant-ling" || compat.SupportsStrictMode == nil || !*compat.SupportsStrictMode || compat.RequiresReasoningContentOnAssistantMessages != nil {
-			t.Errorf("unexpected Ant Ling model compat: %+v", compat)
-		}
-		level, limit := goai.ThinkingHigh, 123
-		conv := &goai.Context{SystemPrompt: "Follow instructions.", Messages: hi.Messages}
-		got := captureCompletionsWireV160(t, ring, conv, goai.StreamOptions{Reasoning: &level, MaxTokens: &limit, CacheRetention: goai.CacheRetentionLong, SessionID: "ant-ling-session"})
-		assertCompletionsValueV160(t, got.payload, "model", "Ring-2.6-1T")
+		limit := 123
+		ctx := &goai.Context{SystemPrompt: "Follow instructions.", Messages: hi.Messages}
+		got := captureAntLing(t, model, ctx, goai.StreamOptions{Reasoning: &high, MaxTokens: &limit, CacheRetention: goai.CacheRetentionLong, SessionID: "ant-ling-session"}, false)
 		assertCompletionsValueV160(t, got.payload, "max_tokens", float64(123))
-		assertCompletionsValueV160(t, got.payload, "reasoning", map[string]any{"effort": "high"})
-		for _, field := range []string{"max_completion_tokens", "reasoning_effort", "store", "prompt_cache_key", "prompt_cache_retention"} {
-			got.field(t, field, "")
-		}
+		got.field(t, "max_completion_tokens", "")
 		messages, ok := got.payload["messages"].([]any)
 		if !ok || len(messages) == 0 {
-			t.Fatalf("missing request messages: %#v", got.payload["messages"])
+			t.Fatalf("missing Ant Ling messages: %#v", got.payload["messages"])
 		}
 		first, _ := messages[0].(map[string]any)
 		if first["role"] != "system" {
-			t.Errorf("first message = %#v, want system", first)
+			t.Errorf("Ant Ling first role = %#v, want system", first)
 		}
+		assertCompletionsValueV160(t, got.payload, "thinking", map[string]any{"type": "enabled"})
+		got.field(t, "reasoning_effort", "")
+		got.field(t, "store", "")
+		got.field(t, "prompt_cache_key", "")
+		got.field(t, "prompt_cache_retention", "")
 	})
-	t.Run("direct unmapped medium", func(t *testing.T) {
-		adapter := goai.GetApiProvider(ring.Api)
-		if adapter == nil || adapter.Stream == nil {
-			t.Fatal("missing direct Completions adapter")
-		}
-		medium := goai.ThinkingMedium
-		got := captureCompletionsWireUsingV160(t, ring, hi, goai.StreamOptions{Reasoning: &medium}, adapter.Stream)
-		got.field(t, "reasoning", "")
-	})
-	t.Run("non-reasoning model", func(t *testing.T) {
-		ling := loadHistoricalAntLingModel(t, "Ling-2.6-flash")
-		got := captureCompletionsEffortV160(t, ling, hi, goai.ThinkingHigh)
-		assertCompletionsValueV160(t, got.payload, "model", "Ling-2.6-flash")
-		got.field(t, "reasoning", "")
-	})
-}
 
-// Supplemental: the simple route still clamps a requested medium to high.
-func TestCompletionsAntLingSimpleClampV160(t *testing.T) {
-	t.Setenv("PI_CACHE_RETENTION", "")
-	model := loadHistoricalAntLingModel(t, "Ring-2.6-1T")
-	got := captureCompletionsEffortV160(t, model, completionsChoiceContextV160("Hi"), goai.ThinkingMedium)
-	assertCompletionsValueV160(t, got.payload, "reasoning", map[string]any{"effort": "high"})
+	t.Run("legacy-format-alias", func(t *testing.T) {
+		if model.CompletionsCompat == nil {
+			t.Fatal("missing published compatibility to clone")
+		}
+		legacy := *model
+		compat := *model.CompletionsCompat
+		compat.ThinkingFormat = "ant-ling"
+		legacy.CompletionsCompat = &compat
+		if got := goai.DetectCompatForModel(&legacy).ThinkingFormat; got != "deepseek" {
+			t.Errorf("normalized legacy Ant Ling format = %q, want deepseek", got)
+		}
+		for _, row := range []struct {
+			name  string
+			level *goai.ThinkingLevel
+		}{{"off", nil}, {"high", &high}} {
+			t.Run(row.name, func(t *testing.T) {
+				opts := goai.StreamOptions{Reasoning: row.level}
+				want := captureAntLing(t, model, hi, opts, false).payload
+				if got := captureAntLing(t, &legacy, hi, opts, false).payload; !reflect.DeepEqual(got, want) {
+					t.Errorf("deprecated Ant Ling payload = %#v, current = %#v", got, want)
+				}
+			})
+		}
+	})
+
+	t.Run("thinking-levels", func(t *testing.T) {
+		if got := goai.GetSupportedThinkingLevels(model); !slices.Equal(got, []goai.ModelThinkingLevel{"off", "high"}) {
+			t.Errorf("Ant Ling selectable levels = %v, want [off high]", got)
+		}
+		for _, direct := range []bool{false, true} {
+			route := "simple"
+			if direct {
+				route = "direct"
+			}
+			for _, level := range []goai.ThinkingLevel{"minimal", "low", "medium", "high", "xhigh"} {
+				t.Run(route+"/"+string(level), func(t *testing.T) {
+					got := captureAntLing(t, model, hi, goai.StreamOptions{Reasoning: &level}, direct)
+					assertCompletionsValueV160(t, got.payload, "thinking", map[string]any{"type": "enabled"})
+					got.field(t, "reasoning_effort", "")
+				})
+			}
+		}
+		off := captureAntLing(t, model, hi, goai.StreamOptions{}, false)
+		assertCompletionsValueV160(t, off.payload, "thinking", map[string]any{"type": "disabled"})
+		off.field(t, "reasoning_effort", "")
+	})
+
+	t.Run("inferred-format", func(t *testing.T) {
+		inferred := &goai.Model{ID: "ant-ling-fixture", Provider: goai.ProviderAntLing, Api: goai.ApiOpenAICompletions,
+			BaseURL: "https://api.ant-ling.com/v1", Input: []string{"text"}, Reasoning: true, ContextWindow: 100_000, MaxTokens: 1024}
+		if got := goai.DetectCompatForModel(inferred).ThinkingFormat; got != "deepseek" {
+			t.Errorf("inferred Ant Ling format = %q, want deepseek", got)
+		}
+		unmapped := *inferred
+		unmapped.ThinkingLevelMap = map[goai.ModelThinkingLevel]*string{
+			"off": nil, "minimal": nil, "low": nil, "medium": nil, "high": nil, "xhigh": nil, "max": nil,
+		}
+		for _, direct := range []bool{false, true} {
+			for _, model := range []*goai.Model{inferred, &unmapped} {
+				got := captureAntLing(t, model, hi, goai.StreamOptions{Reasoning: &high}, direct)
+				assertCompletionsValueV160(t, got.payload, "thinking", map[string]any{"type": "enabled"})
+				got.field(t, "reasoning", "")
+				got.field(t, "reasoning_effort", "")
+			}
+			off := captureAntLing(t, inferred, hi, goai.StreamOptions{}, direct)
+			assertCompletionsValueV160(t, off.payload, "thinking", map[string]any{"type": "disabled"})
+		}
+	})
 }

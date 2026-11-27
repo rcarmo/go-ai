@@ -290,6 +290,9 @@ func DetectCompatForModel(model *Model) OpenAICompletionsCompat {
 	}
 	if o.ThinkingFormat != "" {
 		c.ThinkingFormat = o.ThinkingFormat
+		if c.ThinkingFormat == "ant-ling" {
+			c.ThinkingFormat = "deepseek"
+		}
 	}
 	if len(o.ChatTemplateKwargs) > 0 {
 		c.ChatTemplateKwargs = o.ChatTemplateKwargs
@@ -418,7 +421,7 @@ func detectCompat(provider Provider, modelID string, baseURL string) OpenAICompl
 
 	// thinkingFormat (priority order matches upstream ternary chain)
 	switch {
-	case isDeepSeek || isXiaomi:
+	case isDeepSeek || isXiaomi || isAntLing:
 		c.ThinkingFormat = "deepseek"
 	case isZAI:
 		c.ThinkingFormat = "zai"
@@ -426,8 +429,6 @@ func detectCompat(provider Provider, modelID string, baseURL string) OpenAICompl
 		c.ThinkingFormat = "together"
 	case isBaseten:
 		c.ThinkingFormat = "baseten"
-	case isAntLing:
-		c.ThinkingFormat = "ant-ling"
 	case isOpenRouter:
 		c.ThinkingFormat = "openrouter"
 	default:

@@ -29,16 +29,11 @@ func init() {
 	})
 }
 
-// streamOpenAISimple uses the caller's reasoning level with simple-option clamping.
 func streamOpenAISimple(ctx context.Context, model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions) <-chan goai.Event {
-	return streamOpenAIWithReasoningMode(ctx, model, convCtx, opts, true)
+	return streamOpenAI(ctx, model, convCtx, opts)
 }
 
 func streamOpenAI(ctx context.Context, model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions) <-chan goai.Event {
-	return streamOpenAIWithReasoningMode(ctx, model, convCtx, opts, false)
-}
-
-func streamOpenAIWithReasoningMode(ctx context.Context, model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions, simple bool) <-chan goai.Event {
 	ch := make(chan goai.Event, 32)
 	send := goai.NewAssistantEventSender(ch)
 
@@ -107,7 +102,7 @@ func streamOpenAIWithReasoningMode(ctx context.Context, model *goai.Model, convC
 				}
 			}
 		}
-		body := buildRequestBodyWithCompat(model, convCtx, opts, compat, simple)
+		body := buildRequestBodyWithCompat(model, convCtx, opts, compat)
 		body.Model = deployment
 		payload, err := goai.InvokeOnPayload(opts, body, model)
 		if err != nil {
@@ -405,10 +400,10 @@ type toolCallFunction struct {
 }
 
 func buildRequestBody(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions) chatRequest {
-	return buildRequestBodyWithCompat(model, convCtx, opts, goai.DetectCompatForModel(model), true)
+	return buildRequestBodyWithCompat(model, convCtx, opts, goai.DetectCompatForModel(model))
 }
 
-func buildRequestBodyWithCompat(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions, compat goai.OpenAICompletionsCompat, simple bool) chatRequest {
+func buildRequestBodyWithCompat(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions, compat goai.OpenAICompletionsCompat) chatRequest {
 	convCtx = goai.ResolveContext(convCtx, compat.SupportsMidConvoSystemMessages != nil && *compat.SupportsMidConvoSystemMessages)
 
 	req := chatRequest{
@@ -512,9 +507,9 @@ func buildRequestBodyWithCompat(model *goai.Model, convCtx *goai.Context, opts *
 				}
 			}
 		case "deepseek":
-			if reasoningRequested && effort != "" {
+			if reasoningRequested {
 				req.Thinking = map[string]interface{}{"type": "enabled"}
-				if compat.SupportsReasoningEffort == nil || *compat.SupportsReasoningEffort {
+				if effort != "" && (compat.SupportsReasoningEffort == nil || *compat.SupportsReasoningEffort) {
 					req.ReasoningEffort = effort
 				}
 			} else if off, declared := model.ThinkingLevelMap[goai.ThinkingOff]; !declared || off != nil {
@@ -532,20 +527,6 @@ func buildRequestBodyWithCompat(model *goai.Model, convCtx *goai.Context, opts *
 					value = *off
 				}
 				req.Reasoning = map[string]interface{}{"effort": value}
-			}
-		case "ant-ling":
-			if reasoningRequested {
-				if !simple {
-					// The direct route accepts only explicitly mapped efforts.
-					mapped := model.ThinkingLevelMap[goai.ModelThinkingLevel(*opts.Reasoning)]
-					if mapped == nil {
-						break
-					}
-					effort = *mapped
-				}
-				if effort != "" {
-					req.Reasoning = map[string]interface{}{"effort": effort}
-				}
 			}
 		case "together":
 			req.Reasoning = map[string]interface{}{"enabled": reasoningRequested && effort != ""}
