@@ -52,3 +52,7 @@ The [Photon receipt](photon-codec-input.json) records archive, JavaScript glue a
 ## Shipped coding-agent installer
 
 The [installer receipt](coding-agent-install-input.json) compares the shipped manifest and lock with the release source, pinned Git and workspace lock. Of 122 install placements, 88 match the workspace closure at the same slot and artifact; 24 match workspace lock entries outside that closure; two move under published `pi-ai`; and eight workspace links become registry entries. Seven optional peers are absent. The read-only upstream lock check passed. A separate offline probe loaded the pinned `photon-node` wrapper and round-tripped exact pixels through PNG. Neither probe ran an npm install, lifecycle scripts or the CLI.
+
+## Cloudflare Codemode example on local workerd
+
+The [workerd receipt](cloudflare-codemode-example.json) distinguishes the lock-verified Linux arm64 engine from the example run. With the exact v1.6.1 example and published Codemode archive, the local two-Worker fixture returned `200`, `2`, `n=2`, and one successful `count` call. A scratch WASM mutation appeared in the live module witness without changing that result. This did not install or run the Durable Cloudflare test suite, Wrangler, or a hosted Worker.
