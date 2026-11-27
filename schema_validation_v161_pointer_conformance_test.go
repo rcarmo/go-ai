@@ -56,38 +56,43 @@ func checkPinnedSchemaPreparedFormatConformance(t *testing.T, pin string, fixtur
 			if err := json.Unmarshal(data, &groups); err != nil {
 				t.Fatal(err)
 			}
-			if len(groups) != 1 || len(groups[0].Tests) != fixture.count {
-				t.Fatalf("expected one group containing %d vectors", fixture.count)
+			count := 0
+			for _, group := range groups {
+				count += len(group.Tests)
 			}
-			group := groups[0]
-			asserted, err := goai.CompileJSONSchema(group.Schema, goai.JSONSchemaCompileOptions{JSONSchemaCheckOptions: goai.JSONSchemaCheckOptions{AssertFormats: true}})
-			if err != nil {
-				t.Fatal(err)
+			if len(groups) == 0 || count != fixture.count {
+				t.Fatalf("expected groups containing %d vectors; got %d", fixture.count, count)
 			}
-			annotation := compileV160LeafSchema(t, string(group.Schema))
-			for i, tc := range group.Tests {
-				t.Run(fmt.Sprintf("%02d-%s", i, tc.Description), func(t *testing.T) {
-					valid, err := asserted.Check(tc.Data)
-					if err != nil {
-						t.Fatal(err)
-					}
-					if valid != tc.Valid {
-						t.Errorf("configured check(%s) = %t; want %t", tc.Data, valid, tc.Valid)
-					}
-					issues, err := asserted.Explain(tc.Data)
-					if err != nil {
-						t.Fatal(err)
-					}
-					if (len(issues) == 0) != valid {
-						t.Errorf("diagnostics = %+v; disagree with check %t", issues, valid)
-					}
-					want := `[]`
-					if !tc.Valid {
-						want = `[{"path":"","keyword":"format","message":"expected format ` + fixture.format + `"}]`
-					}
-					assertV160StructuredDiagnostics(t, issues, want)
-					assertV160PreparedSchemaCheck(t, annotation, string(tc.Data), true)
-				})
+			for groupIndex, group := range groups {
+				asserted, err := goai.CompileJSONSchema(group.Schema, goai.JSONSchemaCompileOptions{JSONSchemaCheckOptions: goai.JSONSchemaCheckOptions{AssertFormats: true}})
+				if err != nil {
+					t.Fatal(err)
+				}
+				annotation := compileV160LeafSchema(t, string(group.Schema))
+				for testIndex, tc := range group.Tests {
+					t.Run(fmt.Sprintf("%02d.%02d-%s", groupIndex, testIndex, tc.Description), func(t *testing.T) {
+						valid, err := asserted.Check(tc.Data)
+						if err != nil {
+							t.Fatal(err)
+						}
+						if valid != tc.Valid {
+							t.Errorf("configured check(%s) = %t; want %t", tc.Data, valid, tc.Valid)
+						}
+						issues, err := asserted.Explain(tc.Data)
+						if err != nil {
+							t.Fatal(err)
+						}
+						if (len(issues) == 0) != valid {
+							t.Errorf("diagnostics = %+v; disagree with check %t", issues, valid)
+						}
+						want := `[]`
+						if !tc.Valid {
+							want = `[{"path":"","keyword":"format","message":"expected format ` + fixture.format + `"}]`
+						}
+						assertV160StructuredDiagnostics(t, issues, want)
+						assertV160PreparedSchemaCheck(t, annotation, string(tc.Data), true)
+					})
+				}
 			}
 		})
 	}
