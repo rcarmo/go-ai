@@ -1,0 +1,539 @@
+{
+  "base": "4bbf033e360745c3f41bceaaec84f381d6c880db",
+  "pin": "fb0fe823539f6d04850f6e34748c01f01f212e1f",
+  "archive": {
+    "name": "@earendil-works/pi-ai",
+    "version": "1.7.0",
+    "sha256": "d0dd546e7c7c1dfdab6582be8a177ed1184cc857b6a876d3ef576a1cc8088a12",
+    "integrity": "sha512-iKryMlUYniwWbU7YU0uS7W0+cGd9c6oJ6PzRLOn8j4+1njG4c+BQq1cNawctx/npDqGeOx8ME7Gkgl6K6arPuw=="
+  },
+  "input": {
+    "schemaVersion": 6,
+    "providerDataFiles": 43,
+    "manifestSHA256": "d9c5aa7766128bc032ebd68e055760530bdf5b3ef56af445c01cc6ab0ba3fce3",
+    "structureHash": "3ee288633d9a75c317bc3d661808279975a41591576b865c2000e09567e422ab",
+    "modelsModuleSHA256": "523505cb45698abc4f8073d6e64feefbde471fa7d7586962f95e2af7262d1777",
+    "selectedArchiveMembersMatchStage": 89,
+    "exportsMatchProviderRecords": true,
+    "imageAPIs": {
+      "openrouter-images": 74
+    }
+  },
+  "stockOfflineGenerator": {
+    "chat": 1,
+    "image": 1,
+    "classifier": 1,
+    "error": "unsupported catalog structure hash \"3ee288633d9a75c317bc3d661808279975a41591576b865c2000e09567e422ab\"",
+    "generatedFilesWritten": 0
+  },
+  "diagnostic": {
+    "method": "exact manifest allowlist arm in a scratch Go overlay; all later validation and Go field projection unchanged",
+    "go": "go version go1.27.3 linux/arm64",
+    "publicRecordCensus": {
+      "chat": {
+        "source": 1701,
+        "candidate": 1701,
+        "matched": 1695,
+        "differed": 6,
+        "missing": [],
+        "extra": [],
+        "candidateGoSHA256": "906ad70a1a844f4a2fa5af619da913c16600cce1049052dad53eede706ee354a"
+      },
+      "image": {
+        "source": 74,
+        "candidate": 74,
+        "matched": 4,
+        "differed": 70,
+        "missing": [],
+        "extra": [],
+        "candidateGoSHA256": "c43fcaea05b63532b249bbda4d240e2fec2ab21305dd172a75b65584d08896e0"
+      },
+      "classifier": {
+        "source": 83,
+        "candidate": 83,
+        "matched": 83,
+        "differed": 0,
+        "missing": [],
+        "extra": [],
+        "candidateGoSHA256": "d467fce3cff5b187f27a4a05c3da166cfca85226eae36c04054e6b5ce6bb1fcb"
+      }
+    },
+    "strictPublicComparator": {
+      "exit": 1,
+      "reason": "full record differs"
+    },
+    "fieldDifferences": [
+      {
+        "kind": "chat",
+        "path": "/compat/supportsReasoningReplay",
+        "change": "missing",
+        "records": [
+          {
+            "provider": "amazon-bedrock",
+            "api": "bedrock-converse-stream",
+            "id": "global.moonshotai.kimi-k3",
+            "expected": false
+          },
+          {
+            "provider": "amazon-bedrock",
+            "api": "bedrock-converse-stream",
+            "id": "global.moonshotai.kimi-k3.1",
+            "expected": false
+          },
+          {
+            "provider": "amazon-bedrock",
+            "api": "bedrock-converse-stream",
+            "id": "in.moonshotai.kimi-k3",
+            "expected": false
+          },
+          {
+            "provider": "amazon-bedrock",
+            "api": "bedrock-converse-stream",
+            "id": "in.moonshotai.kimi-k3.1",
+            "expected": false
+          },
+          {
+            "provider": "amazon-bedrock",
+            "api": "bedrock-converse-stream",
+            "id": "us.moonshotai.kimi-k3",
+            "expected": false
+          },
+          {
+            "provider": "amazon-bedrock",
+            "api": "bedrock-converse-stream",
+            "id": "us.moonshotai.kimi-k3.1",
+            "expected": false
+          }
+        ]
+      },
+      {
+        "kind": "image",
+        "path": "/cost/imageOutput",
+        "change": "missing",
+        "records": [
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "black-forest-labs/flux-3-image",
+            "expected": 9.820359
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "black-forest-labs/flux-3-image-klein",
+            "expected": 1.916168
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "black-forest-labs/flux.2-flex",
+            "expected": 14.648438
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "black-forest-labs/flux.2-klein-4b",
+            "expected": 3.417969
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "black-forest-labs/flux.2-max",
+            "expected": 17.089844
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "black-forest-labs/flux.2-pro",
+            "expected": 7.324219
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "bytedance-seed/seedream-4.5",
+            "expected": 9.580838
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "bytedance-seed/seedream-5-0-flash",
+            "expected": 4.311377
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "bytedance-seed/seedream-5-0-lite",
+            "expected": 8.383234
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "bytedance-seed/seedream-5-0-pro",
+            "expected": 10.778443
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "bytedance-seed/seedream-5-5",
+            "expected": 4.790419
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "google/gemini-2.5-flash-image",
+            "expected": 30
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "google/gemini-3-pro-image",
+            "expected": 120
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "google/gemini-3-pro-image-preview",
+            "expected": 120
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "google/gemini-3.1-flash-image",
+            "expected": 60
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "google/gemini-3.1-flash-image-preview",
+            "expected": 60
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "google/gemini-3.1-flash-lite-image",
+            "expected": 30
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "google/gemini-nano-banana-2.1",
+            "expected": 30
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "krea/k3-edit",
+            "expected": 14.371257
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "krea/krea-2-large",
+            "expected": 14.371257
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "krea/krea-2-medium",
+            "expected": 7.185629
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "krea/krea-2-medium-turbo",
+            "expected": 3.592814
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "meta/muse-image",
+            "expected": 2.39521
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "microsoft/mai-image-2.5",
+            "expected": 47
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "microsoft/mai-image-2.5-pro",
+            "expected": 108
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "microsoft/mai-image-2.6",
+            "expected": 38
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "microsoft/mai-image-2.6-flash",
+            "expected": 19
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "microsoft/mai-image-2.7",
+            "expected": 34
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "microsoft/mai-image-2.7-flash",
+            "expected": 10
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "minimax/minimax-h3-image",
+            "expected": 3.8
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "minimax/minimax-h3-image-highspeed",
+            "expected": 7.6
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "openai/gpt-5-image",
+            "expected": 40
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "openai/gpt-5-image-mini",
+            "expected": 8
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "openai/gpt-5.4-image-2",
+            "expected": 30
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "openai/gpt-image-1",
+            "expected": 40
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "openai/gpt-image-1-mini",
+            "expected": 8
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "openai/gpt-image-2",
+            "expected": 30
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "openai/gpt-image-2.5-flare",
+            "expected": 30
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "openai/gpt-image-2.5-sunburst",
+            "expected": 30
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "openai/gpt-image-2.6-flare",
+            "expected": 30
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "openai/gpt-image-2.6-sunburst",
+            "expected": 30
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "qwen/qwen-image-2.1-pro",
+            "expected": 11.017964
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "qwen/qwen-image-2.1-turbo",
+            "expected": 4.407186
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "qwen/qwen-image-3",
+            "expected": 7.185629
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "qwen/qwen-image-3-pro",
+            "expected": 9.580838
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "recraft/recraft-v3",
+            "expected": 9.580838
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "recraft/recraft-v4",
+            "expected": 9.580838
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "recraft/recraft-v4-pro",
+            "expected": 59.88024
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "recraft/recraft-v4-pro-vector",
+            "expected": 71.856287
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "recraft/recraft-v4-styles",
+            "expected": 8.383234
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "recraft/recraft-v4-styles-pro",
+            "expected": 23.952096
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "recraft/recraft-v4-styles-pro-vector",
+            "expected": 28.742515
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "recraft/recraft-v4-styles-vector",
+            "expected": 11.976048
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "recraft/recraft-v4-vector",
+            "expected": 19.161677
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "recraft/recraft-v4.1",
+            "expected": 8.383234
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "recraft/recraft-v4.1-flash",
+            "expected": 1.676647
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "recraft/recraft-v4.1-flash-v2",
+            "expected": 1.676647
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "recraft/recraft-v4.1-pro",
+            "expected": 50.299401
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "recraft/recraft-v4.1-pro-vector",
+            "expected": 71.856287
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "recraft/recraft-v4.1-utility",
+            "expected": 8.383234
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "recraft/recraft-v4.1-utility-pro",
+            "expected": 50.299401
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "recraft/recraft-v4.1-vector",
+            "expected": 19.161677
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "sourceful/riverflow-v2-fast",
+            "expected": 4.790419
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "sourceful/riverflow-v2-pro",
+            "expected": 35.928144
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "sourceful/riverflow-v2.5-fast",
+            "expected": 4.550898
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "sourceful/riverflow-v2.5-pro",
+            "expected": 31.137725
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "sourceful/riverflow-v2.6-pro",
+            "expected": 31.137725
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "tencent/hy-image-v3.5-preview",
+            "expected": 1.6
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "tencent/hy-world-2.1-panorama",
+            "expected": 1.6
+          },
+          {
+            "provider": "openrouter",
+            "api": "openrouter-images",
+            "id": "x-ai/grok-imagine-image-2.0",
+            "expected": 9.580838
+          }
+        ]
+      }
+    ]
+  },
+  "scope": "Root Go chat, image and classifier registries. No new release pin, generated source, provider execution, or separate images adapter claim."
+}
