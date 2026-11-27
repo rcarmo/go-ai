@@ -50,9 +50,11 @@ type AgentChange struct {
 	Compaction    *CompactionSettings
 	CompactionSet bool
 	ModelTools    *ExtensionFilter `json:"modelTools,omitempty"`
-	Name          string
-	Cwd           string
-	Model         ModelRef
+	// MaxTurns limits tool rounds per run; nil leaves a full replacement unlimited.
+	MaxTurns *int `json:"maxTurns,omitempty"`
+	Name     string
+	Cwd      string
+	Model    ModelRef
 	// Empty or off disables reasoning; other values map to pi-ai Reasoning.
 	ThinkingLevel goai.ModelThinkingLevel
 	SystemPrompt  string  // Native raw prompt prefix; reference instructions use a section.

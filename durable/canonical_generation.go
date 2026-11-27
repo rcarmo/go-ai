@@ -1172,11 +1172,28 @@ func canonicalGenerationToolRound(ctx context.Context, r *TaskRuntime, cp JSON, 
 				return &TaskState{Status: "running", Checkpoint: JSON{"phase": "finish", "run": JSON{"reason": "terminate", "first": first, "answer": answer, "last": last}}}, nil
 			}
 		}
+		assistant := submissionEntryID(cp["assistant"])
+		completed := &TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "completed", Result: &TaskValue{Present: true, Value: JSON{"entryId": assistant}}}}
+		run := generationObject(live["run"])
+		// Termination wins over the limit. Otherwise a capped round ends like
+		// a failed run, before the ordinary post-tools boundary places inputs.
+		if !terminate && agent.MaxTurns != nil && submissionEntryID(run["taskId"]) == r.taskID {
+			turns := submissionEntryID(run["turns"])
+			if uint64(turns) >= uint64(*agent.MaxTurns) {
+				detail := fmt.Sprintf("%d turns", turns)
+				if turns == 1 {
+					detail = "1 turn"
+				}
+				if err := canonicalFailedRun(tx, r, live, boundary, "turn_limit", detail); err != nil {
+					return nil, err
+				}
+				return completed, doc.Set(live)
+			}
+		}
 		users, first, reset, err := boundary.apply(tx, terminate, r.harness.session.now())
 		if err != nil {
 			return nil, err
 		}
-		assistant := submissionEntryID(cp["assistant"])
 		if terminate || reset {
 			reason := ""
 			answer := assistant
@@ -1195,7 +1212,6 @@ func canonicalGenerationToolRound(ctx context.Context, r *TaskRuntime, cp JSON, 
 		} else {
 			delete(live, "tools")
 			delete(live, "nestedTools")
-			run := generationObject(live["run"])
 			id, err := tx.CreateTask(GenerationTask(), JSON{}, TaskOptions{Conversation: r.conversation, Ownership: TaskOwnership{Kind: "conversation"}})
 			if err != nil {
 				return nil, err
@@ -1209,10 +1225,7 @@ func canonicalGenerationToolRound(ctx context.Context, r *TaskRuntime, cp JSON, 
 				run["inputs"] = inputs
 			}
 		}
-		if err := doc.Set(live); err != nil {
-			return nil, err
-		}
-		return &TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "completed", Result: &TaskValue{Present: true, Value: JSON{"entryId": assistant}}}}, nil
+		return completed, doc.Set(live)
 	})
 }
 func canonicalAddTools(tx *Tx, conversation ID, names []string) error {

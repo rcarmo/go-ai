@@ -42,6 +42,7 @@ type ConversationHandle struct {
 }
 type agentState struct {
 	Compaction      *CompactionSettings     `json:"compaction,omitempty"`
+	MaxTurns        *int                    `json:"maxTurns,omitempty"`
 	ModelTools      *ExtensionFilter        `json:"modelTools,omitempty"`
 	Model           ModelRef                `json:"model"`
 	Name            string                  `json:"name"`
@@ -388,6 +389,13 @@ func (h *Harness) agent(c AgentChange) (agentState, error) {
 		return agentState{}, err
 	}
 	state := agentState{Compaction: c.Compaction, ModelTools: c.ModelTools, Model: c.Model, Name: c.Name, Cwd: c.Cwd, SystemPrompt: c.SystemPrompt, Settings: settings, ThinkingLevel: c.ThinkingLevel}
+	if c.MaxTurns != nil {
+		value := *c.MaxTurns
+		if value < 1 {
+			return agentState{}, reject("maxTurns must be an integer 1 or more")
+		}
+		state.MaxTurns = &value
+	}
 	if c.Instructions != nil {
 		if len(*c.Instructions) > h.session.limits.MaxStringBytes {
 			return agentState{}, reject("agent string limit")
