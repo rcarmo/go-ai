@@ -103,7 +103,43 @@ func TestSourceV160CodemodeNamespacePromptProjection(t *testing.T) {
 	deferred := v160NamespaceTool("get_issue", "Get an issue.")
 	deferred.Deferred = true
 	h, _, ref := v160NamespaceHarness(t, nil, "", &Extension{Name: "coding", Tools: []ToolRegistration{read}}, v160NamespaceGitHub(issues, deferred))
-	system := v160NamespaceSystem(t, root(t, h, ref))
+	assertCodemodeNamespacePrompt(t, v160NamespaceSystem(t, root(t, h, ref)))
+}
+
+// Source: pi v1.6.1 codemode-describe.test.ts:109–141. The guest call is
+// supplemental: a deferred tool that the prompt omits is still callable.
+func TestSourceV161CodemodePublishedNamespacePrompt(t *testing.T) {
+	sandbox, remote := newJournalWorkerSandbox(officialWorkerPackageRoot(t, "GOAI_CODEMODE_V161_PACKAGE_ROOT", "1.6.1"))
+	read := v160NamespaceTool("read", "Read a file.")
+	issues := v160NamespaceTool("list_issues", "List issues.")
+	issues.Callers = []string{"tools"}
+	deferred := v160NamespaceTool("get_issue", "Get an issue.")
+	deferred.Deferred = true
+	var calls atomic.Int32
+	deferred.Execute = func(_ context.Context, args any, _ *ToolAPI) (ToolResult, error) {
+		calls.Add(1)
+		if got := args.(JSON)["path"]; got != "fixture" {
+			t.Errorf("deferred argument = %v; want fixture", got)
+		}
+		return ToolResult{Content: "deferred result"}, nil
+	}
+	const script = `return ["codemode" in tools, await tools.get_issue({path:"fixture"})];`
+	h, _, ref := v160NamespaceHarnessWithSandbox(t, sandbox, nil, script,
+		&Extension{Name: "coding", Tools: []ToolRegistration{read}}, v160NamespaceGitHub(issues, deferred))
+	conversation := root(t, h, ref)
+	assertCodemodeNamespacePrompt(t, v160NamespaceSystem(t, conversation))
+	result := v160ToolResult(t, bg, conversation, "membership")
+	_, body, ok := strings.Cut(v160ToolResultText(result), "Output:\n")
+	if result.IsError || !ok || body != `[false,"deferred result"]` {
+		t.Fatalf("guest discovery boundary = %q error=%v; want absent self and successful deferred call", v160ToolResultText(result), result.IsError)
+	}
+	if calls.Load() != 1 || remote.starts.Load() != 1 || remote.deliveries.Load() != 1 {
+		t.Fatalf("deferred calls=%d starts=%d replies=%d; want one of each", calls.Load(), remote.starts.Load(), remote.deliveries.Load())
+	}
+}
+
+func assertCodemodeNamespacePrompt(t *testing.T, system MessageReceipt) {
+	t.Helper()
 	if system.Sections["codemode"] == nil {
 		t.Fatal("missing codemode prompt section")
 	}
