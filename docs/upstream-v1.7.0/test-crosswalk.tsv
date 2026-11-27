@@ -79,7 +79,7 @@ packages/ai/test/google-thinking-level-map.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/google-thinking-signature.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/google-vertex-api-key-resolution.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/identity.test.ts	unchanged	present	0	0	0	0	0	0
-packages/ai/test/image-model-data.test.ts	M	present	0	0	0	0	0	0
+packages/ai/test/image-model-data.test.ts	M	present	1	0	1	0	0	0
 packages/ai/test/image-tool-result.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/images-models.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/images.test.ts	unchanged	present	0	0	0	0	0	0
@@ -161,7 +161,7 @@ packages/ai/test/provider-error-body-passthrough.test.ts	unchanged	present	0	0	0
 packages/ai/test/provider-error-body-regression.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/provider-error-response.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/provider-retry.test.ts	unchanged	present	0	0	0	0	0	0
-packages/ai/test/providers.test.ts	M	present	0	0	0	0	0	0
+packages/ai/test/providers.test.ts	M	present	3	0	8	6	0	0
 packages/ai/test/qwen-token-plan-models.test.ts	M	present	0	0	0	0	0	0
 packages/ai/test/radius-oauth.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/radius-provider.test.ts	M	present	2	2	1	4	4	0
