@@ -1,0 +1,480 @@
+{
+  "pin": "ef4a1cfcca62b77ad3558337ff3e1c7f6beeadfe",
+  "assets": {
+    "source": {
+      "file": "pi-1.6.1-source.tar.gz",
+      "bytes": 16825595,
+      "sha256": "08f759f810cfb61cb7d6cdea12774272d3a567b79acb57cec47c2967634e5b8d"
+    },
+    "members": [
+      {
+        "asset": "pi-coding-agent-install-package.json",
+        "member": "pi-1.6.1/packages/coding-agent/install-lock/package.json",
+        "gitPath": "packages/coding-agent/install-lock/package.json",
+        "bytes": 317,
+        "sha256": "c7edca0f48d8f3eeeee33db442190099122a4c4b28c4e2b29eb96c5fdbedabe5"
+      },
+      {
+        "asset": "pi-coding-agent-install-package-lock.json",
+        "member": "pi-1.6.1/packages/coding-agent/install-lock/package-lock.json",
+        "gitPath": "packages/coding-agent/install-lock/package-lock.json",
+        "bytes": 52151,
+        "sha256": "fd07d62d5a6b160757b66b100f61f09f9db39473b5186537851c141b05b34efd"
+      }
+    ]
+  },
+  "workspaceClosure": {
+    "roots": [
+      "packages/ai",
+      "packages/codemode",
+      "packages/durable",
+      "packages/schema"
+    ],
+    "lockSHA256": "f05391f49b31146692ff2ac76239d78a52fe72d0d694a1624e8580a6ea8fec41",
+    "ledgerSHA256": "05d285740ae03c075a14e22022dda08fe965f2c7ab3aa5bd2815687c3d9373e1",
+    "npmPlacements": 305,
+    "linkedWorkspaces": 6
+  },
+  "install": {
+    "root": "@earendil-works/pi-coding-agent-install",
+    "engines": {
+      "node": ">=22.19.0"
+    },
+    "dependencies": {
+      "@earendil-works/pi-coding-agent": "1.6.1"
+    },
+    "overrides": {
+      "protobufjs": "7.6.6"
+    },
+    "lockfileVersion": 3,
+    "placements": 122,
+    "checkedWithPinnedGenerator": "scripts/generate-coding-agent-install-lock.mjs",
+    "generatorSHA256": "5850a691d0acdcd04163a2d2f75fef8507596ebbe457f9e4ee54abf1bb7ad069",
+    "sameSlotSameArtifact": 88,
+    "outsideClosure": [
+      {
+        "key": "node_modules/@isaacs/nonrecursive-glob-match",
+        "version": "1.0.3"
+      },
+      {
+        "key": "node_modules/@silvia-odwyer/photon-node",
+        "version": "0.3.4"
+      },
+      {
+        "key": "node_modules/balanced-match",
+        "version": "4.0.4"
+      },
+      {
+        "key": "node_modules/brace-expansion",
+        "version": "5.0.12"
+      },
+      {
+        "key": "node_modules/chalk",
+        "version": "6.0.0"
+      },
+      {
+        "key": "node_modules/cross-spawn",
+        "version": "7.0.6"
+      },
+      {
+        "key": "node_modules/get-east-asian-width",
+        "version": "1.6.0"
+      },
+      {
+        "key": "node_modules/graceful-fs",
+        "version": "4.2.11"
+      },
+      {
+        "key": "node_modules/highlight.js",
+        "version": "10.7.3"
+      },
+      {
+        "key": "node_modules/hosted-git-info",
+        "version": "9.0.3"
+      },
+      {
+        "key": "node_modules/ignore",
+        "version": "7.0.8"
+      },
+      {
+        "key": "node_modules/isexe",
+        "version": "2.0.0"
+      },
+      {
+        "key": "node_modules/lovely-mermaid",
+        "version": "0.3.3"
+      },
+      {
+        "key": "node_modules/lru-cache",
+        "version": "11.4.0"
+      },
+      {
+        "key": "node_modules/marked",
+        "version": "18.0.11"
+      },
+      {
+        "key": "node_modules/marked-cjk-friendly",
+        "version": "0.1.2"
+      },
+      {
+        "key": "node_modules/minimatch",
+        "version": "11.0.3"
+      },
+      {
+        "key": "node_modules/path-key",
+        "version": "3.1.1"
+      },
+      {
+        "key": "node_modules/proper-lockfile",
+        "version": "4.1.2"
+      },
+      {
+        "key": "node_modules/proper-lockfile/node_modules/retry",
+        "version": "0.12.0"
+      },
+      {
+        "key": "node_modules/shebang-command",
+        "version": "2.0.0"
+      },
+      {
+        "key": "node_modules/shebang-regex",
+        "version": "3.0.0"
+      },
+      {
+        "key": "node_modules/signal-exit",
+        "version": "3.0.7"
+      },
+      {
+        "key": "node_modules/which",
+        "version": "2.0.2"
+      }
+    ],
+    "rebased": [
+      {
+        "from": "packages/ai/node_modules/agent-base",
+        "to": "node_modules/@earendil-works/pi-ai/node_modules/agent-base",
+        "version": "9.0.0",
+        "inClosure": true
+      },
+      {
+        "from": "packages/ai/node_modules/https-proxy-agent",
+        "to": "node_modules/@earendil-works/pi-ai/node_modules/https-proxy-agent",
+        "version": "9.1.0",
+        "inClosure": true
+      }
+    ],
+    "internal": [
+      {
+        "key": "node_modules/@earendil-works/pi-agent-core",
+        "workspace": "packages/agent",
+        "version": "1.6.1",
+        "url": "https://registry.npmjs.org/@earendil-works/pi-agent-core/-/pi-agent-core-1.6.1.tgz",
+        "installIntegrity": null,
+        "closureArchiveReceipt": null
+      },
+      {
+        "key": "node_modules/@earendil-works/pi-ai",
+        "workspace": "packages/ai",
+        "version": "1.6.1",
+        "url": "https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-1.6.1.tgz",
+        "installIntegrity": null,
+        "closureArchiveReceipt": {
+          "sha256": "192c407bd69c06358c68519aa6290adc8362b132bee9117480c7604456d5073b",
+          "integrity": "sha512-EyorgVyA2s4MxNl7YOapzOpdxrc8HUgxHEIOo8QRMK35P7PCOsSiWzMLf6ixKl3/obkg7I3wGJWHq+FdbUz43g=="
+        }
+      },
+      {
+        "key": "node_modules/@earendil-works/pi-codemode",
+        "workspace": "packages/codemode",
+        "version": "1.6.1",
+        "url": "https://registry.npmjs.org/@earendil-works/pi-codemode/-/pi-codemode-1.6.1.tgz",
+        "installIntegrity": null,
+        "closureArchiveReceipt": {
+          "sha256": "69b391796f465fb7a3432c8aa5b119a0b9983d3c910aa04e2619f7f294e7b7ac",
+          "integrity": "sha512-xogcFe38Ek/9cabCz6sP52FjUKtuNDwLmqeM1aQiwOF5rg7jZ//FRpnMeYyhvRyod2UYhhf/ojfg6rRdXi0peQ=="
+        }
+      },
+      {
+        "key": "node_modules/@earendil-works/pi-coding-agent",
+        "workspace": "packages/coding-agent",
+        "version": "1.6.1",
+        "url": "https://registry.npmjs.org/@earendil-works/pi-coding-agent/-/pi-coding-agent-1.6.1.tgz",
+        "installIntegrity": null,
+        "closureArchiveReceipt": null
+      },
+      {
+        "key": "node_modules/@earendil-works/pi-mcp",
+        "workspace": "packages/mcp",
+        "version": "1.6.1",
+        "url": "https://registry.npmjs.org/@earendil-works/pi-mcp/-/pi-mcp-1.6.1.tgz",
+        "installIntegrity": null,
+        "closureArchiveReceipt": null
+      },
+      {
+        "key": "node_modules/@earendil-works/pi-schema",
+        "workspace": "packages/schema",
+        "version": "1.6.1",
+        "url": "https://registry.npmjs.org/@earendil-works/pi-schema/-/pi-schema-1.6.1.tgz",
+        "installIntegrity": null,
+        "closureArchiveReceipt": {
+          "sha256": "b3409305a532c0b2b69617befb197126d75d489310dfcc9c6e4d1da929a50476",
+          "integrity": "sha512-Q/6W4IiDdIQUochCuvXFpglTByNTFTuMYvMqXjcRiOnxOl/3mQYLAZpZTpBSRWiS4WgeV7NyH/8dQp6ipYZeNg=="
+        }
+      },
+      {
+        "key": "node_modules/@earendil-works/pi-telemetry",
+        "workspace": "packages/telemetry",
+        "version": "1.6.1",
+        "url": "https://registry.npmjs.org/@earendil-works/pi-telemetry/-/pi-telemetry-1.6.1.tgz",
+        "installIntegrity": null,
+        "closureArchiveReceipt": {
+          "sha256": "38b6517629455dd964c745ad5685460d207ba1da695ee9bef9b76106f4d8fe17",
+          "integrity": "sha512-3gyjVQlVrPwEq7ZCea8++prMwUkuNXM3v/mzTJ9knJAhqrYLxSVAjYzA1iC3KLq8ismmSQIcnFp++qTwQwNToA=="
+        }
+      },
+      {
+        "key": "node_modules/@earendil-works/pi-tui",
+        "workspace": "packages/tui",
+        "version": "1.6.1",
+        "url": "https://registry.npmjs.org/@earendil-works/pi-tui/-/pi-tui-1.6.1.tgz",
+        "installIntegrity": null,
+        "closureArchiveReceipt": null
+      }
+    ],
+    "closureWorkspacesNotShipped": [
+      "node_modules/@earendil-works/chord",
+      "node_modules/@earendil-works/pi-durable"
+    ],
+    "edgeCounts": {
+      "runtime": 250,
+      "optional": 0,
+      "peer": 1,
+      "optional-peer": 12
+    },
+    "optionalPeerAbsent": 7,
+    "peerEdges": [
+      {
+        "from": "node_modules/@anthropic-ai/sdk",
+        "dependency": "zod",
+        "kind": "optional-peer",
+        "request": "^3.25.0 || ^4.0.0",
+        "install": null,
+        "closure": {
+          "state": "resolved",
+          "slot": "node_modules/zod"
+        }
+      },
+      {
+        "from": "node_modules/@google/genai",
+        "dependency": "@modelcontextprotocol/sdk",
+        "kind": "optional-peer",
+        "request": "^1.25.2",
+        "install": null,
+        "closure": {
+          "state": "optional-peer-absent",
+          "slot": null
+        }
+      },
+      {
+        "from": "node_modules/openai",
+        "dependency": "@aws-sdk/credential-provider-node",
+        "kind": "optional-peer",
+        "request": ">=3.972.0 <4",
+        "install": {
+          "slot": "node_modules/@aws-sdk/credential-provider-node",
+          "version": "3.972.82"
+        },
+        "closure": {
+          "state": "resolved",
+          "slot": "node_modules/@aws-sdk/credential-provider-node"
+        }
+      },
+      {
+        "from": "node_modules/openai",
+        "dependency": "@smithy/hash-node",
+        "kind": "optional-peer",
+        "request": ">=4.3.0 <5",
+        "install": null,
+        "closure": {
+          "state": "optional-peer-absent",
+          "slot": null
+        }
+      },
+      {
+        "from": "node_modules/openai",
+        "dependency": "@smithy/signature-v4",
+        "kind": "optional-peer",
+        "request": ">=5.4.0 <6",
+        "install": {
+          "slot": "node_modules/@smithy/signature-v4",
+          "version": "5.7.3"
+        },
+        "closure": {
+          "state": "resolved",
+          "slot": "node_modules/@smithy/signature-v4"
+        }
+      },
+      {
+        "from": "node_modules/openai",
+        "dependency": "google-auth-library",
+        "kind": "optional-peer",
+        "request": ">=9.15.1 <12",
+        "install": {
+          "slot": "node_modules/google-auth-library",
+          "version": "10.6.2"
+        },
+        "closure": {
+          "state": "resolved",
+          "slot": "node_modules/google-auth-library"
+        }
+      },
+      {
+        "from": "node_modules/openai",
+        "dependency": "undici",
+        "kind": "optional-peer",
+        "request": ">=5 <9",
+        "install": {
+          "slot": "node_modules/undici",
+          "version": "8.12.4"
+        },
+        "closure": {
+          "state": "resolved",
+          "slot": "node_modules/undici"
+        }
+      },
+      {
+        "from": "node_modules/openai",
+        "dependency": "ws",
+        "kind": "optional-peer",
+        "request": "^8.21.0",
+        "install": {
+          "slot": "node_modules/ws",
+          "version": "8.21.0"
+        },
+        "closure": {
+          "state": "resolved",
+          "slot": "node_modules/ws"
+        }
+      },
+      {
+        "from": "node_modules/openai",
+        "dependency": "zod",
+        "kind": "optional-peer",
+        "request": "^3.25 || ^4.0",
+        "install": null,
+        "closure": {
+          "state": "resolved",
+          "slot": "node_modules/zod"
+        }
+      },
+      {
+        "from": "node_modules/marked-cjk-friendly",
+        "dependency": "marked",
+        "kind": "peer",
+        "request": ">=15.0.0",
+        "install": {
+          "slot": "node_modules/marked",
+          "version": "18.0.11"
+        },
+        "closure": null
+      },
+      {
+        "from": "node_modules/ws",
+        "dependency": "bufferutil",
+        "kind": "optional-peer",
+        "request": "^4.0.1",
+        "install": null,
+        "closure": {
+          "state": "optional-peer-absent",
+          "slot": null
+        }
+      },
+      {
+        "from": "node_modules/ws",
+        "dependency": "utf-8-validate",
+        "kind": "optional-peer",
+        "request": ">=5.0.2",
+        "install": null,
+        "closure": {
+          "state": "optional-peer-absent",
+          "slot": null
+        }
+      },
+      {
+        "from": "node_modules/proxy-agent-negotiate",
+        "dependency": "kerberos",
+        "kind": "optional-peer",
+        "request": "^2.0.0",
+        "install": null,
+        "closure": {
+          "state": "optional-peer-absent",
+          "slot": null
+        }
+      }
+    ],
+    "platformConstrainedSlots": [],
+    "installScriptSlots": [
+      {
+        "key": "node_modules/protobufjs",
+        "version": "7.6.6"
+      }
+    ]
+  },
+  "photonNode": {
+    "lockKey": "node_modules/@silvia-odwyer/photon-node",
+    "lock": {
+      "version": "0.3.4",
+      "resolved": "https://registry.npmjs.org/@silvia-odwyer/photon-node/-/photon-node-0.3.4.tgz",
+      "integrity": "sha512-bnly4BKB3KDTFxrUIcgCLbaeVVS8lrAkri1pEzskpmxu9MdfGQTy8b8EgcD83ywD3RPMsIulY8xJH5Awa+t9fA=="
+    },
+    "archive": {
+      "bytes": 728547,
+      "sha256": "5a23015c1cd2c38e3c492dd96929985247b92f52d2ff0fb948d29edca52bc50a"
+    },
+    "selectedMembers": [
+      {
+        "member": "package.json",
+        "bytes": 587,
+        "sha256": "a1362f6a9e9d942d6b77555f1e40b19a6b3e2cc04bfb8af95e452a6f769fe7db"
+      },
+      {
+        "member": "photon_rs.js",
+        "bytes": 137712,
+        "sha256": "d60656705f0d59baa79e36b0381eb023f1864eeb57e92956cf21dcd9fb8f879f"
+      },
+      {
+        "member": "photon_rs_bg.wasm",
+        "bytes": 1881634,
+        "sha256": "10468181565c56004c867f3a4af96f89a0ef5a63a72f2b5fb12c1f1992a3615c"
+      }
+    ],
+    "wrapper": {
+      "path": "packages/coding-agent/src/utils/photon.ts",
+      "sha256": "806c3941b96e09705e26cd2d449ee8971b3498bbde495f7512b20906120d96a9"
+    },
+    "offlineSmoke": {
+      "node": "v26.13.0",
+      "trace": [
+        {
+          "kind": "load-commonjs",
+          "member": "photon_rs.js",
+          "bytes": 137712,
+          "sha256": "d60656705f0d59baa79e36b0381eb023f1864eeb57e92956cf21dcd9fb8f879f"
+        },
+        {
+          "kind": "instantiate-wasm",
+          "member": "photon_rs_bg.wasm",
+          "bytes": 1881634,
+          "sha256": "10468181565c56004c867f3a4af96f89a0ef5a63a72f2b5fb12c1f1992a3615c"
+        }
+      ],
+      "png": {
+        "width": 2,
+        "height": 1,
+        "bytes": 77,
+        "sha256": "7010c5a30878b53f1823b42a9ff647e032b43dcd7f374a6677e5602556c06814"
+      }
+    }
+  },
+  "scope": "Static lock comparison and one Node Photon smoke in an isolated Linux network namespace; no npm install, lifecycle scripts, CLI, Bun binary, or Cloudflare runtime executed."
+}
