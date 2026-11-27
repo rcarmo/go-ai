@@ -83,9 +83,11 @@ func TestTogetherModelsRegistersDefaultKimiK3ViaOpenAICompatibleChatCompletionsA
 }
 
 // Source: pi v1.6.0 packages/ai/test/together-models.test.ts:44 (GPT-OSS and DeepSeek).
-// The MiniMax assertion is an existing supplemental catalogue control.
+// The retired inputs come from the same published catalog; the live MiniMax
+// successor and captured requests are supplemental controls.
 func TestTogetherModelsReasoningControlsFromTogetherAPISurface(t *testing.T) {
-	gptOss := requireModel(t, goai.ProviderTogether, "openai/gpt-oss-120b")
+	const archive = "together-reasoning-v160.json"
+	gptOss := loadHistoricalCompletionsModel(t, archive, 3, goai.ProviderTogether, "openai/gpt-oss-120b")
 	low, medium, high := "low", "medium", "high"
 	wantGPTOSS := map[goai.ModelThinkingLevel]*string{goai.ThinkingOff: nil, goai.ModelThinkingLevel(goai.ThinkingMinimal): nil, goai.ModelThinkingLevel(goai.ThinkingLow): &low, goai.ModelThinkingLevel(goai.ThinkingMedium): &medium, goai.ModelThinkingLevel(goai.ThinkingHigh): &high, goai.ModelThinkingLevel(goai.ThinkingMax): nil, goai.ModelThinkingLevel(goai.ThinkingXHigh): nil}
 	if !reflect.DeepEqual(gptOss.ThinkingLevelMap, wantGPTOSS) {
@@ -95,7 +97,7 @@ func TestTogetherModelsReasoningControlsFromTogetherAPISurface(t *testing.T) {
 		t.Fatalf("gpt-oss compat=%#v, want supportsReasoningEffort true and thinkingFormat openai", gptOss.CompletionsCompat)
 	}
 
-	deepSeekV4 := requireModel(t, goai.ProviderTogether, "deepseek-ai/DeepSeek-V4-Pro-0813")
+	deepSeekV4 := loadHistoricalCompletionsModel(t, archive, 3, goai.ProviderTogether, "deepseek-ai/DeepSeek-V4-Pro-0813")
 	wantDeepSeek := map[goai.ModelThinkingLevel]*string{goai.ModelThinkingLevel(goai.ThinkingMinimal): nil, goai.ModelThinkingLevel(goai.ThinkingLow): nil, goai.ModelThinkingLevel(goai.ThinkingMedium): nil, goai.ModelThinkingLevel(goai.ThinkingHigh): &high, goai.ModelThinkingLevel(goai.ThinkingXHigh): nil}
 	if !reflect.DeepEqual(deepSeekV4.ThinkingLevelMap, wantDeepSeek) {
 		t.Fatalf("DeepSeek-V4 thinkingLevelMap=%#v, want %#v", deepSeekV4.ThinkingLevelMap, wantDeepSeek)
@@ -104,13 +106,40 @@ func TestTogetherModelsReasoningControlsFromTogetherAPISurface(t *testing.T) {
 		t.Fatalf("DeepSeek-V4 compat=%#v, want supportsReasoningEffort true and thinkingFormat together", deepSeekV4.CompletionsCompat)
 	}
 
-	minimax := requireModel(t, goai.ProviderTogether, "MiniMaxAI/MiniMax-M3")
+	minimax := loadHistoricalCompletionsModel(t, archive, 3, goai.ProviderTogether, "MiniMaxAI/MiniMax-M3")
+	liveMiniMax := *requireModel(t, goai.ProviderTogether, "MiniMaxAI/MiniMax-M3.1-Flash")
 	wantMiniMax := map[goai.ModelThinkingLevel]*string{goai.ModelThinkingLevel(goai.ThinkingMinimal): nil, goai.ModelThinkingLevel(goai.ThinkingLow): nil, goai.ModelThinkingLevel(goai.ThinkingMedium): nil}
-	if !reflect.DeepEqual(minimax.ThinkingLevelMap, wantMiniMax) {
-		t.Fatalf("MiniMax thinkingLevelMap=%#v, want %#v", minimax.ThinkingLevelMap, wantMiniMax)
+	for _, model := range []goai.Model{minimax, liveMiniMax} {
+		if !reflect.DeepEqual(model.ThinkingLevelMap, wantMiniMax) {
+			t.Fatalf("%s thinkingLevelMap=%#v, want %#v", model.ID, model.ThinkingLevelMap, wantMiniMax)
+		}
+		compat := model.CompletionsCompat
+		if compat == nil || compat.ThinkingFormat != "together" || compat.SupportsReasoningEffort == nil || *compat.SupportsReasoningEffort {
+			t.Fatalf("%s compat=%#v, want thinkingFormat together and explicit supportsReasoningEffort=false", model.ID, compat)
+		}
 	}
-	if minimax.CompletionsCompat == nil || minimax.CompletionsCompat.ThinkingFormat != "together" || ptrValue(minimax.CompletionsCompat.SupportsReasoningEffort) != false {
-		t.Fatalf("MiniMax compat=%#v, want thinkingFormat together and supportsReasoningEffort false", minimax.CompletionsCompat)
+	for _, retired := range []goai.Model{gptOss, deepSeekV4, minimax} {
+		if got := goai.GetModel(retired.Provider, retired.ID); got != nil {
+			t.Errorf("retired model %s is still in the live Together catalog", retired.ID)
+		}
+	}
+
+	for _, tc := range []struct {
+		name              string
+		model             goai.Model
+		reasoning, effort string
+	}{
+		{"historical OpenAI effort", gptOss, "", `"high"`},
+		{"historical Together effort and toggle", deepSeekV4, `{"enabled":true}`, `"high"`},
+		{"historical Together toggle only", minimax, `{"enabled":true}`, ""},
+		{"live Together toggle only", liveMiniMax, `{"enabled":true}`, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			payload := captureCompletionsPayload(t, tc.model, goai.ThinkingHigh)
+			assertCompletionsPayloadField(t, payload, "model", `"`+tc.model.ID+`"`)
+			assertCompletionsPayloadField(t, payload, "reasoning", tc.reasoning)
+			assertCompletionsPayloadField(t, payload, "reasoning_effort", tc.effort)
+		})
 	}
 }
 

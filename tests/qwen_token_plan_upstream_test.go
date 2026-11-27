@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"slices"
 	"strings"
@@ -149,18 +150,18 @@ func TestSourceV160QwenTokenPlanReasoning(t *testing.T) {
 			for _, id := range p.thinking {
 				t.Run("thinking-fields/"+id, func(t *testing.T) {
 					payload := qwenStreamPayload(t, p.provider, id, goai.ThinkingHigh)
-					assertQwenField(t, payload, "enable_thinking", "true")
-					assertQwenField(t, payload, "thinking", "")
+					assertCompletionsPayloadField(t, payload, "enable_thinking", "true")
+					assertCompletionsPayloadField(t, payload, "thinking", "")
 				})
 			}
 			if p.provider == goai.ProviderQwenTokenPlanIndividual || p.provider == "qwen-token-plan-individual-cn" {
 				// The retired preview's high level was disabled; keep that wire case separate from the live successor.
 				t.Run("historical-thinking-fields/qwen4-max-preview", func(t *testing.T) {
-					preview := loadHistoricalQwenPreview(t, p.provider)
-					payload := captureQwenPayload(t, preview, goai.ThinkingHigh)
-					assertQwenField(t, payload, "model", `"qwen4-max-preview"`)
-					assertQwenField(t, payload, "enable_thinking", "true")
-					assertQwenField(t, payload, "thinking", "")
+					preview := loadHistoricalCompletionsModel(t, "qwen-token-plan-preview-v160.json", 2, p.provider, "qwen4-max-preview")
+					payload := captureCompletionsPayload(t, preview, goai.ThinkingHigh)
+					assertCompletionsPayloadField(t, payload, "model", `"qwen4-max-preview"`)
+					assertCompletionsPayloadField(t, payload, "enable_thinking", "true")
+					assertCompletionsPayloadField(t, payload, "thinking", "")
 				})
 			}
 			for _, id := range p.effort {
@@ -173,7 +174,7 @@ func TestSourceV160QwenTokenPlanReasoning(t *testing.T) {
 				})
 				t.Run("effort-payload/"+id, func(t *testing.T) {
 					payload := qwenStreamPayload(t, p.provider, id, goai.ThinkingHigh)
-					assertQwenField(t, payload, "reasoning_effort", `"high"`)
+					assertCompletionsPayloadField(t, payload, "reasoning_effort", `"high"`)
 				})
 			}
 			for _, id := range []string{"qwen3.8-flash", "qwen3.8-max"} {
@@ -182,9 +183,9 @@ func TestSourceV160QwenTokenPlanReasoning(t *testing.T) {
 				})
 				t.Run("qwen38-effort-payload/"+id, func(t *testing.T) {
 					payload := qwenStreamPayload(t, p.provider, id, goai.ThinkingXHigh)
-					assertQwenField(t, payload, "enable_thinking", "true")
-					assertQwenField(t, payload, "reasoning_effort", `"xhigh"`)
-					assertQwenField(t, payload, "thinking", "")
+					assertCompletionsPayloadField(t, payload, "enable_thinking", "true")
+					assertCompletionsPayloadField(t, payload, "reasoning_effort", `"xhigh"`)
+					assertCompletionsPayloadField(t, payload, "thinking", "")
 				})
 			}
 		})
@@ -202,9 +203,10 @@ func assertQwenThinkingMap(t *testing.T, provider goai.Provider, id string, want
 	}
 }
 
-func loadHistoricalQwenPreview(t *testing.T, provider goai.Provider) goai.Model {
+// Load a detached, archived model without adding it to the live registry.
+func loadHistoricalCompletionsModel(t *testing.T, file string, records int, provider goai.Provider, id string) goai.Model {
 	t.Helper()
-	data, err := os.ReadFile("testdata/qwen-token-plan-preview-v160.json")
+	data, err := os.ReadFile("testdata/" + file)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -218,32 +220,35 @@ func loadHistoricalQwenPreview(t *testing.T, provider goai.Provider) goai.Model 
 	if err := json.Unmarshal(data, &fixture); err != nil {
 		t.Fatal(err)
 	}
-	if fixture.UpstreamCommit != "faac585884ae2c013a6b1400f3e9e77f10b34bac" || len(fixture.Models) != 2 {
-		t.Fatal("invalid v1.6.0 Qwen preview fixture")
+	if fixture.UpstreamCommit != "faac585884ae2c013a6b1400f3e9e77f10b34bac" || len(fixture.Models) != records {
+		t.Fatalf("invalid v1.6.0 fixture %s", file)
 	}
 	for _, entry := range fixture.Models {
-		if entry.Provider == provider && entry.ID == "qwen4-max-preview" && entry.Compat != nil {
+		if entry.Provider == provider && entry.ID == id && entry.Api == goai.ApiOpenAICompletions && entry.Compat != nil {
 			entry.Model.CompletionsCompat = entry.Compat
 			return entry.Model
 		}
 	}
-	t.Fatalf("missing v1.6.0 Qwen preview record for %s", provider)
+	t.Fatalf("missing historical Completions record %s/%s in %s", provider, id, file)
 	return goai.Model{}
 }
 
 func qwenStreamPayload(t *testing.T, provider goai.Provider, id string, effort goai.ThinkingLevel) map[string]json.RawMessage {
 	t.Helper()
-	return captureQwenPayload(t, *requireModel(t, provider, id), effort)
+	return captureCompletionsPayload(t, *requireModel(t, provider, id), effort)
 }
 
-func captureQwenPayload(t *testing.T, model goai.Model, effort goai.ThinkingLevel) map[string]json.RawMessage {
+func captureCompletionsPayload(t *testing.T, model goai.Model, effort goai.ThinkingLevel) map[string]json.RawMessage {
 	t.Helper()
 	if model.Api != goai.ApiOpenAICompletions {
 		t.Fatalf("unexpected API %q", model.Api)
 	}
-	// As in the original, the adapter completes against a fake stream. Keep
-	// a loopback-only fallback even if the request transport is not honored.
-	model.BaseURL = "http://127.0.0.1:0/compatible-mode/v1"
+	// Keep the model's path and a loopback-only fallback if the fake transport is bypassed.
+	baseURL, err := url.Parse(model.BaseURL)
+	if err != nil || baseURL.Host == "" {
+		t.Fatalf("invalid model base URL: %q", model.BaseURL)
+	}
+	model.BaseURL = "http://127.0.0.1:0" + baseURL.EscapedPath()
 	adapter := goai.GetApiProvider(model.Api)
 	if adapter == nil || adapter.StreamSimple == nil {
 		t.Fatal("OpenAI Completions adapter not registered")
@@ -283,7 +288,7 @@ func captureQwenPayload(t *testing.T, model goai.Model, effort goai.ThinkingLeve
 	return payload
 }
 
-func assertQwenField(t *testing.T, payload map[string]json.RawMessage, field, want string) {
+func assertCompletionsPayloadField(t *testing.T, payload map[string]json.RawMessage, field, want string) {
 	t.Helper()
 	got, present := payload[field]
 	if want == "" && present || want != "" && (!present || string(got) != want) {
