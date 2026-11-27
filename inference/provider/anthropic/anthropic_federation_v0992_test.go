@@ -330,3 +330,33 @@ func TestAnthropicFederationTransportErrorCancellationAndResetIsolation(t *testi
 		t.Fatalf("after reset token requests=%d", tokenRequests.Load())
 	}
 }
+
+func TestAnthropicFederationOmitsOptionalServiceAccount(t *testing.T) {
+	resetAnthropicFederationCacheForTest()
+	identityPath := writeIdentityToken(t, testAssertion)
+	var tokenBody map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/oauth/token":
+			if err := json.NewDecoder(r.Body).Decode(&tokenBody); err != nil {
+				t.Fatal(err)
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"access_token": "token", "expires_in": 3600})
+		case "/v1/messages":
+			writeFederationSSE(w)
+		}
+	}))
+	defer server.Close()
+	env := federationEnv(identityPath)
+	delete(env, anthropicServiceAccountIDEnv)
+	msg, err := completeFederation(t, federationModel(server.URL), &goai.StreamOptions{Env: env})
+	if err != nil || msg.StopReason != goai.StopReasonStop {
+		t.Fatalf("msg=%#v err=%v", msg, err)
+	}
+	if _, present := tokenBody["service_account_id"]; present {
+		t.Fatalf("optional service_account_id sent: %#v", tokenBody)
+	}
+	if tokenBody["federation_rule_id"] != "fdrl_test" || tokenBody["organization_id"] != "org-test" {
+		t.Fatalf("token body=%#v", tokenBody)
+	}
+}

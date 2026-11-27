@@ -51,7 +51,7 @@ func TestV0843StreamAnthropicFallbacksHeadersAndPricingEndToEnd(t *testing.T) {
 	if ua != goai.PiUserAgent() {
 		t.Fatalf("User-Agent=%q want %q", ua, goai.PiUserAgent())
 	}
-	if done == nil || done.Model != "claude-opus-5" || done.Usage.Cost.Input != 0.00005 || done.Usage.Cost.Output != 0.00005 {
+	if done == nil || done.Model != model.ID || done.ResponseModel != "claude-opus-5" || done.Usage.Cost.Input != 0.00005 || done.Usage.Cost.Output != 0.00005 {
 		t.Fatalf("fallback pricing/model not applied: %#v", done)
 	}
 

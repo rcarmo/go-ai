@@ -51,8 +51,8 @@ data: {}
 	close(ch)
 	for ev := range ch {
 		if done, ok := ev.(*goai.DoneEvent); ok {
-			if done.Message.Model != "claude-opus-5" {
-				t.Fatalf("model=%q", done.Message.Model)
+			if done.Message.Model != model.ID || done.Message.ResponseModel != "claude-opus-5" {
+				t.Fatalf("model/responseModel=%q/%q", done.Message.Model, done.Message.ResponseModel)
 			}
 			if done.Message.Usage.Cost.Input != 0.00005 || done.Message.Usage.Cost.Output != 0.00005 {
 				t.Fatalf("fallback cost not applied: %#v", done.Message.Usage.Cost)

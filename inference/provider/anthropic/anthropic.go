@@ -586,7 +586,7 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 				originalSend(event)
 			}
 		}
-		processAnthropicStream(resp.Body, model, goai.ResolveContext(convCtx, false).Tools, providerThinkingLevel, send, anthropicOAuthNames(model, opts))
+		processAnthropicStreamWithOptions(resp.Body, model, goai.ResolveContext(convCtx, false).Tools, providerThinkingLevel, opts, send, anthropicOAuthNames(model, opts))
 	}()
 
 	return ch
@@ -1127,6 +1127,10 @@ func extractText(blocks []goai.ContentBlock) string {
 // --- SSE processing ---
 
 func processAnthropicStream(body io.Reader, model *goai.Model, tools []goai.Tool, providerThinkingLevel string, send func(goai.Event), oauthNames ...bool) {
+	processAnthropicStreamWithOptions(body, model, tools, providerThinkingLevel, nil, send, oauthNames...)
+}
+
+func processAnthropicStreamWithOptions(body io.Reader, model *goai.Model, tools []goai.Tool, providerThinkingLevel string, opts *goai.StreamOptions, send func(goai.Event), oauthNames ...bool) {
 	namingModel := model
 	if len(oauthNames) > 0 && oauthNames[0] {
 		copyModel := *model
@@ -1156,6 +1160,15 @@ func processAnthropicStream(body io.Reader, model *goai.Model, tools []goai.Tool
 		if evt.Event == sse.EventError {
 			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("SSE stream error: %s", evt.Data)})
 			return
+		}
+		if opts != nil && opts.OnProviderStreamEvent != nil {
+			var providerEvent map[string]any
+			if err := json.Unmarshal([]byte(evt.Data), &providerEvent); err == nil {
+				if err := opts.OnProviderStreamEvent(providerEvent, model); err != nil {
+					send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err})
+					return
+				}
+			}
 		}
 		switch evt.Event {
 		case "content_block_start":
@@ -1311,17 +1324,15 @@ func processAnthropicStream(body io.Reader, model *goai.Model, tools []goai.Tool
 				return
 			}
 			partial.ResponseID = data.Message.ID
-			if data.Message.Model != "" {
-				partial.Model = data.Message.Model
-				if data.Message.Model != model.ID {
-					for _, fallback := range getAnthropicCompat(model).allowedFallbackModels {
-						if fallback.Provider == model.Provider && fallback.Model == data.Message.Model {
-							copy := *model
-							copy.ID = data.Message.Model
-							copy.Cost = fallback.Cost
-							usageModel = &copy
-							break
-						}
+			if data.Message.Model != "" && data.Message.Model != model.ID {
+				partial.ResponseModel = data.Message.Model
+				for _, fallback := range getAnthropicCompat(model).allowedFallbackModels {
+					if fallback.Provider == model.Provider && fallback.Model == data.Message.Model {
+						copy := *model
+						copy.ID = data.Message.Model
+						copy.Cost = fallback.Cost
+						usageModel = &copy
+						break
 					}
 				}
 			}
