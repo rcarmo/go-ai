@@ -1305,6 +1305,8 @@ func TestSourceV160CanonicalToolCancel(t *testing.T) {
 
 // Source: harness-park-children.test.ts, nonblocking nested calls and unsafe
 // parents that were parked (rather than running) when the writer closed.
+// The live case follows pi v1.6.1 harness-park-children.test.ts:107–156.
+// The reopen case retains the distinct replay-unsafe parent check.
 func TestSourceV160ParkedToolKeepsNestedChildren(t *testing.T) {
 	for _, reopen := range []bool{false, true} {
 		t.Run(fmt.Sprintf("reopen=%v", reopen), func(t *testing.T) { testV160ParkedToolKeepsNestedChildren(t, reopen) })
@@ -1364,9 +1366,9 @@ func testV160ParkedToolKeepsNestedChildren(t *testing.T, reopen bool) {
 				if reopen && key == "b" {
 					break
 				}
-				topic := key
-				if reopen {
-					topic = "x"
+				topic := "x"
+				if key == "b" {
+					topic = "y"
 				}
 				h, err := api.StartTool(run, key, "research", JSON{"topic": topic})
 				if err != nil {
@@ -1437,7 +1439,54 @@ func testV160ParkedToolKeepsNestedChildren(t *testing.T, reopen bool) {
 			t.Fatal("child not parked", ctx.Err())
 		}
 	}
+	assertParkBoundary := func(on, done []ID, attempts int) {
+		t.Helper()
+		if wake, err := h.Wake(ctx); err != nil || wake.Active || wake.At != nil {
+			t.Fatal("park should leave no runnable work", wake, err)
+		}
+		stored, found, err := native.Task(ctx, parent.ID)
+		if err != nil || !found || stored.State.Status != "waiting" || stored.State.Policy != "any" || !slices.Equal(stored.State.On, on) {
+			t.Fatal("wrong committed parent wait", stored, found, err)
+		}
+		cp := taskCheckpointMap(stored.State.Checkpoint)
+		checkpoint := generationObject(cp["checkpoint"])
+		if got := generationTaskIDs(checkpoint["done"]); cp["phase"] != "parked" || checkpoint == nil || !slices.Equal(got, done) {
+			t.Fatalf("committed checkpoint = %v; want done %v", cp, done)
+		}
+		live, found, err := c.SnapshotDefinition(ctx, LiveDoc(), nil)
+		if err != nil || !found {
+			t.Fatal("missing published LiveDoc at park", found, err)
+		}
+		state := generationObject(live.Copy())
+		if slot := canonicalToolSlot(state, parent.ID); slot["status"] != "waiting" || slot["callId"] != "c1" {
+			t.Fatal("wrong published parent wait", slot)
+		}
+		for i, id := range ids {
+			child, found, err := native.Task(ctx, id)
+			if err != nil || !found || child.Owner != parent.ID || child.Conversation != c.ID() {
+				t.Fatal("wrong nested child attribution", child, found, err)
+			}
+			if slices.Contains(on, id) {
+				slot := canonicalToolSlot(state, id)
+				if child.State.Status != "sleeping" || !slices.Equal(child.State.Signals, []SignalKey{key}) || slot["status"] != "sleeping" ||
+					slot["callId"] != []string{"c1/a", "c1/b"}[i] || submissionEntryID(slot["parentTaskId"]) != parent.ID {
+					t.Fatal("wrong nested child sleep or keyed slot", child, slot)
+				}
+			} else if child.State.Status != "terminal" || child.State.Outcome == nil || child.State.Outcome.Status != "completed" {
+				t.Fatal("first wake did not follow its child's terminal receipt", child)
+			}
+		}
+		if status, err := sub.Status(ctx); err != nil || status.Status != "placed" || status.Answer != 0 || calls.Load() != 1 || len(wakes) != attempts {
+			t.Fatal("early request, wake or settlement at park", status, calls.Load(), len(wakes), attempts, err)
+		}
+	}
+	if !reopen {
+		awaitWake140(t, idle, true, nil)
+	}
 	awaitWake140(t, idle, false, nil)
+	if !reopen {
+		assertParkBoundary(ids, nil, 1)
+	}
 	if reopen {
 		id := sub.ID()
 		if err := h.Close(ctx); err != nil {
@@ -1463,9 +1512,12 @@ func testV160ParkedToolKeepsNestedChildren(t *testing.T, reopen bool) {
 			t.Fatalf("signal b = %q, %v", got, err)
 		}
 		next := waitParent()
-		if !reflect.DeepEqual(next.State.On, ids[:1]) {
+		if next.ID != parent.ID || !slices.Equal(next.State.On, ids[:1]) {
 			t.Fatalf("remaining children = %v", next.State.On)
 		}
+		awaitWake140(t, idle, true, nil)
+		awaitWake140(t, idle, false, nil)
+		assertParkBoundary(ids[:1], ids[1:], 2)
 	}
 	text := "ay"
 	if reopen {
@@ -1477,13 +1529,28 @@ func testV160ParkedToolKeepsNestedChildren(t *testing.T, reopen bool) {
 	if got, err := sub.Wait(ctx); err != nil || got.Record.Status != "done" {
 		t.Fatalf("submission = %+v, %v", got.Record, err)
 	}
-	want := "a: ay + b: bee"
+	want := "x: ay + y: bee"
 	if reopen {
 		want = "x: kept"
 	}
 	result := v160ToolResult(t, ctx, c, "c1")
 	if result.IsError || v160ToolResultText(result) != want {
 		t.Fatalf("result = %q", v160ToolResultText(result))
+	}
+	if !reopen {
+		if calls.Load() != 2 {
+			t.Fatal("provider did not resume exactly once after both children", calls.Load())
+		}
+		terminal, err := h.WaitForTask(ctx, parent.ID)
+		if err != nil || terminal.State.Status != "terminal" || terminal.State.Outcome == nil || terminal.State.Outcome.Status != "completed" || terminal.State.Outcome.Result == nil || !terminal.State.Outcome.Result.Present {
+			t.Fatal("wrong terminal caller receipt", terminal, err)
+		}
+		receipt := generationObject(terminal.State.Outcome.Result.Value)
+		entry, found, err := h.Entry(ctx, submissionEntryID(receipt["entryId"]))
+		if err != nil || !found || receipt["kind"] != "model" || entry.Kind != "pi.tool-result" || entry.ByTask != parent.ID ||
+			len(entry.Model) != 1 || entry.Model[0].ToolCallID != "c1" || v160ToolResultText(entry.Model[0]) != want {
+			t.Fatal("combined result not attributed to the parked caller", entry, receipt, parent.ID, found, err)
+		}
 	}
 	var seen []*WakeReason
 	for len(wakes) > 0 {
