@@ -9,17 +9,24 @@ import (
 	goai "github.com/rcarmo/go-ai"
 )
 
-// Draft 2020-12 optional format fixtures in the pinned conformance suite.
+type preparedFormatFixture struct {
+	format string
+	count  int
+}
+
+func TestSourceV161SchemaPreparedPointerFormatConformance(t *testing.T) {
+	checkV161SchemaPreparedFormatConformance(t, preparedFormatFixture{"json-pointer", 40}, preparedFormatFixture{"relative-json-pointer", 26})
+}
+
+func TestSourceV161SchemaPreparedURIFormatConformance(t *testing.T) {
+	checkV161SchemaPreparedFormatConformance(t, preparedFormatFixture{"uri-reference", 31}, preparedFormatFixture{"uri-template", 48})
+}
+
 // Compare both the original validity/error agreement and the exact records
 // captured from the unchanged pinned explainer.
-func TestSourceV161SchemaPreparedPointerFormatConformance(t *testing.T) {
-	for _, fixture := range []struct {
-		format string
-		count  int
-	}{
-		{"json-pointer", 40},
-		{"relative-json-pointer", 26},
-	} {
+func checkV161SchemaPreparedFormatConformance(t *testing.T, fixtures ...preparedFormatFixture) {
+	t.Helper()
+	for _, fixture := range fixtures {
 		t.Run(fixture.format, func(t *testing.T) {
 			data, err := os.ReadFile("tests/testdata/upstream-main/" + fixture.format + "-format-2020-12-v161.json")
 			if err != nil {
@@ -74,7 +81,16 @@ func TestSourceV161SchemaPreparedPointerFormatConformance(t *testing.T) {
 }
 
 func TestSchemaPointerFormatsPreserveToolPolicy(t *testing.T) {
-	for _, format := range []string{"json-pointer", "relative-json-pointer"} {
+	checkSchemaFormatsPreserveToolPolicy(t, "json-pointer", "relative-json-pointer")
+}
+
+func TestSchemaURIFormatsPreserveToolPolicy(t *testing.T) {
+	checkSchemaFormatsPreserveToolPolicy(t, "uri-reference", "uri-template")
+}
+
+func checkSchemaFormatsPreserveToolPolicy(t *testing.T, formats ...string) {
+	t.Helper()
+	for _, format := range formats {
 		t.Run(format, func(t *testing.T) {
 			schema := `{"type":"object","properties":{"p":{"type":"string","format":"` + format + `"}},"required":["p"]}`
 			plain := decodeV160DiagnosticInput(t, schema).(map[string]any)
