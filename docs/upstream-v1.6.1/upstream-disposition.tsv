@@ -1,0 +1,592 @@
+delta	previous_path	path	audit_disposition	test_ledger_state
+M		.github/APPROVED_CONTRIBUTORS	outside-four-package-comparison	-
+M		AGENTS.md	outside-four-package-comparison	-
+M		apps/p2/docs/p2-notes.md	outside-four-package-comparison	-
+M		apps/p2/docs/p2-tui-port.md	outside-four-package-comparison	-
+M		apps/p2/package.json	dependency-input	-
+M		apps/p2/plugins/artifacts/artifacts.css	outside-four-package-comparison	-
+M		apps/p2/plugins/artifacts/panes.tsx	outside-four-package-comparison	-
+M		apps/p2/plugins/backup/chunked-remote.ts	outside-four-package-comparison	-
+M		apps/p2/plugins/backup/contract.ts	outside-four-package-comparison	-
+R054	apps/p2/plugins/sync/radius-remote.ts	apps/p2/plugins/backup/radius-remote.ts	outside-four-package-comparison	-
+M		apps/p2/plugins/backup/server.ts	outside-four-package-comparison	-
+A		apps/p2/plugins/backup/target.ts	outside-four-package-comparison	-
+A		apps/p2/plugins/backup/uploader.ts	outside-four-package-comparison	-
+A		apps/p2/plugins/backup/uploads.ts	outside-four-package-comparison	-
+M		apps/p2/plugins/backup/worker.ts	outside-four-package-comparison	-
+M		apps/p2/plugins/chat/web.tsx	outside-four-package-comparison	-
+M		apps/p2/plugins/discord/bot.ts	outside-four-package-comparison	-
+M		apps/p2/plugins/discord/worker.ts	outside-four-package-comparison	-
+M		apps/p2/plugins/locations/tool.ts	outside-four-package-comparison	-
+M		apps/p2/plugins/login/contract.ts	outside-four-package-comparison	-
+M		apps/p2/plugins/login/logins.ts	outside-four-package-comparison	-
+M		apps/p2/plugins/login/server.ts	outside-four-package-comparison	-
+M		apps/p2/plugins/login/tui.ts	outside-four-package-comparison	-
+M		apps/p2/plugins/mcp/server.ts	outside-four-package-comparison	-
+M		apps/p2/plugins/mcp/sign-in.ts	outside-four-package-comparison	-
+M		apps/p2/plugins/mcp/tools.ts	outside-four-package-comparison	-
+M		apps/p2/plugins/models/fake.ts	outside-four-package-comparison	-
+M		apps/p2/plugins/radius/brain.ts	outside-four-package-comparison	-
+M		apps/p2/plugins/radius/server.ts	outside-four-package-comparison	-
+M		apps/p2/plugins/search/worker.ts	outside-four-package-comparison	-
+M		apps/p2/plugins/send-file/activity.tsx	outside-four-package-comparison	-
+M		apps/p2/plugins/sessions/sidebar/Row.tsx	outside-four-package-comparison	-
+M		apps/p2/plugins/sessions/sidebar/Sidebar.tsx	outside-four-package-comparison	-
+M		apps/p2/plugins/sessions/tui-location.ts	outside-four-package-comparison	-
+M		apps/p2/plugins/sessions/tui-move.ts	outside-four-package-comparison	-
+M		apps/p2/plugins/sessions/tui.ts	outside-four-package-comparison	-
+M		apps/p2/plugins/settings/commands.tsx	outside-four-package-comparison	-
+M		apps/p2/plugins/settings/web.tsx	outside-four-package-comparison	-
+M		apps/p2/plugins/sharing/web.tsx	outside-four-package-comparison	-
+M		apps/p2/plugins/subagents/contract.worker.ts	outside-four-package-comparison	-
+A		apps/p2/plugins/subagents/model-list.ts	outside-four-package-comparison	-
+M		apps/p2/plugins/subagents/tools.ts	outside-four-package-comparison	-
+M		apps/p2/plugins/telemetry/web.tsx	outside-four-package-comparison	-
+M		apps/p2/plugins/terminals/main.ts	outside-four-package-comparison	-
+M		apps/p2/plugins/terminals/protocol.ts	outside-four-package-comparison	-
+M		apps/p2/plugins/terminals/service.ts	outside-four-package-comparison	-
+M		apps/p2/plugins/terminals/tool.ts	outside-four-package-comparison	-
+M		apps/p2/plugins/views/contract.ts	outside-four-package-comparison	-
+M		apps/p2/plugins/voice/barge-in.ts	outside-four-package-comparison	-
+M		apps/p2/plugins/voice/engine.ts	outside-four-package-comparison	-
+M		apps/p2/plugins/voice/policy.ts	outside-four-package-comparison	-
+M		apps/p2/plugins/workspace/server.ts	outside-four-package-comparison	-
+M		apps/p2/plugins/workspace/worker.ts	outside-four-package-comparison	-
+M		apps/p2/scripts/migrate-durable.ts	outside-four-package-comparison	-
+M		apps/p2/scripts/migrate-files.ts	outside-four-package-comparison	-
+M		apps/p2/src/api/v1/node.ts	outside-four-package-comparison	-
+M		apps/p2/src/api/v1/web.ts	outside-four-package-comparison	-
+M		apps/p2/src/hosts/server.ts	outside-four-package-comparison	-
+M		apps/p2/src/hosts/tui-actions.ts	outside-four-package-comparison	-
+M		apps/p2/src/hosts/tui-clipboard.ts	outside-four-package-comparison	-
+M		apps/p2/src/hosts/tui-prefs-save.ts	outside-four-package-comparison	-
+M		apps/p2/src/runtime/backup.ts	outside-four-package-comparison	-
+M		apps/p2/src/runtime/chord.ts	outside-four-package-comparison	-
+M		apps/p2/src/runtime/location.ts	outside-four-package-comparison	-
+M		apps/p2/src/runtime/tui.ts	outside-four-package-comparison	-
+M		apps/p2/src/runtime/worker.ts	outside-four-package-comparison	-
+M		apps/p2/src/tui/components/mermaid.ts	outside-four-package-comparison	-
+M		apps/p2/src/tui/components/transcript.ts	outside-four-package-comparison	-
+M		apps/p2/src/web/Chat.tsx	outside-four-package-comparison	-
+M		apps/p2/src/web/Code.tsx	outside-four-package-comparison	-
+M		apps/p2/src/web/CostPanel.tsx	outside-four-package-comparison	-
+M		apps/p2/src/web/SettingsNav.tsx	outside-four-package-comparison	-
+M		apps/p2/src/web/Viewer.tsx	outside-four-package-comparison	-
+M		apps/p2/src/web/activity/model.ts	outside-four-package-comparison	-
+M		apps/p2/src/web/command-menu/keys.ts	outside-four-package-comparison	-
+M		apps/p2/src/web/elanor-markdown.css	outside-four-package-comparison	-
+A		apps/p2/src/web/highlight-lines.ts	outside-four-package-comparison	-
+M		apps/p2/src/web/style.css	outside-four-package-comparison	-
+M		apps/p2/src/web/use-chat-scroll.ts	outside-four-package-comparison	-
+A		apps/p2/test/fixtures/lines-block.ts	outside-four-package-comparison	-
+M		apps/p2/test/fixtures/optimistic.ts	outside-four-package-comparison	-
+M		apps/p2/test/p2/backup-radius.test.ts	outside-four-package-comparison	-
+M		apps/p2/test/p2/backup-upload.test.ts	outside-four-package-comparison	-
+M		apps/p2/test/p2/backup.test.ts	outside-four-package-comparison	-
+M		apps/p2/test/p2/discord.test.ts	outside-four-package-comparison	-
+M		apps/p2/test/p2/helpers.ts	outside-four-package-comparison	-
+A		apps/p2/test/p2/highlight-lines.test.ts	outside-four-package-comparison	-
+M		apps/p2/test/p2/login-owners.test.ts	outside-four-package-comparison	-
+M		apps/p2/test/p2/login.test.ts	outside-four-package-comparison	-
+M		apps/p2/test/p2/mcp-tools.test.ts	outside-four-package-comparison	-
+M		apps/p2/test/p2/mcp-worker.test.ts	outside-four-package-comparison	-
+M		apps/p2/test/p2/prompt.test.ts	outside-four-package-comparison	-
+M		apps/p2/test/p2/radius-fixture.ts	outside-four-package-comparison	-
+M		apps/p2/test/p2/radius.test.ts	outside-four-package-comparison	-
+M		apps/p2/test/p2/sandboxes.test.ts	outside-four-package-comparison	-
+M		apps/p2/test/p2/search.test.ts	outside-four-package-comparison	-
+A		apps/p2/test/p2/subagent-models.test.ts	outside-four-package-comparison	-
+M		apps/p2/test/p2/subagents.test.ts	outside-four-package-comparison	-
+M		apps/p2/test/p2/sync-radius-remote.test.ts	outside-four-package-comparison	-
+M		apps/p2/test/p2/terminal-agent-host.test.ts	outside-four-package-comparison	-
+A		apps/p2/test/p2/terminal-protocol.test.ts	outside-four-package-comparison	-
+M		apps/p2/test/p2/tui-location.test.ts	outside-four-package-comparison	-
+M		apps/p2/test/p2/tui-mermaid.test.ts	outside-four-package-comparison	-
+M		apps/p2/test/p2/tui-projects.test.ts	outside-four-package-comparison	-
+M		apps/p2/test/p2/tui-quiet-tools.test.ts	outside-four-package-comparison	-
+M		apps/p2/test/p2/tui-settings.test.ts	outside-four-package-comparison	-
+M		apps/p2/test/p2/ui-agents.test.ts	outside-four-package-comparison	-
+A		apps/p2/test/p2/ui-artifact-reading.test.ts	outside-four-package-comparison	-
+A		apps/p2/test/p2/ui-hidden-transcript.test.ts	outside-four-package-comparison	-
+A		apps/p2/test/p2/ui-lines-block.test.ts	outside-four-package-comparison	-
+M		apps/p2/test/p2/ui-optimistic.test.ts	outside-four-package-comparison	-
+A		apps/p2/test/p2/ui-sent-files.test.ts	outside-four-package-comparison	-
+A		apps/p2/test/p2/voice-barge-in.test.ts	outside-four-package-comparison	-
+M		apps/p2/test/p2/voice.test.ts	outside-four-package-comparison	-
+M		apps/p3/README.md	outside-four-package-comparison	-
+A		apps/p3/bench/skeleton.ts	outside-four-package-comparison	-
+M		apps/p3/docs/README.md	outside-four-package-comparison	-
+M		apps/p3/docs/chord-practices.md	outside-four-package-comparison	-
+M		apps/p3/docs/performance.md	outside-four-package-comparison	-
+M		apps/p3/docs/process.md	outside-four-package-comparison	-
+M		apps/p3/docs/testing.md	outside-four-package-comparison	-
+R100	apps/p3/bench/slice-1.ts	apps/p3/old/bench/slice-1.ts	outside-four-package-comparison	-
+A		apps/p3/old/src/app.ts	outside-four-package-comparison	-
+R100	apps/p3/src/ask.ts	apps/p3/old/src/ask.ts	outside-four-package-comparison	-
+R100	apps/p3/src/bootstrap/bin.ts	apps/p3/old/src/bootstrap/bin.ts	outside-four-package-comparison	-
+R100	apps/p3/src/bootstrap/server.ts	apps/p3/old/src/bootstrap/server.ts	outside-four-package-comparison	-
+R100	apps/p3/src/bootstrap/supervisor.ts	apps/p3/old/src/bootstrap/supervisor.ts	outside-four-package-comparison	-
+R100	apps/p3/src/bootstrap/worker.ts	apps/p3/old/src/bootstrap/worker.ts	outside-four-package-comparison	-
+R100	apps/p3/src/commands.ts	apps/p3/old/src/commands.ts	outside-four-package-comparison	-
+A		apps/p3/old/src/install.ts	outside-four-package-comparison	-
+R100	apps/p3/src/kit/app.ts	apps/p3/old/src/kit/app.ts	outside-four-package-comparison	-
+R100	apps/p3/src/kit/config.ts	apps/p3/old/src/kit/config.ts	outside-four-package-comparison	-
+R100	apps/p3/src/kit/contribute.ts	apps/p3/old/src/kit/contribute.ts	outside-four-package-comparison	-
+R100	apps/p3/src/kit/forward.ts	apps/p3/old/src/kit/forward.ts	outside-four-package-comparison	-
+R100	apps/p3/src/kit/identity.ts	apps/p3/old/src/kit/identity.ts	outside-four-package-comparison	-
+R100	apps/p3/src/kit/info.ts	apps/p3/old/src/kit/info.ts	outside-four-package-comparison	-
+R100	apps/p3/src/kit/layout.ts	apps/p3/old/src/kit/layout.ts	outside-four-package-comparison	-
+R100	apps/p3/src/kit/owner.ts	apps/p3/old/src/kit/owner.ts	outside-four-package-comparison	-
+R100	apps/p3/src/kit/running.ts	apps/p3/old/src/kit/running.ts	outside-four-package-comparison	-
+R100	apps/p3/src/kit/secrets.ts	apps/p3/old/src/kit/secrets.ts	outside-four-package-comparison	-
+R100	apps/p3/src/kit/session-workers.ts	apps/p3/old/src/kit/session-workers.ts	outside-four-package-comparison	-
+R100	apps/p3/src/kit/sign-ins.ts	apps/p3/old/src/kit/sign-ins.ts	outside-four-package-comparison	-
+R100	apps/p3/src/kit/start-server.ts	apps/p3/old/src/kit/start-server.ts	outside-four-package-comparison	-
+R100	apps/p3/src/kit/stop.ts	apps/p3/old/src/kit/stop.ts	outside-four-package-comparison	-
+R100	apps/p3/src/kit/worker.ts	apps/p3/old/src/kit/worker.ts	outside-four-package-comparison	-
+A		apps/p3/old/src/minimum-node.ts	outside-four-package-comparison	-
+A		apps/p3/old/src/pi.ts	outside-four-package-comparison	-
+A		apps/p3/old/src/principals.ts	outside-four-package-comparison	-
+R100	apps/p3/src/session-route.ts	apps/p3/old/src/session-route.ts	outside-four-package-comparison	-
+R100	apps/p3/test/api.test.ts	apps/p3/old/test/api.test.ts	outside-four-package-comparison	-
+R100	apps/p3/test/app.test.ts	apps/p3/old/test/app.test.ts	outside-four-package-comparison	-
+R100	apps/p3/test/build-release.test.ts	apps/p3/old/test/build-release.test.ts	outside-four-package-comparison	-
+R100	apps/p3/test/client.ts	apps/p3/old/test/client.ts	outside-four-package-comparison	-
+R100	apps/p3/test/commands.test.ts	apps/p3/old/test/commands.test.ts	outside-four-package-comparison	-
+R100	apps/p3/test/commands.ts	apps/p3/old/test/commands.ts	outside-four-package-comparison	-
+R100	apps/p3/test/end-to-end.ts	apps/p3/old/test/end-to-end.ts	outside-four-package-comparison	-
+R100	apps/p3/test/gate.ts	apps/p3/old/test/gate.ts	outside-four-package-comparison	-
+R100	apps/p3/test/install.test.ts	apps/p3/old/test/install.test.ts	outside-four-package-comparison	-
+R100	apps/p3/test/kit/config.test.ts	apps/p3/old/test/kit/config.test.ts	outside-four-package-comparison	-
+R100	apps/p3/test/kit/contribute.test.ts	apps/p3/old/test/kit/contribute.test.ts	outside-four-package-comparison	-
+R100	apps/p3/test/kit/forward.test.ts	apps/p3/old/test/kit/forward.test.ts	outside-four-package-comparison	-
+R100	apps/p3/test/kit/identity.test.ts	apps/p3/old/test/kit/identity.test.ts	outside-four-package-comparison	-
+R100	apps/p3/test/kit/info.test.ts	apps/p3/old/test/kit/info.test.ts	outside-four-package-comparison	-
+R100	apps/p3/test/kit/layout.test.ts	apps/p3/old/test/kit/layout.test.ts	outside-four-package-comparison	-
+R100	apps/p3/test/kit/owner.test.ts	apps/p3/old/test/kit/owner.test.ts	outside-four-package-comparison	-
+R100	apps/p3/test/kit/running.test.ts	apps/p3/old/test/kit/running.test.ts	outside-four-package-comparison	-
+R100	apps/p3/test/kit/secrets.test.ts	apps/p3/old/test/kit/secrets.test.ts	outside-four-package-comparison	-
+R100	apps/p3/test/kit/session-workers.test.ts	apps/p3/old/test/kit/session-workers.test.ts	outside-four-package-comparison	-
+R100	apps/p3/test/kit/sign-ins.test.ts	apps/p3/old/test/kit/sign-ins.test.ts	outside-four-package-comparison	-
+R100	apps/p3/test/kit/start-server.test.ts	apps/p3/old/test/kit/start-server.test.ts	outside-four-package-comparison	-
+R100	apps/p3/test/kit/stop.test.ts	apps/p3/old/test/kit/stop.test.ts	outside-four-package-comparison	-
+R100	apps/p3/test/kit/support.ts	apps/p3/old/test/kit/support.ts	outside-four-package-comparison	-
+R100	apps/p3/test/launched.test.ts	apps/p3/old/test/launched.test.ts	outside-four-package-comparison	-
+R100	apps/p3/test/launched.ts	apps/p3/old/test/launched.ts	outside-four-package-comparison	-
+R100	apps/p3/test/memory/server.ts	apps/p3/old/test/memory/server.ts	outside-four-package-comparison	-
+R100	apps/p3/test/memory/session.ts	apps/p3/old/test/memory/session.ts	outside-four-package-comparison	-
+R100	apps/p3/test/memory/stub.ts	apps/p3/old/test/memory/stub.ts	outside-four-package-comparison	-
+R100	apps/p3/test/memory/worker.ts	apps/p3/old/test/memory/worker.ts	outside-four-package-comparison	-
+R100	apps/p3/test/minimum-node.test.ts	apps/p3/old/test/minimum-node.test.ts	outside-four-package-comparison	-
+R100	apps/p3/test/no-signals.ts	apps/p3/old/test/no-signals.ts	outside-four-package-comparison	-
+R100	apps/p3/test/old-node.ts	apps/p3/old/test/old-node.ts	outside-four-package-comparison	-
+R100	apps/p3/test/pi.test.ts	apps/p3/old/test/pi.test.ts	outside-four-package-comparison	-
+A		apps/p3/old/test/plans.test.ts	outside-four-package-comparison	-
+R100	apps/p3/test/release-local.test.ts	apps/p3/old/test/release-local.test.ts	outside-four-package-comparison	-
+R100	apps/p3/test/release/memory.test.ts	apps/p3/old/test/release/memory.test.ts	outside-four-package-comparison	-
+A		apps/p3/old/test/release/release.test.ts	outside-four-package-comparison	-
+R100	apps/p3/test/sessions.test.ts	apps/p3/old/test/sessions.test.ts	outside-four-package-comparison	-
+A		apps/p3/old/test/topology.ts	outside-four-package-comparison	-
+A		apps/p3/old/test/until.ts	outside-four-package-comparison	-
+M		apps/p3/package.json	dependency-input	-
+A		apps/p3/plugins/control/package.json	dependency-input	-
+A		apps/p3/plugins/control/server.ts	outside-four-package-comparison	-
+A		apps/p3/plugins/runner/local-runner.ts	outside-four-package-comparison	-
+A		apps/p3/plugins/runner/package.json	dependency-input	-
+A		apps/p3/plugins/runner/runner.test.ts	outside-four-package-comparison	-
+A		apps/p3/plugins/runner/server.ts	outside-four-package-comparison	-
+A		apps/p3/plugins/runner/worker-process.ts	outside-four-package-comparison	-
+A		apps/p3/plugins/runner/worker.ts	outside-four-package-comparison	-
+M		apps/p3/plugins/sessions/contract.server.ts	outside-four-package-comparison	-
+M		apps/p3/plugins/sessions/contract.ts	outside-four-package-comparison	-
+M		apps/p3/plugins/sessions/server.ts	outside-four-package-comparison	-
+M		apps/p3/plugins/sessions/sessions.test.ts	outside-four-package-comparison	-
+M		apps/p3/plugins/sessions/worker.ts	outside-four-package-comparison	-
+A		apps/p3/plugins/sign-in/contract.ts	outside-four-package-comparison	-
+A		apps/p3/plugins/sign-in/owner.ts	outside-four-package-comparison	-
+A		apps/p3/plugins/sign-in/package.json	dependency-input	-
+A		apps/p3/plugins/sign-in/secrets.ts	outside-four-package-comparison	-
+A		apps/p3/plugins/sign-in/server.ts	outside-four-package-comparison	-
+A		apps/p3/plugins/sign-in/sign-ins.ts	outside-four-package-comparison	-
+M		apps/p3/scripts/build-release.ts	outside-four-package-comparison	-
+M		apps/p3/scripts/release-local.ts	outside-four-package-comparison	-
+A		apps/p3/src/api/v1/contribute.ts	outside-four-package-comparison	-
+A		apps/p3/src/api/v1/control.ts	outside-four-package-comparison	-
+A		apps/p3/src/api/v1/forward.ts	outside-four-package-comparison	-
+M		apps/p3/src/api/v1/index.ts	outside-four-package-comparison	-
+M		apps/p3/src/api/v1/server.ts	outside-four-package-comparison	-
+M		apps/p3/src/api/v1/worker.ts	outside-four-package-comparison	-
+M		apps/p3/src/app.ts	outside-four-package-comparison	-
+A		apps/p3/src/bin.ts	outside-four-package-comparison	-
+A		apps/p3/src/files.ts	outside-four-package-comparison	-
+M		apps/p3/src/install.ts	outside-four-package-comparison	-
+M		apps/p3/src/minimum-node.ts	outside-four-package-comparison	-
+A		apps/p3/src/modules-server.ts	outside-four-package-comparison	-
+A		apps/p3/src/modules-worker.ts	outside-four-package-comparison	-
+M		apps/p3/src/pi.ts	outside-four-package-comparison	-
+A		apps/p3/src/records.ts	outside-four-package-comparison	-
+A		apps/p3/src/server-core.ts	outside-four-package-comparison	-
+A		apps/p3/src/server.ts	outside-four-package-comparison	-
+A		apps/p3/src/supervisor.ts	outside-four-package-comparison	-
+A		apps/p3/src/worker-core.ts	outside-four-package-comparison	-
+A		apps/p3/src/worker.ts	outside-four-package-comparison	-
+A		apps/p3/test/command.test.ts	outside-four-package-comparison	-
+M		apps/p3/test/plans.test.ts	outside-four-package-comparison	-
+A		apps/p3/test/plugins/probe/contract.ts	outside-four-package-comparison	-
+R060	apps/p2/plugins/sync/package.json	apps/p3/test/plugins/probe/package.json	dependency-input	-
+A		apps/p3/test/plugins/probe/worker.ts	outside-four-package-comparison	-
+M		apps/p3/test/release/release.test.ts	outside-four-package-comparison	-
+A		apps/p3/test/skeleton.test.ts	outside-four-package-comparison	-
+A		apps/p3/test/support.ts	outside-four-package-comparison	-
+A		apps/p3/test/topology.test.ts	outside-four-package-comparison	-
+M		apps/p3/test/topology.ts	outside-four-package-comparison	-
+M		apps/p3/tsconfig.build.json	outside-four-package-comparison	-
+M		nix/model-catalog.json	outside-four-package-comparison	-
+M		package-lock.json	dependency-input	-
+M		packages/agent/CHANGELOG.md	outside-four-package-comparison	-
+M		packages/agent/package.json	dependency-input	-
+M		packages/agent/src/proxy.ts	outside-four-package-comparison	-
+M		packages/ai/CHANGELOG.md	documentation	-
+M		packages/ai/README.md	documentation	-
+M		packages/ai/catalog/build.ts	catalog-input	-
+M		packages/ai/catalog/families/anthropic.ts	catalog-input	-
+M		packages/ai/catalog/families/openai.ts	catalog-input	-
+M		packages/ai/catalog/providers/anthropic.ts	catalog-input	-
+M		packages/ai/catalog/providers/cloudflare-workers-ai.ts	catalog-input	-
+M		packages/ai/catalog/providers/github-copilot.ts	catalog-input	-
+M		packages/ai/catalog/providers/groq.ts	catalog-input	-
+M		packages/ai/catalog/providers/mistral.ts	catalog-input	-
+M		packages/ai/catalog/providers/openai.ts	catalog-input	-
+M		packages/ai/catalog/providers/opencode.ts	catalog-input	-
+M		packages/ai/catalog/sources/models-dev.ts	catalog-input	-
+M		packages/ai/package.json	dependency-input	-
+M		packages/ai/src/api/anthropic-messages.ts	runtime-source	-
+M		packages/ai/src/api/azure-openai-responses.ts	runtime-source	-
+M		packages/ai/src/api/bedrock-converse-stream.ts	runtime-source	-
+M		packages/ai/src/api/classifier-shared.ts	runtime-source	-
+M		packages/ai/src/api/google-generative-ai.ts	runtime-source	-
+M		packages/ai/src/api/google-shared.ts	runtime-source	-
+M		packages/ai/src/api/google-vertex.ts	runtime-source	-
+M		packages/ai/src/api/llama-cpp-classify.ts	runtime-source	-
+M		packages/ai/src/api/mistral-conversations.ts	runtime-source	-
+M		packages/ai/src/api/openai-codex-responses.ts	runtime-source	-
+M		packages/ai/src/api/openai-completions.ts	runtime-source	-
+M		packages/ai/src/api/openai-responses-shared.ts	runtime-source	-
+M		packages/ai/src/api/openai-responses.ts	runtime-source	-
+M		packages/ai/src/api/openrouter-images.ts	runtime-source	-
+A		packages/ai/src/api/pi-decision.lazy.ts	runtime-source	-
+A		packages/ai/src/api/pi-decision.ts	runtime-source	-
+M		packages/ai/src/api/pi-messages.ts	runtime-source	-
+M		packages/ai/src/api/system-one-shared.ts	runtime-source	-
+M		packages/ai/src/api/typesafe-system-one.ts	runtime-source	-
+M		packages/ai/src/auth/oauth/github-copilot.ts	runtime-source	-
+M		packages/ai/src/index.ts	runtime-source	-
+M		packages/ai/src/models.ts	runtime-source	-
+M		packages/ai/src/providers/compat-schema.ts	runtime-source	-
+M		packages/ai/src/providers/github-copilot.ts	runtime-source	-
+M		packages/ai/src/providers/model-schema.ts	runtime-source	-
+M		packages/ai/src/providers/radius-config.ts	runtime-source	-
+M		packages/ai/src/providers/radius.ts	runtime-source	-
+M		packages/ai/src/types.ts	runtime-source	-
+M		packages/ai/src/utils/openrouter-cost.ts	runtime-source	-
+A		packages/ai/src/utils/openrouter-finish-reason.ts	runtime-source	-
+M		packages/ai/src/utils/overflow.ts	runtime-source	-
+M		packages/ai/src/utils/provider-retry.ts	runtime-source	-
+M		packages/ai/src/utils/retry.ts	runtime-source	-
+A		packages/ai/src/utils/sse.ts	runtime-source	-
+M		packages/ai/src/utils/version.ts	runtime-source	-
+M		packages/ai/test/abort.test.ts	upstream-test	not-indexed
+M		packages/ai/test/anthropic-strict-tool-fallback.test.ts	upstream-test	scoped-mapped-sites
+M		packages/ai/test/anthropic-strict-tool-schema.test.ts	upstream-test	scoped-mapped-sites
+M		packages/ai/test/bedrock-credentials.test.ts	upstream-test	scoped-open-sites
+A		packages/ai/test/bedrock-proxy-credentials.test.ts	upstream-test	scoped-mapped-sites
+M		packages/ai/test/cache-retention.test.ts	upstream-test	not-indexed
+M		packages/ai/test/classifier-models.test.ts	upstream-test	not-indexed
+A		packages/ai/test/claude-model-generation.test.ts	upstream-test	not-indexed
+M		packages/ai/test/constrained-sampling.test.ts	upstream-test	not-indexed
+M		packages/ai/test/context-overflow.test.ts	upstream-test	not-indexed
+M		packages/ai/test/cross-provider-handoff.test.ts	upstream-test	not-indexed
+M		packages/ai/test/empty.test.ts	upstream-test	not-indexed
+M		packages/ai/test/github-copilot-anthropic.test.ts	upstream-test	not-indexed
+M		packages/ai/test/github-copilot-oauth.test.ts	upstream-test	not-indexed
+M		packages/ai/test/google-shared-convert-tools.test.ts	upstream-test	scoped-mapped-sites
+M		packages/ai/test/google-shared-gemini3-unsigned-tool-call.test.ts	upstream-test	scoped-mapped-sites
+M		packages/ai/test/google-shared-image-tool-result-routing.test.ts	upstream-test	not-indexed
+M		packages/ai/test/google-shared-retry.test.ts	upstream-test	not-indexed
+A		packages/ai/test/google-stream-errors.test.ts	upstream-test	scoped-mapped-sites
+M		packages/ai/test/google-thinking-level-map.test.ts	upstream-test	scoped-mapped-sites
+M		packages/ai/test/image-tool-result.test.ts	upstream-test	not-indexed
+M		packages/ai/test/llama-cpp-classify.test.ts	upstream-test	scoped-mapped-sites
+M		packages/ai/test/max-thinking.test.ts	upstream-test	scoped-mapped-sites
+M		packages/ai/test/mistral-raw-stop-reason.test.ts	upstream-test	scoped-mapped-sites
+M		packages/ai/test/mistral-tool-schema.test.ts	upstream-test	scoped-open-sites
+M		packages/ai/test/models-runtime.test.ts	upstream-test	not-indexed
+M		packages/ai/test/openai-codex-stream.test.ts	upstream-test	scoped-mapped-sites
+M		packages/ai/test/openai-completions-non-null-assistant-content.test.ts	upstream-test	scoped-mapped-sites
+M		packages/ai/test/openai-completions-raw-stop-reason.test.ts	upstream-test	scoped-mapped-sites
+M		packages/ai/test/openai-completions-tool-choice.test.ts	upstream-test	not-indexed
+M		packages/ai/test/openai-decisions.test.ts	upstream-test	scoped-mapped-sites
+A		packages/ai/test/openai-responses-tool-call-replay.test.ts	upstream-test	scoped-mapped-sites
+M		packages/ai/test/overflow.test.ts	upstream-test	scoped-mapped-sites
+A		packages/ai/test/pi-decision.test.ts	upstream-test	scoped-mapped-sites
+M		packages/ai/test/pi-messages.test.ts	upstream-test	scoped-open-sites
+A		packages/ai/test/provider-error-response.test.ts	upstream-test	scoped-mapped-sites
+M		packages/ai/test/provider-retry.test.ts	upstream-test	not-indexed
+M		packages/ai/test/providers.test.ts	upstream-test	not-indexed
+M		packages/ai/test/radius-provider.test.ts	upstream-test	not-indexed
+M		packages/ai/test/responseid.test.ts	upstream-test	not-indexed
+M		packages/ai/test/retry.test.ts	upstream-test	not-indexed
+A		packages/ai/test/sse.test.ts	upstream-test	scoped-open-sites
+M		packages/ai/test/stream.test.ts	upstream-test	not-indexed
+M		packages/ai/test/tokens.test.ts	upstream-test	not-indexed
+M		packages/ai/test/tool-call-without-result.test.ts	upstream-test	not-indexed
+M		packages/ai/test/total-tokens.test.ts	upstream-test	not-indexed
+M		packages/ai/test/typesafe-system-one.test.ts	upstream-test	scoped-mapped-sites
+M		packages/ai/test/unicode-surrogate.test.ts	upstream-test	not-indexed
+M		packages/chord/CHANGELOG.md	outside-four-package-comparison	-
+M		packages/chord/docs/decisions.md	outside-four-package-comparison	-
+M		packages/chord/docs/design.md	outside-four-package-comparison	-
+M		packages/chord/docs/guide-plugins-hosts/book.md	outside-four-package-comparison	-
+M		packages/chord/docs/plugin-authoring.md	outside-four-package-comparison	-
+M		packages/chord/docs/tutorial/book.md	outside-four-package-comparison	-
+M		packages/chord/package.json	dependency-input	-
+M		packages/chord/src/data/args.ts	outside-four-package-comparison	-
+M		packages/chord/src/link/binary.ts	outside-four-package-comparison	-
+M		packages/chord/src/link/internal.ts	outside-four-package-comparison	-
+M		packages/chord/src/link/message.ts	outside-four-package-comparison	-
+M		packages/chord/src/link/text.ts	outside-four-package-comparison	-
+M		packages/chord/src/node/app/README.md	outside-four-package-comparison	-
+M		packages/chord/src/node/http/admission.ts	outside-four-package-comparison	-
+M		packages/chord/src/node/plugins/README.md	outside-four-package-comparison	-
+M		packages/chord/src/node/plugins/build.ts	outside-four-package-comparison	-
+M		packages/chord/src/node/plugins/install.ts	outside-four-package-comparison	-
+M		packages/chord/src/node/plugins/plugins.ts	outside-four-package-comparison	-
+M		packages/chord/src/node/plugins/stack.ts	outside-four-package-comparison	-
+M		packages/chord/src/node/surfaces/published.ts	outside-four-package-comparison	-
+M		packages/chord/src/node/surfaces/surface-build.ts	outside-four-package-comparison	-
+M		packages/chord/src/node/workers/README.md	outside-four-package-comparison	-
+M		packages/chord/src/node/workers/control.ts	outside-four-package-comparison	-
+M		packages/chord/src/node/workers/main.ts	outside-four-package-comparison	-
+M		packages/chord/src/node/workers/workers.ts	outside-four-package-comparison	-
+M		packages/chord/src/remote/consumer.ts	outside-four-package-comparison	-
+M		packages/chord/src/remote/host-link.ts	outside-four-package-comparison	-
+M		packages/chord/src/store/expression.ts	outside-four-package-comparison	-
+M		packages/chord/src/store/jsonl.ts	outside-four-package-comparison	-
+M		packages/chord/src/store/open-query.ts	outside-four-package-comparison	-
+M		packages/chord/src/store/store.ts	outside-four-package-comparison	-
+M		packages/chord/src/surfaces/active-language.ts	outside-four-package-comparison	-
+M		packages/chord/src/sync/batch.ts	outside-four-package-comparison	-
+M		packages/chord/src/sync/client.ts	outside-four-package-comparison	-
+M		packages/chord/src/sync/index.ts	outside-four-package-comparison	-
+M		packages/chord/src/sync/remote.ts	outside-four-package-comparison	-
+M		packages/chord/test/examples/06-natives.ts	outside-four-package-comparison	-
+M		packages/chord/test/examples/35-plugins/main.ts	outside-four-package-comparison	-
+M		packages/chord/test/examples/38-watch-and-rollout/main.ts	outside-four-package-comparison	-
+M		packages/chord/test/examples/43-rollout/main.ts	outside-four-package-comparison	-
+M		packages/chord/test/examples/44-http-wraps/plugins/audit/server.ts	outside-four-package-comparison	-
+M		packages/chord/test/examples/61-tutorial/main.ts	outside-four-package-comparison	-
+M		packages/chord/test/host/host-data.test.ts	outside-four-package-comparison	-
+M		packages/chord/test/host/named-query.test.ts	outside-four-package-comparison	-
+M		packages/chord/test/host/query-reader.test.ts	outside-four-package-comparison	-
+M		packages/chord/test/node/app/app.test.ts	outside-four-package-comparison	-
+M		packages/chord/test/node/fixtures/reload/app.ts	outside-four-package-comparison	-
+M		packages/chord/test/node/http/admission.test.ts	outside-four-package-comparison	-
+M		packages/chord/test/node/http/headers.test.ts	outside-four-package-comparison	-
+M		packages/chord/test/node/plugins/install.test.ts	outside-four-package-comparison	-
+M		packages/chord/test/node/plugins/plugins.test.ts	outside-four-package-comparison	-
+M		packages/chord/test/node/surfaces/web.test.ts	outside-four-package-comparison	-
+M		packages/chord/test/node/workers/workers.test.ts	outside-four-package-comparison	-
+M		packages/chord/test/remote/hold.test.ts	outside-four-package-comparison	-
+M		packages/chord/test/store/import.test.ts	outside-four-package-comparison	-
+M		packages/chord/test/store/live-query.test.ts	outside-four-package-comparison	-
+M		packages/chord/test/store/store.test.ts	outside-four-package-comparison	-
+M		packages/chord/test/sync/sync.test.ts	outside-four-package-comparison	-
+M		packages/codemode/CHANGELOG.md	documentation	-
+M		packages/codemode/package.json	dependency-input	-
+M		packages/coding-agent/CHANGELOG.md	outside-four-package-comparison	-
+M		packages/coding-agent/docs/cli.md	outside-four-package-comparison	-
+M		packages/coding-agent/docs/codemode.md	outside-four-package-comparison	-
+M		packages/coding-agent/docs/extensions.md	outside-four-package-comparison	-
+M		packages/coding-agent/docs/llama-cpp.md	outside-four-package-comparison	-
+M		packages/coding-agent/docs/message-types.md	outside-four-package-comparison	-
+M		packages/coding-agent/docs/models-configuration.md	outside-four-package-comparison	-
+M		packages/coding-agent/docs/models.md	outside-four-package-comparison	-
+M		packages/coding-agent/docs/providers.md	outside-four-package-comparison	-
+M		packages/coding-agent/docs/rpc-commands.md	outside-four-package-comparison	-
+M		packages/coding-agent/docs/settings.md	outside-four-package-comparison	-
+M		packages/coding-agent/docs/shell-aliases.md	outside-four-package-comparison	-
+M		packages/coding-agent/docs/windows.md	outside-four-package-comparison	-
+M		packages/coding-agent/examples/extensions/subagent/index.ts	outside-four-package-comparison	-
+M		packages/coding-agent/examples/rpc-extension-ui.ts	outside-four-package-comparison	-
+M		packages/coding-agent/install-lock/package-lock.json	dependency-input	-
+M		packages/coding-agent/install-lock/package.json	dependency-input	-
+M		packages/coding-agent/package.json	dependency-input	-
+M		packages/coding-agent/schemas/models.schema.json	outside-four-package-comparison	-
+M		packages/coding-agent/schemas/settings.schema.json	outside-four-package-comparison	-
+M		packages/coding-agent/src/cli/project-trust.ts	outside-four-package-comparison	-
+M		packages/coding-agent/src/cli/startup-ui.ts	outside-four-package-comparison	-
+M		packages/coding-agent/src/core/agent-session.ts	outside-four-package-comparison	-
+M		packages/coding-agent/src/core/auth-storage.ts	outside-four-package-comparison	-
+M		packages/coding-agent/src/core/bash-executor.ts	outside-four-package-comparison	-
+M		packages/coding-agent/src/core/extensions/runner.ts	outside-four-package-comparison	-
+M		packages/coding-agent/src/core/extensions/types.ts	outside-four-package-comparison	-
+M		packages/coding-agent/src/core/messages.ts	outside-four-package-comparison	-
+M		packages/coding-agent/src/core/model-resolver.ts	outside-four-package-comparison	-
+M		packages/coding-agent/src/core/model-runtime.ts	outside-four-package-comparison	-
+M		packages/coding-agent/src/core/project-trust.ts	outside-four-package-comparison	-
+M		packages/coding-agent/src/core/provider-composer.ts	outside-four-package-comparison	-
+M		packages/coding-agent/src/core/resolve-config-value.ts	outside-four-package-comparison	-
+M		packages/coding-agent/src/core/session-manager.ts	outside-four-package-comparison	-
+M		packages/coding-agent/src/core/settings-defaults.ts	outside-four-package-comparison	-
+M		packages/coding-agent/src/core/settings-manager.ts	outside-four-package-comparison	-
+M		packages/coding-agent/src/core/settings-schema.ts	outside-four-package-comparison	-
+M		packages/coding-agent/src/core/tools/bash.ts	outside-four-package-comparison	-
+M		packages/coding-agent/src/core/tools/output-accumulator.ts	outside-four-package-comparison	-
+M		packages/coding-agent/src/core/tools/renderers/bash.ts	outside-four-package-comparison	-
+M		packages/coding-agent/src/core/tools/truncate.ts	outside-four-package-comparison	-
+M		packages/coding-agent/src/extensions/llama/client.ts	outside-four-package-comparison	-
+M		packages/coding-agent/src/extensions/mcp/resources.ts	outside-four-package-comparison	-
+M		packages/coding-agent/src/extensions/mcp/tools.ts	outside-four-package-comparison	-
+M		packages/coding-agent/src/main.ts	outside-four-package-comparison	-
+M		packages/coding-agent/src/modes/interactive/components/bash-execution.ts	outside-four-package-comparison	-
+M		packages/coding-agent/src/modes/interactive/components/first-time-setup.ts	outside-four-package-comparison	-
+M		packages/coding-agent/src/modes/interactive/components/mermaid.ts	outside-four-package-comparison	-
+M		packages/coding-agent/src/modes/interactive/components/oauth-selector.ts	outside-four-package-comparison	-
+M		packages/coding-agent/src/modes/interactive/components/settings-selector.ts	outside-four-package-comparison	-
+M		packages/coding-agent/src/modes/interactive/external-editor.ts	outside-four-package-comparison	-
+M		packages/coding-agent/src/modes/interactive/interactive-mode.ts	outside-four-package-comparison	-
+M		packages/coding-agent/src/modes/interactive/program-status-reporter.ts	outside-four-package-comparison	-
+M		packages/coding-agent/src/modes/interactive/session-share.ts	outside-four-package-comparison	-
+M		packages/coding-agent/src/modes/print-mode.ts	outside-four-package-comparison	-
+M		packages/coding-agent/src/modes/rpc/jsonl.ts	outside-four-package-comparison	-
+M		packages/coding-agent/src/modes/rpc/rpc-mode.ts	outside-four-package-comparison	-
+M		packages/coding-agent/src/package-manager-cli.ts	outside-four-package-comparison	-
+M		packages/coding-agent/src/utils/clipboard.ts	outside-four-package-comparison	-
+M		packages/coding-agent/src/utils/output-files.ts	outside-four-package-comparison	-
+M		packages/coding-agent/src/utils/shell.ts	outside-four-package-comparison	-
+M		packages/coding-agent/test/auth-storage.test.ts	outside-four-package-comparison	-
+M		packages/coding-agent/test/bash-executor-truncation.test.ts	outside-four-package-comparison	-
+M		packages/coding-agent/test/clipboard.test.ts	outside-four-package-comparison	-
+M		packages/coding-agent/test/external-editor.test.ts	outside-four-package-comparison	-
+M		packages/coding-agent/test/first-time-setup.test.ts	outside-four-package-comparison	-
+M		packages/coding-agent/test/interactive-mode-assistant-diagnostics.test.ts	outside-four-package-comparison	-
+M		packages/coding-agent/test/interactive-mode-compaction.test.ts	outside-four-package-comparison	-
+M		packages/coding-agent/test/interactive-mode-extension-dialogs.test.ts	outside-four-package-comparison	-
+M		packages/coding-agent/test/interactive-mode-status.test.ts	outside-four-package-comparison	-
+M		packages/coding-agent/test/mcp-extension.test.ts	outside-four-package-comparison	-
+M		packages/coding-agent/test/mermaid.test.ts	outside-four-package-comparison	-
+M		packages/coding-agent/test/oauth-selector.test.ts	outside-four-package-comparison	-
+A		packages/coding-agent/test/output-file-failures.test.ts	outside-four-package-comparison	-
+M		packages/coding-agent/test/package-command-paths.test.ts	outside-four-package-comparison	-
+M		packages/coding-agent/test/print-mode.test.ts	outside-four-package-comparison	-
+M		packages/coding-agent/test/rpc-jsonl.test.ts	outside-four-package-comparison	-
+M		packages/coding-agent/test/rpc-prompt-response-semantics.test.ts	outside-four-package-comparison	-
+M		packages/coding-agent/test/session-manager/build-context.test.ts	outside-four-package-comparison	-
+M		packages/coding-agent/test/session-share.test.ts	outside-four-package-comparison	-
+M		packages/coding-agent/test/settings-manager.test.ts	outside-four-package-comparison	-
+M		packages/coding-agent/test/settings-selector.test.ts	outside-four-package-comparison	-
+M		packages/coding-agent/test/shell-kill-process-tree.test.ts	outside-four-package-comparison	-
+A		packages/coding-agent/test/startup-ui-program-status.test.ts	outside-four-package-comparison	-
+A		packages/coding-agent/test/suite/regressions/12164-stored-command-key-auth-status.test.ts	outside-four-package-comparison	-
+M		packages/coding-agent/test/suite/regressions/4167-thinking-toggle-pending-tool-render.test.ts	outside-four-package-comparison	-
+M		packages/coding-agent/test/suite/regressions/7301-stalled-availability-refresh.test.ts	outside-four-package-comparison	-
+M		packages/coding-agent/test/tools.test.ts	outside-four-package-comparison	-
+M		packages/coding-agent/test/windows-shell-config.test.ts	outside-four-package-comparison	-
+M		packages/durable/CHANGELOG.md	documentation	-
+M		packages/durable/README.md	documentation	-
+M		packages/durable/docs/group-commit.md	documentation	-
+M		packages/durable/docs/spec.md	documentation	-
+M		packages/durable/docs/suspendable/spec.md	documentation	-
+M		packages/durable/package.json	dependency-input	-
+M		packages/durable/src/codemode/codemode.ts	runtime-source	-
+M		packages/durable/src/codemode/output.ts	runtime-source	-
+M		packages/durable/src/env/node.ts	runtime-source	-
+M		packages/durable/src/harness/agent.ts	runtime-source	-
+M		packages/durable/src/harness/compaction.ts	runtime-source	-
+M		packages/durable/src/harness/define.ts	runtime-source	-
+M		packages/durable/src/harness/generation.ts	runtime-source	-
+M		packages/durable/src/harness/harness.ts	runtime-source	-
+M		packages/durable/src/harness/live.ts	runtime-source	-
+M		packages/durable/src/harness/parks.ts	runtime-source	-
+M		packages/durable/src/harness/scheduler.ts	runtime-source	-
+M		packages/durable/src/harness/tool.ts	runtime-source	-
+M		packages/durable/src/harness/types.ts	runtime-source	-
+M		packages/durable/src/images/node-worker.ts	runtime-source	-
+M		packages/durable/src/images/node.ts	runtime-source	-
+M		packages/durable/src/session/transaction.ts	runtime-source	-
+M		packages/durable/src/session/writer.ts	runtime-source	-
+M		packages/durable/src/signals.ts	runtime-source	-
+M		packages/durable/src/storage/indexeddb.ts	runtime-source	-
+M		packages/durable/src/storage/jsonl/storage.ts	runtime-source	-
+M		packages/durable/src/storage/memory.ts	runtime-source	-
+M		packages/durable/src/storage/sqlite/storage.ts	runtime-source	-
+M		packages/durable/src/testing/commit-writes.ts	runtime-source	-
+M		packages/durable/src/testing/storage-conformance.ts	runtime-source	-
+M		packages/durable/src/types.ts	runtime-source	-
+M		packages/durable/test/examples/27-reviewer.ts	test-support	-
+M		packages/durable/test/examples/32-tests-after-edits.ts	test-support	-
+M		packages/durable/test/examples/34-submit-in-commit.ts	test-support	-
+M		packages/durable/test/examples/38-signals.ts	test-support	-
+M		packages/durable/test/examples/39-ask-a-person.ts	test-support	-
+M		packages/durable/test/examples/40-tool-waits-for-webhook.ts	test-support	-
+M		packages/durable/test/examples/41-tool-polls.ts	test-support	-
+M		packages/durable/test/examples/42-parallel-children.ts	test-support	-
+M		packages/durable/test/examples/43-subagent-waits.ts	test-support	-
+M		packages/durable/test/examples/44-approval-gate.ts	test-support	-
+M		packages/durable/test/examples/45-review-on-yield.ts	test-support	-
+M		packages/durable/test/examples/46-after-tools-terminate.ts	test-support	-
+M		packages/durable/test/harness-after-run.test.ts	upstream-test	not-indexed
+M		packages/durable/test/harness-compaction.test.ts	upstream-test	scoped-mapped-sites
+M		packages/durable/test/harness-hook-tasks.test.ts	upstream-test	not-indexed
+M		packages/durable/test/harness-inbox.test.ts	upstream-test	scoped-mapped-sites
+M		packages/durable/test/harness-nested-tools.test.ts	upstream-test	scoped-mapped-sites
+M		packages/durable/test/harness-park-children.test.ts	upstream-test	scoped-mapped-sites
+M		packages/durable/test/harness-signals.test.ts	upstream-test	scoped-mapped-sites
+M		packages/durable/test/harness-submit-in-commit.test.ts	upstream-test	scoped-mapped-sites
+M		packages/durable/test/harness-telemetry.test.ts	upstream-test	not-indexed
+M		packages/durable/test/harness-tool-gates.test.ts	upstream-test	not-indexed
+M		packages/durable/test/harness-tool-parks.test.ts	upstream-test	scoped-open-sites
+M		packages/durable/test/harness-tools.test.ts	upstream-test	not-indexed
+M		packages/durable/test/harness-turn-limit.test.ts	upstream-test	scoped-open-sites
+M		packages/durable/test/indexeddb-storage.test.ts	upstream-test	not-indexed
+M		packages/durable/test/jsonl-storage.test.ts	upstream-test	not-indexed
+M		packages/durable/test/session-cached-storage.test.ts	upstream-test	not-indexed
+M		packages/durable/test/session-support.ts	test-support	-
+M		packages/durable/test/spec-usage.test.ts	upstream-test	not-indexed
+M		packages/durable/test/sqlite-commit.test.ts	upstream-test	not-indexed
+M		packages/durable/test/sqlite-storage.test.ts	upstream-test	not-indexed
+M		packages/durable/test/store-storage-commit.test.ts	upstream-test	scoped-open-sites
+M		packages/env/CHANGELOG.md	outside-four-package-comparison	-
+M		packages/env/package.json	dependency-input	-
+M		packages/env/src/remote-env.ts	outside-four-package-comparison	-
+M		packages/evals/package.json	dependency-input	-
+M		packages/mcp/CHANGELOG.md	outside-four-package-comparison	-
+M		packages/mcp/README.md	outside-four-package-comparison	-
+M		packages/mcp/package.json	dependency-input	-
+M		packages/mcp/src/client.ts	outside-four-package-comparison	-
+M		packages/mcp/src/index.ts	outside-four-package-comparison	-
+A		packages/mcp/src/model-content.ts	outside-four-package-comparison	-
+M		packages/mcp/src/protocol/jsonrpc.ts	outside-four-package-comparison	-
+A		packages/mcp/src/result-schema.ts	outside-four-package-comparison	-
+M		packages/mcp/src/transports/streamable-http.ts	outside-four-package-comparison	-
+A		packages/mcp/test/model-content.test.ts	outside-four-package-comparison	-
+A		packages/mcp/test/result-schema.test.ts	outside-four-package-comparison	-
+M		packages/mcp/test/streamable-http.test.ts	outside-four-package-comparison	-
+M		packages/schema/CHANGELOG.md	documentation	-
+M		packages/schema/package.json	dependency-input	-
+M		packages/telemetry/CHANGELOG.md	outside-four-package-comparison	-
+M		packages/telemetry/package.json	dependency-input	-
+M		packages/tui/CHANGELOG.md	outside-four-package-comparison	-
+M		packages/tui/package.json	dependency-input	-
+M		packages/tui/src/components/editor.ts	outside-four-package-comparison	-
+M		packages/tui/src/components/markdown.ts	outside-four-package-comparison	-
+M		packages/tui/src/stdin-buffer.ts	outside-four-package-comparison	-
+M		packages/tui/src/terminal-image.ts	outside-four-package-comparison	-
+M		packages/tui/src/tui-alt-screen.ts	outside-four-package-comparison	-
+M		packages/tui/src/tui-main-screen.ts	outside-four-package-comparison	-
+M		packages/tui/test/editor.test.ts	outside-four-package-comparison	-
+M		packages/tui/test/markdown.test.ts	outside-four-package-comparison	-
+M		packages/tui/test/stdin-buffer.test.ts	outside-four-package-comparison	-
+M		packages/tui/test/tui-alt-screen.test.ts	outside-four-package-comparison	-
+M		packages/tui/test/tui-render.test.ts	outside-four-package-comparison	-
+M		scripts/generate-coding-agent-install-lock.mjs	outside-four-package-comparison	-

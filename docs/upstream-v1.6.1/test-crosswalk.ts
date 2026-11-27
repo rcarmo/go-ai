@@ -11,20 +11,27 @@ if (!mirror || !["--write", "--check"].includes(mode) || extra) {
 }
 const git = (...args: string[]) => execFileSync("git", args, { cwd: mirror, encoding: "utf8" });
 const splitNul = (data: string) => data ? data.slice(0, -1).split("\0") : [];
-const testPath = (path: string) => areas.some(area => path.startsWith(`${area}/test/`)) && /\.(test|spec)\.[cm]?[jt]sx?$/.test(path);
+const testPath = (path: string) => areas.some(area => ["test", "test-workers"].some(dir => path.startsWith(`${area}/${dir}/`))) && /\.(test|spec)\.[cm]?[jt]sx?$/.test(path);
 const corpus = new Set(splitNul(git("ls-tree", "-rz", "--name-only", pin, "--", ...areas)).filter(testPath));
 const changed = new Map<string, string>();
+const paths: { status: string; previous: string; path: string }[] = [];
 const diff = splitNul(git("diff", "--name-status", "-z", "--find-renames", base, pin));
 for (let i = 0; i < diff.length;) {
 	const status = diff[i++];
 	const old = diff[i++];
 	if (status.startsWith("R") || status.startsWith("C")) {
 		const next = diff[i++];
+		paths.push({status, previous: old, path: next});
 		if (testPath(next)) changed.set(next, status);
 		if (status.startsWith("R") && testPath(old)) changed.set(old, "renamed-away");
-	} else if (testPath(old)) {
-		changed.set(old, status);
+	} else {
+		paths.push({status, previous: "", path: old});
+		if (testPath(old)) changed.set(old, status);
 	}
+}
+const inventory = paths.map(({status, previous, path}) => [status, ...(previous ? [previous] : []), path].join("\t")).join("\n") + "\n";
+if (readFileSync(join(import.meta.dir, "upstream-changes.tsv"), "utf8") !== inventory) {
+	throw Error("Changed-path inventory does not match the pinned Git diff");
 }
 
 type Evidence = {
@@ -66,16 +73,38 @@ for (const ledger of readdirSync(ledgers).filter(path => path.endsWith(".jsonl")
 }
 const files = [...new Set([...corpus, ...changed.keys()])].sort();
 const header = "upstream_test_file\tdelta\tledger_state\tscoped_cases\toriginal_cases_with_receipt\tmapped_sites\tpartial_sites\tunmatched_sites\tcandidate_sites";
+const states = new Map<string, string>();
 const lines = files.map(file => {
 	const evidence = sources.get(file) ?? empty();
 	const { cases, originalsWithReceipt, mapped, partial, unmatched, candidate } = evidence;
 	const state = !corpus.has(file) ? "no-longer-in-corpus"
 		: cases === 0 ? "not-indexed"
 		: partial + unmatched + candidate > 0 ? "scoped-open-sites" : "scoped-mapped-sites";
+	states.set(file, state);
 	return [file, changed.get(file) ?? "unchanged", state, cases, originalsWithReceipt, mapped, partial, unmatched, candidate].join("\t");
 });
-const output = [header, ...lines, ""].join("\n");
-const destination = join(import.meta.dir, "test-crosswalk.tsv");
-if (mode === "--write") writeFileSync(destination, output);
-else if (readFileSync(destination, "utf8") !== output) throw Error("Test crosswalk is stale; regenerate with --write");
+function disposition(path: string): string {
+	if (["package.json", "package-lock.json"].includes(path.split("/").at(-1)!)) return "dependency-input";
+	const area = areas.find(candidate => path.startsWith(candidate + "/"));
+	if (!area) return "outside-four-package-comparison";
+	const rest = path.slice(area.length + 1);
+	if (testPath(path)) return "upstream-test";
+	if (rest.startsWith("test/") || rest.startsWith("test-workers/") || rest.startsWith("vitest")) return "test-support";
+	if (rest.startsWith("catalog/") || rest.startsWith("src/providers/data/")) return "catalog-input";
+	if (rest.startsWith("src/")) return "runtime-source";
+	if (/\.md$/.test(rest)) return "documentation";
+	return "package-support";
+}
+const pathHeader = "delta\tprevious_path\tpath\taudit_disposition\ttest_ledger_state";
+const pathLines = paths.map(({status, previous, path}) => [status, previous, path, disposition(path), states.get(path) ?? "-"].join("\t"));
+const reports = {
+	"test-crosswalk.tsv": [header, ...lines, ""].join("\n"),
+	"upstream-disposition.tsv": [pathHeader, ...pathLines, ""].join("\n"),
+};
+for (const [name, output] of Object.entries(reports)) {
+	const destination = join(import.meta.dir, name);
+	if (mode === "--write") writeFileSync(destination, output);
+	else if (readFileSync(destination, "utf8") !== output) throw Error(`${name} is stale; regenerate with --write`);
+}
+console.log(`${paths.length} pinned changed-path dispositions.`);
 console.log(`${corpus.size} pinned test files, ${sources.size} with scoped ledger entries, ${seen.size} indexed assertion sites. No tests executed.`);
