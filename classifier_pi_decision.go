@@ -3,8 +3,10 @@ package goai
 import (
 	"context"
 	"fmt"
+	"math"
 	"net/url"
 	"slices"
+	"strconv"
 )
 
 const piDecisionLabel = "Pi Decision"
@@ -73,10 +75,21 @@ func parsePiDecisionUsage(value any, model *ClassifierModel) *Usage {
 	}
 	_, inputErr := requiredFloat(piDecisionLabel, m["input"], "input")
 	_, outputErr := requiredFloat(piDecisionLabel, m["output"], "output")
-	if inputErr != nil && outputErr != nil {
+	cost, _ := m["cost"].(map[string]any)
+	billedTotal, costErr := requiredFloat(piDecisionLabel, cost["total"], "cost.total")
+	if inputErr != nil && outputErr != nil && costErr != nil {
 		return nil
 	}
 	usage := &Usage{Input: positiveInt(m["input"]), Output: positiveInt(m["output"]), CacheRead: positiveInt(m["cacheRead"]), CacheWrite: positiveInt(m["cacheWrite"])}
+	optionalCounter := func(key string) (int, bool) {
+		n, err := requiredFloat(piDecisionLabel, m[key], key)
+		if err != nil || n < 0 || n >= math.Ldexp(1, strconv.IntSize-1) || math.Trunc(n) != n {
+			return 0, false
+		}
+		return int(n), true
+	}
+	usage.Reasoning, usage.ReasoningSet = optionalCounter("reasoning")
+	usage.ImageOutput, usage.ImageOutputSet = optionalCounter("imageOutput")
 	if total, err := requiredFloat(piDecisionLabel, m["totalTokens"], "totalTokens"); err == nil && total >= 0 {
 		usage.TotalTokens = positiveInt(m["totalTokens"])
 	} else {
@@ -85,19 +98,17 @@ func parsePiDecisionUsage(value any, model *ClassifierModel) *Usage {
 			usage.TotalTokens += min(count, maxInt-usage.TotalTokens)
 		}
 	}
-	if cost, ok := m["cost"].(map[string]any); ok {
-		if total, err := requiredFloat(piDecisionLabel, cost["total"], "cost.total"); err == nil {
-			nonNegative := func(key string) float64 {
-				f, _ := requiredFloat(piDecisionLabel, cost[key], key)
-				return max(0, f)
-			}
-			usage.Cost = CostBreakdown{Input: nonNegative("input"), Output: nonNegative("output"),
-				CacheRead: nonNegative("cacheRead"), CacheWrite: nonNegative("cacheWrite"), Total: max(0, total)}
-			if billed, ok := cost["totalFromProvider"].(bool); ok {
-				usage.Cost.TotalFromProvider = &billed
-			}
-			return usage
+	if costErr == nil {
+		nonNegative := func(key string) float64 {
+			f, _ := requiredFloat(piDecisionLabel, cost[key], key)
+			return max(0, f)
 		}
+		usage.Cost = CostBreakdown{Input: nonNegative("input"), Output: nonNegative("output"),
+			CacheRead: nonNegative("cacheRead"), CacheWrite: nonNegative("cacheWrite"), Total: max(0, billedTotal)}
+		if billed, ok := cost["totalFromProvider"].(bool); ok {
+			usage.Cost.TotalFromProvider = &billed
+		}
+		return usage
 	}
 	usage.Cost = CalculateCost(&Model{Cost: model.Cost}, usage)
 	return usage

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -208,5 +209,38 @@ func TestSourceV161PiDecisionImageInput(t *testing.T) {
 	}
 	if wire.calls != 1 {
 		t.Errorf("after text-only rejection, transport calls=%d, want one", wire.calls)
+	}
+}
+
+func TestPiDecisionUsageOptionalSplitsAndCost(t *testing.T) {
+	data, err := os.ReadFile("testdata/pi-usage.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cases []struct {
+		Name  string
+		Usage json.RawMessage
+		Want  *goai.Usage
+	}
+	if err := json.Unmarshal(data, &cases); err != nil || len(cases) != 6 {
+		t.Fatalf("Pi usage fixtures: %d cases, %v", len(cases), err)
+	}
+	for _, tc := range cases {
+		t.Run(tc.Name, func(t *testing.T) {
+			model, ctx := piDecisionFixtureV161()
+			model.Cost.ImageOutput = new(10.0)
+			var wire piDecisionWireV161
+			body := `{"answers":` + piDecisionAnswersV161 + `,"responseId":"gen-usage","usage":` + string(tc.Usage) + `}`
+			opts := wire.options(t, http.StatusOK, nil, io.NopCloser(strings.NewReader(body)))
+			got := requirePiDecisionResultV161(t, model, ctx, opts)
+			if got.StopReason != goai.StopReasonStop || got.ResponseID != "gen-usage" || wire.calls != 1 || len(got.Answers) != 3 {
+				t.Fatalf("expected one successful classified response with all answers: %+v, calls=%d", got, wire.calls)
+			}
+			if !reflect.DeepEqual(got.Usage, tc.Want) {
+				actual, _ := json.Marshal(got.Usage)
+				expected, _ := json.Marshal(tc.Want)
+				t.Errorf("usage = %s; want %s", actual, expected)
+			}
+		})
 	}
 }

@@ -1,0 +1,32 @@
+[
+  {
+    "name": "cost-only-zero",
+    "usage": {"cost": {"total": 0, "totalFromProvider": true}},
+    "want": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0, "totalTokens": 0, "cost": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0, "total": 0, "totalFromProvider": true}}
+  },
+  {
+    "name": "cost-only-provenance-omitted",
+    "usage": {"cost": {"input": -2, "output": 0.042, "total": 0.042}},
+    "want": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0, "totalTokens": 0, "cost": {"input": 0, "output": 0.042, "cacheRead": 0, "cacheWrite": 0, "total": 0.042}}
+  },
+  {
+    "name": "present-zero-and-image-split",
+    "usage": {"input": 10, "output": 7, "cacheRead": 2, "cacheWrite": 3, "reasoning": 0, "imageOutput": 4, "cost": {"total": 0.123, "totalFromProvider": false}},
+    "want": {"input": 10, "output": 7, "cacheRead": 2, "cacheWrite": 3, "reasoning": 0, "imageOutput": 4, "totalTokens": 22, "cost": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0, "total": 0.123, "totalFromProvider": false}}
+  },
+  {
+    "name": "invalid-optional-splits",
+    "usage": {"output": 3, "reasoning": -1, "imageOutput": "4", "cost": {"total": 0.003}},
+    "want": {"input": 0, "output": 3, "cacheRead": 0, "cacheWrite": 0, "totalTokens": 3, "cost": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0, "total": 0.003}}
+  },
+  {
+    "name": "invalid-billing-without-tokens",
+    "usage": {"reasoning": 0, "cost": {"total": "0"}},
+    "want": null
+  },
+  {
+    "name": "catalog-estimate-uses-split",
+    "usage": {"output": 10, "reasoning": 3, "imageOutput": 4},
+    "want": {"input": 0, "output": 10, "cacheRead": 0, "cacheWrite": 0, "reasoning": 3, "imageOutput": 4, "totalTokens": 10, "cost": {"input": 0, "output": 0.000049, "cacheRead": 0, "cacheWrite": 0, "total": 0.000049, "totalFromProvider": false}}
+  }
+]
