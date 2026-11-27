@@ -279,6 +279,7 @@ type chatMessage struct {
 	ReasoningContent *string           `json:"reasoning_content,omitempty"`
 	Reasoning        *string           `json:"reasoning,omitempty"`
 	ReasoningText    *string           `json:"reasoning_text,omitempty"`
+	ReasoningOpaque  string            `json:"reasoning_opaque,omitempty"`
 	ToolCalls        []toolCallPart    `json:"tool_calls,omitempty"`
 	ToolCallID       string            `json:"tool_call_id,omitempty"`
 	Name             string            `json:"name,omitempty"`
@@ -856,6 +857,7 @@ func convertMessages(model *goai.Model, convCtx *goai.Context, compat *goai.Open
 			// Collect text and thinking
 			var textParts []string
 			var thinkingParts []string
+			var opaque opaqueReasoningSignature
 			for _, c := range m.Content {
 				switch c.Type {
 				case "text":
@@ -866,7 +868,9 @@ func convertMessages(model *goai.Model, convCtx *goai.Context, compat *goai.Open
 					if c.Thinking != "" {
 						thinkingParts = append(thinkingParts, c.Thinking)
 					}
-					if details := validReplayReasoningDetails(c.ThinkingSignature); len(details) > 0 {
+					if decoded, ok := decodeOpaqueReasoningSignature(c.ThinkingSignature); ok {
+						opaque = decoded
+					} else if details := validReplayReasoningDetails(c.ThinkingSignature); len(details) > 0 {
 						msg.ReasoningDetails = append(msg.ReasoningDetails, details...)
 					}
 				case "toolCall":
@@ -910,19 +914,26 @@ func convertMessages(model *goai.Model, convCtx *goai.Context, compat *goai.Open
 				msg.Content = goai.SanitizeSurrogates(joinStrings(textParts))
 			}
 
-			if len(msg.ReasoningDetails) == 0 && len(thinkingParts) > 0 && (compat.RequiresThinkingAsText == nil || !*compat.RequiresThinkingAsText) {
-				for _, block := range m.Content {
-					if block.Type == "thinking" && block.Thinking != "" {
-						value := strings.Join(thinkingParts, "\n")
-						switch completionsReasoningField(model.Provider, block.ThinkingSignature) {
-						case "reasoning_content":
-							msg.ReasoningContent = &value
-						case "reasoning":
-							msg.Reasoning = &value
-						case "reasoning_text":
-							msg.ReasoningText = &value
+			if len(msg.ReasoningDetails) == 0 {
+				msg.ReasoningOpaque = opaque.Opaque
+				if len(thinkingParts) > 0 && (compat.RequiresThinkingAsText == nil || !*compat.RequiresThinkingAsText) {
+					field := opaque.Field
+					if opaque.Opaque == "" {
+						for _, block := range m.Content {
+							if block.Type == "thinking" && block.Thinking != "" {
+								field = block.ThinkingSignature
+								break
+							}
 						}
-						break
+					}
+					value := strings.Join(thinkingParts, "\n")
+					switch completionsReasoningField(model.Provider, field) {
+					case "reasoning_content":
+						msg.ReasoningContent = &value
+					case "reasoning":
+						msg.Reasoning = &value
+					case "reasoning_text":
+						msg.ReasoningText = &value
 					}
 				}
 			}
@@ -1059,6 +1070,36 @@ type sseDelta struct {
 	ReasoningContent *string           `json:"reasoning_content,omitempty"`
 	ReasoningText    *string           `json:"reasoning_text,omitempty"`
 	ReasoningDetails []reasoningDetail `json:"reasoning_details,omitempty"`
+	ReasoningOpaque  json.RawMessage   `json:"reasoning_opaque,omitempty"`
+}
+
+// Copilot stores opaque replay data on a thinking block. The optional field
+// identifies the wire field for its text; a value can also arrive without text.
+type opaqueReasoningSignature struct {
+	Field  string `json:"field,omitempty"`
+	Opaque string `json:"reasoning_opaque"`
+}
+
+func decodeOpaqueReasoningSignature(signature string) (opaqueReasoningSignature, bool) {
+	if signature == "" || signature[0] != '{' {
+		return opaqueReasoningSignature{}, false
+	}
+	var stored map[string]json.RawMessage
+	var decoded opaqueReasoningSignature
+	if json.Unmarshal([]byte(signature), &stored) != nil || json.Unmarshal(stored["reasoning_opaque"], &decoded.Opaque) != nil || decoded.Opaque == "" {
+		return opaqueReasoningSignature{}, false
+	}
+	field, present := stored["field"]
+	if !present {
+		return decoded, true
+	}
+	if json.Unmarshal(field, &decoded.Field) == nil {
+		switch decoded.Field {
+		case "reasoning_content", "reasoning", "reasoning_text":
+			return decoded, true
+		}
+	}
+	return opaqueReasoningSignature{}, false
 }
 
 type reasoningDetail struct {
@@ -1206,16 +1247,45 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 	toolsByIndex := make(map[int]*activeToolCall)
 	toolsByID := make(map[string]*activeToolCall)
 	var streamedReasoningDetails []reasoningDetail
+	var streamedReasoning opaqueReasoningSignature
 	var thinkingBlockIdx = -1
 	var textBlockIdx = -1
 	var finishReason *string
 	var nativeReason, nativeAtFinish string
 	isOpenRouter := model.Provider == goai.ProviderOpenRouter || strings.Contains(model.BaseURL, "openrouter.ai")
+	ensureThinkingBlock := func() int {
+		if thinkingBlockIdx < 0 {
+			partial.Content = append(partial.Content, goai.ContentBlock{Type: "thinking"})
+			thinkingBlockIdx = len(partial.Content) - 1
+			send(goai.SnapshotEvent(&goai.ThinkingStartEvent{ContentIndex: thinkingBlockIdx, Partial: partial}))
+		}
+		return thinkingBlockIdx
+	}
+	applyReasoningReplayData := func() {
+		if thinkingBlockIdx < 0 {
+			return
+		}
+		var replay any
+		if len(streamedReasoningDetails) > 0 {
+			replay = streamedReasoningDetails
+		} else if streamedReasoning.Opaque != "" {
+			replay = streamedReasoning
+		} else {
+			return
+		}
+		if signature, err := json.Marshal(replay); err == nil {
+			partial.Content[thinkingBlockIdx].ThinkingSignature = string(signature)
+		}
+	}
+	failStream := func(err error) {
+		applyReasoningReplayData()
+		send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err})
+	}
 
 	events := sse.Parse(body)
 	for evt := range events {
 		if evt.Event == sse.EventError {
-			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("SSE stream error: %s", evt.Data)})
+			failStream(fmt.Errorf("SSE stream error: %s", evt.Data))
 			return
 		}
 		if evt.Data == "[DONE]" {
@@ -1228,7 +1298,7 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 		}
 		if opts != nil && opts.OnProviderStreamEvent != nil {
 			if err := opts.OnProviderStreamEvent(chunk, model); err != nil {
-				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err})
+				failStream(err)
 				return
 			}
 		}
@@ -1278,18 +1348,11 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 			reasoningDelta, reasoningField = *delta.ReasoningText, "reasoning_text"
 		}
 		if reasoningDelta != "" {
-			if thinkingBlockIdx < 0 {
-				partial.Content = append(partial.Content, goai.ContentBlock{Type: "thinking"})
-				thinkingBlockIdx = len(partial.Content) - 1
-				send(goai.SnapshotEvent(&goai.ThinkingStartEvent{
-					ContentIndex: thinkingBlockIdx,
-					Partial:      partial,
-				}))
-			}
-			idx := thinkingBlockIdx
+			streamedReasoning.Field = completionsReasoningField(model.Provider, reasoningField)
+			idx := ensureThinkingBlock()
 			partial.Content[idx].Thinking += reasoningDelta
 			if partial.Content[idx].ThinkingSignature == "" {
-				partial.Content[idx].ThinkingSignature = completionsReasoningField(model.Provider, reasoningField)
+				partial.Content[idx].ThinkingSignature = streamedReasoning.Field
 			}
 			send(goai.SnapshotEvent(&goai.ThinkingDeltaEvent{
 				ContentIndex: idx,
@@ -1298,6 +1361,15 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 			}))
 		}
 
+		// Read metadata before visible text so an opaque-only block has the
+		// same position as a reasoning block with deltas.
+		if len(delta.ReasoningOpaque) > 0 {
+			var opaque string
+			if json.Unmarshal(delta.ReasoningOpaque, &opaque) == nil && opaque != "" {
+				ensureThinkingBlock()
+				streamedReasoning.Opaque = opaque
+			}
+		}
 		// reasoning_details are replay metadata. Keep them on a single thinking
 		// block signature, merging adjacent text/summary deltas in stream order.
 		for _, detail := range delta.ReasoningDetails {
@@ -1305,11 +1377,7 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 				continue
 			}
 			streamedReasoningDetails = appendReasoningDetail(streamedReasoningDetails, detail)
-			if thinkingBlockIdx < 0 || thinkingBlockIdx >= len(partial.Content) || partial.Content[thinkingBlockIdx].Type != "thinking" {
-				partial.Content = append(partial.Content, goai.ContentBlock{Type: "thinking"})
-				thinkingBlockIdx = len(partial.Content) - 1
-				send(&goai.ThinkingStartEvent{ContentIndex: thinkingBlockIdx, Partial: partial})
-			}
+			ensureThinkingBlock()
 		}
 		// Text content
 		if delta.Content != nil && *delta.Content != "" {
@@ -1397,7 +1465,7 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 				at.customStream.PropertySet = true
 				deltaJSON, err := at.customStream.Append(string(tc.Custom.Input))
 				if err != nil {
-					send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err})
+					failStream(err)
 					return
 				}
 				partial.Content[at.contentIdx].SetStreamingArguments(at.customStream.Arguments(), "")
@@ -1409,11 +1477,7 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 
 	}
 
-	if len(streamedReasoningDetails) > 0 && thinkingBlockIdx >= 0 && thinkingBlockIdx < len(partial.Content) && partial.Content[thinkingBlockIdx].Type == "thinking" {
-		if sig, err := json.Marshal(streamedReasoningDetails); err == nil {
-			partial.Content[thinkingBlockIdx].ThinkingSignature = string(sig)
-		}
-	}
+	applyReasoningReplayData()
 
 	// Close any open text blocks
 	for i, c := range partial.Content {
