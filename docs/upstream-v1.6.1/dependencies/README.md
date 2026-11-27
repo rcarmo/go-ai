@@ -44,3 +44,7 @@ The [`@google/genai` 3.6.1 receipt](google-sdk-input.json) records the exact npm
 ## Bedrock SDK input
 
 The [Bedrock SDK receipt](bedrock-sdk-input.json) compares the pinned `@aws-sdk/client-bedrock-runtime` 3.1127.0 npm archive with the staged manifest and CommonJS entry. An isolated Node import of the unchanged upstream provider loaded the same entry. The probe did not construct a client, send a request or run the upstream Bedrock tests. Run [the probe](probe-bedrock-sdk-input.sh) with the pinned Git mirror, staged oracle and npm `_cacache` directory to reproduce the receipt offline.
+
+## Photon image worker
+
+The [Photon receipt](photon-codec-input.json) records archive, JavaScript glue and WebAssembly byte checks for Photon 0.3.3. The unchanged Node BMP-to-PNG test passed offline, and a trace confirmed that the worker loaded the verified glue and instantiated the matching WASM. A comment-only change to the private glue copy kept the test green but failed the archive identity check. This did not compare the Go encoder or run a workerd worker.
