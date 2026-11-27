@@ -119,12 +119,33 @@ func classifyOpenAIDecisions(model *ClassifierModel, classCtx ClassifierContext,
 	if !ok {
 		return fail(fmt.Errorf("OpenAI Decisions returned an unexpected response"))
 	}
-	out.Usage = parseClassifierUsage(body["usage"], model)
+	out.Usage = parseDecisionsUsage(body["usage"], model)
 	out.Answers, err = parseDecisionsAnswers(body["answers"], classCtx)
 	if err != nil {
 		return fail(err)
 	}
 	return out, nil
+}
+
+func parseDecisionsUsage(value any, model *ClassifierModel) *Usage {
+	usage := parseClassifierUsage(value, model)
+	if usage == nil {
+		return nil
+	}
+	wire, _ := value.(map[string]any)
+	details, _ := wire["input_tokens_details"].(map[string]any)
+	// OpenAI includes reads and writes in input_tokens. Keep the total, but
+	// price those tokens under their own rates rather than as fresh input.
+	cacheRead := min(positiveInt(details["cached_tokens"]), usage.Input)
+	cacheWrite := min(positiveInt(details["cache_write_tokens"]), usage.Input-cacheRead)
+	if cacheRead == 0 && cacheWrite == 0 {
+		return usage
+	}
+	usage.Input -= cacheRead + cacheWrite
+	usage.CacheRead = cacheRead
+	usage.CacheWrite = cacheWrite
+	usage.Cost = CalculateCost(&Model{Cost: model.Cost}, usage)
+	return usage
 }
 
 func parseDecisionsAnswers(value any, ctx ClassifierContext) (map[string]ClassifierAnswer, error) {
