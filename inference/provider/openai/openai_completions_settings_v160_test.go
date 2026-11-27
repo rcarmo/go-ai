@@ -3,7 +3,6 @@ package openai
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"reflect"
 	"strings"
@@ -65,7 +64,7 @@ func TestSourceV160OpenCodeGrokBuildOmitsReasoningEffort(t *testing.T) {
 	}
 	var payload map[string]any
 	requests := 0
-	transport := promptCacheTransportV160(func(r *http.Request) (*http.Response, error) {
+	transport := openaiTestRoundTripper(func(r *http.Request) (*http.Response, error) {
 		requests++
 		defer r.Body.Close()
 		if want := strings.TrimRight(model.BaseURL, "/") + "/responses"; r.Method != http.MethodPost || r.URL.String() != want {
@@ -74,8 +73,7 @@ func TestSourceV160OpenCodeGrokBuildOmitsReasoningEffort(t *testing.T) {
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			return nil, err
 		}
-		return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {"text/event-stream"}},
-			Body: io.NopCloser(strings.NewReader("data: {\"type\":\"response.completed\",\"response\":{\"status\":\"completed\",\"usage\":{\"input_tokens\":1,\"output_tokens\":1,\"total_tokens\":2}}}\n\n")), Request: r}, nil
+		return successfulSSETestResponse(r, "data: {\"type\":\"response.completed\",\"response\":{\"status\":\"completed\",\"usage\":{\"input_tokens\":1,\"output_tokens\":1,\"total_tokens\":2}}}\n\n"), nil
 	})
 	level := goai.ThinkingHigh
 	got, err := goai.Complete(t.Context(), model, completionsChoiceContextV160("Hi"), &goai.StreamOptions{APIKey: "test", Reasoning: &level, HTTPTransport: transport})

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"reflect"
 	"slices"
@@ -45,7 +44,7 @@ func opaqueToolV170(index int, id string) string {
 func (f *opaqueFixtureV170) run(t *testing.T, messages ...goai.Message) (*goai.Message, []string, error) {
 	t.Helper()
 	zero := 0
-	opts := &goai.StreamOptions{APIKey: "test", MaxRetries: &zero, OnProviderStreamEvent: f.onEvent, HTTPTransport: promptCacheTransportV160(func(r *http.Request) (*http.Response, error) {
+	opts := &goai.StreamOptions{APIKey: "test", MaxRetries: &zero, OnProviderStreamEvent: f.onEvent, HTTPTransport: openaiTestRoundTripper(func(r *http.Request) (*http.Response, error) {
 		defer r.Body.Close()
 		n := len(f.requests)
 		if n >= len(f.sets) || r.Method != http.MethodPost || r.URL.String() != opaqueBaseV170+"/chat/completions" {
@@ -58,7 +57,7 @@ func (f *opaqueFixtureV170) run(t *testing.T, messages ...goai.Message) (*goai.M
 			return nil, err
 		}
 		f.requests = append(f.requests, wire.Messages)
-		return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {"text/event-stream"}}, Body: io.NopCloser(strings.NewReader(strings.Join(f.sets[n], "")))}, nil
+		return successfulSSETestResponse(nil, strings.Join(f.sets[n], "")), nil
 	})}
 	input := &goai.Context{Messages: messages, Tools: []goai.Tool{{Name: "read", Description: "Read a file", Parameters: json.RawMessage(`{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}`)}}}
 	var final *goai.Message

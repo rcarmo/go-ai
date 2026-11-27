@@ -2,7 +2,6 @@ package openai
 
 import (
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -68,13 +67,13 @@ func TestSourceV161CompletionsRawStopReason(t *testing.T) {
 			}
 			body.WriteString("data: [DONE]\n\n")
 			requests := 0
-			transport := promptCacheTransportV160(func(r *http.Request) (*http.Response, error) {
+			transport := openaiTestRoundTripper(func(r *http.Request) (*http.Response, error) {
 				defer r.Body.Close()
 				requests++
 				if requests != 1 || r.Method != http.MethodPost || r.URL.String() != model.BaseURL+"/chat/completions" || r.Header.Get("Authorization") != "Bearer test" {
 					return nil, fmt.Errorf("unexpected scripted request %d: %s %s", requests, r.Method, r.URL)
 				}
-				return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {"text/event-stream"}}, Body: io.NopCloser(strings.NewReader(body.String()))}, nil
+				return successfulSSETestResponse(nil, body.String()), nil
 			})
 			zero := 0
 			message, err := goai.Complete(t.Context(), model, &goai.Context{Messages: []goai.Message{goai.UserMessage("hello")}},

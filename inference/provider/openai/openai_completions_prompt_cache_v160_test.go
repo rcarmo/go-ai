@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"reflect"
 	"strings"
@@ -14,10 +13,6 @@ import (
 )
 
 const promptCacheProxyV160 = "https://proxy.example.com/v1"
-
-type promptCacheTransportV160 func(*http.Request) (*http.Response, error)
-
-func (f promptCacheTransportV160) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
 type promptCacheRequestV160 struct {
 	payload map[string]any
@@ -55,7 +50,7 @@ func captureCompletionsWireUsingV160(t *testing.T, model *goai.Model, ctx *goai.
 	var got promptCacheRequestV160
 	var requestCount int
 	opts.APIKey = "test-key"
-	opts.HTTPTransport = promptCacheTransportV160(func(r *http.Request) (*http.Response, error) {
+	opts.HTTPTransport = openaiTestRoundTripper(func(r *http.Request) (*http.Response, error) {
 		requestCount++
 		defer r.Body.Close()
 		wantURL := strings.TrimRight(model.BaseURL, "/") + "/chat/completions"
@@ -66,12 +61,7 @@ func captureCompletionsWireUsingV160(t *testing.T, model *goai.Model, ctx *goai.
 			return nil, err
 		}
 		got.headers = r.Header.Clone()
-		return &http.Response{
-			StatusCode: http.StatusOK,
-			Header:     http.Header{"Content-Type": {"text/event-stream"}},
-			Body:       io.NopCloser(strings.NewReader("data: {\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":1,\"completion_tokens\":1,\"prompt_tokens_details\":{\"cached_tokens\":0},\"completion_tokens_details\":{\"reasoning_tokens\":0}}}\n\ndata: [DONE]\n\n")),
-			Request:    r,
-		}, nil
+		return successfulSSETestResponse(r, "data: {\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":1,\"completion_tokens\":1,\"prompt_tokens_details\":{\"cached_tokens\":0},\"completion_tokens_details\":{\"reasoning_tokens\":0}}}\n\ndata: [DONE]\n\n"), nil
 	})
 	var completed int
 	for e := range stream(t.Context(), model, ctx, &opts) {
@@ -270,7 +260,7 @@ func TestCompletionsPromptCachePayloadHookStopsBeforeTransport(t *testing.T) {
 			}
 			return nil, abort
 		},
-		HTTPTransport: promptCacheTransportV160(func(*http.Request) (*http.Response, error) {
+		HTTPTransport: openaiTestRoundTripper(func(*http.Request) (*http.Response, error) {
 			dials++
 			return nil, errors.New("unexpected HTTP request")
 		}),

@@ -50,7 +50,7 @@ func TestSourceV161WorkersAIToolCallReplayContent(t *testing.T) {
 			hooks, stop := 0, false
 			for ev := range goai.Stream(t.Context(), model, transcript, &goai.StreamOptions{
 				APIKey: "test", Env: goai.ProviderEnv{"CLOUDFLARE_ACCOUNT_ID": "test"},
-				HTTPTransport: promptCacheTransportV160(func(*http.Request) (*http.Response, error) {
+				HTTPTransport: openaiTestRoundTripper(func(*http.Request) (*http.Response, error) {
 					sends.Add(1)
 					return nil, errors.New("unexpected request after payload hook")
 				}),

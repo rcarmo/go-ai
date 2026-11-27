@@ -3,7 +3,6 @@ package openai
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"reflect"
 	"strings"
@@ -30,14 +29,14 @@ func observeCompletionsStreamV160(t *testing.T, model *goai.Model, ctx *goai.Con
 		fmt.Fprintf(&body, "data: %s\n\n", frame)
 	}
 	requests := 0
-	transport := promptCacheTransportV160(func(r *http.Request) (*http.Response, error) {
+	transport := openaiTestRoundTripper(func(r *http.Request) (*http.Response, error) {
 		requests++
 		defer r.Body.Close()
 		want := strings.TrimRight(model.BaseURL, "/") + "/chat/completions"
 		if r.Method != http.MethodPost || r.URL.String() != want {
 			return nil, fmt.Errorf("expected POST %s, got %s %s", want, r.Method, r.URL)
 		}
-		return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {"text/event-stream"}}, Body: io.NopCloser(strings.NewReader(body.String())), Request: r}, nil
+		return successfulSSETestResponse(r, body.String()), nil
 	})
 	level := goai.ThinkingLevel("") // Select the simple adapter without requesting effort.
 	opts := &goai.StreamOptions{APIKey: "test", Reasoning: &level, HTTPTransport: transport}
