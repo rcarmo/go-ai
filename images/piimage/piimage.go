@@ -277,7 +277,6 @@ func parseUsage(value any, model *images.ImagesModel) *goai.Usage {
 		}
 	} else {
 		u.Cost = goai.CalculateCost(&goai.Model{Cost: model.Cost}, u)
-		u.Cost.TotalFromProvider = nil
 	}
 	return u
 }

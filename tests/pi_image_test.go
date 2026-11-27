@@ -78,6 +78,9 @@ func TestPiImageCalculatedCost(t *testing.T) {
 	if math.Abs(got.Usage.Cost.Input-.0003) > 1e-15 || math.Abs(got.Usage.Cost.Output-.005) > 1e-15 || math.Abs(got.Usage.Cost.Total-.0053) > 1e-15 {
 		t.Errorf("calculated cost=%+v", got.Usage.Cost)
 	}
+	if got.Usage.Cost.TotalFromProvider == nil || *got.Usage.Cost.TotalFromProvider {
+		t.Errorf("catalog estimate provenance = %+v; want explicit false", got.Usage.Cost)
+	}
 	b, err := json.Marshal(got.Usage)
 	if err != nil {
 		t.Fatal(err)
