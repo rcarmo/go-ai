@@ -2,9 +2,12 @@ package jsonparse
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 )
+
+var errToolArgumentsObject = errors.New("tool arguments must be a JSON object")
 
 // ParseToolCallArguments parses a completed call, never a truncated prefix.
 // Benign malformed string escapes/control characters are repaired, but the
@@ -20,7 +23,7 @@ func ParseToolCallArguments(raw string) (map[string]interface{}, string) {
 		}
 		object, ok := value.(map[string]interface{})
 		if !ok {
-			return nil, fmt.Errorf("tool call arguments must be a JSON object")
+			return nil, errToolArgumentsObject
 		}
 		return object, nil
 	}
@@ -31,7 +34,11 @@ func ParseToolCallArguments(raw string) (map[string]interface{}, string) {
 	if value, repairedErr := parse(repairToolJSON(raw)); repairedErr == nil {
 		return value, ""
 	}
-	return map[string]interface{}{}, fmt.Sprintf("%s\n%s", err, raw)
+	message := err.Error()
+	if errors.Is(err, errToolArgumentsObject) {
+		message = "Tool arguments must be a JSON object"
+	}
+	return map[string]interface{}{}, fmt.Sprintf("%s\n\nReceived arguments:\n%s", message, raw)
 }
 
 func repairToolJSON(text string) string {

@@ -367,7 +367,7 @@ func (r *ModelRuntime) setRefreshedCatalog(ctx context.Context, state *modelRefr
 func filterProviderModels(provider Provider, models []*Model) []*Model {
 	out := make([]*Model, 0, len(models))
 	for _, model := range models {
-		if model != nil && model.Provider == provider {
+		if model != nil && model.Provider == provider && GetModelType(model) == ModelTypeChat {
 			out = append(out, cloneModel(model))
 		}
 	}

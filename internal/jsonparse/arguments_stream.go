@@ -2,6 +2,7 @@ package jsonparse
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -134,7 +135,7 @@ func parseStreamingArguments(raw string) (map[string]any, string) {
 		value, present := parser.Snapshot()
 		object, ok := value.(map[string]any)
 		if !present || !ok {
-			return nil, fmt.Errorf("tool call arguments must be a JSON object")
+			return nil, errToolArgumentsObject
 		}
 		return object, nil
 	}
@@ -145,7 +146,11 @@ func parseStreamingArguments(raw string) (map[string]any, string) {
 	if repaired, repairErr := parse(repairToolJSON(raw)); repairErr == nil {
 		return repaired, ""
 	}
-	return map[string]any{}, fmt.Sprintf("%s\n%s", err, raw)
+	message := err.Error()
+	if errors.Is(err, errToolArgumentsObject) {
+		message = "Tool arguments must be a JSON object"
+	}
+	return map[string]any{}, fmt.Sprintf("%s\n\nReceived arguments:\n%s", message, raw)
 }
 func jsTrimSpace(r rune) bool {
 	switch r {
