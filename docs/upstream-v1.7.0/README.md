@@ -44,7 +44,7 @@ Round 3 adds bounded unchanged-source comparisons beyond the 23 changed tests: t
 
 ## Integrated checkpoint
 
-The exact candidate `5f724c1e3cc6423ec697088dbb339e176b342243` passed 97 focused Go tests twice across six packages without skips, with vet and Staticcheck v0.8.2. A fresh full-history clone reproduced the round-1 checks. The later integrated rounds, through `e115bf61`, passed the combined touched-slice selector twice with vet and Staticcheck; separate focused selections covered the 101 prepared IDN-hostname and 24 IDN-email vectors. The [v1.7.0 crosswalk](test-crosswalk.tsv) records 718 scoped sites across 54 of 324 files: 612 mapped, 96 partial and 10 unmatched. It counts scoped assertions, not unrun source tests.
+The exact candidate `5f724c1e3cc6423ec697088dbb339e176b342243` passed 97 focused Go tests twice across six packages without skips, with vet and Staticcheck v0.8.2. A fresh full-history clone reproduced the round-1 checks. The later integrated rounds, through `e115bf61`, passed the combined touched-slice selector twice with vet and Staticcheck; separate focused selections covered the 101 prepared IDN-hostname and 24 IDN-email vectors. The [v1.7.0 crosswalk](test-crosswalk.tsv) records 824 scoped sites across 56 of 324 files: 654 mapped, 157 partial and 13 unmatched. It counts scoped assertions, not unrun source tests.
 
 The Go image fixtures, OpenAI reasoning replay and SSE helpers, Durable turn limits, usage and SQLite grouping, and the current Bedrock, Schema and Codemode cases use behaviour names. Source pins and published comparison inputs remain in the ledgers and fixtures. The turn-limit migration preserved all nine native scenarios and revalidated 1,354 historical locators.
 
