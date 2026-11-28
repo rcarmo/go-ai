@@ -14,7 +14,7 @@ packages/ai/test/anthropic-message-threads.test.ts	unchanged	present	1	1	11	0	0	
 packages/ai/test/anthropic-mid-conversation-effort.test.ts	unchanged	present	1	1	7	0	0	0
 packages/ai/test/anthropic-oauth.test.ts	unchanged	present	1	1	8	0	0	0
 packages/ai/test/anthropic-opus-4-8-smoke.test.ts	unchanged	present	1	1	2	3	4	0
-packages/ai/test/anthropic-sse-parsing.test.ts	unchanged	present	15	15	40	0	3	0
+packages/ai/test/anthropic-sse-parsing.test.ts	unchanged	present	15	15	37	0	3	0
 packages/ai/test/anthropic-strict-tool-fallback.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/anthropic-strict-tool-schema.test.ts	unchanged	present	4	4	10	0	0	0
 packages/ai/test/anthropic-temperature-compat.test.ts	unchanged	present	0	0	0	0	0	0
