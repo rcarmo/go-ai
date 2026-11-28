@@ -14,6 +14,7 @@ func TestAzureOpenAIResponsesReasoningReplayPreservesOutputItemEncryptedContent(
 	if got["id"] != "rs_done" || got["encrypted_content"] != "from-output-item-done" {
 		t.Fatalf("unexpected replay signature: %#v", got)
 	}
+	assertReplayedReasoning(t, done, got)
 }
 
 func TestAzureOpenAIResponsesReasoningReplayBackfillsCompletedEncryptedContent(t *testing.T) {
@@ -21,6 +22,33 @@ func TestAzureOpenAIResponsesReasoningReplayBackfillsCompletedEncryptedContent(t
 	got := reasoningSignatureMap(t, done)
 	if got["id"] != "rs_missing" || got["encrypted_content"] != "from-response-completed" {
 		t.Fatalf("unexpected replay signature: %#v", got)
+	}
+	assertReplayedReasoning(t, done, got)
+}
+
+func assertReplayedReasoning(t *testing.T, done *goai.DoneEvent, want map[string]interface{}) {
+	t.Helper()
+	model := &goai.Model{ID: "gpt-5-mini", Provider: goai.ProviderAzureOpenAI, Api: goai.ApiAzureOpenAIResponses, Reasoning: true}
+	items := buildAssistantItems(0, *done.Message, model, nil)
+	if len(items) != 1 {
+		t.Fatalf("replayed items = %#v", items)
+	}
+	item, ok := items[0].(map[string]interface{})
+	if !ok || item["type"] != "reasoning" {
+		t.Fatalf("replayed item = %#v", items[0])
+	}
+	var signature map[string]interface{}
+	data, err := json.Marshal(item)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(data, &signature); err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{"id", "encrypted_content"} {
+		if signature[key] != want[key] {
+			t.Fatalf("replayed %s = %#v, want %#v in %#v", key, signature[key], want[key], signature)
+		}
 	}
 }
 

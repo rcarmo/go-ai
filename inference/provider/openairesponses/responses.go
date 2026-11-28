@@ -407,26 +407,10 @@ func inferGrammarInputProperty(t goai.Tool) (string, error) {
 }
 
 func resolveAzureResponsesConfig(model *goai.Model, opts *goai.StreamOptions) (baseURL string, deploymentName string, apiVersion string, err error) {
-	baseURL, deploymentName, apiVersion, err = goai.ResolveAzureConfig(model, opts)
-	if err != nil {
-		return "", "", "", err
-	}
-	return baseURL + "/deployments/" + urlpkg.PathEscape(deploymentName), deploymentName, apiVersion, nil
-}
-
-func normalizeAzureBaseURL(baseURL string) (string, error) {
-	trimmed := strings.TrimRight(strings.TrimSpace(baseURL), "/")
-	u, err := urlpkg.Parse(trimmed)
-	if err != nil || u.Scheme == "" || u.Host == "" {
-		return "", fmt.Errorf("invalid Azure OpenAI base URL: %s", baseURL)
-	}
-	isAzureHost := strings.HasSuffix(u.Hostname(), ".openai.azure.com") || strings.HasSuffix(u.Hostname(), ".cognitiveservices.azure.com")
-	normalizedPath := strings.TrimRight(u.Path, "/")
-	if isAzureHost && (normalizedPath == "" || normalizedPath == "/" || normalizedPath == "/openai") {
-		u.Path = "/openai/v1"
-		u.RawQuery = ""
-	}
-	return strings.TrimRight(u.String(), "/"), nil
+	// OpenAI's Azure v1 client treats the normalized root as the API base and
+	// sends the deployment in the request model field. Keep that wire contract
+	// rather than constructing the legacy /deployments endpoint here.
+	return goai.ResolveAzureConfig(model, opts)
 }
 
 func mergeSamplingParams(model *goai.Model, opts *goai.StreamOptions) map[string]interface{} {

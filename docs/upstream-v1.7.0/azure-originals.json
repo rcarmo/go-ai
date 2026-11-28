@@ -1,0 +1,48 @@
+{
+  "pin": "fb0fe823539f6d04850f6e34748c01f01f212e1f",
+  "nativeBase": "cbca8ba81df8a13ee1c88521a078203540a637b1",
+  "runner": {
+    "node": "v26.13.0",
+    "vitest": "4.1.12",
+    "go": "go1.27.3 linux/arm64",
+    "cgo": "0",
+    "memoryLimit": "650MiB"
+  },
+  "originals": {
+    "passedFiles": 5,
+    "passedTests": 37,
+    "failedTests": 0,
+    "skippedTests": 0,
+    "files": [
+      {"path":"packages/ai/test/azure-models.test.ts","gitBlob":"43566161bac869c6835d09a3a640b8bd9c7f6bde","sha256":"92a5fb5e6f8ef15871259e89579c25a0c0b42044639df85e3693b96c3be9290b","cases":1,"assertions":4},
+      {"path":"packages/ai/test/azure-openai-base-url.test.ts","gitBlob":"c1b5ffeda95dc99177a132978a865ce305c2caa8","sha256":"96aaa0281fb4407d580ee76943930ec7cdcefbd29692c7ab1e0eda8c85b1d349","cases":17,"assertions":26},
+      {"path":"packages/ai/test/azure-openai-completions.test.ts","gitBlob":"5c7869c101f3e58b33d165445c5621b5f70275a2","sha256":"f673cc829c0d7458892eac609434222ffd7aeb3924a05f2654bdfe0a4addf4fe","cases":15,"assertions":23},
+      {"path":"packages/ai/test/azure-openai-responses-reasoning-replay.test.ts","gitBlob":"20226906214dd6e9bf3fa68871cf2969b7e53a10","sha256":"a705f15fb252c6338935c34464b3bc0d71c40e1c1b688a39ff3e7fd0c5177fbe","cases":2,"assertions":2},
+      {"path":"packages/ai/test/azure-openai-tool-choice.test.ts","gitBlob":"1c8f781143999d72db6828f24baa6206d323f04c","sha256":"78de412209eeb5e9f5834cf3059dd886c30efbd3c6fea05b9e996cfa0f7f9a32","cases":2,"assertions":4}
+    ]
+  },
+  "native": {
+    "unmodifiedRegression": {
+      "test": "TestAzureResponsesUsesV1ResponseEndpointAndMappedDeploymentPayload",
+      "failed": true,
+      "observed": "/openai/v1/deployments/prod-gpt-5/responses",
+      "expected": "/openai/v1/responses"
+    },
+    "focusedTests": {"runs":2,"passed":true},
+    "touchedPackages": {"passed":true},
+    "vet": {"command":"make vet","passed":true},
+    "staticcheck": {"command":"make staticcheck","version":"v0.8.2","passed":true},
+    "crosswalk": {"cases":37,"mappedAssertionSites":59,"partial":0,"unmatched":0}
+  },
+  "credentialGate": {
+    "workspaceCredentialGrants": 0,
+    "liveAzureExecuted": false,
+    "liveOpenAIExecuted": false,
+    "reason": "No live provider credential is available; originals and native tests use mocks or loopback/custom transports."
+  },
+  "security": {
+    "syntheticKeysPersisted": true,
+    "realSecretsRead": false,
+    "realSecretsWritten": false
+  }
+}

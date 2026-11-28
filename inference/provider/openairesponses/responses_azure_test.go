@@ -12,6 +12,63 @@ import (
 	goai "github.com/rcarmo/go-ai"
 )
 
+type azureCaptureTransport struct {
+	request *http.Request
+	body    string
+}
+
+func (t *azureCaptureTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	t.request = req
+	body := t.body
+	if body == "" {
+		body = "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\",\"status\":\"completed\"}}\n\ndata: [DONE]\n\n"
+	}
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+		Body:       io.NopCloser(strings.NewReader(body)),
+		Request:    req,
+	}, nil
+}
+
+func TestAzureResponsesUsesV1ResponseEndpointAndMappedDeploymentPayload(t *testing.T) {
+	transport := &azureCaptureTransport{}
+	model := &goai.Model{ID: "gpt-5", Provider: goai.ProviderAzureOpenAI, Api: goai.ApiAzureOpenAIResponses}
+	var result *goai.DoneEvent
+	for event := range streamResponses(context.Background(), model, &goai.Context{Messages: []goai.Message{goai.UserMessage("hello")}}, &goai.StreamOptions{
+		APIKey:              "test-key",
+		AzureBaseURL:        "https://my-resource.ai.azure.com",
+		AzureDeploymentName: "prod-gpt-5",
+		HTTPTransport:       transport,
+	}) {
+		switch event := event.(type) {
+		case *goai.DoneEvent:
+			result = event
+		case *goai.ErrorEvent:
+			t.Fatal(event.Err)
+		}
+	}
+	if result == nil {
+		t.Fatal("missing completed response")
+	}
+	if got, want := transport.request.URL.Path, "/openai/v1/responses"; got != want {
+		t.Fatalf("request path = %q, want %q", got, want)
+	}
+	if got, want := transport.request.URL.Query().Get("api-version"), "v1"; got != want {
+		t.Fatalf("api-version = %q, want %q", got, want)
+	}
+	var payload responsesRequest
+	if err := json.NewDecoder(transport.request.Body).Decode(&payload); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := payload.Model, "prod-gpt-5"; got != want {
+		t.Fatalf("request model = %q, want %q", got, want)
+	}
+	if result.Message.Model != model.ID {
+		t.Fatalf("response model = %q, want catalog id %q", result.Message.Model, model.ID)
+	}
+}
+
 func TestResolveAzureResponsesConfigUsesEnvAndDeploymentMap(t *testing.T) {
 	model := &goai.Model{ID: "gpt-5", Provider: goai.ProviderAzureOpenAI, Api: goai.ApiAzureOpenAIResponses}
 	baseURL, deployment, apiVersion, err := resolveAzureResponsesConfig(model, &goai.StreamOptions{Env: goai.ProviderEnv{
@@ -22,7 +79,7 @@ func TestResolveAzureResponsesConfigUsesEnvAndDeploymentMap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if baseURL != "https://my-resource.openai.azure.com/openai/v1/deployments/gpt5-prod" {
+	if baseURL != "https://my-resource.openai.azure.com/openai/v1" {
 		t.Fatalf("unexpected base URL: %q", baseURL)
 	}
 	if deployment != "gpt5-prod" || apiVersion != "2025-04-01-preview" {
@@ -36,7 +93,7 @@ func TestResolveAzureResponsesConfigNormalizesAzureHost(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if baseURL != "https://acct.openai.azure.com/openai/v1/deployments/dep%2Fone" {
+	if baseURL != "https://acct.openai.azure.com/openai/v1" {
 		t.Fatalf("unexpected normalized base URL: %q", baseURL)
 	}
 }

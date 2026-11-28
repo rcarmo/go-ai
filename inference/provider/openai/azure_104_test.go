@@ -5,10 +5,59 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	goai "github.com/rcarmo/go-ai"
 )
+
+func TestAzureCompletionsUpstreamEnvMapReachesPayloadHook(t *testing.T) {
+	var requestPayload map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("data: {\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n"))
+	}))
+	defer server.Close()
+	model := &goai.Model{ID: "deepseek-v4-pro", Provider: goai.ProviderAzureOpenAI, Api: goai.ApiOpenAICompletions}
+	for event := range streamOpenAI(context.Background(), model, &goai.Context{Messages: []goai.Message{goai.UserMessage("hello")}}, &goai.StreamOptions{
+		APIKey:       "test-key",
+		AzureBaseURL: server.URL,
+		Env:          goai.ProviderEnv{"AZURE_OPENAI_DEPLOYMENT_NAME_MAP": "deepseek-v4-pro=my-deepseek"},
+		OnPayload: func(payload any, callbackModel *goai.Model) (any, error) {
+			if callbackModel != model {
+				t.Fatalf("callback model = %#v", callbackModel)
+			}
+			data, err := json.Marshal(payload)
+			if err != nil {
+				return nil, err
+			}
+			if err := json.Unmarshal(data, &requestPayload); err != nil {
+				return nil, err
+			}
+			return payload, nil
+		},
+	}) {
+		if failure, ok := event.(*goai.ErrorEvent); ok {
+			t.Fatal(failure.Err)
+		}
+	}
+	if requestPayload["model"] != "my-deepseek" {
+		t.Fatalf("payload model = %#v", requestPayload["model"])
+	}
+}
+
+func TestAzureCompletionsUpstreamUnconfiguredEndpointReturnsErrorEvent(t *testing.T) {
+	model := &goai.Model{ID: "deepseek-v4-pro", Provider: goai.ProviderAzureOpenAI, Api: goai.ApiOpenAICompletions}
+	var failure *goai.ErrorEvent
+	for event := range streamOpenAI(context.Background(), model, &goai.Context{Messages: []goai.Message{goai.UserMessage("hello")}}, &goai.StreamOptions{APIKey: "test-key", Env: goai.ProviderEnv{"AZURE_OPENAI_BASE_URL": "", "AZURE_OPENAI_RESOURCE_NAME": ""}}) {
+		if event, ok := event.(*goai.ErrorEvent); ok {
+			failure = event
+		}
+	}
+	if failure == nil || !strings.Contains(failure.Err.Error(), "Azure OpenAI base URL is required") {
+		t.Fatalf("unconfigured endpoint error = %#v", failure)
+	}
+}
 
 func TestAzure104CompletionsEndpointDeploymentAndCatalogIdentity(t *testing.T) {
 	var requestModel string

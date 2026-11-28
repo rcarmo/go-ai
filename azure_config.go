@@ -53,7 +53,8 @@ func ResolveAzureConfig(model *Model, opts *StreamOptions) (baseURL, deployment,
 	}
 	parsed, e := url.Parse(strings.TrimRight(strings.TrimSpace(baseURL), "/"))
 	if e != nil || parsed.Scheme == "" || parsed.Host == "" {
-		return "", "", "", fmt.Errorf("invalid Azure OpenAI base URL: %s", baseURL)
+		//lint:ignore ST1005 Exact upstream Azure configuration diagnostic.
+		return "", "", "", fmt.Errorf("Invalid Azure OpenAI base URL: %s", baseURL)
 	}
 	azure := strings.HasSuffix(parsed.Hostname(), ".openai.azure.com") || strings.HasSuffix(parsed.Hostname(), ".cognitiveservices.azure.com") || strings.HasSuffix(parsed.Hostname(), ".ai.azure.com")
 	path := strings.TrimRight(parsed.Path, "/")

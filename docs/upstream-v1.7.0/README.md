@@ -27,7 +27,7 @@ Before retargeting, four focused native tests passed on `3c59c42f` with Go 1.27.
 
 | Area | Evidence |
 | --- | --- |
-| AI inputs | [Locked AI test stage](ai-originals.md): 59 originals in five files. [OpenRouter](openrouter-images.md) adds eight image and 46 models-runtime originals. |
+| AI inputs | [Locked AI test stage](ai-originals.md): 59 originals in five files. [OpenRouter](openrouter-images.md) adds eight image and 46 models-runtime originals. [Azure](azure-originals.md) adds five unchanged files and 37 cases, including the native v1 Responses wire-path correction. |
 | Images and pricing | [Pi Image](pi-image.md) and [OpenRouter](openrouter-images.md): canonical requests, output, errors, authoritative cost and separate image-output rates. |
 | Completions and retry errors | [Opaque replay](openai-completions-opaque.md), [stored signatures](openai-completions-stored-reasoning.md), [Cloudflare Gateway](openai-cloudflare-compat.md) and [Ant Ling thinking](openai-completions-ant-ling.md), plus [tool-history empty tools](openai-completions-empty-tools-history.md). [Changed-test group 3](ai-changed-group3.md) audits orphaned tool calls, total usage and Unicode with exact source fixtures. [Anthropic retry/error responses](anthropic-provider-error-response.md) maps repeated 429 response hooks and header observation through the public Messages transport. |
 | Bedrock | [Reasoning replay and effort](bedrock-reasoning.md), with detached copies of both optional compatibility fields. |
@@ -44,7 +44,7 @@ Round 3 adds bounded unchanged-source comparisons beyond the 23 changed tests: t
 
 ## Integrated checkpoint
 
-The exact candidate `5f724c1e3cc6423ec697088dbb339e176b342243` passed 97 focused Go tests twice across six packages without skips, with vet and Staticcheck v0.8.2. A fresh full-history clone reproduced the round-1 checks. The later integrated rounds, through `e115bf61`, passed the combined touched-slice selector twice with vet and Staticcheck; separate focused selections covered the 101 prepared IDN-hostname and 24 IDN-email vectors. The [v1.7.0 crosswalk](test-crosswalk.tsv) records 865 scoped sites across 58 of 324 files: 693 mapped, 158 partial and 14 unmatched. It counts scoped assertions, not unrun source tests.
+The exact candidate `5f724c1e3cc6423ec697088dbb339e176b342243` passed 97 focused Go tests twice across six packages without skips, with vet and Staticcheck v0.8.2. A fresh full-history clone reproduced the round-1 checks. The later integrated rounds, through `e115bf61`, passed the combined touched-slice selector twice with vet and Staticcheck; separate focused selections covered the 101 prepared IDN-hostname and 24 IDN-email vectors. The [v1.7.0 crosswalk](test-crosswalk.tsv) records 924 scoped sites across 63 of 324 files: 752 mapped, 158 partial and 14 unmatched. It counts scoped assertions, not unrun source tests.
 
 The Go image fixtures, OpenAI reasoning replay and SSE helpers, Durable turn limits, usage and SQLite grouping, and the current Bedrock, Schema and Codemode cases use behaviour names. Source pins and published comparison inputs remain in the ledgers and fixtures. The turn-limit migration preserved all nine native scenarios and revalidated 1,354 historical locators.
 
