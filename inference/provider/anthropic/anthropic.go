@@ -1153,6 +1153,7 @@ func processAnthropicStreamWithOptions(body io.Reader, model *goai.Model, tools 
 
 	usageModel := model
 	toolStreams := map[int]*jsonparse.ToolCallArgumentsStream{}
+	var inputTransformations []map[string]any
 	sawMessageStart := false
 	sawMessageStop := false
 	events := sse.Parse(body)
@@ -1161,9 +1162,12 @@ func processAnthropicStreamWithOptions(body io.Reader, model *goai.Model, tools 
 			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("SSE stream error: %s", evt.Data)})
 			return
 		}
+		if !isAnthropicMessageEvent(evt.Event) {
+			continue
+		}
 		if opts != nil && opts.OnProviderStreamEvent != nil {
 			var providerEvent map[string]any
-			if err := json.Unmarshal([]byte(evt.Data), &providerEvent); err == nil {
+			if err := unmarshalAnthropicSSE(evt.Data, &providerEvent); err == nil {
 				if err := opts.OnProviderStreamEvent(providerEvent, model); err != nil {
 					send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err})
 					return
@@ -1183,9 +1187,18 @@ func processAnthropicStreamWithOptions(body io.Reader, model *goai.Model, tools 
 					Signature string `json:"signature,omitempty"`
 				} `json:"content_block"`
 			}
-			if err := json.Unmarshal([]byte(evt.Data), &data); err != nil {
+			if err := unmarshalAnthropicSSE(evt.Data, &data); err != nil {
 				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: anthropicSSEParseError(evt, err)})
 				return
+			}
+			if data.ContentBlock.Type == "fallback" {
+				if len(partial.Content) > 0 {
+					partial.StopReason = goai.StopReasonError
+					partial.ErrorMessage = "Anthropic performed an unsupported mid-output model fallback"
+					send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("%s", partial.ErrorMessage)})
+					return
+				}
+				continue
 			}
 			switch data.ContentBlock.Type {
 			case "text":
@@ -1214,7 +1227,7 @@ func processAnthropicStreamWithOptions(body io.Reader, model *goai.Model, tools 
 					PartialJSON jsonparse.ArgumentText `json:"partial_json,omitempty"`
 				} `json:"delta"`
 			}
-			if err := json.Unmarshal([]byte(evt.Data), &data); err != nil {
+			if err := unmarshalAnthropicSSE(evt.Data, &data); err != nil {
 				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: anthropicSSEParseError(evt, err)})
 				return
 			}
@@ -1245,7 +1258,7 @@ func processAnthropicStreamWithOptions(body io.Reader, model *goai.Model, tools 
 			var data struct {
 				Index int `json:"index"`
 			}
-			if err := json.Unmarshal([]byte(evt.Data), &data); err != nil {
+			if err := unmarshalAnthropicSSE(evt.Data, &data); err != nil {
 				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: anthropicSSEParseError(evt, err)})
 				return
 			}
@@ -1277,7 +1290,8 @@ func processAnthropicStreamWithOptions(body io.Reader, model *goai.Model, tools 
 
 		case "message_delta":
 			var data struct {
-				Delta struct {
+				InputTransformations []map[string]any `json:"input_transformations"`
+				Delta                struct {
 					StopReason  string `json:"stop_reason"`
 					StopDetails struct {
 						Explanation string `json:"explanation"`
@@ -1285,9 +1299,12 @@ func processAnthropicStreamWithOptions(body io.Reader, model *goai.Model, tools 
 				} `json:"delta"`
 				Usage *anthropicUsage `json:"usage"`
 			}
-			if err := json.Unmarshal([]byte(evt.Data), &data); err != nil {
+			if err := unmarshalAnthropicSSE(evt.Data, &data); err != nil {
 				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: anthropicSSEParseError(evt, err)})
 				return
+			}
+			if data.InputTransformations != nil {
+				inputTransformations = data.InputTransformations
 			}
 			applyAnthropicUsage(partial.Usage, data.Usage, usageModel, false)
 			if data.Delta.StopReason != "" {
@@ -1301,29 +1318,36 @@ func processAnthropicStreamWithOptions(body io.Reader, model *goai.Model, tools 
 				partial.StopReason = goai.StopReasonLength
 			case "tool_use":
 				partial.StopReason = goai.StopReasonToolUse
-			case "refusal", "sensitive":
+			case "refusal":
 				partial.StopReason = goai.StopReasonError
 				if data.Delta.StopDetails.Explanation != "" {
 					partial.ErrorMessage = data.Delta.StopDetails.Explanation
 				} else {
 					partial.ErrorMessage = "The model refused to complete the request"
 				}
+			case "sensitive":
+				partial.StopReason = goai.StopReasonError
+				partial.ErrorMessage = "Provider stopped with: sensitive"
 			}
 
 		case "message_start":
 			sawMessageStart = true
 			var data struct {
 				Message struct {
-					ID    string         `json:"id"`
-					Model string         `json:"model"`
-					Usage anthropicUsage `json:"usage"`
+					ID                   string           `json:"id"`
+					Model                string           `json:"model"`
+					Usage                anthropicUsage   `json:"usage"`
+					InputTransformations []map[string]any `json:"input_transformations"`
 				} `json:"message"`
 			}
-			if err := json.Unmarshal([]byte(evt.Data), &data); err != nil {
+			if err := unmarshalAnthropicSSE(evt.Data, &data); err != nil {
 				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: anthropicSSEParseError(evt, err)})
 				return
 			}
 			partial.ResponseID = data.Message.ID
+			if data.Message.InputTransformations != nil {
+				inputTransformations = data.Message.InputTransformations
+			}
 			if data.Message.Model != "" && data.Message.Model != model.ID {
 				partial.ResponseModel = data.Message.Model
 				for _, fallback := range getAnthropicCompat(model).allowedFallbackModels {
@@ -1356,8 +1380,113 @@ func processAnthropicStreamWithOptions(body io.Reader, model *goai.Model, tools 
 		send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("anthropic stream ended without a stop reason")})
 		return
 	}
+	if partial.StopReason == goai.StopReasonError {
+		send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("%s", partial.ErrorMessage)})
+		return
+	}
+	if len(inputTransformations) > 0 {
+		transformations := make([]any, 0, len(inputTransformations))
+		for _, transformation := range inputTransformations {
+			transformations = append(transformations, map[string]any{
+				"type": transformation["type"], "path": transformation["path"], "reason": transformation["reason"],
+			})
+		}
+		partial.Diagnostics = append(partial.Diagnostics, goai.AssistantMessageDiagnostic{
+			Type: "anthropic_input_transformations", Timestamp: time.Now().UnixMilli(),
+			Details: map[string]any{"transformations": transformations},
+		})
+	}
 
 	send(&goai.DoneEvent{Reason: partial.StopReason, Message: partial})
+}
+
+func isAnthropicMessageEvent(event string) bool {
+	switch event {
+	case "message_start", "message_delta", "message_stop", "content_block_start", "content_block_delta", "content_block_stop":
+		return true
+	default:
+		return false
+	}
+}
+
+func unmarshalAnthropicSSE(data string, target any) error {
+	originalErr := json.Unmarshal([]byte(data), target)
+	if originalErr == nil {
+		return nil
+	}
+	repaired := repairAnthropicSSEJSON(data)
+	if repaired == data {
+		return originalErr
+	}
+	return json.Unmarshal([]byte(repaired), target)
+}
+
+func repairAnthropicSSEJSON(data string) string {
+	var repaired strings.Builder
+	inString := false
+	for i := 0; i < len(data); i++ {
+		char := data[i]
+		if !inString {
+			repaired.WriteByte(char)
+			if char == '"' {
+				inString = true
+			}
+			continue
+		}
+		if char == '"' {
+			repaired.WriteByte(char)
+			inString = false
+			continue
+		}
+		if char == '\\' && i+1 >= len(data) {
+			repaired.WriteString(`\\`)
+			continue
+		}
+		if char == '\\' {
+			next := data[i+1]
+			if strings.ContainsRune("\"\\/bfnrt", rune(next)) {
+				repaired.WriteByte(char)
+				repaired.WriteByte(next)
+				i++
+				continue
+			}
+			if next == 'u' && i+5 < len(data) {
+				valid := true
+				for _, digit := range data[i+2 : i+6] {
+					if !strings.ContainsRune("0123456789abcdefABCDEF", rune(digit)) {
+						valid = false
+						break
+					}
+				}
+				if valid {
+					repaired.WriteString(data[i : i+6])
+					i += 5
+					continue
+				}
+			}
+			repaired.WriteString(`\\`)
+			continue
+		}
+		switch char {
+		case '\b':
+			repaired.WriteString(`\b`)
+		case '\f':
+			repaired.WriteString(`\f`)
+		case '\n':
+			repaired.WriteString(`\n`)
+		case '\r':
+			repaired.WriteString(`\r`)
+		case '\t':
+			repaired.WriteString(`\t`)
+		default:
+			if char < 0x20 {
+				fmt.Fprintf(&repaired, `\u%04x`, char)
+			} else {
+				repaired.WriteByte(char)
+			}
+		}
+	}
+	return repaired.String()
 }
 
 func anthropicSSEParseError(evt sse.SSEEvent, err error) error {
