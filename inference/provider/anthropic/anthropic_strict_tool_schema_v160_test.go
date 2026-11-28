@@ -14,8 +14,9 @@ import (
 	goai "github.com/rcarmo/go-ai"
 )
 
-// Source: pi v1.6.0 anthropic-strict-tool-schema.test.ts:70–150. First run
-// each original's stop-at-hook design, then separately observe the request.
+// Source: unchanged pi v1.7.0 anthropic-strict-tool-schema.test.ts:71–169.
+// Retain the historical test name. First run each original's stop-at-hook
+// design, then separately observe the production request.
 func TestSourceV160AnthropicStrictToolSchemaWire(t *testing.T) {
 	const defs = `{"type":"object","properties":{"settings":{"$ref":"#/$defs/Settings"}},"required":["settings"],"$defs":{"Settings":{"type":"object","properties":{"verbose":{"type":"boolean"}}}}}`
 	const definitions = `{"type":"object","properties":{"settings":{"$ref":"#/definitions/Settings"}},"required":["settings"],"definitions":{"Settings":{"type":"object","properties":{"verbose":{"type":"boolean"}}}}}`
@@ -128,7 +129,8 @@ func assertAnthropicStrictToolProjectionV160(t *testing.T, tool goai.Tool, want 
 
 const anthropicDraft7TupleV161 = `{"$schema":"http://json-schema.org/draft-07/schema#","type":"object","properties":{"pair":{"type":"array","items":[{"type":"string"},{"type":"string"}],"minItems":2,"maxItems":2}},"required":["pair"]}`
 
-// Source: pi v1.6.1 anthropic-strict-tool-schema.test.ts:128–145.
+// Source: unchanged pi v1.7.0 anthropic-strict-tool-schema.test.ts:128–145.
+// Retain the historical v1.6.1 control name.
 func TestSourceV161AnthropicNonStrictTupleDialect(t *testing.T) {
 	assertAnthropicNonStrictTupleV161(t, anthropicDraft7TupleV161, anthropicDraft7TupleV161)
 }
