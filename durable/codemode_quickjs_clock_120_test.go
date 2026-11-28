@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func TestCodemode120QuickJSClockAdvancesOnlyOnDelivery(t *testing.T) {
+func TestCodemode120QuickJSClockAdvancesWithoutRewinding(t *testing.T) {
 	sandbox, err := NewQuickJSSandbox(bg)
 	if err != nil {
 		t.Fatal(err)
@@ -30,10 +30,7 @@ func TestCodemode120QuickJSClockAdvancesOnlyOnDelivery(t *testing.T) {
 	if err != nil || event.Call == nil {
 		t.Fatal(event, err)
 	}
-	if err = vm.Deliver(ctx, CodemodeDelivery{Seq: 2, Now: 1500, Call: *event.Call, HasValue: true, Value: "ok"}); err == nil {
-		t.Fatal("backwards clock accepted")
-	}
-	if err = vm.Deliver(ctx, CodemodeDelivery{Seq: 2, Now: 2000, Call: *event.Call, HasValue: true, Value: "ok"}); err != nil {
+	if err = vm.Deliver(ctx, CodemodeDelivery{Seq: 2, Now: 1500, Call: *event.Call, HasValue: true, Value: "ok"}); err != nil {
 		t.Fatal(err)
 	}
 	event, err = vm.Next(ctx)

@@ -41,22 +41,29 @@ func NewQuickJSSandbox(ctx context.Context) (*QuickJSSandbox, error) {
 }
 func (s *QuickJSSandbox) Close(ctx context.Context) error { return s.engine.Close(ctx) }
 
+type queuedCodemodeDelivery struct {
+	delivery CodemodeDelivery
+	response chan CodemodeDelivery
+}
+
 type quickjsExecution struct {
-	ctx        context.Context
-	cancel     context.CancelFunc
-	events     chan CodemodeEvent
-	deliveries chan CodemodeDelivery
-	done       chan struct{}
-	pending    atomic.Bool
-	sequence   atomic.Uint64
-	deliveryMu sync.Mutex
-	awaiting   *CodemodeCall
-	drain      *CodemodeDrain
-	delivered  int
-	lastNow    int64
-	waiting    map[int]CodemodeCall
-	responses  map[int]chan CodemodeDelivery
-	drainAck   chan struct{}
+	ctx            context.Context
+	cancel         context.CancelFunc
+	events         chan CodemodeEvent
+	deliveries     chan CodemodeDelivery
+	done           chan struct{}
+	pending        atomic.Bool
+	sequence       atomic.Uint64
+	deliveryMu     sync.Mutex
+	awaiting       *CodemodeCall
+	drain          *CodemodeDrain
+	delivered      int
+	deliveryActive bool
+	waiting        map[int]CodemodeCall
+	responses      map[int]chan CodemodeDelivery
+	usedDeliveries map[int]bool
+	queued         map[int]queuedCodemodeDelivery
+	drainAck       chan struct{}
 }
 
 func (s *QuickJSSandbox) Start(ctx context.Context, code string, start CodemodeStart) (CodemodeExecution, error) {
@@ -75,7 +82,7 @@ func (s *QuickJSSandbox) Start(ctx context.Context, code string, start CodemodeS
 	// Version zero is a direct standalone call rather than a saved start.
 	allowOmittedToolArgs := start.Version == 0 || start.InlineOmittedToolArguments
 	linked, cancel := context.WithCancel(ctx)
-	execution := &quickjsExecution{ctx: linked, cancel: cancel, events: make(chan CodemodeEvent, 1), deliveries: make(chan CodemodeDelivery), done: make(chan struct{}), lastNow: start.StartedAt}
+	execution := &quickjsExecution{ctx: linked, cancel: cancel, events: make(chan CodemodeEvent, 1), deliveries: make(chan CodemodeDelivery), done: make(chan struct{})}
 	var clock atomic.Int64
 	clock.Store(start.StartedAt)
 	memoryLimit := start.MemoryLimitBytes
@@ -88,11 +95,23 @@ func (s *QuickJSSandbox) Start(ctx context.Context, code string, start CodemodeS
 	}
 	opts := quickjs.Options{AcquireWorker: s.AcquireWorker, OnWorkerStarted: s.OnWorkerStarted, InterruptBudget: start.InterruptBudget, SerialCalls: !start.ParallelCalls, Clock: clock.Load, StartedAt: start.StartedAt, Seed: start.Seed, MemoryLimitBytes: memoryLimit, Store: map[string]json.RawMessage{}}
 	var published chan struct{}
+	if start.ParallelCalls {
+		execution.usedDeliveries = map[int]bool{}
+		execution.queued = map[int]queuedCodemodeDelivery{}
+	}
 	if start.DrainAcknowledgements {
 		published = make(chan struct{}, 1)
-		observed := 0
 		execution.drainAck = make(chan struct{})
+	}
+	if start.ParallelCalls || start.DrainAcknowledgements {
+		observed := 0
 		opts.OnDrain = func(ctx context.Context, id, issued int) error {
+			if start.ParallelCalls {
+				execution.advanceQueuedDelivery(id != 0)
+			}
+			if !start.DrainAcknowledgements {
+				return nil
+			}
 			for !start.ParallelCalls && observed < issued {
 				select {
 				case <-published:
@@ -103,6 +122,7 @@ func (s *QuickJSSandbox) Start(ctx context.Context, code string, start CodemodeS
 			}
 			drain := CodemodeDrain{DeliveryID: id, Issued: issued}
 			execution.deliveryMu.Lock()
+			execution.drainAck = make(chan struct{})
 			execution.drain = &drain
 			ack := execution.drainAck
 			execution.deliveryMu.Unlock()
@@ -340,24 +360,23 @@ func (e *quickjsExecution) Deliver(ctx context.Context, delivery CodemodeDeliver
 	}
 	if e.responses != nil {
 		call, ok := e.waiting[delivery.Call.ID]
-		if !ok || delivery.Seq != e.delivered+1 || delivery.Call.Name != call.Name || delivery.Call.Global != call.Global || !codemodeArgumentModeCompatible(delivery.Call, call) || !equalJSONValue(delivery.Call.Arguments, call.Arguments) || delivery.Now < e.lastNow || uint64(delivery.Now) > MaxID || delivery.Properties != nil && delivery.Error == "" || delivery.HasValue && delivery.Error != "" || !delivery.HasValue && delivery.Value != nil {
+		if delivery.Seq < 1 || e.usedDeliveries[delivery.Seq] || !ok || delivery.Call.Name != call.Name || delivery.Call.Global != call.Global || !codemodeArgumentModeCompatible(delivery.Call, call) || !equalJSONValue(delivery.Call.Arguments, call.Arguments) || uint64(delivery.Now) > MaxID || delivery.Properties != nil && delivery.Error == "" || delivery.HasValue && delivery.Error != "" || !delivery.HasValue && delivery.Value != nil {
 			return reject("invalid QuickJS parallel delivery")
 		}
-		e.responses[call.ID] <- delivery
+		e.usedDeliveries[delivery.Seq] = true
+		response := e.responses[call.ID]
+		e.queued[delivery.Seq] = queuedCodemodeDelivery{delivery: delivery, response: response}
 		delete(e.responses, call.ID)
 		delete(e.waiting, call.ID)
-		e.delivered++
-		e.lastNow = delivery.Now
-		e.drainAck = make(chan struct{})
+		e.releaseQueuedDeliveryLocked()
 		return nil
 	}
 	call := e.awaiting
-	if call == nil || delivery.Seq != call.ID || delivery.Call.ID != call.ID || delivery.Call.Name != call.Name || delivery.Call.Global != call.Global || !codemodeArgumentModeCompatible(delivery.Call, *call) || !equalJSONValue(delivery.Call.Arguments, call.Arguments) || delivery.Now < e.lastNow || uint64(delivery.Now) > MaxID || delivery.Properties != nil && delivery.Error == "" || !delivery.HasValue && delivery.Value != nil || delivery.Error != "" && (delivery.HasValue || delivery.Value != nil) {
+	if call == nil || delivery.Seq != call.ID || delivery.Call.ID != call.ID || delivery.Call.Name != call.Name || delivery.Call.Global != call.Global || !codemodeArgumentModeCompatible(delivery.Call, *call) || !equalJSONValue(delivery.Call.Arguments, call.Arguments) || uint64(delivery.Now) > MaxID || delivery.Properties != nil && delivery.Error == "" || !delivery.HasValue && delivery.Value != nil || delivery.Error != "" && (delivery.HasValue || delivery.Value != nil) {
 		return reject("invalid QuickJS delivery")
 	}
 	select {
 	case e.deliveries <- delivery:
-		e.lastNow = delivery.Now
 		e.awaiting = nil
 		if e.drainAck != nil {
 			e.drainAck = make(chan struct{})
@@ -373,6 +392,29 @@ func (e *quickjsExecution) Deliver(ctx context.Context, delivery CodemodeDeliver
 		return e.ctx.Err()
 	}
 }
+func (e *quickjsExecution) advanceQueuedDelivery(completed bool) {
+	e.deliveryMu.Lock()
+	if completed && e.deliveryActive {
+		e.deliveryActive = false
+		e.delivered++
+	}
+	e.releaseQueuedDeliveryLocked()
+	e.deliveryMu.Unlock()
+}
+
+func (e *quickjsExecution) releaseQueuedDeliveryLocked() {
+	if e.deliveryActive {
+		return
+	}
+	queued, ok := e.queued[e.delivered+1]
+	if !ok {
+		return
+	}
+	delete(e.queued, e.delivered+1)
+	e.deliveryActive = true
+	queued.response <- queued.delivery
+}
+
 func (e *quickjsExecution) Close() error { e.cancel(); <-e.done; return nil }
 
 func decodeQuickJSCallArguments(raw []byte, global, allowOmittedToolArgs bool) (JSON, bool, error) {
