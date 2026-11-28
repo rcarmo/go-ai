@@ -66,11 +66,11 @@ packages/ai/test/fireworks-models.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/github-copilot-anthropic.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/github-copilot-oauth.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/github-copilot-request-size-overflow.test.ts	unchanged	present	0	0	0	0	0	0
-packages/ai/test/google-raw-stop-reason.test.ts	unchanged	present	0	0	0	0	0	0
-packages/ai/test/google-shared-convert-tools.test.ts	unchanged	present	0	0	0	0	0	0
-packages/ai/test/google-shared-gemini3-unsigned-tool-call.test.ts	unchanged	present	0	0	0	0	0	0
-packages/ai/test/google-shared-image-tool-result-routing.test.ts	unchanged	present	0	0	0	0	0	0
-packages/ai/test/google-shared-retry.test.ts	unchanged	present	0	0	0	0	0	0
+packages/ai/test/google-raw-stop-reason.test.ts	unchanged	present	7	7	19	2	0	0
+packages/ai/test/google-shared-convert-tools.test.ts	unchanged	present	14	14	38	0	0	0
+packages/ai/test/google-shared-gemini3-unsigned-tool-call.test.ts	unchanged	present	6	6	21	0	0	0
+packages/ai/test/google-shared-image-tool-result-routing.test.ts	unchanged	present	4	4	15	0	0	0
+packages/ai/test/google-shared-retry.test.ts	unchanged	present	4	4	8	0	0	0
 packages/ai/test/google-shared-signed-empty-blocks.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/google-stop-reason-continuation.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/google-stream-errors.test.ts	unchanged	present	0	0	0	0	0	0

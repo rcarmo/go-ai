@@ -30,6 +30,6 @@ All new controls passed against the unchanged implementation, so no production e
 
 ## Verification and limits
 
-Under the shared lock, `CGO_ENABLED=0`, `GOMEMLIMIT=650MiB`, `GOMAXPROCS=2` and `GOFLAGS=-p=1`, the focused raw/shared selection passed twice with `-count=2`. The full verification run also includes vet, Staticcheck and the assertion/crosswalk check described in the final candidate receipt update.
+Under the shared lock, `CGO_ENABLED=0`, `GOMEMLIMIT=650MiB`, `GOMAXPROCS=2` and `GOFLAGS=-p=1`, the focused raw/shared selection passed twice with `-count=2`; vet and Staticcheck 0.8.2 passed. The assertion ledger pins 35 cases and 103 source assertion sites: 101 mapped and two partial for JavaScript object-identity-only expectations. The assertion validator matched all selected bytes against both the checkout and pinned Git objects, and the crosswalk checker reproduced the 1,296-site aggregate.
 
 This is a bounded offline source comparison, not v1.7.0 full acceptance, live-credential replay, acceptance profiling, hosted validation or release authorization. No production runtime file changed in this lane.

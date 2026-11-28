@@ -27,7 +27,7 @@ Before retargeting, four focused native tests passed on `3c59c42f` with Go 1.27.
 
 | Area | Evidence |
 | --- | --- |
-| AI inputs | [Locked AI test stage](ai-originals.md): 59 originals in five files. [OpenRouter](openrouter-images.md) adds eight image and 46 models-runtime originals. [Azure](azure-originals.md) adds five unchanged files and 37 cases, including the native v1 Responses wire-path correction. |
+| AI inputs | [Locked AI test stage](ai-originals.md): 59 originals in five files. [OpenRouter](openrouter-images.md) adds eight image and 46 models-runtime originals. [Azure](azure-originals.md) adds five unchanged files and 37 cases, including the native v1 Responses wire-path correction. The [unchanged Google raw/shared batch](ai-unchanged-google1.md) adds five exact originals and public-path controls without a production fix. |
 | Images and pricing | [Pi Image](pi-image.md) and [OpenRouter](openrouter-images.md): canonical requests, output, errors, authoritative cost and separate image-output rates. |
 | Completions and retry errors | [Opaque replay](openai-completions-opaque.md), [stored signatures](openai-completions-stored-reasoning.md), [Cloudflare Gateway](openai-cloudflare-compat.md) and [Ant Ling thinking](openai-completions-ant-ling.md), plus [tool-history empty tools](openai-completions-empty-tools-history.md). [Changed-test group 3](ai-changed-group3.md) audits orphaned tool calls, total usage and Unicode with exact source fixtures. [Anthropic retry/error responses](anthropic-provider-error-response.md) maps repeated 429 response hooks and header observation through the public Messages transport. |
 | Bedrock | [Reasoning replay and effort](bedrock-reasoning.md), with detached copies of both optional compatibility fields. |
@@ -40,7 +40,7 @@ Before retargeting, four focused native tests passed on `3c59c42f` with Go 1.27.
 
 ## Unchanged-source batches
 
-Round 3 adds bounded unchanged-source comparisons beyond the 23 changed tests: two Anthropic batches, Durable session/view, turn-limit, blocked and environment packets, and Codemode source parsing. The unchanged originals, native controls and source-level limitations are recorded in `unchanged-ai-batch1.md`, `ai-unchanged-batch2.md`, `durable-turn-limit.md`, `durable-unchanged-batch1.md`, `durable-unchanged-views.md`, `durable-blocked-recovery.md`, `durable-environment.md` and `codemode-source.md`. Separate receipts cover Anthropic [preferred strict-tool fallback](anthropic-strict-tool-fallback.md) and [strict schemas](anthropic-strict-tool-schema.md).
+Round 3 adds bounded unchanged-source comparisons beyond the 23 changed tests: two Anthropic batches, a five-file Google raw/shared batch, Durable session/view, turn-limit, blocked and environment packets, and Codemode source parsing. The unchanged originals, native controls and source-level limitations are recorded in `unchanged-ai-batch1.md`, `ai-unchanged-batch2.md`, `ai-unchanged-google1.md`, `durable-turn-limit.md`, `durable-unchanged-batch1.md`, `durable-unchanged-views.md`, `durable-blocked-recovery.md`, `durable-environment.md` and `codemode-source.md`. Separate receipts cover Anthropic [preferred strict-tool fallback](anthropic-strict-tool-fallback.md) and [strict schemas](anthropic-strict-tool-schema.md).
 
 ## Integrated checkpoint
 
