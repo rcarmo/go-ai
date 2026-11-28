@@ -301,11 +301,11 @@ packages/durable/test/session-tables.test.ts	unchanged	present	0	0	0	0	0	0
 packages/durable/test/session-watches.test.ts	unchanged	present	1	1	0	8	0	0
 packages/durable/test/spec-usage.test.ts	unchanged	present	0	0	0	0	0	0
 packages/durable/test/sqlite-cloudflare.test.ts	unchanged	present	0	0	0	0	0	0
-packages/durable/test/sqlite-commit.test.ts	unchanged	present	0	0	0	0	0	0
-packages/durable/test/sqlite-facade.test.ts	unchanged	present	0	0	0	0	0	0
-packages/durable/test/sqlite-migrations.test.ts	unchanged	present	0	0	0	0	0	0
-packages/durable/test/sqlite-storage.test.ts	unchanged	present	0	0	0	0	0	0
-packages/durable/test/storage-runtime-boundary.test.ts	unchanged	present	0	0	0	0	0	0
+packages/durable/test/sqlite-commit.test.ts	unchanged	present	1	1	7	2	0	0
+packages/durable/test/sqlite-facade.test.ts	unchanged	present	1	1	4	1	0	0
+packages/durable/test/sqlite-migrations.test.ts	unchanged	present	1	1	4	0	0	0
+packages/durable/test/sqlite-storage.test.ts	unchanged	present	1	1	11	2	0	0
+packages/durable/test/storage-runtime-boundary.test.ts	unchanged	present	1	1	0	1	0	0
 packages/durable/test/store-storage-commit.test.ts	M	present	3	3	9	3	1	0
 packages/durable/test/store-storage.test.ts	M	present	1	1	2	0	3	0
 packages/durable/test/system-order-cache-e2e.test.ts	unchanged	present	0	0	0	0	0	0
