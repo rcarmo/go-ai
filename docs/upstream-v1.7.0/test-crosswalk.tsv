@@ -320,6 +320,6 @@ packages/schema/test/coerce-typebox.test.ts	unchanged	present	0	0	0	0	0	0
 packages/schema/test/coerce.test.ts	unchanged	present	0	0	0	0	0	0
 packages/schema/test/conformance.test.ts	unchanged	present	151	151	302	0	0	0
 packages/schema/test/equal.test.ts	unchanged	present	1	1	1	0	0	0
-packages/schema/test/shared.test.ts	unchanged	present	0	0	0	0	0	0
+packages/schema/test/shared.test.ts	unchanged	present	2	2	1	3	1	0
 packages/schema/test/typebox-static.test.ts	unchanged	present	0	0	0	0	0	0
 packages/schema/test/validator.test.ts	unchanged	present	0	0	0	0	0	0
