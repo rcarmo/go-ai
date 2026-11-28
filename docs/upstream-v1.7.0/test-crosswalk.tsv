@@ -159,7 +159,7 @@ packages/ai/test/pi-messages.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/pre-generation-error.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/provider-error-body-passthrough.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/provider-error-body-regression.test.ts	unchanged	present	0	0	0	0	0	0
-packages/ai/test/provider-error-response.test.ts	unchanged	present	0	0	0	0	0	0
+packages/ai/test/provider-error-response.test.ts	unchanged	present	1	1	5	0	1	0
 packages/ai/test/provider-retry.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/providers.test.ts	M	present	3	0	8	6	0	0
 packages/ai/test/qwen-token-plan-models.test.ts	M	present	2	2	2	0	0	0
