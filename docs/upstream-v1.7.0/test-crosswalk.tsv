@@ -244,11 +244,11 @@ packages/durable/test/harness-inspect.test.ts	unchanged	present	1	1	0	2	0	0
 packages/durable/test/harness-json.test.ts	unchanged	present	0	0	0	0	0	0
 packages/durable/test/harness-lifecycle.test.ts	unchanged	present	16	16	0	58	0	0
 packages/durable/test/harness-live-deltas.test.ts	unchanged	present	0	0	0	0	0	0
-packages/durable/test/harness-nested-tools-restart.test.ts	unchanged	present	0	0	0	0	0	0
-packages/durable/test/harness-nested-tools.test.ts	unchanged	present	0	0	0	0	0	0
+packages/durable/test/harness-nested-tools-restart.test.ts	unchanged	present	11	11	0	50	0	0
+packages/durable/test/harness-nested-tools.test.ts	unchanged	present	35	35	0	121	0	0
 packages/durable/test/harness-observers.test.ts	unchanged	present	0	0	0	0	0	0
 packages/durable/test/harness-ownership.test.ts	unchanged	present	0	0	0	0	0	0
-packages/durable/test/harness-park-children.test.ts	unchanged	present	0	0	0	0	0	0
+packages/durable/test/harness-park-children.test.ts	unchanged	present	10	10	0	29	0	0
 packages/durable/test/harness-partial-changes.test.ts	unchanged	present	0	0	0	0	0	0
 packages/durable/test/harness-prompt.test.ts	unchanged	present	0	0	0	0	0	0
 packages/durable/test/harness-read-only.test.ts	unchanged	present	0	0	0	0	0	0
@@ -271,8 +271,8 @@ packages/durable/test/harness-tasks-recovery.test.ts	unchanged	present	0	0	0	0	0
 packages/durable/test/harness-tasks.test.ts	unchanged	present	0	0	0	0	0	0
 packages/durable/test/harness-telemetry-options.test.ts	unchanged	present	0	0	0	0	0	0
 packages/durable/test/harness-telemetry.test.ts	unchanged	present	0	0	0	0	0	0
-packages/durable/test/harness-tool-gates.test.ts	unchanged	present	0	0	0	0	0	0
-packages/durable/test/harness-tool-hooks.test.ts	unchanged	present	0	0	0	0	0	0
+packages/durable/test/harness-tool-gates.test.ts	unchanged	present	9	9	0	28	0	0
+packages/durable/test/harness-tool-hooks.test.ts	unchanged	present	18	18	0	78	0	0
 packages/durable/test/harness-tool-parks.test.ts	unchanged	present	0	0	0	0	0	0
 packages/durable/test/harness-tools-recovery.test.ts	unchanged	present	0	0	0	0	0	0
 packages/durable/test/harness-tools.test.ts	unchanged	present	0	0	0	0	0	0
