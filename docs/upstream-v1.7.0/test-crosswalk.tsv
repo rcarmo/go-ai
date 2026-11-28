@@ -299,7 +299,7 @@ packages/durable/test/session-group-commit.test.ts	unchanged	present	1	1	0	5	0	0
 packages/durable/test/session-observers.test.ts	unchanged	present	1	1	0	2	0	0
 packages/durable/test/session-tables.test.ts	unchanged	present	0	0	0	0	0	0
 packages/durable/test/session-watches.test.ts	unchanged	present	1	1	0	8	0	0
-packages/durable/test/spec-usage.test.ts	unchanged	present	0	0	0	0	0	0
+packages/durable/test/spec-usage.test.ts	unchanged	present	1	1	0	0	1	0
 packages/durable/test/sqlite-cloudflare.test.ts	unchanged	present	0	0	0	0	0	0
 packages/durable/test/sqlite-commit.test.ts	unchanged	present	1	1	9	0	0	0
 packages/durable/test/sqlite-facade.test.ts	unchanged	present	1	1	0	9	0	0
@@ -310,11 +310,11 @@ packages/durable/test/store-storage-commit.test.ts	M	present	3	3	9	3	1	0
 packages/durable/test/store-storage.test.ts	M	present	1	1	2	0	3	0
 packages/durable/test/system-order-cache-e2e.test.ts	unchanged	present	0	0	0	0	0	0
 packages/durable/test/tool-args-typebox.test.ts	unchanged	present	0	0	0	0	0	0
-packages/durable/test/tool-search.test.ts	unchanged	present	0	0	0	0	0	0
-packages/durable/test/tools-images.test.ts	unchanged	present	0	0	0	0	0	0
-packages/durable/test/tools-read-differential.test.ts	unchanged	present	0	0	0	0	0	0
-packages/durable/test/tools.test.ts	unchanged	present	0	0	0	0	0	0
-packages/durable/test/types.test.ts	unchanged	present	0	0	0	0	0	0
+packages/durable/test/tool-search.test.ts	unchanged	present	1	1	1	0	0	0
+packages/durable/test/tools-images.test.ts	unchanged	present	2	2	3	0	2	0
+packages/durable/test/tools-read-differential.test.ts	unchanged	present	1	1	0	1	0	0
+packages/durable/test/tools.test.ts	unchanged	present	1	1	0	6	0	0
+packages/durable/test/types.test.ts	unchanged	present	1	1	0	0	2	0
 packages/schema/test/builders.test.ts	unchanged	present	0	0	0	0	0	0
 packages/schema/test/coerce-typebox.test.ts	unchanged	present	0	0	0	0	0	0
 packages/schema/test/coerce.test.ts	unchanged	present	0	0	0	0	0	0
