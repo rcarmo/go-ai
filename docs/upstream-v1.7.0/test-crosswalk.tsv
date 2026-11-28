@@ -22,7 +22,7 @@ packages/ai/test/anthropic-thinking-binding-e2e.test.ts	unchanged	present	0	0	0	
 packages/ai/test/anthropic-thinking-disable.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/anthropic-tool-name-normalization.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/azure-models.test.ts	unchanged	present	1	1	4	0	0	0
-packages/ai/test/azure-openai-base-url.test.ts	unchanged	present	17	17	26	0	0	0
+packages/ai/test/azure-openai-base-url.test.ts	unchanged	present	17	17	24	0	0	0
 packages/ai/test/azure-openai-completions.test.ts	unchanged	present	15	15	23	0	0	0
 packages/ai/test/azure-openai-responses-reasoning-replay.test.ts	unchanged	present	2	2	2	0	0	0
 packages/ai/test/azure-openai-tool-choice.test.ts	unchanged	present	2	2	4	0	0	0
