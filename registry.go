@@ -153,7 +153,29 @@ func ListProviders() []Provider {
 // DoneEvent or ErrorEvent.
 func Stream(ctx context.Context, model *Model, convCtx *Context, opts *StreamOptions) <-chan Event {
 	observer := observeModelRequest(model, opts, false)
-	return observeRequestEvents(streamRequest(ctx, model, convCtx, opts), observer)
+	return observeRequestEvents(requestEventsThroughTerminal(streamRequest(ctx, model, convCtx, opts)), observer)
+}
+
+// requestEventsThroughTerminal matches pi-ai EventStream completion: deliver
+// events in order through the first terminal event, then close the public
+// channel. Continue draining a misbehaving provider so its producer cannot block
+// after the caller has observed completion.
+func requestEventsThroughTerminal(source <-chan Event) <-chan Event {
+	out := make(chan Event)
+	go func() {
+		for event := range source {
+			out <- event
+			switch event.(type) {
+			case *DoneEvent, *ErrorEvent:
+				close(out)
+				for range source {
+				}
+				return
+			}
+		}
+		close(out)
+	}()
+	return out
 }
 
 func streamRequest(ctx context.Context, model *Model, convCtx *Context, opts *StreamOptions) <-chan Event {

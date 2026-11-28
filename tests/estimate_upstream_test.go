@@ -1,6 +1,7 @@
 package goai_test
 
 import (
+	"strings"
 	"testing"
 
 	goai "github.com/rcarmo/go-ai"
@@ -37,6 +38,54 @@ func TestEstimateContextTokensUsesLastSuccessfulAssistantUsageAsAnchor(t *testin
 	}
 	if est.LastUsageIndex == nil || *est.LastUsageIndex != 2 {
 		t.Fatalf("last usage index=%v, want 2", est.LastUsageIndex)
+	}
+}
+
+func TestSourceV170ContextEstimateAndOutputClamp(t *testing.T) {
+	model := &goai.Model{ID: "test-model", ContextWindow: 10_000, MaxTokens: 8_000}
+	assistant := func(timestamp int64, total int) goai.Message {
+		return goai.Message{
+			Role: goai.RoleAssistant, Timestamp: timestamp, StopReason: goai.StopReasonStop,
+			Content: []goai.ContentBlock{{Type: "text", Text: "kept"}},
+			Usage:   &goai.Usage{TotalTokens: total},
+		}
+	}
+
+	ctx := &goai.Context{Messages: []goai.Message{
+		assistant(100, 2_000),
+		{Role: goai.RoleUser, Timestamp: 200, Content: []goai.ContentBlock{{Type: "text", Text: strings.Repeat("x", 3_500)}}},
+	}}
+	est := goai.EstimateContextTokens(ctx)
+	if est.Tokens != 3_000 || est.UsageTokens != 2_000 || est.TrailingTokens != 1_000 || est.LastUsageIndex == nil || *est.LastUsageIndex != 0 {
+		t.Fatalf("new-text estimate=%#v", est)
+	}
+	if got := goai.ClampMaxTokensToContext(model, ctx, model.MaxTokens); got != 2_904 {
+		t.Fatalf("new-text maxTokens=%d, want 2904", got)
+	}
+
+	stale := &goai.Context{SystemPrompt: "system", Messages: []goai.Message{
+		{Role: goai.RoleUser, Timestamp: 200, Content: []goai.ContentBlock{{Type: "text", Text: "summary"}}},
+		assistant(100, 9_500),
+		{Role: goai.RoleUser, Timestamp: 300, Content: []goai.ContentBlock{{Type: "text", Text: strings.Repeat("x", 4_000)}}},
+	}}
+	est = goai.EstimateContextTokens(stale)
+	if est.Tokens != 1_149 || est.UsageTokens != 0 || est.TrailingTokens != 1_149 || est.LastUsageIndex != nil {
+		t.Fatalf("stale-usage estimate=%#v", est)
+	}
+	if got := goai.ClampMaxTokensToContext(model, stale, model.MaxTokens); got != 4_755 {
+		t.Fatalf("stale-usage maxTokens=%d, want 4755", got)
+	}
+
+	anchored := &goai.Context{Messages: []goai.Message{
+		{Role: goai.RoleUser, Timestamp: 200, Content: []goai.ContentBlock{{Type: "text", Text: "summary"}}},
+		assistant(100, 9_500),
+		{Role: goai.RoleUser, Timestamp: 300, Content: []goai.ContentBlock{{Type: "text", Text: "new prompt"}}},
+		assistant(400, 2_000),
+		{Role: goai.RoleUser, Timestamp: 500, Content: []goai.ContentBlock{{Type: "text", Text: "tail"}}},
+	}}
+	est = goai.EstimateContextTokens(anchored)
+	if est.Tokens != 2_002 || est.UsageTokens != 2_000 || est.TrailingTokens != 2 || est.LastUsageIndex == nil || *est.LastUsageIndex != 3 {
+		t.Fatalf("renewed-usage estimate=%#v", est)
 	}
 }
 
