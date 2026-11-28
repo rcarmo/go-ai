@@ -231,8 +231,8 @@ packages/durable/test/harness-continue.test.ts	unchanged	present	13	13	0	48	0	0
 packages/durable/test/harness-conversations.test.ts	unchanged	present	12	12	0	81	0	0
 packages/durable/test/harness-deferred-progress.test.ts	unchanged	present	0	0	0	0	0	0
 packages/durable/test/harness-failed-run-inbox.test.ts	unchanged	present	0	0	0	0	0	0
-packages/durable/test/harness-generation-recovery.test.ts	unchanged	present	0	0	0	0	0	0
-packages/durable/test/harness-generation.test.ts	unchanged	present	0	0	0	0	0	0
+packages/durable/test/harness-generation-recovery.test.ts	unchanged	present	9	9	23	17	0	0
+packages/durable/test/harness-generation.test.ts	unchanged	present	26	26	68	33	0	0
 packages/durable/test/harness-group-commit.test.ts	unchanged	present	0	0	0	0	0	0
 packages/durable/test/harness-hook-reads.test.ts	unchanged	present	0	0	0	0	0	0
 packages/durable/test/harness-hook-tasks.test.ts	unchanged	present	0	0	0	0	0	0
