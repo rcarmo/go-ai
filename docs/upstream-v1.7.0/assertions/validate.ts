@@ -34,10 +34,17 @@ const root = git(import.meta.dir, "rev-parse", "--show-toplevel").toString().tri
 const hash = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
 const sha = /^[0-9a-f]{40}$/;
 // Include direct assertions guarded by a simple inline condition or loop.
-const expectLine = /^\s*(?:(?:if|for)\s*\([^()\n]*\)\s*)?(?:(?:await\s+)?expect\(|expectTypeOf[<(]|Assert\.Is(?:Equal|True|False)\()/;
+const expectLine = /^\s*(?:(?:if|for)\s*\([^()\n]*\)\s*)?(?:await\s+)?expect\(/;
+const projectionExpectLine = /^\s*(?:(?:if|for)\s*\([^()\n]*\)\s*)?(?:(?:await\s+)?expect\(|expectTypeOf[<(]|Assert\.Is(?:Equal|True|False)\()/;
+const projectionFiles = new Set([
+	"packages/schema/test/builders.test.ts",
+	"packages/schema/test/coerce-typebox.test.ts",
+	"packages/schema/test/typebox-static.test.ts",
+]);
+const isExpectLine = (file: string, line: string) => (projectionFiles.has(file) ? projectionExpectLine : expectLine).test(line);
 const conformanceRunner = "packages/schema/test/conformance.test.ts";
 const conformanceChecks = [40, 45];
-const testLine = /^\s*it(?:\(|\.each(?:<\[[^\n>]+\]>)?\(|\.skipIf\()/;
+const testLine = /^\s*it(?:\(|\.skip\(|\.each(?:<\[[^\n>]+\]>)?\(|\.skipIf\()/;
 function requireCheck(ok: unknown, message: string): asserts ok {
 	if (!ok) throw Error(message);
 }
@@ -95,7 +102,7 @@ for (const name of maps) {
 			requireCheck(!lines.slice(row.first, row.last).some(line => testLine.test(line)), `${row.id}: span contains another case`);
 			requireCheck(row.original === null || manifest.receipts[row.original], `${row.id}: unknown original receipt`);
 			const expected = new Set<number>();
-			for (let line = row.first; line <= row.last; line++) if (expectLine.test(lines[line - 1])) expected.add(line);
+			for (let line = row.first; line <= row.last; line++) if (isExpectLine(row.file, lines[line - 1])) expected.add(line);
 			requireCheck(expected.size > 0, `${row.id}: no assertion sites`);
 			if (row.variants) requireCheck(row.variants.length > 1 && row.variants.length === new Set(row.variants).size, `${row.id}: invalid variants`);
 			for (const [line, variants] of Object.entries(row.restricted ?? {})) {
@@ -120,7 +127,7 @@ for (const name of maps) {
 			const fixture = test.kind === "fixture-case";
 			const locator = fixture ? `${test.file}[${test.group}].tests[${test.vector}]:${row.line}` : `${test.file}:${row.line}`;
 			const source = sources.get(fixture ? test.runner : test.file)?.[row.line - 1];
-			requireCheck(!seenLocators.has(locator) && source && expectLine.test(source) && source.trim() === row.expect, `${row.id}: duplicate or stale source locator`);
+			requireCheck(!seenLocators.has(locator) && source && isExpectLine(fixture ? test.runner : test.file, source) && source.trim() === row.expect, `${row.id}: duplicate or stale source locator`);
 			seenLocators.add(locator);
 			requireCheck(Object.hasOwn(status, row.status), `${row.id}: unknown status`);
 			if (row.status === "unmatched") requireCheck(!row.native, `${row.id}: unmatched row claims native evidence`);

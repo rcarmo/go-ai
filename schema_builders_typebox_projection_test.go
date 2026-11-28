@@ -11,7 +11,7 @@ import (
 // Locator: packages/schema/test/builders.test.ts. Go has no builder or static
 // generic surface, so these assertions use the builder's exact public JSON
 // projection through CompileJSONSchema. Type-only assertions remain partial.
-func TestSchemaV170BuilderJSONProjection(t *testing.T) {
+func TestSchemaBuilderJSONProjection(t *testing.T) {
 	t.Run("plain object", func(t *testing.T) {
 		compiled := compileProjection(t, `{"type":"object","properties":{"path":{"type":"string","description":"File path","minLength":1},"offset":{"type":"integer","minimum":1},"mode":{"enum":["read","write"]}},"required":["path","mode"],"additionalProperties":false}`)
 		assertProjectionCheck(t, compiled, json.RawMessage(`{"path":"x","mode":"read","offset":2}`), true)
@@ -89,7 +89,7 @@ func TestSchemaV170BuilderJSONProjection(t *testing.T) {
 // TypeBox's emitted string-key JSON projection. TypeScript optional/readonly and
 // static inference assertions are intentionally partial: Go has no TypeBox
 // symbol keys or compile-time generic schema types to inspect.
-func TestSchemaV170TypeBoxStaticJSONProjection(t *testing.T) {
+func TestSchemaTypeBoxStaticJSONProjection(t *testing.T) {
 	schema := compileProjection(t, `{"type":"object","properties":{"path":{"type":"string"},"offset":{"type":"integer"},"id":{"type":"string"},"tag":{"const":"x"}},"required":["path","id"]}`)
 	assertProjectionCheck(t, schema, json.RawMessage(`{"path":"p","id":"i"}`), true)
 	assertProjectionCheck(t, schema, json.RawMessage(`{"path":"p","offset":"1","id":"i"}`), false)

@@ -15,8 +15,8 @@ import (
 // The pinned oracle records TypeBox's symbol-free JSON projection and the
 // convertOnly result. Public Go Coerce is TypeBox pass 2 plus the schema
 // primitive pass 3 described by the upstream coerce implementation.
-func TestSchemaV170TypeBoxCoercionProjection(t *testing.T) {
-	f, err := os.Open("testdata/schema_v170_typebox_coercion.jsonl")
+func TestSchemaTypeBoxCoercionProjection(t *testing.T) {
+	f, err := os.Open("testdata/schema_typebox_coercion_projection.jsonl")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -26,14 +26,14 @@ Result: **three files passed; 235 tests passed and two skipped**. The two skips 
 
 ## Public native projection
 
-`TestSchemaV170TypeBoxCoercionProjection` records the 229 conversion invocations in the 200 unique source case names. Each is compared through the public `CompileJSONSchema(...).Coerce` and optional `Check` paths after discarding TypeBox's symbol keys through its ordinary string-key JSON projection.
+`TestSchemaTypeBoxCoercionProjection` records the 229 conversion invocations in the 200 unique source case names. Each is compared through the public `CompileJSONSchema(...).Coerce` and optional `Check` paths after discarding TypeBox's symbol keys through its ordinary string-key JSON projection.
 
 - 191 invocations map directly.
 - Three invocations remain partial because the original deliberately calls private `convertOnly` (TypeBox pass 2); public `Coerce` also runs pi-schema's primitive type pass 3. The source result and the public result are both retained in the fixture and the public result is checked.
 - 35 invocations remain partial because their input or result uses JavaScript `undefined`, `bigint`, or `-0` identity. They are retained as source records, not silently claimed as JSON parity.
 - The original's two explicit symbol skips remain partial. TypeBox's symbol-keyed kind and optional/readonly markers are omitted from JSON projection exactly as the original test comment describes.
 
-`TestSchemaV170BuilderJSONProjection` checks the emitted-schema semantics for plain objects, leaves, arrays, records, tuples, nullable/open objects, unconstrained unsafe schemas, bigint, recursive `$id`/`$ref` nesting and diagnostic ordering. `TestSchemaV170TypeBoxStaticJSONProjection` checks the corresponding runtime JSON projection. TypeScript-only `Static`, optional/readonly object shape and compile-time type narrowing have no Go generic counterpart and remain partial rather than being replaced by weaker runtime claims.
+`TestSchemaBuilderJSONProjection` checks the emitted-schema semantics for plain objects, leaves, arrays, records, tuples, nullable/open objects, unconstrained unsafe schemas, bigint, recursive `$id`/`$ref` nesting and diagnostic ordering. `TestSchemaTypeBoxStaticJSONProjection` checks the corresponding runtime JSON projection. TypeScript-only `Static`, optional/readonly object shape and compile-time type narrowing have no Go generic counterpart and remain partial rather than being replaced by weaker runtime claims.
 
 No semantic difference was demonstrated on the public native paths. Production code is unchanged.
 
@@ -43,8 +43,8 @@ Focused tests run twice with shuffle seed 42 under the shared `/work/port-lanes/
 
 ```sh
 go test . \
-  -run '^TestSchemaV170(BuilderJSONProjection|TypeBoxCoercionProjection|TypeBoxStaticJSONProjection)$' \
+  -run '^TestSchema(BuilderJSONProjection|TypeBoxCoercionProjection|TypeBoxStaticJSONProjection)$' \
   -shuffle=42 -count=2
 ```
 
-The scope excludes production changes, live provider calls, profiling, hosted CI, full acceptance, publishing and pushing.
+`make vet` and Staticcheck v0.8.2 (`make staticcheck`) also passed under the same lock and resource ceiling. The scope excludes production changes, live provider calls, profiling, hosted CI, full acceptance, publishing and pushing.
