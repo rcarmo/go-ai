@@ -34,7 +34,7 @@ const root = git(import.meta.dir, "rev-parse", "--show-toplevel").toString().tri
 const hash = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
 const sha = /^[0-9a-f]{40}$/;
 // Include direct assertions guarded by a simple inline condition or loop.
-const expectLine = /^\s*(?:(?:if|for)\s*\([^()\n]*\)\s*)?(?:await\s+)?expect\(/;
+const expectLine = /^\s*(?:(?:if|for)\s*\([^()\n]*\)\s*)?(?:(?:await\s+)?expect\(|expectTypeOf[<(]|Assert\.Is(?:Equal|True|False)\()/;
 const conformanceRunner = "packages/schema/test/conformance.test.ts";
 const conformanceChecks = [40, 45];
 const testLine = /^\s*it(?:\(|\.each(?:<\[[^\n>]+\]>)?\(|\.skipIf\()/;
