@@ -17,10 +17,10 @@ func filterProviderCatalog(provider Provider, entry *ModelsStoreEntry) *ModelsSt
 	out := *entry
 	out.Models = filterProviderModels(provider, entry.Models)
 	out.ImageModels = copyCatalogModels(entry.ImageModels, cloneImageModel, func(m *ImageModel) bool {
-		return Provider(m.Provider) == provider && m.ID != ""
+		return Provider(m.Provider) == provider && m.ID != "" && GetModelType(m) == ModelTypeImage
 	})
 	out.ClassifierModels = copyCatalogModels(entry.ClassifierModels, cloneClassifierModel, func(m *ClassifierModel) bool {
-		return Provider(m.Provider) == provider && m.ID != ""
+		return Provider(m.Provider) == provider && m.ID != "" && GetModelType(m) == ModelTypeClassifier
 	})
 	return &out
 }
@@ -63,6 +63,66 @@ func (r *ModelRuntime) classifierCatalogs(provider ClassifierProvider) map[Class
 		if entry.ClassifierModels != nil && (provider == "" || ClassifierProvider(id) == provider) {
 			out[ClassifierProvider(id)] = copyCatalogModels(entry.ClassifierModels, cloneClassifierModel, nil)
 		}
+	}
+	return out
+}
+
+// GetModelsOfType returns detached snapshots for the requested public model
+// type. Empty provider selects every registered provider, matching the native
+// package-level catalog reads without exposing runtime-owned mutable pointers.
+func (r *ModelRuntime) GetModelsOfType(typ ModelType, provider string) []any {
+	switch typ {
+	case ModelTypeChat:
+		models := r.GetModels(Provider(provider))
+		out := make([]any, 0, len(models))
+		for _, model := range models {
+			out = append(out, model)
+		}
+		return out
+	case ModelTypeImage:
+		catalogs := r.imageCatalogs(ImageProvider(provider))
+		var out []any
+		for _, models := range catalogs {
+			for _, model := range models {
+				if GetModelType(model) == ModelTypeImage {
+					out = append(out, model)
+				}
+			}
+		}
+		return out
+	case ModelTypeClassifier:
+		catalogs := r.classifierCatalogs(ClassifierProvider(provider))
+		var out []any
+		for _, models := range catalogs {
+			for _, model := range models {
+				if GetModelType(model) == ModelTypeClassifier {
+					out = append(out, model)
+				}
+			}
+		}
+		return out
+	default:
+		return nil
+	}
+}
+
+// GetModelOfType performs a provider-scoped lookup without falling through to
+// another model type. Upstream permits one provider/id at each operation type.
+func (r *ModelRuntime) GetModelOfType(typ ModelType, provider, id string) any {
+	for _, model := range r.GetModelsOfType(typ, provider) {
+		ref, ok := typedModelIdentity(model)
+		if ok && ref.ID == id && ref.Provider == provider {
+			return model
+		}
+	}
+	return nil
+}
+
+// GetAllModels returns detached snapshots from all known model types.
+func (r *ModelRuntime) GetAllModels(provider string) []any {
+	out := make([]any, 0)
+	for _, typ := range []ModelType{ModelTypeChat, ModelTypeImage, ModelTypeClassifier} {
+		out = append(out, r.GetModelsOfType(typ, provider)...)
 	}
 	return out
 }
