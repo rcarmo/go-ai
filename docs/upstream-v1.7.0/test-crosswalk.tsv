@@ -208,11 +208,11 @@ packages/codemode/test/source.test.ts	unchanged	present	5	5	11	0	0	0
 packages/codemode/test/worker-lifetime.test.ts	unchanged	present	3	3	6	3	0	0
 packages/durable/test-workers/storage.test.ts	unchanged	present	0	0	0	0	0	0
 packages/durable/test-workers/wake.test.ts	unchanged	present	0	0	0	0	0	0
-packages/durable/test/codemode-checkpoints.test.ts	unchanged	present	0	0	0	0	0	0
-packages/durable/test/codemode-describe.test.ts	unchanged	present	0	0	0	0	0	0
+packages/durable/test/codemode-checkpoints.test.ts	unchanged	present	2	2	9	0	0	0
+packages/durable/test/codemode-describe.test.ts	unchanged	present	7	7	0	29	0	0
 packages/durable/test/codemode-imports.test.ts	unchanged	present	0	0	0	0	0	0
-packages/durable/test/codemode-models.test.ts	unchanged	present	0	0	0	0	0	0
-packages/durable/test/codemode.test.ts	unchanged	present	0	0	0	0	0	0
+packages/durable/test/codemode-models.test.ts	unchanged	present	7	7	0	18	0	0
+packages/durable/test/codemode.test.ts	unchanged	present	42	42	0	113	0	0
 packages/durable/test/conversation-transcript.test.ts	unchanged	present	0	0	0	0	0	0
 packages/durable/test/env-line-scan.test.ts	unchanged	present	2	2	7	2	0	0
 packages/durable/test/env-node-conformance.test.ts	unchanged	present	2	2	3	2	0	0
