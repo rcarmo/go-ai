@@ -11,8 +11,8 @@ import (
 	goai "github.com/rcarmo/go-ai"
 )
 
-// Source locators refer to official pi v1.6.1 (ef4a1cfcca62b77ad3558337ff3e1c7f6beeadfe).
-// The v1.7.0 turn-limit suite has the same source bytes.
+// Source locators refer to official pi v1.7.0 (fb0fe823539f6d04850f6e34748c01f01f212e1f).
+// The v1.6.1 turn-limit suite has the same source bytes.
 
 // harness-turn-limit.test.ts:73–94 and 108–122. Only tool rounds count;
 // a yield continuation starts a fresh count without settling the input.
