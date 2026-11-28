@@ -1449,7 +1449,7 @@ func (s *taskScheduler) reconcilePass(requireEnabled bool) error {
 		// created disposable tasks are not in this Open-time set.
 		for _, id := range ids(s.abandoned) {
 			task, ok := state.Tasks[id]
-			if !ok || terminalStatus(task.Status) || taskHasDecidedOutcome(task) {
+			if !ok || terminalStatus(task.Status) {
 				delete(s.abandoned, id)
 				continue
 			}
@@ -1479,7 +1479,12 @@ func (s *taskScheduler) reconcilePass(requireEnabled bool) error {
 				continue
 			}
 			task = markTask(task)
-			task.AbortReason = restartCascadeReason(state, task)
+			// A same-pass failFast selection is explicit cancellation, not a
+			// restart inheritance. It must win even while an abandoned owner
+			// still supplies a restart reason.
+			if !taskSelectedFailFastCancellation(state, task.ID) {
+				task.AbortReason = restartCascadeReason(state, task)
+			}
 			if err := tx.stage(Write{Op: "put-task", Task: &task}); err != nil {
 				return err
 			}
