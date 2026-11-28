@@ -93,9 +93,9 @@ packages/ai/test/max-thinking.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/message-types.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/meta-oauth.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/mistral-http-transport.test.ts	unchanged	present	0	0	0	0	0	0
-packages/ai/test/mistral-raw-stop-reason.test.ts	unchanged	present	0	0	0	0	0	0
+packages/ai/test/mistral-raw-stop-reason.test.ts	unchanged	present	3	3	11	0	0	0
 packages/ai/test/mistral-reasoning-mode.test.ts	unchanged	present	0	0	0	0	0	0
-packages/ai/test/mistral-tool-schema.test.ts	unchanged	present	0	0	0	0	0	0
+packages/ai/test/mistral-tool-schema.test.ts	unchanged	present	2	2	9	3	0	0
 packages/ai/test/model-catalog-types.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/model-cost-tiers.test.ts	unchanged	present	0	0	0	0	0	0
 packages/ai/test/model-data-validation.test.ts	unchanged	present	0	0	0	0	0	0
