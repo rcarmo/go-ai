@@ -4,9 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	goai "github.com/rcarmo/go-ai"
+	"fmt"
+	"strings"
 	"sync/atomic"
 	"testing"
+
+	goai "github.com/rcarmo/go-ai"
 )
 
 func TestToolControlsUnavailableOrThrowingCallCannotTerminateRound(t *testing.T) {
@@ -91,7 +94,7 @@ func TestToolControlsUnavailableOrThrowingCallCannotTerminateRound(t *testing.T)
 						}
 						input := generationObject(record.Input.Value)
 						if input["callId"] == "second-call" {
-							if input["unoffered"] != true || input["kind"] != "model" || record.Version != 3 {
+							if input["unoffered"] != true || input["kind"] != "model" || record.Version != 4 {
 								t.Fatal("unoffered canonical tool input", record)
 							}
 							flagged++
@@ -120,6 +123,83 @@ func TestToolControlsUnavailableOrThrowingCallCannotTerminateRound(t *testing.T)
 		})
 	}
 }
+
+// Source: harness-tool-hooks.test.ts, unoffered calls still own a tool task
+// and run afterTool on that task. Hook control then owns the round boundary.
+func TestToolHookOwnsUnavailableCallAndControlsRound(t *testing.T) {
+	for _, terminate := range []bool{false, true} {
+		name := fmt.Sprintf("terminate=%v", terminate)
+		t.Run(name, func(t *testing.T) {
+			registry := NewRegistry()
+			var requests atomic.Int64
+			var hookTask ID
+			if err := registry.Install(&Extension{Name: "unoffered-hook", ToolHooks: ToolHooks{
+				AfterTool: func(_ context.Context, call goai.ToolCall, result ToolResult, api *HookAPI) (*ToolResult, error) {
+					if call.ID != "ghost-call" || !result.IsError || len(result.Diagnostics) != 1 || result.Diagnostics[0].Code != "tool_unavailable" {
+						t.Error("afterTool did not receive the unavailable call", call, result)
+					}
+					hookTask = api.TaskID()
+					result.Content = "try another tool"
+					if terminate {
+						result.Control = &ToolControl{Terminate: true}
+					}
+					return &result, nil
+				},
+			}}); err != nil {
+				t.Fatal(err)
+			}
+			ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
+				out := make(chan goai.Event, 1)
+				if requests.Add(1) == 1 {
+					out <- toolAnswer("ghost-call", "ghost", JSON{})
+				} else {
+					out <- terminal("done")
+				}
+				close(out)
+				return out
+			})
+			options.Registry = registry
+			store, err := newTestSQLite(t)
+			if err != nil {
+				t.Fatal(err)
+			}
+			h := openHarness(t, store, options)
+			conversation := root(t, h, ref)
+			submission, err := conversation.Submit(bg, Input{Content: "go"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if settled := waitSubmission(t, submission); settled.Record.Status != "done" {
+				t.Fatal("submission", settled)
+			}
+			wantRequests := int64(2)
+			if terminate {
+				wantRequests = 1
+			}
+			if requests.Load() != wantRequests {
+				t.Fatal("round requests", requests.Load(), wantRequests)
+			}
+			task, found, err := h.Task(bg, hookTask)
+			if err != nil || !found || task.Kind != "pi.tool" || task.Version != 4 || task.Input == nil || task.State.Outcome == nil || task.State.Outcome.Result == nil {
+				t.Fatal("hook task ownership", task, found, err)
+			}
+			input := generationObject(task.Input.Value)
+			if input["kind"] != "model" || input["callId"] != "ghost-call" || input["unoffered"] != true {
+				t.Fatal("unoffered task input", input)
+			}
+			receipt := v160ToolResult(t, bg, conversation, "ghost-call")
+			if !receipt.IsError || !strings.HasPrefix(v160ToolResultText(receipt), "try another tool<harness>") || len(receipt.Diagnostics) != 1 || receipt.Diagnostics[0].Code != "tool_unavailable" {
+				t.Fatal("hook result", receipt)
+			}
+			result := generationObject(task.State.Outcome.Result.Value)
+			entry, found, err := h.Entry(bg, submissionEntryID(result["entryId"]))
+			if err != nil || !found || entry.ByTask != hookTask || entry.Kind != "pi.tool-result" {
+				t.Fatal("owned result entry", entry, found, err)
+			}
+		})
+	}
+}
+
 func TestToolTerminateFinalBoundaryQueuesFollowUpAndPreservesHookControl(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()

@@ -397,9 +397,6 @@ func canonicalToolFromSlot(ctx context.Context, r *TaskRuntime, code, message st
 				slot := canonicalToolSlot(doc.Value, r.taskID)
 				if slot != nil {
 					result.Content, _ = slot["output"].(string)
-					if result.Content != "" {
-						result.Blocks = []goai.ContentBlock{{Type: "text", Text: result.Content}}
-					}
 					if details, found := slot["details"]; found {
 						result.DetailsValue, result.HasDetails = details, true
 					}
@@ -598,13 +595,11 @@ func settleCanonicalTool(ctx context.Context, r *TaskRuntime, input canonicalToo
 		return err
 	}
 	limits := resolvedToolOutputLimits(reg.offer.OutputLimits)
-	content := owned.Blocks
-	if content == nil {
-		content = []goai.ContentBlock{}
-		if owned.Content != "" {
-			content = []goai.ContentBlock{{Type: "text", Text: owned.Content}}
-		}
+	content := []goai.ContentBlock{}
+	if owned.Content != "" {
+		content = append(content, goai.ContentBlock{Type: "text", Text: owned.Content})
 	}
+	content = append(content, owned.Blocks...)
 	var original strings.Builder
 	for _, block := range content {
 		if block.Type == "text" {
