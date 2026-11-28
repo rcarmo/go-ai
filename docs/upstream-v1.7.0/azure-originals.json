@@ -1,6 +1,7 @@
 {
   "pin": "fb0fe823539f6d04850f6e34748c01f01f212e1f",
   "nativeBase": "cbca8ba81df8a13ee1c88521a078203540a637b1",
+  "runtimeCommit": "20da487c439bbbd28fac6e8b7e691a9141f17371",
   "runner": {
     "node": "v26.13.0",
     "vitest": "4.1.12",
