@@ -172,6 +172,49 @@ func TestGoogleSharedGemini3UnsignedToolCallsDoesNotAddThoughtSignatureForNonGem
 	}
 }
 
+// Source: pi v1.7.0 packages/ai/test/google-shared-signed-empty-blocks.test.ts:58–111.
+func TestGoogleSharedV170SignedEmptyBlocks(t *testing.T) {
+	const signature = "AAAAAAAAAAAAAAAAAAAAAA=="
+	model := makeGemini3UpstreamModel(goai.ApiGoogleGenerativeAI, goai.ProviderGoogle, "gemini-3-pro-preview")
+	call := goai.ContentBlock{Type: "toolCall", ID: "call_1", Name: "bash", Arguments: map[string]any{"command": "ls"}}
+	for _, tc := range []struct {
+		name    string
+		content []goai.ContentBlock
+		other   bool
+		want    func([]geminiPart) bool
+	}{
+		{"signed thinking", []goai.ContentBlock{{Type: "thinking", Thinking: "", ThinkingSignature: signature}, call}, false, func(parts []geminiPart) bool {
+			return len(parts) == 2 && parts[0].Thought != nil && *parts[0].Thought && parts[0].Text == "" && parts[0].ThoughtSignature == signature && parts[1].FunctionCall != nil
+		}},
+		{"signed text", []goai.ContentBlock{{Type: "text", Text: "", TextSignature: signature}, call}, false, func(parts []geminiPart) bool {
+			return len(parts) == 2 && parts[0].Text == "" && parts[0].TextPresent && parts[0].ThoughtSignature == signature && parts[1].FunctionCall != nil
+		}},
+		{"unsigned empty", []goai.ContentBlock{{Type: "thinking", Thinking: ""}, {Type: "text", Text: "   "}, call}, false, func(parts []geminiPart) bool {
+			return len(parts) == 1 && parts[0].FunctionCall != nil
+		}},
+		{"signed different model", []goai.ContentBlock{{Type: "thinking", Thinking: "", ThinkingSignature: signature}, {Type: "text", Text: "", TextSignature: signature}, call}, true, func(parts []geminiPart) bool {
+			return len(parts) == 1 && parts[0].FunctionCall != nil && !strings.Contains(toJSONForGoogleShared(t, parts), signature)
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			historyModel := model
+			if tc.other {
+				copy := *model
+				copy.ID = "other-model"
+				historyModel = &copy
+			}
+			ctx := &goai.Context{Messages: []goai.Message{
+				{Role: goai.RoleUser, Content: []goai.ContentBlock{{Type: "text", Text: "Hi"}}},
+				{Role: goai.RoleAssistant, Content: tc.content, Api: historyModel.Api, Provider: historyModel.Provider, Model: historyModel.ID, Usage: &goai.Usage{}, StopReason: goai.StopReasonToolUse},
+			}}
+			parts := findModelTurnForGoogleShared(t, convertMessages(model, ctx)).Parts
+			if !tc.want(parts) {
+				t.Fatalf("model parts=%s", toJSONForGoogleShared(t, parts))
+			}
+		})
+	}
+}
+
 func toJSONForGoogleShared(t *testing.T, v any) string {
 	t.Helper()
 	b, err := json.Marshal(v)
