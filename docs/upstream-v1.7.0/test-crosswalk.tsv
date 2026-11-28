@@ -276,7 +276,7 @@ packages/durable/test/harness-tool-hooks.test.ts	unchanged	present	0	0	0	0	0	0
 packages/durable/test/harness-tool-parks.test.ts	unchanged	present	0	0	0	0	0	0
 packages/durable/test/harness-tools-recovery.test.ts	unchanged	present	0	0	0	0	0	0
 packages/durable/test/harness-tools.test.ts	unchanged	present	0	0	0	0	0	0
-packages/durable/test/harness-turn-limit.test.ts	unchanged	present	0	0	0	0	0	0
+packages/durable/test/harness-turn-limit.test.ts	unchanged	present	11	11	34	1	0	0
 packages/durable/test/harness-view-run.test.ts	unchanged	present	1	1	1	2	0	0
 packages/durable/test/harness-view.test.ts	unchanged	present	1	1	5	1	0	0
 packages/durable/test/images-fit.test.ts	unchanged	present	0	0	0	0	0	0
