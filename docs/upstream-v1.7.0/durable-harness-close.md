@@ -16,7 +16,7 @@ NODE_OPTIONS=--max-old-space-size=650 flock /tmp/go-ai/v170-focused-verify.lock 
 
 ## Native controls
 
-The unchanged native controls use public `Harness`, `ConversationHandle`, watch, task and production SQLite APIs where the contract is observable in Go. The focused selector covers failed-open cleanup and primary-error precedence, host/tool join, provider-session cleanup scope, cancelled close, same-file reopen, admitted commit settlement, close admission fences, queued cancellation, paused/read-only admission, progress scheduling and late registry replacement.
+The unchanged native controls use public `Harness`, `ConversationHandle`, watch, task and production SQLite APIs where the contract is observable in Go. The focused selector covers failed-open cleanup and primary-error precedence, host join, provider-session cleanup scope, cancelled close, same-file reopen, admitted commit settlement, close admission fences, queued cancellation, paused/read-only admission, progress scheduling and late registry replacement. The original tool/hook join case remains partial: an existing noncooperative-tool recovery test also asserts a timing-sensitive post-reopen task version and is deliberately excluded from the exact verification selector.
 
 The selector is deliberately narrower than a claim of one-to-one JavaScript assertion parity. The original's `MemoryStorage` internals, TypeScript private `SessionImpl` access, exact JavaScript object identities and Chord callback envelopes remain source-adaptation gaps. No alternate native backend or test-only storage contract is substituted: selected storage controls use SQLite only, under `CGO_ENABLED=0`.
 

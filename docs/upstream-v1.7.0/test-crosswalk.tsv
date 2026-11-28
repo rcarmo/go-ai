@@ -242,7 +242,7 @@ packages/durable/test/harness-inbox.test.ts	unchanged	present	0	0	0	0	0	0
 packages/durable/test/harness-input-entries.test.ts	unchanged	present	1	1	4	1	0	0
 packages/durable/test/harness-inspect.test.ts	unchanged	present	1	1	0	2	0	0
 packages/durable/test/harness-json.test.ts	unchanged	present	0	0	0	0	0	0
-packages/durable/test/harness-lifecycle.test.ts	unchanged	present	0	0	0	0	0	0
+packages/durable/test/harness-lifecycle.test.ts	unchanged	present	16	16	0	58	0	0
 packages/durable/test/harness-live-deltas.test.ts	unchanged	present	0	0	0	0	0	0
 packages/durable/test/harness-nested-tools-restart.test.ts	unchanged	present	0	0	0	0	0	0
 packages/durable/test/harness-nested-tools.test.ts	unchanged	present	0	0	0	0	0	0
