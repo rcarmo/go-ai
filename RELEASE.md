@@ -2,7 +2,7 @@
 
 The active port targets official upstream **v1.7.0**, `fb0fe823539f6d04850f6e34748c01f01f212e1f`. The [v1.7.0 verification log](docs/upstream-v1.7.0/README.md) records the pinned Git and npm inputs, the 1,400 changed paths and the initial test inventory. The native v1.6.1 smoke baseline passed. The first locked AI run passed 59 unchanged originals, and the native Pi Image comparisons passed. Broader runtime parity and release acceptance remain open.
 
-The round-1 scoped candidate `5f724c1e3cc6423ec697088dbb339e176b342243` passed 97 focused tests twice with vet and Staticcheck. The later candidate `016c041fb016d866273fbbb09bf4d0dfe6830ef5` passed combined provider, Radius, Durable, Codemode and prepared-Schema slices. All 1,858 published catalog records match; 2531 scoped assertions cover 130 of 324 pinned files. The release receipt verifies dependency, installer and bundle provenance. Full compliance remains unverified: broader coverage, live-provider credentials, full acceptance and profiling remain open.
+The round-1 scoped candidate `5f724c1e3cc6423ec697088dbb339e176b342243` passed 97 focused tests twice with vet and Staticcheck. The later candidate `016c041fb016d866273fbbb09bf4d0dfe6830ef5` passed combined provider, Radius, Durable, Codemode and prepared-Schema slices. All 1,858 published catalog records match; 3423 scoped assertions cover 144 of 324 pinned files. The release receipt verifies dependency, installer and bundle provenance. Full compliance remains unverified: broader coverage, live-provider credentials, full acceptance and profiling remain open.
 
 ## Historical v1.6.1 evidence
 
