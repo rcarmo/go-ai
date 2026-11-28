@@ -79,11 +79,14 @@ func streamBedrock(ctx context.Context, model *goai.Model, convCtx *goai.Context
 		if region == "" && endpointRegion != "" && useExplicitEndpoint {
 			region = endpointRegion
 		}
-		if region == "" {
+		if region == "" && !ambientProfile {
 			region = "us-east-1"
 		}
 
-		loadOpts := []func(*config.LoadOptions) error{config.WithRegion(region)}
+		var loadOpts []func(*config.LoadOptions) error
+		if region != "" {
+			loadOpts = append(loadOpts, config.WithRegion(region))
+		}
 		profile := goai.GetProviderEnvValue("AWS_PROFILE", env)
 		scopedProfile := false
 		if env != nil && env["AWS_PROFILE"] != "" {
@@ -123,12 +126,17 @@ func streamBedrock(ctx context.Context, model *goai.Model, convCtx *goai.Context
 			})
 		}
 		token := goai.GetProviderEnvValue("AWS_BEARER_TOKEN_BEDROCK", env)
-		if opts != nil && opts.BearerToken != "" {
-			token = opts.BearerToken
+		if opts != nil {
+			if opts.BearerToken != "" {
+				token = opts.BearerToken
+			} else if opts.APIKey != "" {
+				token = opts.APIKey
+			}
 		}
 		if token != "" && goai.GetProviderEnvValue("AWS_BEDROCK_SKIP_AUTH", env) != "1" {
 			clientOpts = append(clientOpts, func(o *bedrockruntime.Options) {
 				o.BearerAuthTokenProvider = bearer.StaticTokenProvider{Token: bearer.Token{Value: token}}
+				o.AuthSchemePreference = []string{"httpBearerAuth"}
 			})
 		}
 		if goai.GetProviderEnvValue("AWS_BEDROCK_FORCE_HTTP1", env) == "1" {
