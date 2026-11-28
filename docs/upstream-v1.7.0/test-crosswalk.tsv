@@ -223,7 +223,7 @@ packages/durable/test/env-truncate.test.ts	unchanged	present	0	0	0	0	0	0
 packages/durable/test/harness-after-run.test.ts	unchanged	present	0	0	0	0	0	0
 packages/durable/test/harness-blocked.test.ts	unchanged	present	11	11	19	11	0	0
 packages/durable/test/harness-callers.test.ts	unchanged	present	0	0	0	0	0	0
-packages/durable/test/harness-cancellation-barrier.test.ts	unchanged	present	0	0	0	0	0	0
+packages/durable/test/harness-cancellation-barrier.test.ts	unchanged	present	4	4	8	0	0	0
 packages/durable/test/harness-compaction.test.ts	unchanged	present	0	0	0	0	0	0
 packages/durable/test/harness-context-range.test.ts	unchanged	present	0	0	0	0	0	0
 packages/durable/test/harness-context.test.ts	unchanged	present	0	0	0	0	0	0
