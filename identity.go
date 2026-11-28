@@ -11,7 +11,7 @@ import (
 
 // PiAIVersion is the pinned upstream release used for default client identity.
 // It does not imply complete semantic alignment with that release.
-const PiAIVersion = "1.5.0"
+const PiAIVersion = "1.7.0"
 
 // UserAgentMode represents the JSON union "short", "detailed", or {custom:string}.
 // A zero value selects the detailed mode. Custom takes precedence over Mode.

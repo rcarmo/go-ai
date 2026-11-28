@@ -29,8 +29,11 @@ type Credentials struct {
 
 // AuthInfo is passed to the user during login (URL to visit).
 type AuthInfo struct {
-	URL          string
-	Instructions string
+	URL              string
+	Instructions     string
+	UserCode         string
+	IntervalSeconds  int
+	ExpiresInSeconds int
 }
 
 // Prompt asks the user for input during login.

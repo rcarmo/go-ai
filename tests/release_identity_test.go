@@ -12,7 +12,7 @@ func TestOfficial150DefaultIdentityVersion(t *testing.T) {
 	if got := goai.GetClientVersion(nil); got != "1.5.0" {
 		t.Errorf("default release version=%q want 1.5.0", got)
 	}
-	if got := goai.FormatUserAgent(nil); !strings.HasPrefix(got, "pi/1.5.0 (") {
+	if got := goai.FormatUserAgent(nil); !strings.HasPrefix(got, "pi/1.7.0 (") {
 		t.Errorf("default user agent=%q", got)
 	}
 	version := "app-version"

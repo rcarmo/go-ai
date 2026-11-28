@@ -167,7 +167,7 @@ func TestV0843GitHubCopilotLoginWorkflowStopsPolicyAndReturnsCredentials(t *test
 	if err != nil {
 		t.Fatalf("Login returned error: %v", err)
 	}
-	if auth.URL != "https://github.com/login/device" || !strings.Contains(auth.Instructions, "ABCD-EFGH") {
+	if auth.URL != "https://github.com/login/device" || !strings.Contains(auth.Instructions, "ABCD-EFGH") || auth.UserCode != "ABCD-EFGH" || auth.IntervalSeconds != 1 || auth.ExpiresInSeconds != 900 {
 		t.Fatalf("auth info=%#v", auth)
 	}
 	if creds.Access == "" || creds.Refresh != "github-token" {

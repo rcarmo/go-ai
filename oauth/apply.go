@@ -173,6 +173,17 @@ func RuntimeForProviderWithCatalog(ctx context.Context, id string, creds *Creden
 	}
 	goai.RegisterBuiltinClassifierModels()
 	classifiers := goai.ListClassifierModels(goai.ClassifierProvider(id))
+	if id == "github-copilot" {
+		if available := availableCopilotCredentialSet(updated, "availableClassifierModelIds"); available != nil {
+			selected := make([]*goai.ClassifierModel, 0, len(classifiers))
+			for _, model := range classifiers {
+				if available[model.ID] {
+					selected = append(selected, model)
+				}
+			}
+			classifiers = selected
+		}
+	}
 	// openai-chatgpt credentials modify the OpenAI chat catalog only; they
 	// must never make Decisions classifiers available.
 	if id == "openai-chatgpt" || id == "openai-codex" {

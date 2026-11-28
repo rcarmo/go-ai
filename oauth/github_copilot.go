@@ -51,8 +51,9 @@ var copilotPolicyBaseURL = GetGitHubCopilotBaseURL
 type GitHubCopilotProvider struct{}
 
 type copilotModelCatalog struct {
-	AvailableModelIDs []string
-	PolicyModelIDs    []string
+	AvailableModelIDs           []string
+	AvailableClassifierModelIDs []string
+	PolicyModelIDs              []string
 }
 
 func init() {
@@ -97,8 +98,11 @@ func (p *GitHubCopilotProvider) Login(callbacks LoginCallbacks) (*Credentials, e
 	// Notify user
 	if callbacks.OnAuth != nil {
 		callbacks.OnAuth(AuthInfo{
-			URL:          device.VerificationURI,
-			Instructions: fmt.Sprintf("Enter code: %s", device.UserCode),
+			URL:              device.VerificationURI,
+			Instructions:     fmt.Sprintf("Enter code: %s", device.UserCode),
+			UserCode:         device.UserCode,
+			IntervalSeconds:  device.Interval,
+			ExpiresInSeconds: device.ExpiresIn,
 		})
 	}
 
@@ -127,6 +131,7 @@ func (p *GitHubCopilotProvider) Login(callbacks LoginCallbacks) (*Credentials, e
 		creds.Extra = map[string]interface{}{}
 	}
 	creds.Extra["availableModelIds"] = ids
+	creds.Extra["availableClassifierModelIds"] = catalog.AvailableClassifierModelIDs
 	return creds, nil
 }
 
@@ -212,7 +217,28 @@ func startDeviceFlow(domain string) (*deviceFlowResponse, error) {
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, err
 	}
+	verificationURI, err := normalizeGitHubCopilotVerificationURI(result.VerificationURI)
+	if err != nil {
+		return nil, err
+	}
+	result.VerificationURI = verificationURI
 	return &result, nil
+}
+
+func normalizeGitHubCopilotVerificationURI(raw string) (string, error) {
+	var normalized strings.Builder
+	for i := 0; i < len(raw); i++ {
+		if raw[i] < 0x20 || raw[i] == 0x7f {
+			fmt.Fprintf(&normalized, "%%%02X", raw[i])
+			continue
+		}
+		normalized.WriteByte(raw[i])
+	}
+	u, err := url.Parse(normalized.String())
+	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
+		return "", fmt.Errorf("untrusted verification_uri in GitHub device authorization response")
+	}
+	return u.String(), nil
 }
 
 func pollForAccessToken(ctx context.Context, domain, deviceCode string, intervalSecs, expiresIn int) (string, error) {
@@ -284,6 +310,7 @@ func RefreshGitHubCopilotTokenContext(ctx context.Context, refreshToken, enterpr
 		creds.Extra = map[string]interface{}{}
 	}
 	creds.Extra["availableModelIds"] = ids
+	creds.Extra["availableClassifierModelIds"] = catalog.AvailableClassifierModelIDs
 	return creds, nil
 }
 
@@ -488,10 +515,12 @@ func parseGitHubCopilotModelCatalog(items []map[string]interface{}, allowPolicyF
 		known[model.ID] = true
 	}
 	var available []string
+	var classifier []string
 	var policy []string
 	type accountModel struct {
 		id          string
 		picker      bool
+		classifier  bool
 		policyState string
 		toolCapable bool
 	}
@@ -512,14 +541,24 @@ func parseGitHubCopilotModelCatalog(items []map[string]interface{}, allowPolicyF
 		if !toolCapable {
 			continue
 		}
+		modelType := ""
+		if capabilities, ok := item["capabilities"].(map[string]interface{}); ok {
+			modelType, _ = capabilities["type"].(string)
+		}
 		policyState := ""
 		if p, ok := item["policy"].(map[string]interface{}); ok {
 			policyState, _ = p["state"].(string)
 		}
 		picker, _ := item["model_picker_enabled"].(bool)
-		account = append(account, accountModel{id: id, picker: picker, policyState: policyState, toolCapable: toolCapable})
+		account = append(account, accountModel{id: id, picker: picker, classifier: modelType == "decisions", policyState: policyState, toolCapable: toolCapable})
 	}
 	for _, model := range account {
+		if model.classifier {
+			if model.policyState != "disabled" {
+				classifier = append(classifier, model.id)
+			}
+			continue
+		}
 		if model.picker && model.policyState != "disabled" {
 			available = append(available, model.id)
 		}
@@ -527,17 +566,17 @@ func parseGitHubCopilotModelCatalog(items []map[string]interface{}, allowPolicyF
 	usePolicyFallback := allowPolicyFallback && len(available) == 0
 	if usePolicyFallback {
 		for _, model := range account {
-			if model.policyState == "enabled" {
+			if !model.classifier && model.policyState == "enabled" {
 				available = append(available, model.id)
 			}
 		}
 	}
 	for _, model := range account {
-		if model.policyState == "unconfigured" && known[model.id] && (model.picker || usePolicyFallback) {
+		if !model.classifier && model.policyState == "unconfigured" && known[model.id] && (model.picker || usePolicyFallback) {
 			policy = append(policy, model.id)
 		}
 	}
-	return copilotModelCatalog{AvailableModelIDs: uniqueCopilotModelIDs(available), PolicyModelIDs: uniqueCopilotModelIDs(policy)}
+	return copilotModelCatalog{AvailableModelIDs: uniqueCopilotModelIDs(available), AvailableClassifierModelIDs: uniqueCopilotModelIDs(classifier), PolicyModelIDs: uniqueCopilotModelIDs(policy)}
 }
 
 func uniqueCopilotModelIDs(ids []string) []string {
@@ -576,10 +615,14 @@ func isSelectableCopilotModel(item map[string]interface{}) bool {
 }
 
 func availableCopilotModelSet(creds *Credentials) map[string]bool {
+	return availableCopilotCredentialSet(creds, "availableModelIds")
+}
+
+func availableCopilotCredentialSet(creds *Credentials, key string) map[string]bool {
 	if creds == nil || creds.Extra == nil {
 		return nil
 	}
-	raw, ok := creds.Extra["availableModelIds"]
+	raw, ok := creds.Extra[key]
 	if !ok {
 		return nil
 	}

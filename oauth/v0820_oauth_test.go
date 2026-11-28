@@ -82,8 +82,11 @@ func TestKimiCodingOAuthDeviceFlowAndRefresh(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if auth.URL == "" || creds.Access != "access-1" || creds.Refresh != "refresh-1" {
-		t.Fatalf("auth=%#v creds=%#v", auth, creds)
+	if auth.URL != "https://auth.kimi.com/verify?user_code=USER" || auth.UserCode != "USER" || auth.IntervalSeconds != 1 || auth.ExpiresInSeconds != 60 {
+		t.Fatalf("auth=%#v", auth)
+	}
+	if creds.Access != "access-1" || creds.Refresh != "refresh-1" {
+		t.Fatalf("creds=%#v", creds)
 	}
 	refreshed, err := p.RefreshToken(creds)
 	if err != nil {

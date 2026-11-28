@@ -48,12 +48,16 @@ func TestMetaOAuthLoginMintsAPIKey(t *testing.T) {
 	provider.deviceTokenURL = server.URL + "/token"
 	provider.apiKeyMintURL = server.URL + "/mint"
 	provider.pollWait = func(context.Context, time.Duration) error { return nil }
-	creds, err := provider.Login(LoginCallbacks{})
+	var auth AuthInfo
+	creds, err := provider.Login(LoginCallbacks{OnAuth: func(info AuthInfo) { auth = info }})
 	if err != nil {
 		t.Fatalf("login: %v", err)
 	}
 	if !sawDevice || !sawToken || !sawMint {
 		t.Fatalf("saw device/token/mint = %v/%v/%v", sawDevice, sawToken, sawMint)
+	}
+	if auth.UserCode != "ABCD-1234" || auth.IntervalSeconds != 1 || auth.ExpiresInSeconds != 60 || auth.URL != server.URL+"/verify?code=ABCD-1234" {
+		t.Fatalf("auth=%#v", auth)
 	}
 	if creds.Refresh != "identity-token" || creds.Access != "LLM|minted-key" || creds.Expires <= time.Now().UnixMilli() {
 		t.Fatalf("credentials=%#v", creds)

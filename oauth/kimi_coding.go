@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -50,7 +51,7 @@ func (p *KimiCodingProvider) Login(callbacks LoginCallbacks) (*Credentials, erro
 		return nil, err
 	}
 	if callbacks.OnAuth != nil {
-		callbacks.OnAuth(AuthInfo{URL: device.VerificationURIComplete, Instructions: fmt.Sprintf("Enter code: %s", device.UserCode)})
+		callbacks.OnAuth(AuthInfo{URL: device.VerificationURIComplete, Instructions: fmt.Sprintf("Enter code: %s", device.UserCode), UserCode: device.UserCode, IntervalSeconds: device.Interval, ExpiresInSeconds: device.ExpiresIn})
 	}
 	return p.pollDevice(context.Background(), device)
 }
@@ -63,14 +64,30 @@ func (p *KimiCodingProvider) RefreshTokenContext(ctx context.Context, creds *Cre
 	if creds == nil || creds.Refresh == "" {
 		return nil, fmt.Errorf("kimi code OAuth refresh token is missing")
 	}
-	body, status, err := p.postForm(ctx, "/api/oauth/token", url.Values{"client_id": {kimiCodeClientID}, "grant_type": {"refresh_token"}, "refresh_token": {creds.Refresh}})
-	if err != nil {
-		return nil, err
-	}
-	if status < 200 || status >= 300 {
+	for attempt := 0; attempt < 2; attempt++ {
+		body, status, err := p.postForm(ctx, "/api/oauth/token", url.Values{"client_id": {kimiCodeClientID}, "grant_type": {"refresh_token"}, "refresh_token": {creds.Refresh}})
+		if err != nil {
+			return nil, err
+		}
+		if status >= 200 && status < 300 {
+			return kimiTokenCredentials(body, "refresh")
+		}
+		if status == http.StatusTooManyRequests && attempt == 0 {
+			wait := p.pollWait
+			if wait == nil {
+				wait = waitRadiusPollInterval
+			}
+			if err := wait(ctx, time.Second); err != nil {
+				return nil, err
+			}
+			continue
+		}
+		if code, _ := body["error"].(string); code == "invalid_grant" {
+			return nil, fmt.Errorf("kimi code OAuth refresh unauthorized: %s", oauthErrorDetail(body))
+		}
 		return nil, fmt.Errorf("kimi code token refresh failed (HTTP %d): %s", status, oauthErrorDetail(body))
 	}
-	return kimiTokenCredentials(body, "refresh")
+	panic("unreachable")
 }
 
 type kimiDevice struct {
@@ -141,7 +158,11 @@ func (p *KimiCodingProvider) pollDevice(ctx context.Context, dev *kimiDevice) (*
 }
 
 func (p *KimiCodingProvider) postForm(ctx context.Context, path string, form url.Values) (map[string]interface{}, int, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(p.oauthURL, "/")+path, strings.NewReader(form.Encode()))
+	baseURL := p.oauthURL
+	if override := strings.TrimSpace(os.Getenv("KIMI_CODE_OAUTH_HOST")); override != "" {
+		baseURL = override
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(baseURL, "/")+path, strings.NewReader(form.Encode()))
 	if err != nil {
 		return nil, 0, err
 	}

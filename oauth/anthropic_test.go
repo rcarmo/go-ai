@@ -402,7 +402,11 @@ func TestAnthropicOAuthBrowserCompletesBeforeSuccessAndExchangesOnce(t *testing.
 					}
 					page, _ := io.ReadAll(response.Body)
 					response.Body.Close()
-					if failExchange {
+					if i == 1 {
+						if response.StatusCode != http.StatusConflict {
+							t.Errorf("duplicate response status=%d body=%s", response.StatusCode, page)
+						}
+					} else if failExchange {
 						if response.StatusCode != http.StatusBadGateway || strings.Contains(string(page), "Signed in") || strings.Contains(string(page), "secret-access") || strings.Contains(string(page), "callback-code") {
 							t.Errorf("failed exchange response status=%d body=%s", response.StatusCode, page)
 						}

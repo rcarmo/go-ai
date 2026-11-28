@@ -152,11 +152,11 @@ func startOAuthCallbackServer(ctx context.Context, opts oauthCallbackOptions) (*
 	}
 	mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
-			http.Error(w, "callback method not allowed", http.StatusMethodNotAllowed)
+			http.NotFound(w, r)
 			return
 		}
 		if opts.State != "" && r.URL.Query().Get("state") != opts.State {
-			http.Error(w, "state mismatch", http.StatusBadRequest)
+			_ = writeOAuthCallbackResponse(w, http.StatusBadRequest, "text/html; charset=utf-8", oauthCallbackFailureHTML(providerName, "State mismatch."))
 			return
 		}
 		if oauthErr := r.URL.Query().Get("error"); oauthErr != "" {
@@ -164,7 +164,7 @@ func startOAuthCallbackServer(ctx context.Context, opts oauthCallbackOptions) (*
 			if desc == "" {
 				desc = oauthErr
 			}
-			_ = writeOAuthCallbackResponse(w, http.StatusBadRequest, "text/plain; charset=utf-8", providerName+" authorization failed: "+desc+"\n")
+			_ = writeOAuthCallbackResponse(w, http.StatusBadRequest, "text/html; charset=utf-8", oauthCallbackFailureHTML(providerName, "Authorization failed: "+desc))
 			finishErr(fmt.Errorf("%s authorization failed: %s", providerName, desc))
 			return
 		}
@@ -176,16 +176,19 @@ func startOAuthCallbackServer(ctx context.Context, opts oauthCallbackOptions) (*
 		copyURL.Scheme = "http"
 		copyURL.Host = r.Host
 		completionMu.Lock()
-		defer completionMu.Unlock()
-		if !completed {
-			completed = true
-			if opts.Complete != nil {
-				completionErr = opts.Complete(r.Context(), &copyURL)
-			}
+		if completed {
+			completionMu.Unlock()
+			http.Error(w, "callback already claimed", http.StatusConflict)
+			return
+		}
+		completed = true
+		completionMu.Unlock()
+		if opts.Complete != nil {
+			completionErr = opts.Complete(r.Context(), &copyURL)
 		}
 		if completionErr != nil {
 			// Never echo endpoint errors or authorization credentials into HTML.
-			_ = writeOAuthCallbackResponse(w, http.StatusBadGateway, "text/plain; charset=utf-8", "Authentication failed: token exchange did not complete.\n")
+			_ = writeOAuthCallbackResponse(w, http.StatusBadGateway, "text/html; charset=utf-8", oauthCallbackFailureHTML(providerName, "token exchange failed; provider details were not exposed."))
 			finishErr(completionErr)
 			return
 		}
@@ -245,6 +248,14 @@ func writeOAuthCallbackResponse(w http.ResponseWriter, status int, contentType, 
 }
 
 const oauthCallbackLogoSVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" aria-hidden="true"><path fill="#F09082" d="M165.29 165.29H517.36V400H400V282.65H165.29Z"/><path fill="#4D9ABF" d="M165.29 282.65H282.65V400H400V517.36H282.65V634.72H165.29Z"/><path fill="#F1BE58" d="M517.36 400H634.72V634.72H517.36Z"/></svg>`
+
+func oauthCallbackFailureHTML(providerName, message string) string {
+	if providerName == "" {
+		providerName = "OAuth"
+	}
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Authentication failed</title></head><body><main><h1>` +
+		html.EscapeString(providerName) + ` sign-in failed.</h1><p>` + html.EscapeString(message) + `</p></main></body></html>`
+}
 
 func oauthCallbackSuccessHTML(providerName string) string {
 	if providerName == "" {

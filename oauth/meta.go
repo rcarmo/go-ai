@@ -48,7 +48,7 @@ func (p *MetaProvider) Login(callbacks LoginCallbacks) (*Credentials, error) {
 		return nil, err
 	}
 	if callbacks.OnAuth != nil {
-		callbacks.OnAuth(AuthInfo{URL: device.VerificationURI, Instructions: fmt.Sprintf("Enter code: %s", device.UserCode)})
+		callbacks.OnAuth(AuthInfo{URL: device.VerificationURI, Instructions: fmt.Sprintf("Enter code: %s", device.UserCode), UserCode: device.UserCode, IntervalSeconds: device.Interval, ExpiresInSeconds: device.ExpiresIn})
 	}
 	identityToken, err := p.pollForIdentityToken(context.Background(), device)
 	if err != nil {

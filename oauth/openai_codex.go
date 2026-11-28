@@ -1,4 +1,4 @@
-// OpenAI Codex OAuth — device code flow for ChatGPT Plus/Pro subscriptions.
+// OpenAI Codex OAuth — browser and OpenAI device authorization flows.
 package oauth
 
 import (
@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -16,19 +17,24 @@ import (
 )
 
 const (
-	codexDeviceCodeURL  = "https://auth0.openai.com/oauth/device/code"
-	codexAccessTokenURL = "https://auth0.openai.com/oauth/token"
-	codexClientID       = "DRivsnm2Mu42T3KOpqdtwB3NYviHYzwD"
-	codexAudience       = "https://api.openai.com/v1"
-	codexScope          = "openid profile email offline_access"
+	codexDeviceUserCodeURL     = "https://auth.openai.com/api/accounts/deviceauth/usercode"
+	codexDeviceTokenURL        = "https://auth.openai.com/api/accounts/deviceauth/token"
+	codexDeviceVerificationURI = "https://auth.openai.com/codex/device"
+	codexDeviceRedirectURI     = "https://auth.openai.com/deviceauth/callback"
+	codexDeviceTimeout         = 15 * time.Minute
+	codexBrowserLoginMethod    = "browser"
+	codexDeviceCodeLoginMethod = "device_code"
+	codexScope                 = "openid profile email offline_access"
 )
 
-// OpenAICodexProvider implements the OAuth device flow for OpenAI Codex.
+// OpenAICodexProvider implements the OAuth flows for OpenAI Codex.
 type OpenAICodexProvider struct {
-	client                 *http.Client
-	authorizeURL, tokenURL string
-	callbackPort           int
-	listen                 func(string, string) (net.Listener, error)
+	client                            *http.Client
+	authorizeURL, tokenURL            string
+	deviceUserCodeURL, deviceTokenURL string
+	callbackPort                      int
+	listen                            func(string, string) (net.Listener, error)
+	pollWait                          func(context.Context, time.Duration) error
 }
 
 func init() {
@@ -39,45 +45,29 @@ func (p *OpenAICodexProvider) ID() string   { return "openai-codex" }
 func (p *OpenAICodexProvider) Name() string { return "OpenAI Codex" }
 
 func (p *OpenAICodexProvider) Login(callbacks LoginCallbacks) (*Credentials, error) {
-	// Preserve native device-flow default; hosts can select the official
-	// browser flow. AgentName applies to its originator, never token authority.
-	method := "device_code"
-	if callbacks.AgentName != nil {
-		method = "browser"
-	}
+	method := codexDeviceCodeLoginMethod
 	if callbacks.OnSelect != nil {
-		selected, e := callbacks.OnSelect(SelectPrompt{Message: "Choose OpenAI Codex sign-in method", Options: []SelectOption{{Value: "browser", Label: "Browser login"}, {Value: "device_code", Label: "Device code login (headless)"}}, Default: method})
-		if e != nil {
-			return nil, e
+		selected, err := callbacks.OnSelect(SelectPrompt{
+			Message: "Select OpenAI Codex login method:",
+			Options: []SelectOption{{Value: codexBrowserLoginMethod, Label: "Browser login (default)"}, {Value: codexDeviceCodeLoginMethod, Label: "Device code login (headless)"}},
+			Default: codexBrowserLoginMethod,
+		})
+		if err != nil {
+			return nil, err
 		}
 		if selected != "" {
 			method = selected
 		}
 	}
-	if method == "browser" {
+	if method == codexBrowserLoginMethod {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
 		return p.loginBrowser(ctx, callbacks)
 	}
-	if method != "device_code" {
-		return nil, fmt.Errorf("unsupported OpenAI Codex login method %q", method)
+	if method != codexDeviceCodeLoginMethod {
+		return nil, fmt.Errorf("unknown OpenAI Codex login method %q", method)
 	}
-	// Start device flow
-	device, err := startCodexDeviceFlow()
-	if err != nil {
-		return nil, fmt.Errorf("device flow: %w", err)
-	}
-
-	if callbacks.OnAuth != nil {
-		callbacks.OnAuth(AuthInfo{
-			URL:          device.VerificationURI,
-			Instructions: fmt.Sprintf("Enter code: %s", device.UserCode),
-		})
-	}
-
-	// Poll for access token
-	ctx := context.Background()
-	return pollForCodexToken(ctx, device.DeviceCode, device.Interval, device.ExpiresIn)
+	return p.loginDevice(context.Background(), callbacks)
 }
 
 func (p *OpenAICodexProvider) RefreshToken(creds *Credentials) (*Credentials, error) {
@@ -88,13 +78,17 @@ func (p *OpenAICodexProvider) RefreshTokenContext(ctx context.Context, creds *Cr
 	if creds == nil || creds.Refresh == "" {
 		return nil, fmt.Errorf("OpenAI Codex OAuth refresh token is missing")
 	}
-	if clientID, _ := creds.Extra["clientId"].(string); clientID == codexBrowserClientID {
-		return p.browserToken(ctx, url.Values{"grant_type": {"refresh_token"}, "refresh_token": {creds.Refresh}, "client_id": {clientID}}, creds.Refresh)
-	}
-	return refreshCodexToken(ctx, creds.Refresh)
+	return p.browserToken(ctx, url.Values{
+		"grant_type":    {"refresh_token"},
+		"refresh_token": {creds.Refresh},
+		"client_id":     {codexBrowserClientID},
+	}, creds.Refresh)
 }
 
 func (p *OpenAICodexProvider) GetAPIKey(creds *Credentials) string {
+	if creds == nil {
+		return ""
+	}
 	return creds.Access
 }
 
@@ -103,132 +97,190 @@ func (p *OpenAICodexProvider) ModifyModels(models []*goai.Model, creds *Credenti
 }
 
 type codexDeviceResponse struct {
-	DeviceCode      string `json:"device_code"`
-	UserCode        string `json:"user_code"`
-	VerificationURI string `json:"verification_uri_complete"`
-	Interval        int    `json:"interval"`
-	ExpiresIn       int    `json:"expires_in"`
+	DeviceAuthID string
+	UserCode     string
+	Interval     int
 }
 
-func startCodexDeviceFlow() (*codexDeviceResponse, error) {
-	body := url.Values{
-		"client_id": {codexClientID},
-		"scope":     {codexScope},
-		"audience":  {codexAudience},
-	}
-
-	resp, err := http.Post(codexDeviceCodeURL, "application/x-www-form-urlencoded", strings.NewReader(body.Encode()))
+func (p *OpenAICodexProvider) loginDevice(ctx context.Context, callbacks LoginCallbacks) (*Credentials, error) {
+	device, err := p.startCodexDeviceFlow(ctx)
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(b))
+	if callbacks.OnAuth != nil {
+		callbacks.OnAuth(AuthInfo{
+			URL:              codexDeviceVerificationURI,
+			Instructions:     fmt.Sprintf("Enter code: %s", device.UserCode),
+			UserCode:         device.UserCode,
+			IntervalSeconds:  device.Interval,
+			ExpiresInSeconds: int(codexDeviceTimeout / time.Second),
+		})
 	}
-
-	var result codexDeviceResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	tokens, err := p.pollForCodexToken(ctx, device)
+	if err != nil {
 		return nil, err
 	}
-	if result.VerificationURI == "" {
-		// Fallback to non-complete URI
-		var raw map[string]interface{}
-		json.Unmarshal([]byte(`{}`), &raw)
-	}
-	return &result, nil
+	return p.browserToken(ctx, url.Values{
+		"grant_type":    {"authorization_code"},
+		"client_id":     {codexBrowserClientID},
+		"code":          {tokens.AuthorizationCode},
+		"code_verifier": {tokens.CodeVerifier},
+		"redirect_uri":  {codexDeviceRedirectURI},
+	}, "")
 }
 
-func pollForCodexToken(ctx context.Context, deviceCode string, intervalSecs, expiresIn int) (*Credentials, error) {
-	deadline := time.Now().Add(time.Duration(expiresIn) * time.Second)
-	interval := explicitDeviceCodePollInterval(intervalSecs)
+func (p *OpenAICodexProvider) codexClient() *http.Client {
+	if p.client != nil {
+		return p.client
+	}
+	return http.DefaultClient
+}
 
+func (p *OpenAICodexProvider) startCodexDeviceFlow(ctx context.Context) (*codexDeviceResponse, error) {
+	endpoint := p.deviceUserCodeURL
+	if endpoint == "" {
+		endpoint = codexDeviceUserCodeURL
+	}
+	reqBody := strings.NewReader(`{"client_id":"` + codexBrowserClientID + `"}`)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, reqBody)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := p.codexClient().Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("OpenAI Codex device code request failed: %w", err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		if resp.StatusCode == http.StatusNotFound {
+			return nil, fmt.Errorf("OpenAI Codex device code login is not enabled for this server. Use browser login or verify the server URL")
+		}
+		if len(body) == 0 {
+			return nil, fmt.Errorf("OpenAI Codex device code request failed with status %d", resp.StatusCode)
+		}
+		return nil, fmt.Errorf("OpenAI Codex device code request failed with status %d: %s", resp.StatusCode, body)
+	}
+	var raw struct {
+		DeviceAuthID string      `json:"device_auth_id"`
+		UserCode     string      `json:"user_code"`
+		Interval     interface{} `json:"interval"`
+	}
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return nil, fmt.Errorf("invalid OpenAI Codex device code response: %s", body)
+	}
+	interval := 0
+	validInterval := false
+	switch value := raw.Interval.(type) {
+	case string:
+		parsed, err := strconv.Atoi(strings.TrimSpace(value))
+		interval, validInterval = parsed, err == nil
+	case float64:
+		interval, validInterval = int(value), value >= 0 && value == float64(int(value))
+	}
+	if raw.DeviceAuthID == "" || raw.UserCode == "" || !validInterval {
+		return nil, fmt.Errorf("invalid OpenAI Codex device code response: %s", body)
+	}
+	return &codexDeviceResponse{DeviceAuthID: raw.DeviceAuthID, UserCode: raw.UserCode, Interval: interval}, nil
+}
+
+type codexDeviceTokens struct {
+	AuthorizationCode string
+	CodeVerifier      string
+}
+
+func (p *OpenAICodexProvider) pollForCodexToken(ctx context.Context, device *codexDeviceResponse) (codexDeviceTokens, error) {
+	deadline := time.Now().Add(codexDeviceTimeout)
+	interval := explicitDeviceCodePollInterval(device.Interval)
+	endpoint := p.deviceTokenURL
+	if endpoint == "" {
+		endpoint = codexDeviceTokenURL
+	}
 	for time.Now().Before(deadline) {
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-time.After(interval):
-		}
-
-		body := url.Values{
-			"grant_type":  {"urn:ietf:params:oauth:grant-type:device_code"},
-			"device_code": {deviceCode},
-			"client_id":   {codexClientID},
-		}
-
-		resp, err := http.Post(codexAccessTokenURL, "application/x-www-form-urlencoded", strings.NewReader(body.Encode()))
+		bodyBytes, _ := json.Marshal(map[string]string{"device_auth_id": device.DeviceAuthID, "user_code": device.UserCode})
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(string(bodyBytes)))
 		if err != nil {
-			continue
+			return codexDeviceTokens{}, err
 		}
-
-		var raw map[string]interface{}
-		json.NewDecoder(resp.Body).Decode(&raw)
-		resp.Body.Close()
-
-		if token, ok := raw["access_token"].(string); ok {
-			refresh, _ := raw["refresh_token"].(string)
-			expiresIn, _ := raw["expires_in"].(float64)
-			return &Credentials{
-				Refresh: refresh,
-				Access:  token,
-				Expires: time.Now().Add(time.Duration(expiresIn)*time.Second - 5*time.Minute).UnixMilli(),
-			}, nil
-		}
-
-		if errStr, ok := raw["error"].(string); ok {
-			if nextInterval, ok := nextDeviceCodePollIntervalWithServerInterval(interval, errStr, deviceCodeServerInterval(raw)); ok {
-				interval = nextInterval
-				continue
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := p.codexClient().Do(req)
+		if err != nil {
+			if ctx.Err() != nil {
+				return codexDeviceTokens{}, oauthFlowError("Login cancelled")
 			}
-			desc, _ := raw["error_description"].(string)
-			return nil, fmt.Errorf("device flow: %s: %s", errStr, desc)
+			return codexDeviceTokens{}, err
+		}
+		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+		resp.Body.Close()
+		if readErr != nil {
+			return codexDeviceTokens{}, readErr
+		}
+		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+			var success struct {
+				AuthorizationCode string `json:"authorization_code"`
+				CodeVerifier      string `json:"code_verifier"`
+			}
+			if err := json.Unmarshal(body, &success); err != nil || success.AuthorizationCode == "" || success.CodeVerifier == "" {
+				return codexDeviceTokens{}, fmt.Errorf("invalid OpenAI Codex device auth token response: %s", body)
+			}
+			return codexDeviceTokens{AuthorizationCode: success.AuthorizationCode, CodeVerifier: success.CodeVerifier}, nil
+		}
+		pending := resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusNotFound
+		var failure struct {
+			Error interface{} `json:"error"`
+		}
+		_ = json.Unmarshal(body, &failure)
+		errorCode := ""
+		switch value := failure.Error.(type) {
+		case string:
+			errorCode = value
+		case map[string]interface{}:
+			errorCode, _ = value["code"].(string)
+		}
+		if errorCode == "deviceauth_authorization_pending" {
+			pending = true
+		}
+		if errorCode == "slow_down" {
+			interval += 5 * time.Second
+			pending = true
+		}
+		if !pending {
+			if len(body) == 0 {
+				return codexDeviceTokens{}, fmt.Errorf("OpenAI Codex device auth failed with status %d", resp.StatusCode)
+			}
+			return codexDeviceTokens{}, fmt.Errorf("OpenAI Codex device auth failed with status %d: %s", resp.StatusCode, body)
+		}
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			break
+		}
+		wait := interval
+		if wait > remaining {
+			wait = remaining
+		}
+		waitFunc := p.pollWait
+		if waitFunc == nil {
+			waitFunc = func(waitCtx context.Context, delay time.Duration) error {
+				timer := time.NewTimer(delay)
+				defer timer.Stop()
+				select {
+				case <-waitCtx.Done():
+					return waitCtx.Err()
+				case <-timer.C:
+					return nil
+				}
+			}
+		}
+		if err := waitFunc(ctx, wait); err != nil {
+			if ctx.Err() != nil {
+				return codexDeviceTokens{}, oauthFlowError("Login cancelled")
+			}
+			return codexDeviceTokens{}, err
 		}
 	}
-
-	return nil, fmt.Errorf("device flow timed out")
-}
-
-func refreshCodexToken(ctx context.Context, refreshToken string) (*Credentials, error) {
-	body := url.Values{
-		"grant_type":    {"refresh_token"},
-		"client_id":     {codexClientID},
-		"refresh_token": {refreshToken},
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, codexAccessTokenURL, strings.NewReader(body.Encode()))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return nil, fmt.Errorf("token refresh failed (%d): %s", resp.StatusCode, string(b))
-	}
-
-	var result struct {
-		AccessToken  string  `json:"access_token"`
-		RefreshToken string  `json:"refresh_token"`
-		ExpiresIn    float64 `json:"expires_in"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, err
-	}
-
-	refresh := result.RefreshToken
-	if refresh == "" {
-		refresh = refreshToken
-	}
-
-	return &Credentials{
-		Refresh: refresh,
-		Access:  result.AccessToken,
-		Expires: time.Now().Add(time.Duration(result.ExpiresIn)*time.Second - 5*time.Minute).UnixMilli(),
-	}, nil
+	return codexDeviceTokens{}, oauthFlowError("Device flow timed out")
 }
