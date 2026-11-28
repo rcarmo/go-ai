@@ -104,7 +104,12 @@ func (s *Session) contextView(ctx context.Context, conversation, at ID, capture 
 		return ContextView{}, err
 	}
 	if s.delegatedStorage {
-		defer s.leave()
+		// A wrapper's storage scan is off-line, like the native retained-range
+		// derivation below. Keep the admitted snapshot (and its tail bound), but
+		// release the Session line so unrelated commits can publish while the
+		// adapter scan is in flight. The wrapper result never enters the range
+		// cache and therefore cannot skip a concurrently published entry.
+		s.leave()
 		return s.readDelegatedContext(ctx, state, conversation, at)
 	}
 	if !native {
