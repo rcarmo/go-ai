@@ -15,7 +15,7 @@ The source-parse Node `vm.Script` control, worker-path/WASM/process failures, `-
 
 ## Exact locators
 
-- Manifest, 48 unique inline case ranges, adaptation flags and native test locators: `docs/upstream-v1.7.0/assertions/codemode-sandbox.jsonl`.
+- Manifest, 48 unique inline case ranges, adaptation flags and native test locators: `docs/upstream-v1.7.0/evidence/codemode-sandbox.json`.
 - Core public controls: `durable/codemode_sandbox_output_order_v160_test.go:TestSourceV160CodemodePublishedOutputOrder`, `durable/codemode_exit_v160_test.go:TestSourceV160CodemodeInlineEngineExit`, `durable/codemode_catchable_tool_error_v160_test.go:TestSourceV160CodemodeInlineEngineCatchableToolError`, `durable/codemode_unawaited_v160_test.go:TestSourceV160CodemodeInlineEngineCancelsUnawaitedCall`, `durable/codemode_store_snapshot_v160_test.go:TestSourceV160CodemodeStoreSnapshots`, `durable/codemode_sandbox_store_bounds_v160_test.go:TestSourceV160CodemodeSandboxStoreBounds`, `durable/codemode_sandbox_global_call_details_v160_test.go`, `durable/codemode_sandbox_global_admission_v160_test.go`, `durable/codemode_sandbox_namespace_missing_v160_test.go` and `durable/codemode_sandbox_stack_v160_test.go`.
 - Embedded controls: `internal/quickjs/engine_120_test.go`, `tools_crosswalk_120_test.go`, `store_crosswalk_120_test.go`, `globals_crosswalk_120_test.go`, `isolation_crosswalk_120_test.go`, `abort_signals_v160_test.go`, `no_deadline_v160_test.go`, `output_limits_v160_test.go`, `sandbox_lifetime_v160_test.go`, `frozen_objects_v160_test.go` and `tool_aliases_v161_test.go`.
 
